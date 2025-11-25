@@ -217,8 +217,10 @@ class worker_base
 public:
     enum class state : u8 { idle, starting, running, stopping, stopped };
 
+private:
     worker_base() noexcept = default;
 
+public:
     virtual ~worker_base() noexcept
     {
         if (current_state() != state::stopped) {
@@ -286,6 +288,7 @@ private:
     std::thread thread_;
 
     std::atomic<std::chrono::nanoseconds::rep> exec_time_{ 0 };
+    friend Derived;
 };
 
 class ordered_task_list
@@ -457,6 +460,20 @@ private:
     ordered_task_list* task_list_ = nullptr;
 };
 
+class unordered_worker final : public worker_base<unordered_worker>
+{
+public:
+    unordered_worker() noexcept = default;
+
+    unordered_worker(unordered_worker&&) noexcept = delete;
+
+    void add_task_list(unordered_task_list* tl) noexcept;
+    void run() noexcept;
+
+private:
+    vector<unordered_task_list*> task_lists_;
+};
+
 class unordered_task_list
 {
 public:
@@ -570,7 +587,7 @@ private:
     worker_stats*               stats_ = nullptr;
     std::span<unordered_worker> workers_;
 
-    std::vector<task> pending_tasks_;
+    vector<task> pending_tasks_;
 
     // Sync
     mutable std::mutex      mtx_;
@@ -589,91 +606,68 @@ private:
     std::atomic<u32> completed_tasks_atomic_proxy_{ 0 };
 };
 
-class unordered_worker final : public worker_base<unordered_worker>
+inline void unordered_worker::add_task_list(unordered_task_list* tl) noexcept
 {
-public:
-    unordered_worker() noexcept = default;
+    task_lists_.push_back(tl);
+}
 
-    unordered_worker(unordered_worker&&) noexcept = delete;
+inline void unordered_worker::run() noexcept
+{
+    using namespace std::chrono_literals;
 
-    void add_task_list(unordered_task_list* tl) noexcept
-    {
-        task_lists_.push_back(tl);
-    }
+    while (state_.load(std::memory_order_acquire) == state::running) {
+        bool found_work    = false;
+        bool any_executing = false;
 
-    void run() noexcept
-    {
-        using namespace std::chrono_literals;
-
-        while (state_.load(std::memory_order_acquire) == state::running) {
-            bool found_work    = false;
-            bool any_executing = false;
-
-            for (auto* tl : task_lists_) {
-                {
-                    // Lire l’état sous mutex
-                    std::lock_guard<std::mutex> lock(tl->mtx_);
-                    any_executing |=
-                      (tl->phase_ == unordered_task_list::phase::executing) &&
-                      (tl->completed_tasks_ < tl->batch_size_);
-                }
-
-                job j;
-                while (tl->try_steal_task(j)) {
-                    found_work = true;
-
-                    const auto start = std::chrono::steady_clock::now();
-                    try {
-                        j.function();
-                    } catch (...) { /* log */
-                    }
-                    const auto elapsed =
-                      std::chrono::steady_clock::now() - start;
-                    add_execution_time(elapsed);
-
-                    // Signaler complétion (ne pas écrire directement sur proxy)
-                    tl->notify_task_done();
-                }
+        for (auto* tl : task_lists_) {
+            {
+                // Lire l’état sous mutex
+                std::lock_guard<std::mutex> lock(tl->mtx_);
+                any_executing |=
+                  (tl->phase_ == unordered_task_list::phase::executing) &&
+                  (tl->completed_tasks_ < tl->batch_size_);
             }
 
-            if (!found_work) {
-                if (any_executing) {
-                    // micro-yield en présence d’un batch
-                    std::this_thread::yield();
+            job j;
+            while (tl->try_steal_task(j)) {
+                found_work = true;
+
+                const auto start = std::chrono::steady_clock::now();
+                try {
+                    j.function();
+                } catch (...) { /* log */
+                }
+                const auto elapsed = std::chrono::steady_clock::now() - start;
+                add_execution_time(elapsed);
+
+                // Signaler complétion (ne pas écrire directement sur proxy)
+                tl->notify_task_done();
+            }
+        }
+
+        if (!found_work) {
+            if (any_executing) {
+                std::this_thread::yield();
+            } else {
+                if (!task_lists_.empty()) {
+                    auto* tl = task_lists_.front();
+
+                    std::unique_lock<std::mutex> lock(tl->mtx_);
+                    tl->cv_workers_.wait_for(lock, 5ms, [&] {
+                        return tl->phase_ ==
+                                 unordered_task_list::phase::executing ||
+                               tl->phase_ ==
+                                 unordered_task_list::phase::shutting_down ||
+                               state_.load(std::memory_order_acquire) !=
+                                 state::running;
+                    });
                 } else {
-                    // Attendre un submit ou shutdown via une condition
-                    // quelconque On choisit une liste pour attendre; toutes
-                    // notifient cv_workers_ au submit/shutdown
-                    if (!task_lists_.empty()) {
-                        auto*                        tl = task_lists_.front();
-                        std::unique_lock<std::mutex> lock(tl->mtx_);
-                        tl->cv_workers_.wait_for(lock, 5ms, [&] {
-                            return tl->phase_ ==
-                                     unordered_task_list::phase::executing ||
-                                   tl->phase_ == unordered_task_list::phase::
-                                                   shutting_down ||
-                                   state_.load(std::memory_order_acquire) !=
-                                     state::running;
-                        });
-                    } else {
-                        std::this_thread::sleep_for(5ms);
-                    }
+                    std::this_thread::sleep_for(5ms);
                 }
             }
         }
     }
-
-    void wake() noexcept
-    {
-        // Le wake réel est piloté par les listes via cv_workers_, mais on
-        // conserve cette API pour compatibilité avec task_manager::shutdown()
-        // et unordered_task_list::submit(). Aucun état local à notifier ici;
-        // les listes notifient leurs cv_workers_.
-    }
-
-private:
-    std::vector<unordered_task_list*> task_lists_;
-};
+}
 
 template<std::size_t OrderedList = 4, std::size_t UnorderedList = 1>
 class task_manager
@@ -857,10 +851,6 @@ inline void unordered_task_list::submit() noexcept
         phase_           = phase::executing;
     }
 
-    // Réveiller tous les workers
-    for (auto& w : workers_)
-        w.wake();
-
     cv_workers_.notify_all();
 }
 
@@ -873,8 +863,6 @@ inline void unordered_task_list::shutdown() noexcept
 
     cv_workers_.notify_all();
     cv_producer_.notify_all();
-    for (auto& w : workers_)
-        w.wake();
 }
 
 // task_manager
