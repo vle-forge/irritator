@@ -4395,7 +4395,7 @@ inline vector<T, A>::vector(std::integral auto size) noexcept
         m_size     = static_cast<index_type>(size);
         m_capacity = static_cast<index_type>(size);
 
-        std::uninitialized_fill_n(data(), m_size, T{});
+        std::uninitialized_default_construct_n(data(), m_size);
     }
 }
 

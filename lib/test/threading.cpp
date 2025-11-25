@@ -458,20 +458,80 @@ int main()
     };
 
     struct Counter {
-        int              value = 0;
+        std::atomic_int  value = 0;
         std::vector<int> history;
 
         Counter() = default;
         Counter(int v)
           : value(v)
         {}
+
+        Counter(const Counter& o) noexcept
+          : value(o.value.load())
+          , history(o.history)
+        {}
+
+        Counter(Counter&& o) noexcept
+          : value(o.value.load())
+          , history(std::move(o.history))
+        {}
+
+        Counter& operator=(const Counter& o) noexcept
+        {
+            if (this != &o) {
+                value   = o.value.load();
+                history = o.history;
+            }
+
+            return *this;
+        }
+
+        Counter& operator=(Counter&& o) noexcept
+        {
+            if (this != &o) {
+                value   = o.value.load();
+                history = std::move(o.history);
+            }
+
+            return *this;
+        }
     };
 
     struct ComplexData {
         std::vector<int> data;
-        int              checksum = 0;
+        std::atomic_int  checksum = 0;
 
         ComplexData() = default;
+
+        ComplexData(const ComplexData& o) noexcept
+          : data(o.data)
+          , checksum(o.checksum.load())
+        {}
+
+        ComplexData(ComplexData&& o) noexcept
+          : data(std::move(o.data))
+          , checksum(o.checksum.load())
+        {}
+
+        ComplexData& operator=(const ComplexData& o) noexcept
+        {
+            if (&o != this) {
+                data     = o.data;
+                checksum = o.checksum.load();
+            }
+
+            return *this;
+        }
+
+        ComplexData& operator=(ComplexData&& o) noexcept
+        {
+            if (&o != this) {
+                data     = std::move(o.data);
+                checksum = o.checksum.load();
+            }
+
+            return *this;
+        }
 
         void add_value(int v)
         {
