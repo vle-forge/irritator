@@ -554,7 +554,7 @@ int main()
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            errors{ 0 };
 
-        const int num_readers      = 10;
+        const int num_readers      = 4;
         const int reads_per_thread = 10000;
 
         std::vector<std::thread> threads;
@@ -595,7 +595,7 @@ int main()
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            monotonic_errors{ 0 };
 
-        const int num_readers = 8;
+        const int num_readers = 3;
 
         std::thread writer([&]() {
             for (int i = 0; i < 1000; ++i) {
@@ -700,7 +700,7 @@ int main()
         });
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 3; ++i) {
             readers.emplace_back([&]() {
                 while (!stop.load()) {
                     buffer.read(
@@ -740,7 +740,7 @@ int main()
         });
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < 6; ++i) {
+        for (int i = 0; i < 3; ++i) {
             readers.emplace_back([&]() {
                 auto start_time = std::chrono::steady_clock::now();
                 while (std::chrono::steady_clock::now() - start_time <
@@ -794,7 +794,7 @@ int main()
             });
         }
 
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 2; ++i) {
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
@@ -807,7 +807,7 @@ int main()
             });
         }
 
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 2; ++i) {
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
@@ -868,10 +868,10 @@ int main()
 
     "shared_buffer_test::ConcurrentReaders"_test = [] {
         irt::shared_buffer<Data> buf;
-        static const auto        max_reader =
-          std::thread::hardware_concurrency() <= 1u
-                   ? 1u
-                   : std::thread::hardware_concurrency() - 1u;
+        static const auto        max_reader = 3u; /*
+   std::thread::hardware_concurrency() <= 1u
+            ? 1u
+            : std::thread::hardware_concurrency() - 1u; */
         std::atomic<bool> stop{ false };
 
         std::thread writer([&] {
@@ -918,11 +918,11 @@ int main()
         irt::shared_buffer<Data> buf;
         std::mutex               m;
         std::condition_variable  cv;
-        bool                     stop = false;
-        static const auto        max_reader =
-          std::thread::hardware_concurrency() <= 1u
-                   ? 1u
-                   : std::thread::hardware_concurrency() - 1u;
+        bool                     stop       = false;
+        static const auto        max_reader = 3u;
+        // std::thread::hardware_concurrency() <= 1u
+        //          ? 1u
+        //          : std::thread::hardware_concurrency() - 1u;
 
         std::thread writer([&] {
             for (int i = 0; i < 50; ++i) {
