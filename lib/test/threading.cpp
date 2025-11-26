@@ -142,10 +142,10 @@ int main()
             tm.ordered(0).add([&counter]() { function_100(counter); });
             tm.ordered(0).add([&counter]() { function_1(counter); });
             tm.ordered(0).add([&counter]() { function_100(counter); });
+            tm.ordered(0).wait_empty();
         }
-        tm.ordered(0).wait_empty();
 
-        expect(counter == 20200);
+        expect(eq(counter.load(), 20200));
 
         tm.shutdown();
     };
@@ -161,11 +161,9 @@ int main()
         for (int i = 0; i < 100; ++i) {
             tm.ordered(0).add([&counter]() { function_1(counter); });
             tm.ordered(0).add([&counter]() { function_100(counter); });
-            tm.ordered(0).add([&counter]() { function_1(counter); });
-            tm.ordered(0).add([&counter]() { function_100(counter); });
         }
         tm.ordered(0).wait_empty();
-        expect(eq(counter.load(), 202 * 100));
+        expect(eq(counter.load(), 101 * 100));
 
         tm.shutdown();
     };

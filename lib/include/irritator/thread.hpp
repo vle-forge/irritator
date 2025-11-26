@@ -310,8 +310,8 @@ public:
       size_t unordered_count,
       size_t unordered_worker_count = std::thread::hardware_concurrency())
       : ordered_lists_(ordered_count)
-      , unordered_lists_(unordered_count)
       , ordered_workers_(ordered_count, reserve_tag)
+      , unordered_lists_(unordered_count)
       , unordered_workers_(unordered_worker_count == 0 ? 1
                                                        : unordered_worker_count,
                            reserve_tag)
