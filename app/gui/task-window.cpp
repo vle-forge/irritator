@@ -23,41 +23,32 @@ void task_window::show_widgets() noexcept
     // ImGui::LabelFormat("lists", "{}", app.task_mgr.unordered_worker_number);
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("Tasks list", 4)) {
+        if (ImGui::BeginTable("Tasks list", 3)) {
             ImGui::TableSetupColumn("id");
             ImGui::TableSetupColumn("Submitted tasks");
             ImGui::TableSetupColumn("finished tasks");
-            ImGui::TableSetupColumn("pending tasks");
             ImGui::TableHeadersRow();
 
-            {
-                const auto lst = app.task_mgr.ordered_lists();
-                for (sz i = 0; i < lst.size(); ++i) {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", main_task_strings[i]);
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", lst[i].tasks_submitted());
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", lst[i].tasks_completed());
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", lst[i].pending_tasks());
-                }
+            for (sz i = 0, e = app.task_mgr.ordered_size(); i < e; ++i) {
+                const auto& lst = app.task_mgr.ordered(i);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", main_task_strings[i]);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", lst.tasks_submitted());
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", lst.tasks_completed());
             }
 
-            {
-                const auto lst = app.task_mgr.unordered_lists();
-                for (sz i = 0; i < lst.size(); ++i) {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", i);
-                    ImGui::TableNextColumn();
-                    ImGui::TextUnformatted("-");
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", lst[i].tasks_completed());
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", lst[i].pending_tasks());
-                }
+            for (sz i = 0, e = app.task_mgr.unordered_size(); i < e; ++i) {
+                const auto& lst = app.task_mgr.unordered(i);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", main_task_strings[i]);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", lst.tasks_submitted());
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", lst.tasks_completed());
             }
 
             ImGui::EndTable();
@@ -67,35 +58,38 @@ void task_window::show_widgets() noexcept
     if (ImGui::CollapsingHeader("Worker list",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
 
-        if (ImGui::BeginTable("Workers", 2)) {
+        if (ImGui::BeginTable("Workers", 3)) {
             ImGui::TableSetupColumn("id");
+            ImGui::TableSetupColumn("Submitted tasks");
             ImGui::TableSetupColumn("execution duration");
             ImGui::TableHeadersRow();
 
-            {
-                const auto lst = app.task_mgr.ordered_workers();
-                for (sz i = 0; i < lst.size(); ++i) {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("ordered {}", i);
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat(
-                      "{}", human_readable_time(lst[i].execution_time()));
-                    ImGui::TableNextColumn();
-                }
+            for (sz i = 0, e = app.task_mgr.wordered_size(); i < e; ++i) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("ordered {}", i);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}",
+                                  app.task_mgr.wordered_tasks_completed(i));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat(
+                  "{}",
+                  human_readable_time(app.task_mgr.wordered_execution_time(i)));
+                ImGui::TableNextColumn();
             }
 
-            {
-                const auto lst = app.task_mgr.unordered_workers();
-                for (sz i = 0; i < lst.size(); ++i) {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("unordered {}", i);
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat(
-                      "{}", human_readable_time(lst[i].execution_time()));
-                    ImGui::TableNextColumn();
-                }
+            for (sz i = 0, e = app.task_mgr.wunordered_size(); i < e; ++i) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("ordered {}", i);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}",
+                                  app.task_mgr.wunordered_tasks_completed(i));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}",
+                                  human_readable_time(
+                                    app.task_mgr.wunordered_execution_time(i)));
+                ImGui::TableNextColumn();
             }
 
             ImGui::EndTable();

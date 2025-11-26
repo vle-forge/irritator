@@ -1445,7 +1445,7 @@ public:
     ~application() noexcept;
 
 private:
-    task_manager<4, 1> task_mgr;
+    task_manager task_mgr;
 
 public:
     config_manager   config;
@@ -1630,15 +1630,13 @@ void application::add_simulation_task(const project_id id, Fn&& fn) noexcept
 {
     const auto index = get_index(id) % 3;
 
-    task_mgr.get_ordered_list(index).add(fn);
-    task_mgr.get_ordered_list(index).notify_worker();
+    task_mgr.ordered(index).add(fn);
 }
 
 template<typename Fn>
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    task_mgr.get_ordered_list(ordinal(main_task::gui)).add(fn);
-    task_mgr.get_ordered_list(ordinal(main_task::gui)).notify_worker();
+    task_mgr.ordered(ordinal(main_task::gui)).add(fn);
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */

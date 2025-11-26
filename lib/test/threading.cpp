@@ -165,7 +165,7 @@ int main()
             tm.ordered(0).add([&counter]() { function_100(counter); });
         }
         tm.ordered(0).wait_empty();
-        expect(counter == 202 * 100);
+        expect(eq(counter.load(), 202 * 100));
 
         tm.shutdown();
     };
