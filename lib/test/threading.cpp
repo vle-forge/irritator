@@ -15,8 +15,15 @@
 
 using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
-static void function_1(std::atomic_int& counter) noexcept { counter += 1; }
-static void function_100(std::atomic_int& counter) noexcept { counter += 100; }
+static void function_1(std::atomic_int& counter) noexcept
+{
+    counter.fetch_add(1, std::memory_order_seq_cst);
+}
+
+static void function_100(std::atomic_int& counter) noexcept
+{
+    counter.fetch_add(100, std::memory_order_seq_cst);
+}
 
 using data_task = irt::small_function<sizeof(int) * 2, void(void)>;
 enum class data_task_id : irt::u32;
@@ -71,7 +78,7 @@ int main()
 
     "spin-lock"_test = [] {
         fmt::print("spin-lock\n");
-        int             counter = 0;
+        std::atomic_int counter = 0;
         irt::spin_mutex spin;
 
         std::thread j1([&counter, &spin]() {
@@ -96,7 +103,7 @@ int main()
 
         j1.join();
         j2.join();
-        expect(counter == 0);
+        expect(eq(counter.load(), 0));
     };
 
     "scoped-lock"_test = [] {
@@ -125,7 +132,6 @@ int main()
             j1.join();
             j2.join();
             j3.join();
-
             expect(eq(mult.load(), 111));
         }
     };
@@ -206,7 +212,7 @@ int main()
             }
             tm.ordered(0).wait_empty();
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
         }
 
         tm.shutdown();
@@ -214,7 +220,7 @@ int main()
 
     "n-worker-1-temp-task-lists-simple"_test = [] {
         fmt::print("n-worker-1-temp-task-lists-simple\n");
-        irt::task_manager tm(1, 1);
+        irt::task_manager tm(0, 1);
 
         tm.start();
 
@@ -232,8 +238,8 @@ int main()
             tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
-            expect(counter_1 == 4);
-            expect(counter_2 == 400);
+            expect(eq(counter_1.load(), 4));
+            expect(eq(counter_2.load(), 400));
         }
 
         tm.shutdown();
@@ -254,7 +260,7 @@ int main()
             }
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
-            expect(counter == 101 * 100);
+            expect(eq(counter.load(), 101 * 100));
 
             for (int i = 0; i < 100; ++i) {
                 tm.unordered(0).add([&counter]() { function_1(counter); });
@@ -262,7 +268,7 @@ int main()
             }
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
-            expect(counter == 101 * 100 * 2);
+            expect(eq(counter.load(), 101 * 100 * 2));
 
             for (int i = 0; i < 100; ++i) {
                 tm.unordered(0).add([&counter]() { function_1(counter); });
@@ -270,7 +276,7 @@ int main()
             }
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
-            expect(counter == 101 * 100 * 3);
+            expect(eq(counter.load(), 101 * 100 * 3));
 
             for (int i = 0; i < 100; ++i) {
                 tm.unordered(0).add([&counter]() { function_1(counter); });
@@ -279,7 +285,7 @@ int main()
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
         }
         tm.shutdown();
 
@@ -319,7 +325,7 @@ int main()
                 function_100(counter);
             }
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
 
             tm.shutdown();
         }
