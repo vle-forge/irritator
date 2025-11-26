@@ -17,12 +17,12 @@ using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
 static void function_1(std::atomic_int& counter) noexcept
 {
-    counter.fetch_add(1, std::memory_order_seq_cst);
+    counter.fetch_add(1, std::memory_order_acq_rel);
 }
 
 static void function_100(std::atomic_int& counter) noexcept
 {
-    counter.fetch_add(100, std::memory_order_seq_cst);
+    counter.fetch_add(100, std::memory_order_acq_rel);
 }
 
 using data_task = irt::small_function<sizeof(int) * 2, void(void)>;
