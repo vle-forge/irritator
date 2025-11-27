@@ -9,16 +9,14 @@
 #include <irritator/ext.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <cassert>
 #include <condition_variable>
-#include <functional>
 #include <mutex>
 #include <thread>
 
 namespace irt {
 
-using task = std::function<void()>;
+using task = lambda_function<void(void), sizeof(void*) * 4>;
 
 class ordered_task_list;
 class unordered_task_list;
@@ -31,14 +29,15 @@ class task_manager;
 class ordered_task_list
 {
 public:
-    void add(task t) noexcept
+    template<typename Fn>
+    void add(Fn&& fn) noexcept
     {
         {
             std::lock_guard<std::mutex> lock(mtx_);
             if (stopping_)
                 return;
             tasks_submitted_ += 1;
-            queue_.enqueue(std::move(t));
+            queue_.emplace_enqueue(std::forward<Fn>(fn));
         }
         cv_.notify_one();
     }
@@ -160,12 +159,13 @@ class unordered_task_list
 public:
     unordered_task_list() noexcept { pending_.reserve(1024); }
 
-    void add(task t) noexcept
+    template<typename Fn>
+    void add(Fn&& fn) noexcept
     {
         std::lock_guard<std::mutex> lock(mtx_);
         if (stopping_ || phase_ != phase::accepting)
             return;
-        pending_.push_back(std::move(t));
+        pending_.emplace_back(std::forward<Fn>(fn));
         tasks_submitted_ += 1;
     }
 

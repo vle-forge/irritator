@@ -2528,6 +2528,7 @@ public:
 
     constexpr void force_enqueue(const T& item) noexcept;
     constexpr bool enqueue(const T& item) noexcept;
+    constexpr bool enqueue(T&& item) noexcept;
     constexpr void dequeue() noexcept;
 
     constexpr T*       data() noexcept;
@@ -6637,6 +6638,18 @@ ring_buffer<T, A>::force_emplace_enqueue(Args&&... args) noexcept
 
 template<class T, typename A>
 constexpr bool ring_buffer<T, A>::enqueue(const T& item) noexcept
+{
+    if (full())
+        return false;
+
+    std::construct_at(&buffer[m_tail], item);
+    m_tail = advance(m_tail);
+
+    return true;
+}
+
+template<class T, typename A>
+constexpr bool ring_buffer<T, A>::enqueue(T&& item) noexcept
 {
     if (full())
         return false;

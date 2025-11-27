@@ -25,10 +25,10 @@ static void function_100(std::atomic_int& counter) noexcept
     counter.fetch_add(100, std::memory_order_acq_rel);
 }
 
-using data_task = irt::small_function<sizeof(int) * 2, void(void)>;
+using data_task = irt::lambda_function<void(void)>;
 enum class data_task_id : irt::u32;
 
-using data_task_ref = irt::small_function<sizeof(void*) * 2, void(void)>;
+using data_task_ref = irt::lambda_function<void(void)>;
 
 int main()
 {
