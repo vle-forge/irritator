@@ -51,17 +51,28 @@ public:
             return false;
         out = std::move(*queue_.head());
         queue_.pop_head();
-        tasks_completed_ += 1;
-        if (queue_.empty()) {
-            cv_.notify_all();
-        }
+        tasks_running_ += 1;
         return true;
+    }
+
+    void notify_done()
+    {
+        std::lock_guard<std::mutex> lock(mtx_);
+        --tasks_running_;
+        ++tasks_completed_;
+        if (queue_.empty() && tasks_running_ == 0 &&
+            tasks_completed_ == tasks_submitted_) {
+            cv_empty_.notify_all();
+        }
     }
 
     void wait_empty() noexcept
     {
         std::unique_lock<std::mutex> lock(mtx_);
-        cv_.wait(lock, [&] { return stopping_ || queue_.empty(); });
+        cv_empty_.wait(lock, [&] {
+            return stopping_ || (queue_.empty() && tasks_running_ == 0 &&
+                                 tasks_completed_ == tasks_submitted_);
+        });
     }
 
     void shutdown() noexcept
@@ -86,10 +97,13 @@ private:
     ring_buffer<task> queue_{ 256 };
 
     mutable std::mutex      mtx_;
-    std::condition_variable cv_;
+    std::condition_variable cv_;       // for workers (work available)
+    std::condition_variable cv_empty_; // for producers (fully drained)
 
-    u64  tasks_submitted_{ 0 };
-    u64  tasks_completed_{ 0 };
+    u64 tasks_submitted_{ 0 };
+    u64 tasks_completed_{ 0 };
+    u64 tasks_running_{ 0 };
+
     bool stopping_{ false };
 };
 
@@ -120,6 +134,7 @@ public:
                       (std::chrono::steady_clock::now() - start).count();
                 } catch (...) {
                 }
+                list_->notify_done();
             }
         });
     }
