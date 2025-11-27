@@ -827,13 +827,13 @@ void graph_component_editor_data::graph_component_editor_data::show(
             ImGui::BeginDisabled(can_save == false);
 
             if (ImGui::Button("Save")) {
-                if (auto file = make_file(app.mod, file); file.has_value()) {
-                    if (write_dot_file(app.mod, graph->g, *file)) {
+                if (auto f = make_file(app.mod, file); f.has_value()) {
+                    if (write_dot_file(app.mod, graph->g, *f)) {
                         graph->g_type = graph_component::graph_type::dot_file;
                         graph->param  = { .dot = { .dir = dir, .file = file } };
                     } else {
                         app.mod.file_paths.free(file);
-                        clear_file_access(ed);
+                        clear_file_access();
 
                         app.jn.push(
                           log_level::error,
@@ -843,7 +843,7 @@ void graph_component_editor_data::graph_component_editor_data::show(
                                      "{}",
                                      reinterpret_cast<const char*>(f.c_str()));
                           },
-                          *file);
+                          *f);
                     }
                 } else {
                     app.mod.file_paths.free(file);

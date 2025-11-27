@@ -460,7 +460,7 @@ int main()
             irt::lambda_function<double(double, double)> f2(
               [](double x, double y) -> double { return x * y; });
 
-            expect(eq(f2(1.0, 2.0), 3.0));
+            expect(eq(f2(1.0, 2.0), 2.0));
             expect(eq(f2(3.0, 2.0), 6.0));
         }
 
@@ -513,7 +513,7 @@ int main()
         expect(eq(add3(1, 2), 3));
         expect(not add);
 
-        add.reset();
+        add3.reset();
         expect(not add3);
     };
 
