@@ -15,33 +15,36 @@
 
 namespace irt {
 
-/**
- * An efficient, type-erasing, owning callable with Small Buffer Optimization.
- *
- * This class stores small callables (lambdas, function objects) inline without
- * heap allocation. It is designed specifically for lambdas, not for function
- * pointers or virtual functions.
- *
- * @tparam Size Number of bytes for inline storage (minimum 1).
- * @tparam Fn Function signature (e.g., void(int, float)).
- *
- * Requirements:
- * - Callable must fit in Size bytes
- * - Callable must be nothrow copyable/movable (for noexcept guarantee)
- *
- * Example:
- *   lambda_function<sizeof(int), int(int)> f = [x = 42](int y) {
- *       return x + y;
- *   };
- *
- *   int result = f(10);  // returns 52
- */
-// --- Trait pour extraire la signature R(Args...) depuis &L::operator() ---
+/// An efficient, type-erasing, owning callable with Small Buffer Optimization.
+///
+/// This class stores small lambdas and, function objects inline without
+/// heap allocation. It is designed specifically for lambdas, not for function
+/// pointers, munber function pointer nor virtual functions.
+///
+/// @tparam Fn Function signature (e.g., void(int, float)).
+/// @tparam Size Number of bytes for inline storage (minimum 1).
+/// @tparam Align Alignment for inline storage (power of two, minimum 1).
+///
+/// Requirements:
+/// - Callable must fit in Size bytes
+/// - Callable must be nothrow movable (for noexcept guarantee)
+///
+/// Example:
+///   lambda_function f([x = 42](int y) {
+///       return x + y;
+///   });
+///
+///   int result = f(10);  // returns 52
+template<typename Sig,
+         std::size_t Size  = 64,
+         std::size_t Align = alignof(std::max_align_t)>
+class lambda_function;
 
+// Traits to extract R(Args...) signature from &L::operator()
 template<typename T>
-struct lambda_signature; // non défini par défaut
+struct lambda_signature; // default is undefined
 
-// Variantes sans noexcept
+// no-noexcept variants
 template<typename C, typename R, typename... Args>
 struct lambda_signature<R (C::*)(Args...)> {
     using type = R(Args...);
@@ -59,9 +62,9 @@ struct lambda_signature<R (C::*)(Args...) const volatile> {
     using type = R(Args...);
 };
 
-// Variantes avec ref-qualifiers
+// ref-qualifiers variants
 template<typename C, typename R, typename... Args>
-struct lambda_signature<R (C::*)(Args...) &> {
+struct lambda_signature<R (C::*)(Args...)&> {
     using type = R(Args...);
 };
 template<typename C, typename R, typename... Args>
@@ -93,7 +96,7 @@ struct lambda_signature<R (C::*)(Args...) const volatile&&> {
     using type = R(Args...);
 };
 
-// Variantes noexcept
+// noexcept variants
 template<typename C, typename R, typename... Args>
 struct lambda_signature<R (C::*)(Args...) noexcept> {
     using type = R(Args...);
@@ -111,6 +114,7 @@ struct lambda_signature<R (C::*)(Args...) const volatile noexcept> {
     using type = R(Args...);
 };
 
+// no-noexcept and ref-qualifiers variants
 template<typename C, typename R, typename... Args>
 struct lambda_signature<R (C::*)(Args...) & noexcept> {
     using type = R(Args...);
@@ -127,7 +131,6 @@ template<typename C, typename R, typename... Args>
 struct lambda_signature<R (C::*)(Args...) const volatile & noexcept> {
     using type = R(Args...);
 };
-
 template<typename C, typename R, typename... Args>
 struct lambda_signature<R (C::*)(Args...) && noexcept> {
     using type = R(Args...);
@@ -149,33 +152,27 @@ template<typename L>
 using deduce_signature_t = typename lambda_signature<
   decltype(&std::remove_reference_t<L>::operator())>::type;
 
-// --- lambda_function ---
-
-template<typename Sig,
-         std::size_t Size  = 64,
-         std::size_t Align = alignof(std::max_align_t)>
-class lambda_function;
-
 template<typename R, typename... Args, std::size_t Size, std::size_t Align>
 class lambda_function<R(Args...), Size, Align>
 {
     static_assert(Align != 0, "Align must be non-zero");
     static_assert((Align & (Align - 1)) == 0, "Align must be power of two");
 
-    alignas(Align) std::byte storage_[Size];
+    alignas(Align) std::byte m_storage[Size];
 
     struct vtable_t {
         R (*invoke)(const void*, Args&&...) noexcept;
         void (*destroy)(void*) noexcept;
         void (*move_construct)(void* dst, void* src) noexcept;
-    } vtbl_{};
+    } m_vtbl{};
 
-    bool engaged_ = false;
+    bool m_engaged = false;
 
     template<typename L>
     static R invoke_fn(const void* p, Args&&... args) noexcept
     {
         auto const* lp = static_cast<L const*>(p);
+
         if constexpr (std::is_void_v<R>) {
             (*lp)(std::forward<Args>(args)...);
         } else {
@@ -193,6 +190,7 @@ class lambda_function<R(Args...), Size, Align>
     static void move_construct_fn(void* dst, void* src) noexcept
     {
         auto* s = static_cast<L*>(src);
+
         ::new (dst) L(std::move(*s));
         destroy_fn<L>(src);
     }
@@ -211,11 +209,11 @@ public:
 
     constexpr lambda_function(lambda_function&& other) noexcept
     {
-        if (other.engaged_) {
-            other.vtbl_.move_construct(storage_, other.storage_);
-            vtbl_          = other.vtbl_;
-            engaged_       = true;
-            other.engaged_ = false;
+        if (other.m_engaged) {
+            other.m_vtbl.move_construct(m_storage, other.m_storage);
+            m_vtbl          = other.m_vtbl;
+            m_engaged       = true;
+            other.m_engaged = false;
         }
     }
 
@@ -223,11 +221,11 @@ public:
     {
         if (this != &other) {
             reset();
-            if (other.engaged_) {
-                other.vtbl_.move_construct(storage_, other.storage_);
-                vtbl_          = other.vtbl_;
-                engaged_       = true;
-                other.engaged_ = false;
+            if (other.m_engaged) {
+                other.m_vtbl.move_construct(m_storage, other.m_storage);
+                m_vtbl          = other.m_vtbl;
+                m_engaged       = true;
+                other.m_engaged = false;
             }
         }
         return *this;
@@ -235,7 +233,6 @@ public:
 
     ~lambda_function() { reset(); }
 
-    // Constructeur direct avec lambda (SFINAE pour éviter nullptr_t, etc.)
     template<typename L,
              typename T                                 = std::decay_t<L>,
              std::enable_if_t<is_lambda_like_v<T>, int> = 0>
@@ -250,33 +247,37 @@ public:
     constexpr void emplace(L&& l) noexcept
     {
         using U = std::decay_t<L>;
-        static_assert(sizeof(U) <= Size, "Lambda trop grand pour le buffer");
-        static_assert(alignof(U) <= Align, "Alignement du lambda trop élevé");
+
+        static_assert(sizeof(U) <= Size, "Too small buffer for lambda");
+        static_assert(alignof(U) <= Align, "Too large alignement for lambda");
+
         reset();
-        ::new (storage_) U(std::forward<L>(l));
-        vtbl_ =
+        ::new (m_storage) U(std::forward<L>(l));
+
+        m_vtbl =
           vtable_t{ &invoke_fn<U>, &destroy_fn<U>, &move_construct_fn<U> };
-        engaged_ = true;
+        m_engaged = true;
     }
 
     constexpr R operator()(Args... args) const noexcept
     {
-        // Précondition: engaged_ == true
-        return vtbl_.invoke(storage_, std::forward<Args>(args)...);
+        debug::ensure(m_engaged);
+
+        return m_vtbl.invoke(m_storage, std::forward<Args>(args)...);
     }
 
-    constexpr explicit operator bool() const noexcept { return engaged_; }
+    constexpr explicit operator bool() const noexcept { return m_engaged; }
 
     constexpr void reset() noexcept
     {
-        if (engaged_) {
-            vtbl_.destroy(storage_);
-            engaged_ = false;
+        if (m_engaged) {
+            m_vtbl.destroy(m_storage);
+            m_engaged = false;
         }
     }
 };
 
-// --- Deduction guide fiable (fonctionne avec GCC 13 et captures) ---
+// Deduction guide
 
 template<typename L>
 lambda_function(L)
