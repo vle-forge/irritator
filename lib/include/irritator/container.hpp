@@ -773,6 +773,9 @@ class static_buffer
 public:
     static_assert(Size > 0);
 
+    static_assert(std::is_default_constructible_v<T>,
+                  "T must be default-constructible for dynamic_buffer");
+
     using size_type  = small_storage_size_t<Size>;
     using index_type = std::make_signed_t<size_type>;
 
@@ -795,7 +798,7 @@ public:
     bool      good() const noexcept { return true; }
 
 protected:
-    std::array<std::byte, sizeof(T) * Size> m_buffer;
+    std::array<T, Size> m_buffer{};
 };
 
 template<typename T,
@@ -806,12 +809,17 @@ class dynamic_buffer
 public:
     static_assert(Size > 0);
 
+    static_assert(std::is_default_constructible_v<T>,
+                  "T must be default-constructible for dynamic_buffer");
+
     using size_type  = small_storage_size_t<Size>;
     using index_type = std::make_signed_t<size_type>;
 
     dynamic_buffer() noexcept
-      : m_buffer(static_cast<std::byte*>(A::allocate(sizeof(T) * Size)))
-    {}
+      : m_buffer(static_cast<T*>(A::allocate(sizeof(T) * Size)))
+    {
+        std::uninitialized_default_construct_n(m_buffer, Size);
+    }
 
     dynamic_buffer(const dynamic_buffer& o) noexcept            = delete;
     dynamic_buffer(dynamic_buffer&& o) noexcept                 = delete;
@@ -828,19 +836,19 @@ public:
 
     T& operator[](std::integral auto position) noexcept
     {
-        return *(reinterpret_cast<T*>(m_buffer) + position);
+        return *(m_buffer + position);
     }
 
     const T& operator[](std::integral auto position) const noexcept
     {
-        return *(reinterpret_cast<T*>(m_buffer) + position);
+        return *(m_buffer + position);
     }
 
     size_type capacity() const noexcept { return Size; }
     bool      good() const noexcept { return m_buffer != nullptr; }
 
 protected:
-    std::byte* m_buffer = nullptr;
+    T* m_buffer = nullptr;
 };
 
 /**
