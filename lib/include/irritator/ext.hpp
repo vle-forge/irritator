@@ -277,12 +277,15 @@ public:
     }
 };
 
-// Deduction guide
-
+/// Deduction guide for lambda_function
+///
+/// The buffer size is fixed a 64 bytes with maximum alignment. Use the @a
+/// make_lambda function to be able to fix the size and alignment.
 template<typename L>
 lambda_function(L)
   -> lambda_function<deduce_signature_t<L>, 64, alignof(std::max_align_t)>;
 
+/// Helper function to create a lambda_function with custom size and alignment.
 template<std::size_t Size,
          std::size_t Align = alignof(std::max_align_t),
          typename L>

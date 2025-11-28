@@ -24,8 +24,6 @@ class ordered_worker;
 class unordered_worker;
 class task_manager;
 
-/* ========================== ORDERED QUEUE ========================== */
-
 class ordered_task_list
 {
 public:
@@ -33,264 +31,262 @@ public:
     void add(Fn&& fn) noexcept
     {
         {
-            std::lock_guard<std::mutex> lock(mtx_);
-            if (stopping_)
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_stopping)
                 return;
-            tasks_submitted_ += 1;
-            queue_.emplace_enqueue(std::forward<Fn>(fn));
+            m_tasks_submitted += 1;
+            m_queue.emplace_enqueue(std::forward<Fn>(fn));
         }
-        cv_.notify_one();
+        worker_cv.notify_one();
     }
 
     bool pop(task& out) noexcept
     {
-        std::unique_lock<std::mutex> lock(mtx_);
-        cv_.wait(lock, [&] { return stopping_ || !queue_.empty(); });
-        if (stopping_ && queue_.empty())
+        std::unique_lock<std::mutex> lock(m_mutex);
+        worker_cv.wait(lock, [&] { return m_stopping || !m_queue.empty(); });
+        if (m_stopping && m_queue.empty())
             return false;
-        out = std::move(*queue_.head());
-        queue_.pop_head();
-        tasks_running_ += 1;
+        out = std::move(*m_queue.head());
+        m_queue.pop_head();
+        m_tasks_running += 1;
         return true;
     }
 
     void notify_done()
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        --tasks_running_;
-        ++tasks_completed_;
-        if (queue_.empty() && tasks_running_ == 0 &&
-            tasks_completed_ == tasks_submitted_) {
-            cv_empty_.notify_all();
+        std::lock_guard<std::mutex> lock(m_mutex);
+        --m_tasks_running;
+        ++m_tasks_completed;
+        if (m_queue.empty() && m_tasks_running == 0 &&
+            m_tasks_completed == m_tasks_submitted) {
+            producer_cv.notify_all();
         }
     }
 
     void wait_empty() noexcept
     {
-        std::unique_lock<std::mutex> lock(mtx_);
-        cv_empty_.wait(lock, [&] {
-            return stopping_ || (queue_.empty() && tasks_running_ == 0 &&
-                                 tasks_completed_ == tasks_submitted_);
+        std::unique_lock<std::mutex> lock(m_mutex);
+        producer_cv.wait(lock, [&] {
+            return m_stopping || (m_queue.empty() && m_tasks_running == 0 &&
+                                  m_tasks_completed == m_tasks_submitted);
         });
     }
 
     void shutdown() noexcept
     {
         {
-            std::lock_guard<std::mutex> lock(mtx_);
-            stopping_ = true;
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stopping = true;
         }
-        cv_.notify_all();
+        worker_cv.notify_all();
     }
 
     bool stopping() const noexcept
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        return stopping_;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_stopping;
     }
 
-    u64 tasks_submitted() const noexcept { return tasks_submitted_; }
-    u64 tasks_completed() const noexcept { return tasks_completed_; }
+    u64 tasks_submitted() const noexcept { return m_tasks_submitted; }
+    u64 tasks_completed() const noexcept { return m_tasks_completed; }
 
 private:
-    ring_buffer<task> queue_{ 256 };
+    ring_buffer<task> m_queue{ 256 };
 
-    mutable std::mutex      mtx_;
-    std::condition_variable cv_;       // for workers (work available)
-    std::condition_variable cv_empty_; // for producers (fully drained)
+    mutable std::mutex      m_mutex;
+    std::condition_variable worker_cv;   // for workers (work available)
+    std::condition_variable producer_cv; // for producers (fully drained)
 
-    u64 tasks_submitted_{ 0 };
-    u64 tasks_completed_{ 0 };
-    u64 tasks_running_{ 0 };
+    u64 m_tasks_submitted{ 0 };
+    u64 m_tasks_completed{ 0 };
+    u64 m_tasks_running{ 0 };
 
-    bool stopping_{ false };
+    bool m_stopping{ false };
 };
 
 class ordered_worker
 {
 public:
     explicit ordered_worker(ordered_task_list& list) noexcept
-      : list_(&list)
+      : m_list(&list)
     {}
 
     ordered_worker(ordered_worker&& other) noexcept
-      : list_(other.list_)
-      , thr_(std::move(other.thr_))
-      , tasks_completed_(other.tasks_completed_)
-      , execution_time_(other.execution_time_)
+      : m_list(other.m_list)
+      , m_thread(std::move(other.m_thread))
+      , m_tasks_completed(other.m_tasks_completed)
+      , m_execution_time(other.m_execution_time)
     {}
 
     void start() noexcept
     {
-        thr_ = std::thread([this] {
+        m_thread = std::thread([this] {
             task t;
-            while (list_->pop(t)) {
+            while (m_list->pop(t)) {
                 try {
-                    tasks_completed_ += 1;
+                    m_tasks_completed += 1;
                     const auto start = std::chrono::steady_clock::now();
                     t();
-                    execution_time_ =
+                    m_execution_time =
                       (std::chrono::steady_clock::now() - start).count();
                 } catch (...) {
                 }
-                list_->notify_done();
+                m_list->notify_done();
             }
         });
     }
 
     void join() noexcept
     {
-        if (thr_.joinable())
-            thr_.join();
+        if (m_thread.joinable())
+            m_thread.join();
     }
 
-    u64 tasks_completed() const noexcept { return tasks_completed_; }
+    u64 tasks_completed() const noexcept { return m_tasks_completed; }
 
 private:
-    ordered_task_list* list_;
-    std::thread        thr_;
+    ordered_task_list* m_list;
+    std::thread        m_thread;
 
-    u64                           tasks_completed_{ 0 };
-    std::chrono::nanoseconds::rep execution_time_;
+    u64                           m_tasks_completed{ 0 };
+    std::chrono::nanoseconds::rep m_execution_time;
 };
 
 class unordered_task_list
 {
 public:
-    unordered_task_list() noexcept { pending_.reserve(1024); }
+    unordered_task_list() noexcept { m_pending.reserve(1024); }
 
     template<typename Fn>
     void add(Fn&& fn) noexcept
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (stopping_ || phase_ != phase::accepting)
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_stopping || m_phase != phase::accepting)
             return;
-        pending_.emplace_back(std::forward<Fn>(fn));
-        tasks_submitted_ += 1;
+        m_pending.emplace_back(std::forward<Fn>(fn));
+        m_tasks_submitted += 1;
     }
 
     void submit() noexcept
     {
-        {
-            std::lock_guard<std::mutex> lock(mtx_);
-            if (stopping_ || phase_ != phase::accepting)
-                return;
-            batch_size_ = static_cast<u32>(pending_.size());
-            next_index_ = 0;
-            completed_  = 0;
-            phase_ = (batch_size_ == 0) ? phase::accepting : phase::executing;
-        }
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_stopping || m_phase != phase::accepting)
+            return;
+        m_batch_size = static_cast<u32>(m_pending.size());
+        m_next_index = 0;
+        m_completed  = 0;
+        m_phase = (m_batch_size == 0) ? phase::accepting : phase::executing;
     }
 
     bool try_steal(task& out) noexcept
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (stopping_ || phase_ != phase::executing)
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_stopping || m_phase != phase::executing)
             return false;
-        if (next_index_ >= batch_size_)
+        if (m_next_index >= m_batch_size)
             return false;
-        out = std::move(pending_[next_index_++]);
-        tasks_completed_ += 1;
+        out = std::move(m_pending[m_next_index++]);
+        m_tasks_completed += 1;
         return true;
     }
 
     void notify_done() noexcept
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        if (phase_ != phase::executing)
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_phase != phase::executing)
             return;
-        ++completed_;
-        if (completed_ >= batch_size_) {
-            phase_ = phase::accepting;
-            pending_.clear();
-            cv_producer_.notify_all();
+        ++m_completed;
+        if (m_completed >= m_batch_size) {
+            m_phase = phase::accepting;
+            m_pending.clear();
+            m_producer_cv.notify_all();
         }
     }
 
     void wait_completion() noexcept
     {
-        std::unique_lock<std::mutex> lock(mtx_);
-        cv_producer_.wait(lock, [&] {
-            return stopping_ || phase_ == phase::accepting ||
-                   (phase_ == phase::executing && completed_ >= batch_size_);
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_producer_cv.wait(lock, [&] {
+            return m_stopping || m_phase == phase::accepting ||
+                   (m_phase == phase::executing && m_completed >= m_batch_size);
         });
     }
 
-    void shutdown()
+    void shutdown() noexcept
     {
         {
-            std::lock_guard<std::mutex> lock(mtx_);
-            stopping_ = true;
-            phase_    = phase::shutting_down;
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_stopping = true;
+            m_phase    = phase::shutting_down;
         }
-        cv_producer_.notify_all();
+        m_producer_cv.notify_all();
     }
 
     bool stopping() const
     {
-        std::lock_guard<std::mutex> lock(mtx_);
-        return stopping_;
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_stopping;
     }
 
-    u64 tasks_submitted() const noexcept { return tasks_submitted_; }
-    u64 tasks_completed() const noexcept { return tasks_completed_; }
+    u64 tasks_submitted() const noexcept { return m_tasks_submitted; }
+    u64 tasks_completed() const noexcept { return m_tasks_completed; }
 
 private:
     enum class phase : uint8_t { accepting, executing, shutting_down };
 
-    vector<task> pending_;
+    vector<task> m_pending;
 
-    u64 tasks_submitted_{ 0 };
-    u64 tasks_completed_{ 0 };
-    u32 batch_size_{ 0 };
-    u32 next_index_{ 0 };
-    u32 completed_{ 0 };
+    u64 m_tasks_submitted{ 0 };
+    u64 m_tasks_completed{ 0 };
+    u32 m_batch_size{ 0 };
+    u32 m_next_index{ 0 };
+    u32 m_completed{ 0 };
 
-    mutable std::mutex      mtx_;
-    std::condition_variable cv_producer_;
+    mutable std::mutex      m_mutex;
+    std::condition_variable m_producer_cv;
 
-    phase phase_{ phase::accepting };
-    bool  stopping_{ false };
+    phase m_phase{ phase::accepting };
+    bool  m_stopping{ false };
 };
 
 class unordered_worker
 {
 public:
     explicit unordered_worker(std::span<unordered_task_list> lists) noexcept
-      : lists_(lists)
+      : m_lists(lists)
     {}
 
     unordered_worker(unordered_worker&& other) noexcept
-      : lists_(other.lists_)
-      , thr_(std::move(other.thr_))
-      , tasks_completed_(other.tasks_completed_)
-      , execution_time_(other.execution_time_)
+      : m_lists(other.m_lists)
+      , m_thread(std::move(other.m_thread))
+      , m_tasks_completed(other.m_tasks_completed)
+      , m_execution_time(other.m_execution_time)
     {}
 
     void start() noexcept
     {
-        thr_ = std::thread([this] {
+        m_thread = std::thread([this] {
             while (true) {
                 bool found = false;
-                for (auto& l : lists_) {
+                for (auto& l : m_lists) {
                     task t;
                     while (l.try_steal(t)) {
                         found = true;
                         try {
                             const auto start = std::chrono::steady_clock::now();
                             t();
-                            execution_time_ =
+                            m_execution_time =
                               (std::chrono::steady_clock::now() - start)
                                 .count();
-                            tasks_completed_ += 1;
+                            m_tasks_completed += 1;
                         } catch (...) {
                         }
                         l.notify_done();
                     }
                 }
                 if (!found) {
-                    if (std::all_of(lists_.begin(),
-                                    lists_.end(),
+                    if (std::all_of(m_lists.begin(),
+                                    m_lists.end(),
                                     [](const auto& l) { return l.stopping(); }))
                         break;
                     std::this_thread::yield();
@@ -301,21 +297,19 @@ public:
 
     void join() noexcept
     {
-        if (thr_.joinable())
-            thr_.join();
+        if (m_thread.joinable())
+            m_thread.join();
     }
 
-    u64 tasks_completed() const noexcept { return tasks_completed_; }
+    u64 tasks_completed() const noexcept { return m_tasks_completed; }
 
 private:
-    std::span<unordered_task_list> lists_;
-    std::thread                    thr_;
+    std::span<unordered_task_list> m_lists;
+    std::thread                    m_thread;
 
-    u64                           tasks_completed_{ 0 };
-    std::chrono::nanoseconds::rep execution_time_;
+    u64                           m_tasks_completed{ 0 };
+    std::chrono::nanoseconds::rep m_execution_time;
 };
-
-/* ========================== TASK MANAGER ========================== */
 
 class task_manager
 {
@@ -324,88 +318,88 @@ public:
       size_t ordered_count,
       size_t unordered_count,
       size_t unordered_worker_count = std::thread::hardware_concurrency())
-      : ordered_lists_(ordered_count)
-      , ordered_workers_(ordered_count, reserve_tag)
-      , unordered_lists_(unordered_count)
-      , unordered_workers_(unordered_worker_count == 0 ? 1
-                                                       : unordered_worker_count,
-                           reserve_tag)
+      : m_ordered_lists(ordered_count)
+      , m_ordered_workers(ordered_count, reserve_tag)
+      , m_unordered_lists(unordered_count)
+      , m_unordered_workers(
+          unordered_worker_count == 0 ? 1 : unordered_worker_count,
+          reserve_tag)
     {
-        for (auto& l : ordered_lists_)
-            ordered_workers_.emplace_back(l);
+        for (auto& l : m_ordered_lists)
+            m_ordered_workers.emplace_back(l);
 
         const auto span = std::span<unordered_task_list>(
-          unordered_lists_.data(), unordered_lists_.size());
+          m_unordered_lists.data(), m_unordered_lists.size());
 
-        for (sz i = 0, e = unordered_workers_.capacity(); i < e; ++i)
-            unordered_workers_.emplace_back(span);
+        for (sz i = 0, e = m_unordered_workers.capacity(); i < e; ++i)
+            m_unordered_workers.emplace_back(span);
     }
 
     void start()
     {
-        for (auto& w : ordered_workers_)
+        for (auto& w : m_ordered_workers)
             w.start();
-        for (auto& w : unordered_workers_)
+        for (auto& w : m_unordered_workers)
             w.start();
     }
 
     void shutdown()
     {
-        for (auto& l : ordered_lists_)
+        for (auto& l : m_ordered_lists)
             l.shutdown();
-        for (auto& l : unordered_lists_)
+        for (auto& l : m_unordered_lists)
             l.shutdown();
-        for (auto& w : ordered_workers_)
+        for (auto& w : m_ordered_workers)
             w.join();
-        for (auto& w : unordered_workers_)
+        for (auto& w : m_unordered_workers)
             w.join();
     }
 
     ordered_task_list& ordered(std::integral auto i)
     {
-        return ordered_lists_[i];
+        return m_ordered_lists[i];
     }
     unordered_task_list& unordered(std::integral auto i)
     {
-        return unordered_lists_[i];
+        return m_unordered_lists[i];
     }
 
-    size_t ordered_size() const noexcept { return ordered_lists_.size(); }
-    size_t unordered_size() const noexcept { return unordered_lists_.size(); }
-    size_t wordered_size() const noexcept { return ordered_workers_.size(); }
+    size_t ordered_size() const noexcept { return m_ordered_lists.size(); }
+    size_t unordered_size() const noexcept { return m_unordered_lists.size(); }
+    size_t wordered_size() const noexcept { return m_ordered_workers.size(); }
     size_t wunordered_size() const noexcept
     {
-        return unordered_workers_.size();
+        return m_unordered_workers.size();
     }
 
     u64 wordered_tasks_completed(std::integral auto i) const noexcept
     {
-        return ordered_workers_[i].tasks_completed();
+        return m_ordered_workers[i].tasks_completed();
     }
 
     u64 wunordered_tasks_completed(std::integral auto i) const noexcept
     {
-        return unordered_workers_[i].tasks_completed();
+        return m_unordered_workers[i].tasks_completed();
     }
 
     std::chrono::nanoseconds::rep wordered_execution_time(
       std::integral auto i) const noexcept
     {
-        return ordered_workers_[i].tasks_completed();
+        return m_ordered_workers[i].tasks_completed();
     }
 
     std::chrono::nanoseconds::rep wunordered_execution_time(
       std::integral auto i) const noexcept
     {
-        return unordered_workers_[i].tasks_completed();
+        return m_unordered_workers[i].tasks_completed();
     }
 
 private:
-    vector<ordered_task_list> ordered_lists_;
-    vector<ordered_worker>    ordered_workers_;
+    vector<ordered_task_list> m_ordered_lists;
+    vector<ordered_worker>    m_ordered_workers;
 
-    vector<unordered_task_list> unordered_lists_;
-    vector<unordered_worker>    unordered_workers_;
+    vector<unordered_task_list> m_unordered_lists;
+    vector<unordered_worker>    m_unordered_workers;
 };
 
 } // namespace irt
