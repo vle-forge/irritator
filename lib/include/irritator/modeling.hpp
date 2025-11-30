@@ -16,6 +16,7 @@
 #include <irritator/thread.hpp>
 
 #include <optional>
+#include <variant>
 
 namespace irt {
 
@@ -216,12 +217,12 @@ public:
     std::array<position, max_size> positions;
     std::array<name_str, max_size> names;
 
-    i32    i1      = 0;
-    i32    i2      = 0;
-    real   r1      = 0.0;
-    real   r2      = 0.0;
-    time   timeout = time_domain<time>::infinity;
-    source src;
+    i32                            i1      = 0;
+    i32                            i2      = 0;
+    real                           r1      = 0.0;
+    real                           r2      = 0.0;
+    time                           timeout = time_domain<time>::infinity;
+    external_source_definition::id src;
 };
 
 inline void hsm_component::clear() noexcept
@@ -240,7 +241,7 @@ inline void hsm_component::clear() noexcept
     r1      = 0.0;
     r2      = 0.0;
     timeout = time_domain<time>::infinity;
-    src.clear();
+    src     = undefined<external_source_definition::id>();
 }
 
 class generic_component
@@ -968,7 +969,7 @@ struct component {
     component_status state = component_status::unread;
 
     /**< Each component stores potential external source. */
-    external_source srcs;
+    external_source_definition srcs;
 };
 
 struct registred_path;
@@ -1846,11 +1847,6 @@ inline component::component() noexcept
 {
     x.reserve(16);
     y.reserve(16);
-
-    srcs.constant_sources.reserve(4);
-    srcs.binary_file_sources.reserve(4);
-    srcs.text_file_sources.reserve(4);
-    srcs.random_sources.reserve(4);
 }
 
 inline port_id component::get_x(std::string_view str) const noexcept

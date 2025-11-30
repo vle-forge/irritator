@@ -17,11 +17,8 @@ private:
     vector<char> buffer;
     vector<i32>  stack;
 
-    table<u64, u64>                   model_mapping;
-    table<u64, constant_source_id>    constant_mapping;
-    table<u64, binary_file_source_id> binary_file_mapping;
-    table<u64, random_source_id>      random_mapping;
-    table<u64, text_file_source_id>   text_file_mapping;
+    table<u64, u64>                            model_mapping;
+    table<u64, external_source_definition::id> srcs_mapping;
 
     struct impl;
 
@@ -63,12 +60,9 @@ class json_archiver
 private:
     vector<char> buffer;
 
-    table<u64, u64>                   model_mapping;
-    table<u64, constant_source_id>    constant_mapping;
-    table<u64, binary_file_source_id> binary_file_mapping;
-    table<u64, random_source_id>      random_mapping;
-    table<u64, text_file_source_id>   text_file_mapping;
-    table<u64, hsm_id>                sim_hsms_mapping;
+    table<u64, u64>                            model_mapping;
+    table<u64, external_source_definition::id> srcs_mapping;
+    table<u64, hsm_id>                         sim_hsms_mapping;
 
     struct impl;
 

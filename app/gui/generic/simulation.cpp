@@ -1272,11 +1272,12 @@ void generic_simulation_editor::show_nodes(application&    app,
                 if (show_parameter_values and can_edit_parameters) {
                     ImGui::PushID(1);
                     ImGui::PushItemWidth(120.0f);
-                    show_parameter_editor(app,
-                                          pj_ed.pj.sim.srcs,
-                                          mdl->type,
-                                          pj_ed.pj.sim.parameters[get_index(
-                                            pj_ed.pj.sim.models.get_id(mdl))]);
+                    debug::breakpoint();
+                    // show_parameter_editor(app,
+                    //                       pj_ed.pj.sim.srcs,
+                    //                       mdl->type,
+                    //                       pj_ed.pj.sim.parameters[get_index(
+                    //                         pj_ed.pj.sim.models.get_id(mdl))]);
                     ImGui::PopItemWidth();
                     ImGui::PopID();
                 }

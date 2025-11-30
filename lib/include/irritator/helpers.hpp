@@ -665,53 +665,78 @@ inline void add_extension(small_string<Size>&    str,
     }
 }
 
-constexpr inline source::source_type get_source_type(
-  std::integral auto type) noexcept
+constexpr inline source_type get_source_type(std::integral auto type) noexcept
 {
-    return (0 <= type and type < 4) ? enum_cast<source::source_type>(type)
-                                    : source::source_type::constant;
+    return (0 <= type and type < 4) ? enum_cast<source_type>(type)
+                                    : source_type::constant;
+}
+
+constexpr inline u64 from_source(const source_type   type,
+                                 const source_any_id id) noexcept
+{
+    switch (type) {
+    case source_type::binary_file:
+        return u32s_to_u64(ordinal(type), ordinal(id.binary_file_id));
+
+    case source_type::constant:
+        return u32s_to_u64(ordinal(type), ordinal(id.constant_id));
+
+    case source_type::random:
+        return u32s_to_u64(ordinal(type), ordinal(id.random_id));
+
+    case source_type::text_file:
+        return u32s_to_u64(ordinal(type), ordinal(id.text_file_id));
+    }
+
+    unreachable();
 }
 
 constexpr inline u64 from_source(const source& src) noexcept
 {
     switch (src.type) {
-    case source::source_type::binary_file:
+    case source_type::binary_file:
         return u32s_to_u64(ordinal(src.type), ordinal(src.id.binary_file_id));
 
-    case source::source_type::constant:
+    case source_type::constant:
         return u32s_to_u64(ordinal(src.type), ordinal(src.id.constant_id));
 
-    case source::source_type::random:
+    case source_type::random:
         return u32s_to_u64(ordinal(src.type), ordinal(src.id.random_id));
 
-    case source::source_type::text_file:
+    case source_type::text_file:
         return u32s_to_u64(ordinal(src.type), ordinal(src.id.text_file_id));
     }
 
     unreachable();
 }
 
-constexpr inline source get_source(const u64 parameter) noexcept
+constexpr inline std::pair<source_type, source_any_id> get_source(
+  const u64 parameter) noexcept
 {
-    const auto p_type = left(parameter);
-    const auto p_id   = right(parameter);
-    const auto type   = get_source_type(p_type);
+    const auto    p_type = left(parameter);
+    const auto    p_id   = right(parameter);
+    const auto    type   = get_source_type(p_type);
+    source_any_id id     = undefined<constant_source_id>();
 
     switch (type) {
-    case source::source_type::binary_file:
-        return source(enum_cast<binary_file_source_id>(p_id));
+    case source_type::constant:
+        id.constant_id = enum_cast<constant_source_id>(p_id);
+        break;
 
-    case source::source_type::constant:
-        return source(enum_cast<constant_source_id>(p_id));
+    case source_type::text_file:
+        id.text_file_id = enum_cast<text_file_source_id>(p_id);
+        break;
 
-    case source::source_type::random:
-        return source(enum_cast<random_source_id>(p_id));
+    case source_type::binary_file:
+        id.binary_file_id = enum_cast<binary_file_source_id>(p_id);
+        break;
 
-    case source::source_type::text_file:
-        return source(enum_cast<text_file_source_id>(p_id));
+    case source_type::random:
+        id.random_id = enum_cast<random_source_id>(p_id);
+        break;
     }
 
-    unreachable();
+    return std::make_pair(type, id);
 }
 
 } // namespace irt

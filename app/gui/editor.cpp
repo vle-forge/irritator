@@ -10,71 +10,71 @@
 
 namespace irt {
 
-static bool show_external_sources_combo(external_source& srcs,
-                                        const char*      title,
-                                        i64&             param) noexcept
-{
-    auto uparam = static_cast<u64>(param);
-    auto src    = get_source(uparam);
+// static bool show_external_sources_combo(external_source& srcs,
+//                                         const char*      title,
+//                                         i64&             param) noexcept
+// {
+//     auto uparam = static_cast<u64>(param);
+//     auto src    = get_source(uparam);
 
-    if (show_external_sources_combo(srcs, title, src)) {
-        uparam = from_source(src);
-        param  = static_cast<i64>(uparam);
-        return true;
-    }
+//     if (show_external_sources_combo(srcs, title, src)) {
+//         uparam = from_source(src);
+//         param  = static_cast<i64>(uparam);
+//         return true;
+//     }
 
-    return false;
-}
+//     return false;
+// }
 
-static void build_selected_source_label(const source::source_type src_type,
-                                        const source::id_type     src_id,
-                                        const external_source&    srcs,
-                                        small_string<63>& label) noexcept
+static void build_selected_source_label(const source_type      src_type,
+                                        const source_any_id    src_id,
+                                        const external_source& srcs,
+                                        small_string<63>&      label) noexcept
 {
     switch (src_type) {
-    case source::source_type::binary_file: {
+    case source_type::binary_file: {
         const auto id    = src_id.binary_file_id;
         const auto index = get_index(id);
         if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
             format(label,
                    "{}-{} {}",
-                   ordinal(source::source_type::binary_file),
+                   ordinal(source_type::binary_file),
                    index,
                    es->name.c_str());
         }
     } break;
 
-    case source::source_type::constant: {
+    case source_type::constant: {
         const auto id    = src_id.constant_id;
         const auto index = get_index(id);
         if (auto* es = srcs.constant_sources.try_to_get(id)) {
             format(label,
                    "{}-{} {}",
-                   ordinal(source::source_type::constant),
+                   ordinal(source_type::constant),
                    index,
                    es->name.c_str());
         }
     } break;
 
-    case source::source_type::random: {
+    case source_type::random: {
         const auto id    = src_id.random_id;
         const auto index = get_index(id);
         if (auto* es = srcs.random_sources.try_to_get(id)) {
             format(label,
                    "{}-{} {}",
-                   ordinal(source::source_type::random),
+                   ordinal(source_type::random),
                    index,
                    es->name.c_str());
         }
     } break;
 
-    case source::source_type::text_file: {
+    case source_type::text_file: {
         const auto id    = src_id.text_file_id;
         const auto index = get_index(id);
         if (auto* es = srcs.text_file_sources.try_to_get(id)) {
             format(label,
                    "{}-{} {}",
-                   ordinal(source::source_type::text_file),
+                   ordinal(source_type::text_file),
                    index,
                    es->name.c_str());
         }
@@ -85,91 +85,28 @@ static void build_selected_source_label(const source::source_type src_type,
     }
 }
 
-bool show_external_sources_combo(external_source& srcs,
-                                 const char*      title,
-                                 source&          src) noexcept
+bool show_external_sources_combo(external_source_definition& srcs,
+                                 const char*                 title,
+                                 i64&                        src) noexcept
 {
-    bool             is_changed = false;
-    small_string<63> label("-");
-    build_selected_source_label(src.type, src.id, srcs, label);
+    auto       id      = enum_cast<external_source_definition::id>(src);
+    const auto copy_id = id;
 
-    if (ImGui::BeginCombo(title, label.c_str())) {
-        {
-            bool is_selected = src.type == source::source_type::constant;
-            ImGui::Selectable("-", is_selected);
-        }
+    show_combobox_external_sources(srcs, id, title);
 
-        for (const auto& s : srcs.constant_sources) {
-            const auto id    = srcs.constant_sources.get_id(s);
-            const auto index = get_index(id);
-
-            format(label, "{} (constant)##{}", s.name.sv(), index);
-
-            bool is_selected = src.type == source::source_type::constant &&
-                               src.id.constant_id == id;
-            if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src.type           = source::source_type::constant;
-                src.id.constant_id = id;
-                is_changed         = true;
-            }
-        }
-
-        for (const auto& s : srcs.binary_file_sources) {
-            const auto id    = srcs.binary_file_sources.get_id(s);
-            const auto index = get_index(id);
-
-            format(label, "{} (bin)##{}", s.name.sv(), index);
-
-            bool is_selected = src.type == source::source_type::binary_file &&
-                               src.id.binary_file_id == id;
-            if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src.type              = source::source_type::binary_file;
-                src.id.binary_file_id = id;
-                is_changed            = true;
-            }
-        }
-
-        for (const auto& s : srcs.text_file_sources) {
-            const auto id    = srcs.text_file_sources.get_id(s);
-            const auto index = get_index(id);
-
-            format(label, "{} (text)##{}", s.name.sv(), index);
-
-            bool is_selected = src.type == source::source_type::text_file &&
-                               src.id.text_file_id == id;
-            if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src.type            = source::source_type::text_file;
-                src.id.text_file_id = id;
-                is_changed          = true;
-            }
-        }
-
-        for (const auto& s : srcs.random_sources) {
-            const auto id    = srcs.random_sources.get_id(s);
-            const auto index = get_index(id);
-
-            format(label, "{} (random)##{}", s.name.sv(), index);
-
-            bool is_selected =
-              src.type == source::source_type::random && src.id.random_id == id;
-            if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src.type         = source::source_type::random;
-                src.id.random_id = id;
-                is_changed       = true;
-            }
-        }
-
-        ImGui::EndCombo();
+    if (id != copy_id) {
+        src = ordinal(copy_id);
+        return true;
     }
 
-    return is_changed;
+    return false;
 }
 
 /////////////////////////////////////////////////////////////////////
 
 static bool show_parameter(qss_log_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -177,7 +114,7 @@ static bool show_parameter(qss_log_tag,
 
 static bool show_parameter(qss_exp_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -185,7 +122,7 @@ static bool show_parameter(qss_exp_tag,
 
 static bool show_parameter(qss_sin_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -193,7 +130,7 @@ static bool show_parameter(qss_sin_tag,
 
 static bool show_parameter(qss_cos_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -201,7 +138,7 @@ static bool show_parameter(qss_cos_tag,
 
 static bool show_parameter(qss_integer_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -209,7 +146,7 @@ static bool show_parameter(qss_integer_tag,
 
 static bool show_parameter(qss_compare_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("a < b", &p.reals[qss_compare_tag::equal]);
@@ -221,7 +158,7 @@ static bool show_parameter(qss_compare_tag,
 
 static bool show_parameter(counter_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -229,7 +166,7 @@ static bool show_parameter(counter_tag,
 
 static bool show_parameter(qss_integrator_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[qss_integrator_tag::X]);
@@ -240,7 +177,7 @@ static bool show_parameter(qss_integrator_tag,
 
 static bool show_parameter(qss_multiplier_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -248,7 +185,7 @@ static bool show_parameter(qss_multiplier_tag,
 
 static bool show_parameter(qss_sum_2_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -256,7 +193,7 @@ static bool show_parameter(qss_sum_2_tag,
 
 static bool show_parameter(qss_sum_3_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -264,7 +201,7 @@ static bool show_parameter(qss_sum_3_tag,
 
 static bool show_parameter(qss_sum_4_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -272,7 +209,7 @@ static bool show_parameter(qss_sum_4_tag,
 
 static bool show_parameter(qss_wsum_2_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -285,7 +222,7 @@ static bool show_parameter(qss_wsum_2_tag,
 
 static bool show_parameter(qss_wsum_3_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -300,7 +237,7 @@ static bool show_parameter(qss_wsum_3_tag,
 
 static bool show_parameter(qss_wsum_4_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -317,7 +254,7 @@ static bool show_parameter(qss_wsum_4_tag,
 
 static bool show_parameter(queue_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     auto value = p.reals[0];
@@ -334,8 +271,8 @@ static bool show_parameter(queue_tag,
 
 static bool show_parameter(dynamic_queue_tag,
                            application& /*app*/,
-                           external_source& srcs,
-                           parameter&       p) noexcept
+                           external_source_definition& srcs,
+                           parameter&                  p) noexcept
 {
     return show_external_sources_combo(
       srcs, "time", p.integers[dynamic_queue_tag::source_ta]);
@@ -343,8 +280,8 @@ static bool show_parameter(dynamic_queue_tag,
 
 static bool show_parameter(priority_queue_tag,
                            application& /*app*/,
-                           external_source& srcs,
-                           parameter&       p) noexcept
+                           external_source_definition& srcs,
+                           parameter&                  p) noexcept
 {
     const auto b1 =
       ImGui::InputReal("priority delta", &p.reals[priority_queue_tag::sigma]);
@@ -357,8 +294,8 @@ static bool show_parameter(priority_queue_tag,
 
 static bool show_parameter(generator_tag,
                            application& /*app*/,
-                           external_source& srcs,
-                           parameter&       p) noexcept
+                           external_source_definition& srcs,
+                           parameter&                  p) noexcept
 {
     static const char* items[] = { "source", "external events" };
 
@@ -426,7 +363,7 @@ static bool show_parameter(generator_tag,
 
 static bool show_parameter(constant_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     static const char* type_names[] = { "constant",
@@ -526,7 +463,7 @@ bool show_extented_constant_parameter(const modeling&    mod,
 
 static bool show_parameter(qss_inverse_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -534,7 +471,7 @@ static bool show_parameter(qss_inverse_tag,
 
 static bool show_parameter(qss_cross_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("threshold", &p.reals[0]);
@@ -546,7 +483,7 @@ static bool show_parameter(qss_cross_tag,
 
 static bool show_parameter(qss_flipflop_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -554,7 +491,7 @@ static bool show_parameter(qss_flipflop_tag,
 
 static bool show_parameter(qss_filter_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lower threshold", &p.reals[0]);
@@ -565,7 +502,7 @@ static bool show_parameter(qss_filter_tag,
 
 static bool show_parameter(qss_power_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[qss_power_tag::exponent]);
@@ -573,7 +510,7 @@ static bool show_parameter(qss_power_tag,
 
 static bool show_parameter(qss_gain_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     return ImGui::InputReal("k", &p.reals[qss_gain_tag::k]);
@@ -581,7 +518,7 @@ static bool show_parameter(qss_gain_tag,
 
 static bool show_parameter(qss_square_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -589,7 +526,7 @@ static bool show_parameter(qss_square_tag,
 
 static bool show_parameter(accumulator_2_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -597,7 +534,7 @@ static bool show_parameter(accumulator_2_tag,
 
 static bool show_parameter(time_func_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     static const char* items[] = { "time", "square", "sin" };
@@ -620,7 +557,7 @@ static bool show_parameter(time_func_tag,
 
 static bool show_parameter(logical_and_2_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -642,7 +579,7 @@ static bool show_parameter(logical_and_2_tag,
 
 static bool show_parameter(logical_or_2_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -664,7 +601,7 @@ static bool show_parameter(logical_or_2_tag,
 
 static bool show_parameter(logical_and_3_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -692,7 +629,7 @@ static bool show_parameter(logical_and_3_tag,
 
 static bool show_parameter(logical_or_3_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -720,7 +657,7 @@ static bool show_parameter(logical_or_3_tag,
 
 static bool show_parameter(logical_invert_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
+                           external_source_definition& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -746,8 +683,8 @@ bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept
 
 static bool show_parameter(hsm_wrapper_tag,
                            application& /*app*/,
-                           external_source& srcs,
-                           parameter&       p) noexcept
+                           external_source_definition& srcs,
+                           parameter&                  p) noexcept
 {
     int changed = false;
 
@@ -765,17 +702,17 @@ static bool show_parameter(hsm_wrapper_tag,
     return changed;
 }
 
-bool show_parameter_editor(application&     app,
-                           external_source& srcs,
-                           dynamics_type    type,
-                           parameter&       p) noexcept
+bool show_parameter_editor(application&                app,
+                           external_source_definition& srcs,
+                           dynamics_type               type,
+                           parameter&                  p) noexcept
 {
     return dispatch(
       type,
-      [](const auto       tag,
-         application&     app,
-         external_source& srcs,
-         parameter&       p) noexcept -> bool {
+      [](const auto                  tag,
+         application&                app,
+         external_source_definition& srcs,
+         parameter&                  p) noexcept -> bool {
           return show_parameter(tag, app, srcs, p);
       },
       app,

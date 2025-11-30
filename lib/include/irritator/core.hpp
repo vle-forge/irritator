@@ -19,6 +19,7 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 #include <cmath>
 #include <cstring>
@@ -331,7 +332,67 @@ using name_str = small_string<default_name_string_size>;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
-enum class distribution_type : i8 {
+enum class source_type : u8 {
+    constant,    /**< Just an easy source to use mode. */
+    binary_file, /**< Best solution to reproductible simulation. Each
+                    client take a part of the stream (substream). */
+    text_file,   /**< How to retreive old position in debug mode? */
+    random,      /**< How to retrieve old position in debug mode? */
+};
+
+/** The identifier of the external source. */
+union source_any_id {
+    constexpr source_any_id() noexcept
+      : constant_id(undefined<constant_source_id>())
+    {}
+
+    constexpr source_any_id(const constant_source_id id) noexcept
+      : constant_id(id)
+    {}
+
+    constexpr source_any_id(const binary_file_source_id id) noexcept
+      : binary_file_id(id)
+    {}
+
+    constexpr source_any_id(const text_file_source_id id) noexcept
+      : text_file_id(id)
+    {}
+
+    constexpr source_any_id(const random_source_id id) noexcept
+      : random_id(id)
+    {}
+
+    constexpr source_any_id& operator=(const constant_source_id id) noexcept
+    {
+        constant_id = id;
+        return *this;
+    }
+
+    constexpr source_any_id& operator=(const binary_file_source_id id) noexcept
+    {
+        binary_file_id = id;
+        return *this;
+    }
+
+    constexpr source_any_id& operator=(const text_file_source_id id) noexcept
+    {
+        text_file_id = id;
+        return *this;
+    }
+
+    constexpr source_any_id& operator=(const random_source_id id) noexcept
+    {
+        random_id = id;
+        return *this;
+    }
+
+    constant_source_id    constant_id;
+    binary_file_source_id binary_file_id;
+    text_file_source_id   text_file_id;
+    random_source_id      random_id;
+};
+
+enum class distribution_type : u8 {
     bernouilli,
     binomial,
     cauchy,
@@ -349,6 +410,46 @@ enum class distribution_type : i8 {
     uniform_int,
     uniform_real,
     weibull,
+};
+
+struct external_source_definition {
+    enum class id : u32;
+
+    struct constant_source {
+        small_vector<real, 8> data;
+    };
+
+    struct binary_source {
+        file_path_id file = undefined<file_path_id>();
+    };
+
+    struct text_source {
+        file_path_id file = undefined<file_path_id>();
+    };
+
+    struct random_source {
+        std::array<real, 2> reals;
+        std::array<i32, 2>  ints;
+        distribution_type   type;
+    };
+
+    using source_element =
+      std::variant<constant_source, binary_source, text_source, random_source>;
+
+    id_data_array<void,
+                  id,
+                  allocator<new_delete_memory_resource>,
+                  source_element,
+                  name_str>
+      data;
+
+    bool can_alloc(std::integral auto i) const noexcept;
+    bool grow() noexcept;
+
+    constant_source& alloc_constant_source(std::string_view name = "") noexcept;
+    binary_source&   alloc_binary_source(std::string_view name = "") noexcept;
+    text_source&     alloc_text_source(std::string_view name = "") noexcept;
+    random_source&   alloc_random_source(std::string_view name = "") noexcept;
 };
 
 //! Use a buffer with a set of double real to produce external data. This
@@ -499,16 +600,6 @@ public:
 class source
 {
 public:
-    enum class source_type : u8 {
-        binary_file, /**< Best solution to reproductible simulation. Each
-                        client take a part of the stream (substream). */
-        constant,    /**< Just an easy source to use mode. */
-        random,      /**< How to retrieve old position in debug mode? */
-        text_file    /**< How to retreive old position in debug mode? */
-    };
-
-    static inline constexpr int source_type_count = 5;
-
     enum class operation_type : u8 {
         initialize, /**< Initialize the buffer at simulation init step. */
         update,     /**< Update the buffer when all values are read. */
@@ -525,15 +616,8 @@ public:
      * text or binary files and seed parameters for random source). */
     std::array<u64, 4> chunk_id{};
 
-    /** The identifier of the external source. */
-    union id_type {
-        constant_source_id    constant_id;
-        binary_file_source_id binary_file_id;
-        text_file_source_id   text_file_id;
-        random_source_id      random_id;
-    } id = { .constant_id = undefined<constant_source_id>() };
-
-    source_type type = source_type::constant;
+    source_any_id id   = undefined<constant_source_id>();
+    source_type   type = source_type::constant;
 
     /** Index of the next double to read the @a buffer. */
     u16 index = 0u;
@@ -545,12 +629,18 @@ public:
     explicit source(const text_file_source_id id_) noexcept;
     explicit source(const random_source_id id_) noexcept;
 
-    source(const source_type type_, const id_type id_) noexcept;
+    source(const source_type type_, const source_any_id id_) noexcept;
     explicit source(const source& src) noexcept;
     explicit source(source&& src) noexcept;
 
     source& operator=(const source& src) noexcept;
     source& operator=(source&& src) noexcept;
+
+    /** Reset the buffer and assign a new type/id. */
+    void reset(const source_type type, const source_any_id id) noexcept;
+
+    /** Reset the buffer and assign a new type/id from the @a parameter. */
+    void reset(const i64 param) noexcept;
 
     /** Reset the position in the @a buffer. */
     void reset() noexcept;
@@ -787,20 +877,19 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
-    parameter& set_hsm_wrapper_value(const source& src) noexcept;
+    parameter& set_hsm_wrapper_value(const source_type   type,
+                                     const source_any_id id) noexcept;
     parameter& set_queue(real sigma) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
-    parameter& set_generator_ta(const source& src) noexcept;
-    parameter& set_generator_value(const source& src) noexcept;
-    parameter& set_dynamic_queue_ta(const source& src) noexcept;
-    parameter& set_priority_queue_ta(const source& src) noexcept;
-
-    source get_generator_ta() noexcept;
-    source get_generator_value() noexcept;
-    source get_hsm_wrapper_value() noexcept;
-    source get_dynamic_queue_ta() noexcept;
-    source get_priority_queue_ta() noexcept;
+    parameter& set_generator_ta(const source_type   type,
+                                const source_any_id id) noexcept;
+    parameter& set_generator_value(const source_type   type,
+                                   const source_any_id id) noexcept;
+    parameter& set_dynamic_queue_ta(const source_type   type,
+                                    const source_any_id id) noexcept;
+    parameter& set_priority_queue_ta(const source_type   type,
+                                     const source_any_id id) noexcept;
 
     std::array<real, 4> reals{};
     std::array<i64, 4>  integers{};
@@ -8567,26 +8656,26 @@ inline status priority_queue::transition(simulation& sim,
 // source implementation
 
 inline source::source(const constant_source_id id_) noexcept
-  : id{ .constant_id = id_ }
+  : id{ id_ }
   , type{ source_type::constant }
 {}
 
 inline source::source(const binary_file_source_id id_) noexcept
-  : id{ .binary_file_id = id_ }
+  : id{ id_ }
   , type{ source_type::binary_file }
 {}
 
 inline source::source(const text_file_source_id id_) noexcept
-  : id{ .text_file_id = id_ }
+  : id{ id_ }
   , type{ source_type::text_file }
 {}
 
 inline source::source(const random_source_id id_) noexcept
-  : id{ .random_id = id_ }
+  : id{ id_ }
   , type{ source_type::random }
 {}
 
-inline source::source(const source_type type_, const id_type id_) noexcept
+inline source::source(const source_type type_, const source_any_id id_) noexcept
   : id(id_)
   , type(type_)
 {}
@@ -8609,7 +8698,7 @@ inline source::source(source&& src) noexcept
     src.buffer = std::span<double>();
     src.index  = 0;
     src.type   = source_type::constant;
-    src.id     = { .constant_id = undefined<constant_source_id>() };
+    src.id     = undefined<constant_source_id>();
     std::fill_n(src.chunk_id.data(), src.chunk_id.size(), 0);
 }
 
@@ -8631,11 +8720,47 @@ inline source& source::operator=(source&& src) noexcept
         std::copy_n(src.buffer.data(), src.buffer.size(), buffer.data());
         type  = std::exchange(src.type, source_type::constant);
         index = std::exchange(src.index, 0);
-        id    = std::exchange(
-          src.id, id_type{ .constant_id = undefined<constant_source_id>() });
+        id    = std::exchange(src.id, undefined<constant_source_id>());
     }
 
     return *this;
+}
+
+inline void source::reset(const source_type   type_,
+                          const source_any_id id_) noexcept
+{
+    reset();
+
+    type = type_;
+    id   = id_;
+}
+
+inline void source::reset(const i64 param) noexcept
+{
+    reset();
+
+    const auto p_type = left(static_cast<u64>(param));
+    const auto p_id   = right(static_cast<u64>(param));
+
+    type = p_type <= 4 ? enum_cast<source_type>(p_type) : source_type::constant;
+
+    switch (type) {
+    case source_type::constant:
+        id.constant_id = enum_cast<constant_source_id>(p_id);
+        break;
+
+    case source_type::text_file:
+        id.text_file_id = enum_cast<text_file_source_id>(p_id);
+        break;
+
+    case source_type::binary_file:
+        id.binary_file_id = enum_cast<binary_file_source_id>(p_id);
+        break;
+
+    case source_type::random:
+        id.random_id = enum_cast<random_source_id>(p_id);
+        break;
+    }
 }
 
 inline void source::reset() noexcept { index = 0; }
@@ -8643,7 +8768,7 @@ inline void source::reset() noexcept { index = 0; }
 inline void source::clear() noexcept
 {
     buffer = std::span<double>();
-    id     = { .constant_id = undefined<constant_source_id>() };
+    id     = undefined<constant_source_id>();
     type   = source_type::constant;
     index  = 0;
     std::fill_n(chunk_id.data(), chunk_id.size(), 0);

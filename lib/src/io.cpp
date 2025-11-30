@@ -831,8 +831,8 @@ static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
 {
     const auto src = get_source(param);
 
-    if (src.type == source::source_type::constant) {
-        if (auto* ptr = sim_to_cpp.get(src.id.constant_id)) {
+    if (src.first == source_type::constant) {
+        if (auto* ptr = sim_to_cpp.get(src.second.constant_id)) {
             (*ptr)++;
             return true;
         }

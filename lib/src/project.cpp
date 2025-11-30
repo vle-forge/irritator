@@ -38,98 +38,105 @@ static bool vector_reserve_add(V& v, std::integral auto size) noexcept
 class mod_to_sim_srcs
 {
 public:
-    mod_to_sim_srcs(constant_source_id mid, constant_source_id sid) noexcept
-      : mod_id{ ordinal(mid) }
-      , sim_id{ ordinal(sid) }
-      , type(source::source_type::constant)
+    constexpr mod_to_sim_srcs(external_source_definition::id mid,
+                              constant_source_id             sid) noexcept
+      : mod_id{ mid }
+      , sim_id{ sid }
+      , type{ source_type::constant }
     {}
 
-    mod_to_sim_srcs(binary_file_source_id mid,
-                    binary_file_source_id sid) noexcept
-      : mod_id{ ordinal(mid) }
-      , sim_id{ ordinal(sid) }
-      , type(source::source_type::binary_file)
+    constexpr mod_to_sim_srcs(external_source_definition::id mid,
+                              binary_file_source_id          sid) noexcept
+      : mod_id{ mid }
+      , sim_id{ sid }
+      , type{ source_type::binary_file }
     {}
 
-    mod_to_sim_srcs(text_file_source_id mid, text_file_source_id sid) noexcept
-      : mod_id{ ordinal(mid) }
-      , sim_id{ ordinal(sid) }
-      , type(source::source_type::text_file)
+    constexpr mod_to_sim_srcs(external_source_definition::id mid,
+                              text_file_source_id            sid) noexcept
+      : mod_id{ mid }
+      , sim_id{ sid }
+      , type{ source_type::text_file }
     {}
 
-    mod_to_sim_srcs(random_source_id mid, random_source_id sid) noexcept
-      : mod_id{ ordinal(mid) }
-      , sim_id{ ordinal(sid) }
-      , type(source::source_type::random)
+    constexpr mod_to_sim_srcs(external_source_definition::id mid,
+                              random_source_id               sid) noexcept
+      : mod_id{ mid }
+      , sim_id{ sid }
+      , type{ source_type::random }
     {}
 
-    u64 mod_id;
-    u64 sim_id;
-
-    source::source_type type;
+    external_source_definition::id mod_id;
+    source_any_id                  sim_id;
+    source_type                    type;
 };
 
-u64 convert_source_id(const std::span<const mod_to_sim_srcs> srcs,
-                      const source::source_type              type,
-                      const u64                              id) noexcept
+constexpr auto convert_mod_to_sim_source_id(
+  const std::span<const mod_to_sim_srcs> mapping,
+  const external_source_definition::id   mod_id) noexcept
+  -> std::optional<mod_to_sim_srcs>
 {
-    const auto it = std::find_if(
-      srcs.begin(), srcs.end(), [id, type](const auto& s) noexcept -> bool {
-          return type == s.type and id == s.mod_id;
+    auto it = std::find_if(
+      mapping.begin(), mapping.end(), [&](const auto& map) noexcept -> bool {
+          return map.mod_id == mod_id;
       });
 
-    return it != srcs.end() ? it->sim_id : 0u;
-
-    irt::unreachable();
-
-    return 0u;
+    return it == mapping.end() ? std::nullopt : std::optional(*it);
 }
 
-constexpr void convert_source(const std::span<const mod_to_sim_srcs> srcs,
-                              const dynamics_type                    type,
-                              parameter&                             p) noexcept
+constexpr void convert_mod_to_sim_source(
+  const std::span<const mod_to_sim_srcs> mapping,
+  const dynamics_type                    type,
+  parameter&                             p) noexcept
 {
     switch (type) {
-    case dynamics_type::dynamic_queue:
-        p.integers[1] =
-          convert_source_id(srcs,
-                            enum_cast<source::source_type>(p.integers[2]),
-                            static_cast<u64>(p.integers[1]));
-        break;
+    case dynamics_type::dynamic_queue: {
+        const auto mod_src = enum_cast<external_source_definition::id>(
+          p.integers[dynamic_queue_tag::source_ta]);
+        if (const auto sim_src = convert_mod_to_sim_source_id(mapping, mod_src);
+            sim_src.has_value())
+            p.set_dynamic_queue_ta(sim_src->type, sim_src->sim_id);
+    } break;
 
-    case dynamics_type::priority_queue:
-        p.integers[1] =
-          convert_source_id(srcs,
-                            enum_cast<source::source_type>(p.integers[2]),
-                            static_cast<u64>(p.integers[1]));
-        break;
+    case dynamics_type::priority_queue: {
+        const auto mod_src = enum_cast<external_source_definition::id>(
+          p.integers[priority_queue_tag::source_ta]);
+        if (const auto sim_src = convert_mod_to_sim_source_id(mapping, mod_src);
+            sim_src.has_value())
+            p.set_priority_queue_ta(sim_src->type, sim_src->sim_id);
+    } break;
 
     case dynamics_type::generator: {
         const auto flags = bitflags<generator::option>(p.integers[0]);
         if (flags[generator::option::ta_use_source]) {
-            p.integers[1] =
-              convert_source_id(srcs,
-                                enum_cast<source::source_type>(p.integers[2]),
-                                static_cast<u64>(p.integers[1]));
+            const auto mod_src = enum_cast<external_source_definition::id>(
+              p.integers[generator_tag::source_ta]);
+            if (const auto sim_src =
+                  convert_mod_to_sim_source_id(mapping, mod_src);
+                sim_src.has_value())
+                p.set_generator_ta(sim_src->type, sim_src->sim_id);
         }
 
         if (flags[generator::option::value_use_source]) {
-            p.integers[3] =
-              convert_source_id(srcs,
-                                enum_cast<source::source_type>(p.integers[4]),
-                                static_cast<u64>(p.integers[3]));
+            const auto mod_src = enum_cast<external_source_definition::id>(
+              p.integers[generator_tag::source_value]);
+            if (const auto sim_src =
+                  convert_mod_to_sim_source_id(mapping, mod_src);
+                sim_src.has_value())
+                p.set_generator_value(sim_src->type, sim_src->sim_id);
         }
     } break;
 
-    case dynamics_type::hsm_wrapper:
-        p.integers[3] =
-          convert_source_id(srcs,
-                            enum_cast<source::source_type>(p.integers[4]),
-                            static_cast<u64>(p.integers[3]));
-        break;
+    case dynamics_type::hsm_wrapper: {
+        const auto mod_src = enum_cast<external_source_definition::id>(
+          p.integers[hsm_wrapper_tag::source_value]);
+        if (const auto sim_src = convert_mod_to_sim_source_id(mapping, mod_src);
+            sim_src.has_value())
+            p.set_hsm_wrapper_value(sim_src->type, sim_src->sim_id);
+    } break;
 
     default:
-        break;
+        unreachable();
     }
 }
 
@@ -549,9 +556,9 @@ static auto make_tree_leaf(simulation_copy&          sc,
           sc.pj.sim.parameters[new_mdl_id] = gen.children_parameters[ch_idx];
 
           if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
-              convert_source(std::span(compo->data(), compo->size()),
-                             new_mdl.type,
-                             sc.pj.sim.parameters[new_mdl_id]);
+              convert_mod_to_sim_source(std::span(compo->data(), compo->size()),
+                                        new_mdl.type,
+                                        sc.pj.sim.parameters[new_mdl_id]);
           }
 
           sc.pj.sim.parameters[new_mdl_id].copy_to(new_mdl);
@@ -707,59 +714,87 @@ static status make_tree_recursive(simulation_copy& sc,
     return success();
 }
 
-static int count_sources(const external_source& srcs) noexcept
+static bool external_sources_reserve_add(const external_source_definition& src,
+                                         external_source& dst) noexcept
 {
-    return srcs.constant_sources.size() + srcs.binary_file_sources.size() +
-           srcs.text_file_sources.size() + srcs.random_sources.size();
+    std::array<unsigned, 4> more_reserve{};
+
+    const auto& src_elems =
+      src.data.get<external_source_definition::source_element>();
+
+    for (const auto id : src.data)
+        ++more_reserve[src_elems[id].index()];
+
+    return data_array_reserve_add(dst.constant_sources, more_reserve[0]) and
+           data_array_reserve_add(dst.binary_file_sources, more_reserve[1]) and
+           data_array_reserve_add(dst.text_file_sources, more_reserve[2]) and
+           data_array_reserve_add(dst.random_sources, more_reserve[3]);
 }
 
-static bool external_sources_reserve_add(const external_source& src,
-                                         external_source&       dst) noexcept
-{
-    return data_array_reserve_add(dst.constant_sources,
-                                  src.constant_sources.size()) and
-           data_array_reserve_add(dst.binary_file_sources,
-                                  src.binary_file_sources.size()) and
-           data_array_reserve_add(dst.text_file_sources,
-                                  src.text_file_sources.size()) and
-           data_array_reserve_add(dst.random_sources,
-                                  src.random_sources.size());
-}
-
-static status external_source_copy(vector<mod_to_sim_srcs>& v,
-                                   const external_source&   src,
-                                   external_source&         dst) noexcept
+static status external_source_copy(vector<mod_to_sim_srcs>&          v,
+                                   const external_source_definition& src,
+                                   external_source& dst) noexcept
 {
     if (not external_sources_reserve_add(src, dst) or
-        not vector_reserve_add(v, count_sources(src)))
+        not vector_reserve_add(v, src.data.size()))
         return new_error(external_source_errc::memory_error);
 
-    for (const auto& rs : src.constant_sources) {
-        auto& n_res    = dst.constant_sources.alloc(rs);
-        auto  n_res_id = dst.constant_sources.get_id(n_res);
-        auto  res_id   = src.constant_sources.get_id(rs);
-        v.emplace_back(res_id, n_res_id);
-    }
+    const auto& src_elems =
+      src.data.get<external_source_definition::source_element>();
 
-    for (const auto& rs : src.binary_file_sources) {
-        auto& n_res    = dst.binary_file_sources.alloc(rs);
-        auto  n_res_id = dst.binary_file_sources.get_id(n_res);
-        auto  res_id   = src.binary_file_sources.get_id(rs);
-        v.emplace_back(res_id, n_res_id);
-    }
+    for (const auto id : src.data) {
+        switch (src_elems[id].index()) {
+        case 0: {
+            auto& n_src =
+              *std::get_if<external_source_definition::constant_source>(
+                &src_elems[id]);
+            auto& n_res    = dst.constant_sources.alloc();
+            auto  n_res_id = dst.constant_sources.get_id(n_res);
 
-    for (const auto& rs : src.text_file_sources) {
-        auto& n_res    = dst.text_file_sources.alloc(rs);
-        auto  n_res_id = dst.text_file_sources.get_id(n_res);
-        auto  res_id   = src.text_file_sources.get_id(rs);
-        v.emplace_back(res_id, n_res_id);
-    }
+            for (int i = 0; i < n_src.data.ssize(); ++i)
+                n_res.buffer[i] = n_src.data[i];
+            n_res.length = n_src.data.ssize();
 
-    for (const auto& rs : src.random_sources) {
-        auto& n_res    = dst.random_sources.alloc(rs);
-        auto  n_res_id = dst.random_sources.get_id(n_res);
-        auto  res_id   = src.random_sources.get_id(rs);
-        v.emplace_back(res_id, n_res_id);
+            v.emplace_back(id, n_res_id);
+        } break;
+
+        case 1: {
+            auto& n_src =
+              *std::get_if<external_source_definition::binary_source>(
+                &src_elems[id]);
+            auto& n_res    = dst.binary_file_sources.alloc();
+            auto  n_res_id = dst.binary_file_sources.get_id(n_res);
+
+            n_res.file_id = n_src.file;
+
+            v.emplace_back(id, n_res_id);
+        } break;
+
+        case 2: {
+            auto& n_src = *std::get_if<external_source_definition::text_source>(
+              &src_elems[id]);
+            auto& n_res    = dst.text_file_sources.alloc();
+            auto  n_res_id = dst.text_file_sources.get_id(n_res);
+
+            n_res.file_id = n_src.file;
+
+            v.emplace_back(id, n_res_id);
+        } break;
+
+        case 3: {
+            auto& n_src =
+              *std::get_if<external_source_definition::random_source>(
+                &src_elems[id]);
+            auto& n_res    = dst.random_sources.alloc();
+            auto  n_res_id = dst.random_sources.get_id(n_res);
+
+            n_res.distribution = n_src.type;
+            // FIXME Copy parameters
+            debug::breakpoint();
+
+            v.emplace_back(id, n_res_id);
+        } break;
+        }
     }
 
     return success();
@@ -780,11 +815,12 @@ static status update_external_source(simulation_copy& sc,
     const auto compo_id = sc.mod.components.get_id(compo);
 
     if (const auto* exist = sc.srcs_mod_to_sim.get(compo_id); not exist) {
-        if (const auto nb = count_sources(compo.srcs); nb > 0) {
+        if (not compo.srcs.data.empty()) {
             external_sources_reserve_add(compo.srcs, sc.pj.sim.srcs);
             sc.srcs_mod_to_sim.data.emplace_back(compo_id,
                                                  vector<mod_to_sim_srcs>());
-            vector_reserve_add(sc.srcs_mod_to_sim.data.back().value, nb);
+            vector_reserve_add(sc.srcs_mod_to_sim.data.back().value,
+                               compo.srcs.data.size());
 
             irt_check(external_source_copy(sc.srcs_mod_to_sim.data.back().value,
                                            compo.srcs,
@@ -1324,8 +1360,8 @@ static auto get_output_connection_type(const modeling&    mod,
     return compo.y.get<port_option>(p_id);
 }
 
-/** Adds @a qss3_sum_4 connections in place of the @a port to sum all the input
- * connection of the component @a compo.
+/** Adds @a qss3_sum_4 connections in place of the @a port to sum all the
+ * input connection of the component @a compo.
  *
  * From a component graph:
  * @code
@@ -1574,7 +1610,7 @@ static auto make_tree_from(simulation_copy&                     sc,
     new_tree.tree.set_id(&new_tree);
     new_tree.unique_id = "root";
 
-    if (const auto nb = count_sources(parent.srcs); nb > 0) {
+    if (const auto nb = parent.srcs.data.size(); nb > 0) {
         external_sources_reserve_add(parent.srcs, sc.pj.sim.srcs);
 
         sc.srcs_mod_to_sim.data.emplace_back(sc.mod.components.get_id(parent),
@@ -1780,9 +1816,17 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
 
     sc.pj.sim.parameters[mdl_idx]
       .set_hsm_wrapper(ordinal(*sim_hsm_id))
-      .set_hsm_wrapper_value(com_hsm->src)
       .set_hsm_wrapper(
         com_hsm->i1, com_hsm->i2, com_hsm->r1, com_hsm->r2, com_hsm->timeout);
+
+    if (const auto* srcs_mod_to_sim = sc.srcs_mod_to_sim.get(compo_id)) {
+        if (const auto opt = convert_mod_to_sim_source_id(
+              std::span(srcs_mod_to_sim->data(), srcs_mod_to_sim->size()),
+              com_hsm->src);
+            opt.has_value())
+            sc.pj.sim.parameters[mdl_idx].set_hsm_wrapper_value(opt->type,
+                                                                opt->sim_id);
+    }
 
     return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
 }

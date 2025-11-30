@@ -278,190 +278,201 @@ static void show_connection_pack(const modeling&          mod,
 
 struct component_editor::impl {
 
-    static void display_external_source(application& app,
-                                        component&   compo) noexcept
+    static bool display_constant_source(
+      name_str&                                    name,
+      external_source_definition::constant_source& cst) noexcept
     {
-        constexpr auto tn_def = ImGuiTreeNodeFlags_DefaultOpen;
+        auto keep_element = true;
 
-        if (not compo.srcs.constant_sources.empty() and
-            ImGui::TreeNodeEx("Constants", tn_def)) {
-            static constant_source r_src;
+        if (ImGui::TreeNodeEx(
+              &cst, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+            ImGui::SameLine();
 
-            auto to_del = undefined<constant_source_id>();
-            for (auto& s : compo.srcs.constant_sources) {
-                r_src         = s;
-                const auto id = compo.srcs.constant_sources.get_id(s);
-                ImGui::PushID(&s);
-                if (ImGui::TreeNodeEx(&s,
-                                      ImGuiTreeNodeFlags_SpanLabelWidth,
-                                      "%s",
-                                      r_src.name.c_str())) {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("x"))
-                        to_del = id;
+            if (ImGui::SmallButton("x"))
+                keep_element = false;
 
-                    if (ImGui::InputFilteredString("name", r_src.name)) {
-                        s.name = r_src.name;
-                    }
+            auto copy_name = name;
+            if (ImGui::InputFilteredString("name", copy_name))
+                name = copy_name;
 
-                    u32 len = s.length;
-                    if (ImGui::InputScalar("length", ImGuiDataType_U32, &len)) {
-                        if (len > 0 and len < external_source_chunk_size)
-                            s.length = len;
-                    }
+            auto size = cst.data.ssize();
+            if (ImGui::InputScalar("length", ImGuiDataType_S32, &size))
+                if (size < cst.data.capacity())
+                    cst.data.resize(size);
 
-                    s.length          = s.length == 0 ? 1 : s.length;
-                    const int columns = 3 < s.length ? 3 : s.length;
-                    const int rows =
-                      (s.length / columns) + ((s.length % columns) > 0 ? 1 : 0);
-                    if (ImGui::BeginChild(
-                          "##zone",
-                          ImVec2(ImGui::GetContentRegionAvail().x,
-                                 ImGui::GetFrameHeightWithSpacing() * rows))) {
-                        if (ImGui::BeginTable("Values", columns)) {
-                            for (int j = 0; j < columns; ++j)
-                                ImGui::TableSetupColumn(
-                                  "",
-                                  ImGuiTableColumnFlags_WidthFixed,
-                                  ImGui::GetContentRegionAvail().x / 3.f);
+            if (cst.data.empty())
+                cst.data.resize(1);
 
-                            for (int i = 0; i < rows; ++i) {
-                                ImGui::TableNextRow();
-                                for (int j = 0; j < columns; ++j) {
-                                    ImGui::TableSetColumnIndex(j);
-                                    ImGui::PushID(i * columns + j);
-                                    ImGui::PushItemWidth(-1);
-                                    ImGui::InputDouble(
-                                      "", s.buffer.data() + (i * columns + j));
-                                    ImGui::PopItemWidth();
-                                    ImGui::PopID();
-                                }
-                            }
-                            ImGui::EndTable();
+            const auto columns = 3 < cst.data.ssize() ? 3 : cst.data.ssize();
+            const auto rows    = (cst.data.ssize() / columns) +
+                              ((cst.data.ssize() % columns) > 0 ? 1 : 0);
+
+            if (ImGui::BeginChild(
+                  "##zone",
+                  ImVec2(ImGui::GetContentRegionAvail().x,
+                         ImGui::GetFrameHeightWithSpacing() * rows))) {
+                if (ImGui::BeginTable("Values", columns)) {
+                    for (int j = 0; j < columns; ++j)
+                        ImGui::TableSetupColumn(
+                          "",
+                          ImGuiTableColumnFlags_WidthFixed,
+                          ImGui::GetContentRegionAvail().x / 3.f);
+
+                    for (int i = 0; i < rows; ++i) {
+                        ImGui::TableNextRow();
+                        for (int j = 0; j < columns; ++j) {
+                            ImGui::TableSetColumnIndex(j);
+                            ImGui::PushID(i * columns + j);
+                            ImGui::PushItemWidth(-1);
+                            ImGui::InputDouble("", &cst.data[i * columns + j]);
+                            ImGui::PopItemWidth();
+                            ImGui::PopID();
                         }
                     }
-                    ImGui::EndChild();
-                    ImGui::TreePop();
+                    ImGui::EndTable();
                 }
-                ImGui::PopID();
             }
-
-            if (is_defined(to_del))
-                compo.srcs.constant_sources.free(to_del);
-
+            ImGui::EndChild();
             ImGui::TreePop();
-            ImGui::Separator();
         }
 
-        if (not compo.srcs.binary_file_sources.empty() and
-            ImGui::TreeNodeEx("Binary files", tn_def)) {
-            static decltype(constant_source::name) name_tmp;
-            static file_path_id id_tmp = undefined<file_path_id>();
+        return keep_element;
+    }
 
-            auto to_del = undefined<binary_file_source_id>();
-            for (auto& s : compo.srcs.binary_file_sources) {
-                name_tmp      = s.name;
-                id_tmp        = s.file_id;
-                const auto id = compo.srcs.binary_file_sources.get_id(s);
-                ImGui::PushID(&s);
-                if (ImGui::TreeNodeEx(&s,
-                                      ImGuiTreeNodeFlags_SpanLabelWidth,
-                                      "%s",
-                                      s.name.c_str())) {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("x"))
-                        to_del = id;
+    static bool display_binary_source(
+      const application&                         app,
+      const component&                           compo,
+      name_str&                                  name,
+      external_source_definition::binary_source& bin) noexcept
+    {
+        auto keep_element = true;
 
-                    if (ImGui::InputFilteredString("name", name_tmp)) {
-                        s.name = name_tmp;
-                    }
+        if (ImGui::TreeNodeEx(
+              &bin, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+            ImGui::SameLine();
 
-                    s.file_id =
-                      show_data_file_input(app.mod, compo.dir, id_tmp);
+            if (ImGui::SmallButton("x"))
+                keep_element = false;
 
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
+            auto copy_name = name;
+            if (ImGui::InputFilteredString("name", copy_name))
+                name = copy_name;
 
-            if (is_defined(to_del))
-                compo.srcs.binary_file_sources.free(to_del);
-
+            bin.file = show_data_file_input(app.mod, compo.dir, bin.file);
             ImGui::TreePop();
-            ImGui::Separator();
         }
 
-        if (not compo.srcs.text_file_sources.empty() and
-            ImGui::TreeNodeEx("Text files", tn_def)) {
-            static decltype(constant_source::name) name_tmp;
-            static file_path_id id_tmp = undefined<file_path_id>();
+        return keep_element;
+    }
 
-            auto to_del = undefined<text_file_source_id>();
-            for (auto& s : compo.srcs.text_file_sources) {
-                name_tmp      = s.name;
-                id_tmp        = s.file_id;
-                const auto id = compo.srcs.text_file_sources.get_id(s);
-                ImGui::PushID(&s);
-                if (ImGui::TreeNodeEx(&s,
-                                      ImGuiTreeNodeFlags_SpanLabelWidth,
-                                      "%s",
-                                      s.name.c_str())) {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("x"))
-                        to_del = id;
+    static bool display_text_source(
+      const application&                       app,
+      const component&                         compo,
+      name_str&                                name,
+      external_source_definition::text_source& text) noexcept
+    {
+        auto keep_element = true;
 
-                    if (ImGui::InputFilteredString("name", name_tmp)) {
-                        s.name = name_tmp;
-                    }
+        if (ImGui::TreeNodeEx(
+              &text, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+            ImGui::SameLine();
 
-                    s.file_id =
-                      show_data_file_input(app.mod, compo.dir, id_tmp);
+            if (ImGui::SmallButton("x"))
+                keep_element = false;
 
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
-            }
+            auto copy_name = name;
+            if (ImGui::InputFilteredString("name", copy_name))
+                name = copy_name;
 
-            if (is_defined(to_del))
-                compo.srcs.text_file_sources.free(to_del);
-
+            text.file = show_data_file_input(app.mod, compo.dir, text.file);
             ImGui::TreePop();
-            ImGui::Separator();
         }
 
-        if (not compo.srcs.random_sources.empty() and
-            ImGui::TreeNodeEx("Random", tn_def)) {
-            // @TODO providing a better API to fill the distribution.
-            static random_source r_src;
+        return keep_element;
+    }
 
-            auto to_del = undefined<random_source_id>();
-            for (auto& s : compo.srcs.random_sources) {
-                r_src         = s;
-                const auto id = compo.srcs.random_sources.get_id(s);
-                ImGui::PushID(&s);
-                if (ImGui::TreeNodeEx(&s,
-                                      ImGuiTreeNodeFlags_SpanLabelWidth,
-                                      "%s",
-                                      r_src.name.c_str())) {
-                    ImGui::SameLine();
-                    if (ImGui::SmallButton("x"))
-                        to_del = id;
+    static bool display_random_source(
+      name_str&                                  name,
+      external_source_definition::random_source& rnd) noexcept
+    {
+        auto keep_element = true;
 
-                    if (ImGui::InputFilteredString("name", r_src.name)) {
-                        s.name = r_src.name.sv();
-                    }
+        if (ImGui::TreeNodeEx(
+              &rnd, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+            ImGui::SameLine();
 
-                    if (show_random_distribution_input(r_src)) {
-                        s = r_src;
-                    }
+            if (ImGui::SmallButton("x"))
+                keep_element = false;
 
-                    ImGui::TreePop();
-                }
-                ImGui::PopID();
+            auto copy_name = name;
+            if (ImGui::InputFilteredString("name", copy_name))
+                name = copy_name;
+
+            auto copy_rnd = rnd;
+            if (show_random_distribution_input(copy_rnd)) {
+                rnd = copy_rnd;
             }
 
-            if (is_defined(to_del))
-                compo.srcs.random_sources.free(to_del);
+            ImGui::TreePop();
+        }
+
+        return keep_element;
+    }
+
+    static void display_external_source(const application& app,
+                                        component&         compo) noexcept
+    {
+        if (compo.srcs.data.empty())
+            return;
+
+        if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
+            std::optional<external_source_definition::id> to_del;
+            auto& names = compo.srcs.data.get<name_str>();
+            auto& elem =
+              compo.srcs.data.get<external_source_definition::source_element>();
+
+            for (const auto id : compo.srcs.data) {
+                auto keep_element = true;
+                switch (elem[id].index()) {
+                case 0:
+                    keep_element = display_constant_source(
+                      names[id],
+                      *std::get_if<external_source_definition::constant_source>(
+                        &elem[id]));
+                    break;
+
+                case 1:
+                    keep_element = display_binary_source(
+                      app,
+                      compo,
+                      names[id],
+                      *std::get_if<external_source_definition::binary_source>(
+                        &elem[id]));
+                    break;
+
+                case 2:
+                    keep_element = display_text_source(
+                      app,
+                      compo,
+                      names[id],
+                      *std::get_if<external_source_definition::text_source>(
+                        &elem[id]));
+                    break;
+
+                case 3:
+                    keep_element = display_random_source(
+                      names[id],
+                      *std::get_if<external_source_definition::random_source>(
+                        &elem[id]));
+                    break;
+                }
+
+                if (not keep_element)
+                    to_del = id;
+            }
+
+            if (to_del.has_value())
+                compo.srcs.data.free(*to_del);
 
             ImGui::TreePop();
         }
@@ -1929,33 +1940,22 @@ struct component_editor::impl {
                             0
                         };
 
-                        if (ImGui::Button("new constant", size)) {
-                            auto& news = compo.srcs.constant_sources.alloc();
-                            news.name  = "cst";
-                        }
+                        if (ImGui::Button("new constant", size))
+                            compo.srcs.alloc_constant_source();
 
-                        if (ImGui::Button("new binary file", size)) {
-                            auto& news = compo.srcs.binary_file_sources.alloc();
-                            news.name  = "bin";
-                        }
+                        if (ImGui::Button("new binary file", size))
+                            compo.srcs.alloc_binary_source();
 
-                        if (ImGui::Button("new text file", size)) {
-                            auto& news = compo.srcs.text_file_sources.alloc();
-                            news.name  = "txt";
-                        }
+                        if (ImGui::Button("new text file", size))
+                            compo.srcs.alloc_text_source();
 
-                        if (ImGui::Button("new random", size)) {
-                            auto& news = compo.srcs.random_sources.alloc();
-                            news.name  = "rng";
-                        }
+                        if (ImGui::Button("new random", size))
+                            compo.srcs.alloc_random_source();
 
                         ImGui::EndMenu();
                     }
 
-                    if (not compo.srcs.constant_sources.empty() or
-                        not compo.srcs.binary_file_sources.empty() or
-                        not compo.srcs.text_file_sources.empty() or
-                        not compo.srcs.random_sources.empty()) {
+                    if (not compo.srcs.data.empty()) {
                         ImGui::Separator();
                         display_external_source(app, compo);
                     }

@@ -19,19 +19,19 @@ class application;
  * @return @c true if a modification of a parameter occured during the display,
  * @c false otherwise.
  */
-bool show_parameter_editor(application&     app,
-                           external_source& srcs,
-                           dynamics_type    type,
-                           parameter&       p) noexcept;
+bool show_parameter_editor(application&                app,
+                           external_source_definition& srcs,
+                           dynamics_type               type,
+                           parameter&                  p) noexcept;
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
                                  source&          src) noexcept;
 
-bool show_external_sources_combo(external_source&     srcs,
-                                 const char*          title,
-                                 source::source_type& src_type,
-                                 source::id_type&     src_id) noexcept;
+bool show_external_sources_combo(external_source& srcs,
+                                 const char*      title,
+                                 source_type&     src_type,
+                                 source_any_id&   src_id) noexcept;
 
 /**
  * Display widgets to control the HSM component from modeling.

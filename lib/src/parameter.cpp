@@ -155,7 +155,7 @@ static void parameter_init(parameter& param, const queue& dyn) noexcept
 
 static void model_init(const parameter& param, dynamic_queue& dyn) noexcept
 {
-    dyn.source_ta = get_source(param.integers[dynamic_queue_tag::source_ta]);
+    dyn.source_ta.reset(param.integers[dynamic_queue_tag::source_ta]);
 }
 
 static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
@@ -165,8 +165,8 @@ static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 
 static void model_init(const parameter& param, priority_queue& dyn) noexcept
 {
-    dyn.ta        = param.reals[priority_queue_tag::sigma];
-    dyn.source_ta = get_source(param.integers[priority_queue_tag::source_ta]);
+    dyn.ta = param.reals[priority_queue_tag::sigma];
+    dyn.source_ta.reset(param.integers[priority_queue_tag::source_ta]);
 }
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
@@ -181,12 +181,11 @@ static void model_init(const parameter& param, generator& dyn) noexcept
       bitflags<generator::option>(param.integers[generator_tag::i_options]);
 
     if (dyn.flags[generator::option::ta_use_source]) {
-        dyn.source_ta = get_source(param.integers[generator_tag::source_ta]);
+        dyn.source_ta.reset(param.integers[generator_tag::source_ta]);
     }
 
     if (dyn.flags[generator::option::value_use_source]) {
-        dyn.source_value =
-          get_source(param.integers[generator_tag::source_value]);
+        dyn.source_value.reset(param.integers[generator_tag::source_value]);
     }
 }
 
@@ -400,8 +399,7 @@ static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
     dyn.exec.i1 = static_cast<i32>(param.integers[hsm_wrapper_tag::i1]);
     dyn.exec.i2 = static_cast<i32>(param.integers[hsm_wrapper_tag::i2]);
 
-    dyn.exec.source_value =
-      get_source(param.integers[hsm_wrapper_tag::source_value]);
+    dyn.exec.source_value.reset(param.integers[hsm_wrapper_tag::source_value]);
 
     dyn.exec.r1    = param.reals[hsm_wrapper_tag::r1];
     dyn.exec.r2    = param.reals[hsm_wrapper_tag::r2];
@@ -678,69 +676,47 @@ parameter& parameter::set_hsm_wrapper(i64  i1,
     return *this;
 }
 
-parameter& parameter::set_hsm_wrapper_value(const source& src) noexcept
+parameter& parameter::set_hsm_wrapper_value(const source_type   type,
+                                            const source_any_id id) noexcept
 {
-    integers[hsm_wrapper_tag::source_value] = from_source(src);
+    integers[hsm_wrapper_tag::source_value] = from_source(type, id);
     return *this;
 }
 
-parameter& parameter::set_generator_ta(const source& src) noexcept
+parameter& parameter::set_generator_ta(const source_type   type,
+                                       const source_any_id id) noexcept
 {
     bitflags<generator::option> flags(integers[generator_tag::i_options]);
     flags.set(generator::option::ta_use_source, true);
 
     integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
-    integers[generator_tag::source_ta] = from_source(src);
+    integers[generator_tag::source_ta] = from_source(type, id);
     return *this;
 }
 
-parameter& parameter::set_generator_value(const source& src) noexcept
+parameter& parameter::set_generator_value(const source_type   type,
+                                          const source_any_id id) noexcept
 {
     bitflags<generator::option> flags(integers[generator_tag::i_options]);
     flags.set(generator::option::value_use_source, true);
     integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
 
-    integers[generator_tag::source_value] = from_source(src);
+    integers[generator_tag::source_value] = from_source(type, id);
     return *this;
 }
 
-parameter& parameter::set_dynamic_queue_ta(const source& src) noexcept
+parameter& parameter::set_dynamic_queue_ta(const source_type   type,
+                                           const source_any_id id) noexcept
 {
-    integers[dynamic_queue_tag::source_ta] = from_source(src);
+    integers[dynamic_queue_tag::source_ta] = from_source(type, id);
     return *this;
 }
 
-parameter& parameter::set_priority_queue_ta(const source& src) noexcept
+parameter& parameter::set_priority_queue_ta(const source_type   type,
+                                            const source_any_id id) noexcept
 {
-    integers[priority_queue_tag::source_ta] = from_source(src);
+    integers[priority_queue_tag::source_ta] = from_source(type, id);
     return *this;
-}
-
-source parameter::get_hsm_wrapper_value() noexcept
-{
-    return get_source(
-      static_cast<u64>(integers[hsm_wrapper_tag::source_value]));
-}
-
-source parameter::get_generator_ta() noexcept
-{
-    return get_source(static_cast<u64>(integers[generator_tag::source_ta]));
-}
-
-source parameter::get_generator_value() noexcept
-{
-    return get_source(static_cast<u64>(integers[generator_tag::source_value]));
-}
-
-source parameter::get_dynamic_queue_ta() noexcept
-{
-    return get_source(static_cast<u64>(integers[dynamic_queue_tag::source_ta]));
-}
-
-source parameter::get_priority_queue_ta() noexcept
-{
-    return get_source(
-      static_cast<u64>(integers[priority_queue_tag::source_ta]));
 }
 
 } // namespace irt

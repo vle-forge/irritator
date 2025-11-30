@@ -1030,16 +1030,15 @@ void application::start_save_component(const component_id id) noexcept
     });
 }
 
-void application::start_init_source(const project_id          pj_id,
-                                    const u64                 id,
-                                    const source::source_type type) noexcept
+void application::start_init_source(const project_id  pj_id,
+                                    const u64         id,
+                                    const source_type type) noexcept
 {
-    debug::ensure(any_equal(
-      type, source::source_type::constant, source::source_type::random));
+    debug::ensure(any_equal(type, source_type::constant, source_type::random));
 
     add_gui_task([this, pj_id, id, type]() noexcept {
         if (auto* sim_ed = pjs.try_to_get(pj_id)) {
-            if (type == source::source_type::constant) {
+            if (type == source_type::constant) {
                 if (auto* c = sim_ed->pj.sim.srcs.constant_sources.try_to_get(
                       enum_cast<constant_source_id>(id))) {
                     (void)c->init();

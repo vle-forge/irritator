@@ -29,6 +29,59 @@
 
 namespace irt {
 
+bool external_source_definition::can_alloc(std::integral auto i) const noexcept
+{
+    return data.can_alloc(i);
+}
+
+bool external_source_definition::grow() noexcept { return data.grow<2, 1>(); }
+
+external_source_definition::constant_source&
+external_source_definition::alloc_constant_source(
+  std::string_view name) noexcept
+{
+    debug::ensure(can_alloc(1));
+
+    const auto id          = data.alloc_id();
+    data.get<name_str>(id) = name;
+    auto& cst = data.get<external_source_definition::source_element>(id);
+
+    return cst.emplace<external_source_definition::constant_source>();
+}
+
+external_source_definition::binary_source&
+external_source_definition::alloc_binary_source(std::string_view name) noexcept
+{
+    debug::ensure(can_alloc(1));
+
+    const auto id          = data.alloc_id();
+    data.get<name_str>(id) = name;
+    return data.get<external_source_definition::source_element>(id)
+      .emplace<external_source_definition::binary_source>();
+}
+
+external_source_definition::text_source&
+external_source_definition::alloc_text_source(std::string_view name) noexcept
+{
+    debug::ensure(can_alloc(1));
+
+    const auto id          = data.alloc_id();
+    data.get<name_str>(id) = name;
+    return data.get<external_source_definition::source_element>(id)
+      .emplace<external_source_definition::text_source>();
+}
+
+external_source_definition::random_source&
+external_source_definition::alloc_random_source(std::string_view name) noexcept
+{
+    debug::ensure(can_alloc(1));
+
+    const auto id          = data.alloc_id();
+    data.get<name_str>(id) = name;
+    return data.get<external_source_definition::source_element>(id)
+      .emplace<external_source_definition::random_source>();
+}
+
 constant_source::constant_source(const constant_source& other) noexcept
   : name(other.name)
   , length(other.length)
@@ -739,7 +792,7 @@ status external_source::dispatch(source&                      src,
                                  const source::operation_type op) noexcept
 {
     switch (src.type) {
-    case source::source_type::binary_file: {
+    case source_type::binary_file: {
         if (auto* bin_src =
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return external_source_dispatch(*bin_src, src, op);
@@ -747,14 +800,14 @@ status external_source::dispatch(source&                      src,
         return new_error(external_source_errc::binary_file_unknown);
     } break;
 
-    case source::source_type::constant: {
+    case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return external_source_dispatch(*cst_src, src, op);
 
         return new_error(external_source_errc::constant_unknown);
     } break;
 
-    case source::source_type::random: {
+    case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return external_source_dispatch(*rnd_src, src, op);
 
@@ -762,7 +815,7 @@ status external_source::dispatch(source&                      src,
 
     } break;
 
-    case source::source_type::text_file: {
+    case source_type::text_file: {
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return external_source_dispatch(*txt_src, src, op);
 

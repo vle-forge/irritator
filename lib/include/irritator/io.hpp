@@ -85,12 +85,12 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
 
-static inline const char* external_source_type_string[] = { "binary_file",
-                                                            "constant",
-                                                            "random",
-                                                            "text_file" };
+static inline const char* external_source_type_string[] = { "constant",
+                                                            "binary_file",
+                                                            "text_file",
+                                                            "random" };
 
-inline const char* external_source_str(const source::source_type type) noexcept
+inline const char* external_source_str(const source_type type) noexcept
 {
     return external_source_type_string[ordinal(type)];
 }

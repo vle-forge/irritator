@@ -87,6 +87,14 @@ auto show_data_file_input(const modeling&    mod,
  */
 bool show_random_distribution_input(random_source& src) noexcept;
 
+/** Display combobox and input real, input integer for each type of random
+ * distribution. The @c random_source @c src is updated according to user
+ * selection.
+ * @return True if the user change the distribution type or the parameters.
+ */
+bool show_random_distribution_input(
+  external_source_definition::random_source& src) noexcept;
+
 /** @brief Get the color of the component in the @a float[4] format.
  * If the @a component identifier @a id is undefined this function returns the
  * @a default_component_color.
@@ -132,8 +140,9 @@ auto file_path_selector(application&              app,
 
 /** Display two combox, one per line. The first to select the source type,
  * second to select the source identifier. */
-void show_combobox_external_sources(external_source& srcs,
-                                    source&          src) noexcept;
+void show_combobox_external_sources(external_source_definition&     srcs,
+                                    external_source_definition::id& elem_id,
+                                    const char* name = "source") noexcept;
 
 struct notification {
     static inline constexpr int title_length   = 127;
@@ -626,7 +635,9 @@ private:
     void show_hsm(hsm_component& hsm) noexcept;
     void show_menu(hsm_component& hsm) noexcept;
     void show_graph(hsm_component& hsm) noexcept;
-    void show_panel(application& app, hsm_component& hsm) noexcept;
+    void show_panel(application&   app,
+                    component&     compo,
+                    hsm_component& hsm) noexcept;
     void clear(hsm_component& hsm) noexcept;
     bool valid(hsm_component& hsm) noexcept;
 
@@ -919,8 +930,8 @@ public:
         bool is(binary_file_source_id id) const noexcept;
         bool is(random_source_id id) const noexcept;
 
-        std::optional<source::source_type> type_sel;
-        u64                                id_sel = 0;
+        std::optional<source_type> type_sel;
+        u64                        id_sel = 0;
     } sel;
 
     /** Fill the underlying @c plot vector with reals from the @c data
@@ -1572,9 +1583,9 @@ public:
     void start_save_project(const registred_path_id file,
                             const project_id        pj_id) noexcept;
     void start_save_component(const component_id id) noexcept;
-    void start_init_source(const project_id          pj_id,
-                           const u64                 id,
-                           const source::source_type type) noexcept;
+    void start_init_source(const project_id  pj_id,
+                           const u64         id,
+                           const source_type type) noexcept;
     void start_hsm_test_start() noexcept;
     void start_dir_path_refresh(const dir_path_id id) noexcept;
     void start_dir_path_free(const dir_path_id id) noexcept;

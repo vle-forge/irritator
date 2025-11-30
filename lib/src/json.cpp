@@ -425,28 +425,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_string_to(binary_file_source& src) noexcept
-    {
-        try {
-            src.file_path = temp_string;
-            return true;
-        } catch (...) {
-        }
-
-        return error("binary file missing {}", temp_string);
-    }
-
-    bool copy_string_to(text_file_source& src) noexcept
-    {
-        try {
-            src.file_path = temp_string;
-            return true;
-        } catch (...) {
-        }
-
-        return error("text file missing {}", temp_string);
-    }
-
     bool copy_string_to(std::optional<constant::init_type>& type) noexcept
     {
         if (temp_string == "constant"sv)
@@ -768,15 +746,21 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_i64_to(std::optional<source::source_type>& dst) noexcept
+    bool copy_i64_to(std::optional<source_type>& dst) noexcept
     {
         if (0 <= temp_i64 and temp_i64 < 5) {
-            dst = enum_cast<source::source_type>(temp_i64);
+            dst = enum_cast<source_type>(temp_i64);
             return true;
         }
 
-        return error("fail to convert integer {} to source::source_type",
-                     temp_i64);
+        return error("fail to convert integer {} to source_type", temp_i64);
+    }
+
+    bool copy_i64_to(std::optional<i64>& dst) noexcept
+    {
+        dst = temp_i64;
+
+        return true;
     }
 
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
@@ -1145,68 +1129,29 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool copy_to_source(const std::optional<source::source_type> type,
-                        const std::optional<u64>                 id,
-                        source&                                  src)
+    bool copy_to_source_type(source_type& type) noexcept
     {
-        if (not type.has_value() or not id.has_value())
-            return true;
-
-        switch (*type) {
-        case source::source_type::binary_file:
-            if (const auto* ptr = self.binary_file_mapping.get(*id))
-                src = source(*ptr);
-            break;
-
-        case source::source_type::constant:
-            if (const auto* ptr = self.constant_mapping.get(*id))
-                src = source(*ptr);
-            break;
-
-        case source::source_type::random:
-            if (const auto* ptr = self.random_mapping.get(*id))
-                src = source(*ptr);
-            break;
-
-        case source::source_type::text_file:
-            if (const auto* ptr = self.text_file_mapping.get(*id))
-                src = source(*ptr);
-            break;
-        }
+        if (temp_string == "constant"sv)
+            type = source_type::constant;
+        else if (temp_string == "binary"sv)
+            type = source_type::binary_file;
+        else if (temp_string == "text"sv)
+            type = source_type::text_file;
+        else if (temp_string == "random"sv)
+            type = source_type::random;
+        else
+            return error("bad source type {}", temp_string);
 
         return true;
     }
 
-    bool copy_to_source(const std::optional<source::source_type> type,
-                        const std::optional<u64>                 id,
-                        i64&                                     src) noexcept
+    bool copy_source_to_parameter(i64& param) noexcept
     {
-        if (not type.has_value() or not id.has_value())
-            return true;
 
-        switch (*type) {
-        case source::source_type::binary_file:
-            if (const auto* ptr = self.binary_file_mapping.get(*id))
-                src = from_source(source(*ptr));
-            break;
+        external_source_definition::id id;
 
-        case source::source_type::constant:
-            if (const auto* ptr = self.constant_mapping.get(*id))
-                src = from_source(source(*ptr));
-            break;
-
-        case source::source_type::random:
-            if (const auto* ptr = self.random_mapping.get(*id))
-                src = from_source(source(*ptr));
-            break;
-
-        case source::source_type::text_file:
-            if (const auto* ptr = self.text_file_mapping.get(*id))
-                src = from_source(source(*ptr));
-            break;
-        }
-
-        return true;
+        return cache_srcs_mapping_get(temp_u64, id) and
+               copy(ordinal(id), param);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1215,22 +1160,15 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics_dynamic_queue");
 
-        std::optional<source::source_type> type;
-        std::optional<u64>                 id;
-
         return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("source-ta-type"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(type);
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("source-id"sv == name)
+                  return read_temp_u64(value) &&
+                         copy_source_to_parameter(
+                           p.integers[dynamic_queue_tag::source_ta]);
 
-                     if ("source-ta-id"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(id);
-
-                     return error("unknown element");
-                 }) and
-               copy_to_source(
-                 type, id, p.integers[dynamic_queue_tag::source_ta]);
+              return error("unknown element");
+          });
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1239,22 +1177,15 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics priority queue");
 
-        std::optional<source::source_type> type;
-        std::optional<u64>                 id;
-
         return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("source-ta-type"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(type);
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("source-id"sv == name)
+                  return read_temp_u64(value) &&
+                         copy_source_to_parameter(
+                           p.integers[priority_queue_tag::source_ta]);
 
-                     if ("source-ta-id"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(id);
-
-                     return error("unknown element");
-                 }) and
-               copy_to_source(
-                 type, id, p.integers[priority_queue_tag::source_ta]);
+              return error("unknown element");
+          });
     }
 
     bool copy_to_generator_options(bool ta_use_source,
@@ -1279,11 +1210,6 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics generator");
 
-        std::optional<source::source_type> type_ta;
-        std::optional<source::source_type> type_value;
-        std::optional<u64>                 id_ta;
-        std::optional<u64>                 id_value;
-
         auto ta_use_source    = false;
         auto value_use_source = false;
 
@@ -1296,25 +1222,18 @@ struct json_dearchiver::impl {
                      if ("value-is-external"sv == name)
                          return read_bool(value, value_use_source);
 
-                     if ("source-ta-type"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(type_ta);
-
                      if ("source-ta-id"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(id_ta);
-
-                     if ("source-value-type"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(type_value);
+                         return read_temp_u64(value) &&
+                                copy_source_to_parameter(
+                                  p.integers[generator_tag::source_ta]);
 
                      if ("source-value-id"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(id_value);
+                         return read_temp_u64(value) &&
+                                copy_source_to_parameter(
+                                  p.integers[generator_tag::source_value]);
 
                      return error("unknown element");
                  }) and
-               copy_to_source(
-                 type_ta, id_ta, p.integers[generator_tag::source_ta]) and
-               copy_to_source(type_value,
-                              id_value,
-                              p.integers[generator_tag::source_value]) and
                copy_to_generator_options(ta_use_source,
                                          value_use_source,
                                          p.integers[generator_tag::i_options]);
@@ -1883,56 +1802,45 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics hsm");
 
-        static constexpr std::string_view n[] = {
-            "hsm", "i1", "i2", "r1", "r2", "source-id", "source-type", "timeout"
-        };
+        static constexpr std::string_view n[] = { "hsm",    "i1", "i2",
+                                                  "r1",     "r2", "source-id",
+                                                  "timeout" };
 
-        std::optional<source::source_type> type;
-        std::optional<u64>                 id;
-
-        return for_members(
-                 val,
-                 n,
-                 [&](auto idx, const auto& value) noexcept {
-                     switch (idx) {
-                     case 0: {
-                         component_id c;
-                         if (try_read_child_hsm_component(value, c)) {
-                             p.integers[hsm_wrapper_tag::id] =
-                               static_cast<i64>(c);
-                             return true;
-                         } else {
-                             warning("HSM component not found");
-                             return true;
-                         }
-                     }
-                     case 1:
-                         return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[hsm_wrapper_tag::i1]);
-                     case 2:
-                         return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[hsm_wrapper_tag::i2]);
-                     case 3:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[hsm_wrapper_tag::r1]);
-                     case 4:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[hsm_wrapper_tag::r2]);
-                     case 5:
-                         return read_temp_i64(value) && copy_i64_to(type);
-                     case 6:
-                         return read_temp_u64(value) && copy_u64_to(id);
-                     case 7:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[hsm_wrapper_tag::timer]);
-                     default:
-                         return error("unknown element");
-                     }
-                 }) and
-               ((optional_has_value(type) and optional_has_value(id) and
-                 copy_to_source(
-                   type, id, p.integers[hsm_wrapper_tag::source_value])) or
-                true);
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0: {
+                component_id c;
+                if (try_read_child_hsm_component(value, c)) {
+                    p.integers[hsm_wrapper_tag::id] = static_cast<i64>(c);
+                    return true;
+                } else {
+                    warning("HSM component not found");
+                    return true;
+                }
+            }
+            case 1:
+                return read_temp_i64(value) &&
+                       copy_i64_to(p.integers[hsm_wrapper_tag::i1]);
+            case 2:
+                return read_temp_i64(value) &&
+                       copy_i64_to(p.integers[hsm_wrapper_tag::i2]);
+            case 3:
+                return read_temp_real(value) &&
+                       copy_real_to(p.reals[hsm_wrapper_tag::r1]);
+            case 4:
+                return read_temp_real(value) &&
+                       copy_real_to(p.reals[hsm_wrapper_tag::r2]);
+            case 5:
+                return read_temp_u64(value) &&
+                       copy_source_to_parameter(
+                         p.integers[hsm_wrapper_tag::source_value]);
+            case 6:
+                return read_temp_real(value) &&
+                       copy_real_to(p.reals[hsm_wrapper_tag::timer]);
+            default:
+                return error("unknown element");
+            }
+        });
     }
 
     ////
@@ -2494,8 +2402,9 @@ struct json_dearchiver::impl {
           external_source_chunk_size);
     }
 
-    bool read_constant_source(const rapidjson::Value& val,
-                              constant_source&        src) noexcept
+    bool read_constant_parameters(
+      const rapidjson::Value&                      val,
+      external_source_definition::constant_source& src) noexcept
     {
         auto_stack s(this, "srcs constant source");
 
@@ -2504,50 +2413,105 @@ struct json_dearchiver::impl {
         return is_value_array(val) && copy_array_size(val, len) &&
                constant_buffer_size_can_alloc(len) &&
                for_each_array(
-                 val, [&](const auto i, const auto& value) noexcept -> bool {
-                     src.length = static_cast<u32>(i);
-                     return read_temp_real(value) &&
-                            copy_real_to(src.buffer[i]);
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     if (not read_temp_real(value))
+                         return error("invalid constant source parameter");
+                     src.data.emplace_back(temp_double);
+                     return true;
                  });
     }
 
-    bool read_constant_sources(const rapidjson::Value& val,
-                               external_source&        srcs) noexcept
+    bool read_constant_source(const rapidjson::Value&                     value,
+                              external_source_definition::id              id,
+                              external_source_definition::source_element& src,
+                              name_str& s_name) noexcept
     {
         auto_stack s(this, "srcs constant source");
 
+        std::optional<u64> id_in_file;
+
+        auto& cst = src.emplace<external_source_definition::constant_source>();
+
+        return for_each_member(
+                 value,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_in_file);
+
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(s_name);
+
+                     if ("parameters"sv == name)
+                         return read_constant_parameters(value, cst);
+
+                     return true;
+                 }) &&
+               optional_has_value(id_in_file) and
+               cache_srcs_mapping_add(*id_in_file, id);
+    }
+
+    bool external_source_definition_reserve(external_source_definition& srcs,
+                                            std::integral auto i) noexcept
+    {
+        auto_stack s(this, "external source definition reserve");
+
+        return srcs.data.can_alloc(i) or srcs.data.reserve(i);
+    }
+
+    bool alloc_and_read_source(const rapidjson::Value& value,
+                               source_type             type,
+                               component&              compo) noexcept
+    {
+        auto_stack s(this, "alloc and read source");
+
+        const auto id = compo.srcs.data.alloc_id();
+        auto&      selem =
+          compo.srcs.data.get<external_source_definition::source_element>();
+        auto& names = compo.srcs.data.get<name_str>();
+
+        switch (type) {
+        case source_type::constant:
+            return read_constant_source(value, id, selem[id], names[id]);
+        case source_type::binary_file:
+            return read_binary_source(value, compo, id, selem[id], names[id]);
+        case source_type::text_file:
+            return read_text_source(value, compo, id, selem[id], names[id]);
+        case source_type::random:
+            return read_random_source(value, id, selem[id], names[id]);
+        }
+
+        return true;
+    }
+
+    bool read_source(const rapidjson::Value& val, component& compo) noexcept
+    {
+        auto_stack s(this, "source");
+
+        source_type type = source_type::constant;
+
+        return for_first_member(
+          val, "type"sv, [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) and copy_to_source_type(type) and
+                     alloc_and_read_source(value, type, compo);
+          });
+    }
+
+    bool read_sources(const rapidjson::Value& val, component& compo) noexcept
+    {
+        auto_stack s(this, "sources");
+
         i64 len = 0;
 
-        return is_value_array(val) && copy_array_size(val, len),
-               constant_sources_can_alloc(srcs, len) &&
-                 for_each_array(
-                   val,
-                   [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                       auto& cst = srcs.constant_sources.alloc();
-                       auto  id  = srcs.constant_sources.get_id(cst);
-                       std::optional<u32> id_in_file;
-                       std::string        name;
-
-                       return for_each_member(
-                                value,
-                                [&](const auto  name,
-                                    const auto& value) noexcept -> bool {
-                                    if ("id"sv == name)
-                                        return read_temp_u64(value) &&
-                                               copy_u64_to(id_in_file);
-
-                                    if ("name"sv == name)
-                                        return read_temp_string(value) &&
-                                               copy_string_to(cst.name);
-
-                                    if ("parameters"sv == name)
-                                        return read_constant_source(value, cst);
-
-                                    return true;
-                                }) &&
-                              optional_has_value(id_in_file) &&
-                              cache_constant_mapping_add(*id_in_file, id);
-                   });
+        return is_value_array(val) and copy_array_size(val, len) and
+               external_source_definition_reserve(compo.srcs, len) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return read_source(value, compo);
+                 }) and
+               cache_srcs_mapping_sort();
     }
 
     bool search_file_from_dir_component(const component& compo,
@@ -2558,278 +2522,119 @@ struct json_dearchiver::impl {
         return is_defined(out);
     }
 
-    bool read_text_file_sources(const rapidjson::Value& val,
-                                component&              compo) noexcept
+    bool cache_srcs_mapping_add(
+      const u64                            id_in_file,
+      const external_source_definition::id id) noexcept
     {
-        auto_stack s(this, "srcs text file sources");
+        auto_stack s(this, "cache srcs mapping add");
 
-        i64 len = 0;
+        if (not self.srcs_mapping.data.can_alloc(1) and
+            not self.srcs_mapping.data.grow<2, 1>())
+            return error("can not allocate more sources");
 
-        return is_value_array(val) && copy_array_size(val, len) &&
-               text_file_sources_can_alloc(compo.srcs, len) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& text = compo.srcs.text_file_sources.alloc();
-                     auto  id   = compo.srcs.text_file_sources.get_id(text);
-                     std::optional<u64> id_in_file;
-
-                     auto_stack s(this, "srcs text file source");
-
-                     return for_each_member(
-                              value,
-                              [&](const auto  name,
-                                  const auto& value) noexcept -> bool {
-                                  if ("id"sv == name)
-                                      return read_temp_u64(value) &&
-                                             copy_u64_to(id_in_file);
-
-                                  if ("name"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(text.name);
-
-                                  if ("path"sv == name)
-                                      return read_temp_string(value) &&
-                                             search_file_from_dir_component(
-                                               compo, text.file_id);
-
-                                  return true;
-                              }) &&
-                            optional_has_value(id_in_file) &&
-                            cache_text_file_mapping_add(*id_in_file, id);
-                 });
-    }
-
-    bool read_text_file_sources(const rapidjson::Value& val,
-                                external_source&        srcs) noexcept
-    {
-        auto_stack s(this, "srcs text file sources");
-
-        i64 len = 0;
-
-        return is_value_array(val) && copy_array_size(val, len) &&
-               text_file_sources_can_alloc(srcs, len) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& text = srcs.text_file_sources.alloc();
-                     auto  id   = srcs.text_file_sources.get_id(text);
-                     std::optional<u64> id_in_file;
-
-                     auto_stack s(this, "srcs text file source");
-
-                     return for_each_member(
-                              value,
-                              [&](const auto  name,
-                                  const auto& value) noexcept -> bool {
-                                  if ("id"sv == name)
-                                      return read_temp_u64(value) &&
-                                             copy_u64_to(id_in_file);
-
-                                  if ("name"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(text.name);
-
-                                  if ("path"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(text);
-
-                                  return true;
-                              }) &&
-                            optional_has_value(id_in_file) &&
-                            cache_text_file_mapping_add(*id_in_file, id);
-                 });
-    }
-
-    bool cache_constant_mapping_add(u64                id_in_file,
-                                    constant_source_id id) const noexcept
-    {
-        self.constant_mapping.data.emplace_back(id_in_file, id);
+        self.srcs_mapping.data.emplace_back(id_in_file, id);
         return true;
     }
 
-    bool cache_text_file_mapping_add(u64                 id_in_file,
-                                     text_file_source_id id) noexcept
+    bool cache_srcs_mapping_sort() noexcept
     {
-        self.text_file_mapping.data.emplace_back(id_in_file, id);
+        auto_stack s(this, "cache srcs mapping sort");
+
+        self.srcs_mapping.sort();
         return true;
     }
 
-    bool cache_binary_file_mapping_add(u64                   id_in_file,
-                                       binary_file_source_id id) const noexcept
+    bool cache_srcs_mapping_get(const u64                       id_in_file,
+                                external_source_definition::id& id) noexcept
     {
-        self.binary_file_mapping.data.emplace_back(id_in_file, id);
-        return true;
-    }
+        auto_stack s(this, "cache srcs mapping get");
 
-    bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
-    {
-        self.random_mapping.data.emplace_back(id_in_file, id);
-        return true;
-    }
-
-    bool cache_constant_mapping_sort() noexcept
-    {
-        self.constant_mapping.sort();
-        return true;
-    }
-
-    bool cache_text_file_mapping_sort() noexcept
-    {
-        self.text_file_mapping.sort();
-        return true;
-    }
-
-    bool cache_binary_file_mapping_sort() const noexcept
-    {
-        self.binary_file_mapping.sort();
-        return true;
-    }
-
-    bool cache_random_mapping_sort() noexcept
-    {
-        self.random_mapping.sort();
-        return true;
-    }
-
-    bool cache_constant_mapping_get(u64                 id_in_file,
-                                    constant_source_id& id) noexcept
-    {
-        if (const auto* ptr = self.constant_mapping.get(id_in_file)) {
+        if (const auto* ptr = self.srcs_mapping.get(id_in_file)) {
             id = *ptr;
             return true;
         }
 
-        return error("unknown constant source (id: {})", id_in_file);
+        return error("unknown source (id: {})", id_in_file);
     }
 
-    bool cache_text_file_mapping_get(u64                  id_in_file,
-                                     text_file_source_id& id) noexcept
-    {
-        if (const auto* ptr = self.text_file_mapping.get(id_in_file)) {
-            id = *ptr;
-            return true;
-        }
-
-        return error("unknown text file source (id: {})", id_in_file);
-    }
-
-    bool cache_random_mapping_get(u64 id_in_file, random_source_id& id) noexcept
-    {
-        if (const auto* ptr = self.random_mapping.get(id_in_file)) {
-            id = *ptr;
-            return true;
-        }
-
-        return error("unknown random source (id: {})", id_in_file);
-    }
-
-    bool cache_binary_file_mapping_get(u64                    id_in_file,
-                                       binary_file_source_id& id) noexcept
-    {
-        if (const auto* ptr = self.binary_file_mapping.get(id_in_file)) {
-            id = *ptr;
-            return true;
-        }
-
-        return error("unknown binary file source (id: {})", id_in_file);
-    }
-
-    bool read_binary_file_sources(const rapidjson::Value& val,
-                                  component&              compo) noexcept
+    bool read_binary_source(const rapidjson::Value&                     value,
+                            component&                                  compo,
+                            external_source_definition::id              id,
+                            external_source_definition::source_element& src,
+                            name_str& s_name) noexcept
     {
         auto_stack s(this, "srcs binary file sources");
 
-        i64 len = 0;
+        std::optional<u64> id_in_file;
 
-        return is_value_array(val) && copy_array_size(val, len) &&
-               binary_file_sources_can_alloc(compo.srcs, len) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& bin = compo.srcs.binary_file_sources.alloc();
-                     auto  id  = compo.srcs.binary_file_sources.get_id(bin);
-                     std::optional<u64> id_in_file;
+        auto& bin = src.emplace<external_source_definition::binary_source>();
 
-                     auto_stack s(this, "srcs binary file source");
+        return for_each_member(
+                 value,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_in_file);
 
-                     return for_each_member(
-                              value,
-                              [&](const auto  name,
-                                  const auto& value) noexcept -> bool {
-                                  if ("id"sv == name)
-                                      return read_temp_u64(value) &&
-                                             copy_u64_to(id_in_file);
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(s_name);
 
-                                  if ("name"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(bin.name);
+                     if ("path"sv == name)
+                         return read_temp_string(value) &&
+                                search_file_from_dir_component(compo, bin.file);
 
-                                  if ("path"sv == name)
-                                      return read_temp_string(value) &&
-                                             search_file_from_dir_component(
-                                               compo, bin.file_id);
-
-                                  return true;
-                              }) &&
-                            optional_has_value(id_in_file) &&
-                            cache_binary_file_mapping_add(*id_in_file, id);
-                 });
+                     return true;
+                 }) &&
+               optional_has_value(id_in_file) and
+               cache_srcs_mapping_add(*id_in_file, id);
     }
 
-    bool read_binary_file_sources(const rapidjson::Value& val,
-                                  external_source&        srcs) noexcept
+    bool read_text_source(const rapidjson::Value&                     value,
+                          component&                                  compo,
+                          external_source_definition::id              id,
+                          external_source_definition::source_element& src,
+                          name_str& s_name) noexcept
     {
-        auto_stack s(this, "srcs binary file sources");
+        auto_stack s(this, "srcs text file sources");
 
-        i64 len = 0;
+        std::optional<u64> id_in_file;
 
-        return is_value_array(val) && copy_array_size(val, len) &&
-               binary_file_sources_can_alloc(srcs, len) &&
-               for_each_array(
-                 val, [&](const auto /*i*/, const auto& elem) noexcept -> bool {
-                     auto& text = srcs.binary_file_sources.alloc();
-                     auto  id   = srcs.binary_file_sources.get_id(text);
-                     std::optional<u64> id_in_file;
+        auto& txt = src.emplace<external_source_definition::text_source>();
 
-                     auto_stack s(this, "srcs binary file source");
+        return for_each_member(
+                 value,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_in_file);
 
-                     return for_each_member(
-                              elem,
-                              [&](const auto  name,
-                                  const auto& value) noexcept -> bool {
-                                  if ("id"sv == name)
-                                      return read_temp_u64(value) &&
-                                             copy_u64_to(id_in_file);
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(s_name);
 
-                                  if ("name"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(text.name);
+                     if ("path"sv == name)
+                         return read_temp_string(value) &&
+                                search_file_from_dir_component(compo, txt.file);
 
-                                  if ("path"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(text);
-
-                                  return true;
-                              }) &&
-                            optional_has_value(id_in_file) &&
-                            cache_binary_file_mapping_add(*id_in_file, id);
-                 });
+                     return true;
+                 }) &&
+               optional_has_value(id_in_file) and
+               cache_srcs_mapping_add(*id_in_file, id);
     }
 
-    bool read_distribution_type(const rapidjson::Value& val,
-                                random_source&          r) noexcept
+    bool read_distribution_type(
+      const rapidjson::Value&                    val,
+      external_source_definition::random_source& r) noexcept
     {
         auto_stack s(this, "srcs random source distribution");
 
-        switch (r.distribution) {
+        switch (r.type) {
         case distribution_type::uniform_int:
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(r.a32);
+                      return read_temp_i64(value) && copy_i64_to(r.ints[0]);
                   if ("b"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(r.b32);
+                      return read_temp_i64(value) && copy_i64_to(r.ints[1]);
                   return true;
               });
 
@@ -2837,9 +2642,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2847,7 +2652,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2855,9 +2660,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("t"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(r.t32);
+                      return read_temp_i64(value) && copy_i64_to(r.ints[0]);
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2865,9 +2670,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("t"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(r.t32);
+                      return read_temp_i64(value) && copy_i64_to(r.ints[0]);
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2875,7 +2680,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2883,7 +2688,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("mean"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.mean);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2891,7 +2696,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("lambda"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.lambda);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2899,9 +2704,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("alpha"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.alpha);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("beta"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.beta);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2909,9 +2714,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2919,9 +2724,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2929,9 +2734,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("mean"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.mean);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("stddev"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.stddev);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2939,9 +2744,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("m"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.m);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("s"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.s);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2949,7 +2754,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2957,9 +2762,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.reals[1]);
                   return true;
               });
 
@@ -2967,9 +2772,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("m"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.m);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
 
@@ -2977,7 +2782,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.reals[0]);
                   return true;
               });
         }
@@ -2985,47 +2790,37 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
-    bool read_random_sources(const rapidjson::Value& val,
-                             external_source&        srcs) noexcept
+    bool read_random_source(const rapidjson::Value&                     value,
+                            external_source_definition::id              id,
+                            external_source_definition::source_element& src,
+                            name_str& s_name) noexcept
     {
         auto_stack s(this, "srcs random sources");
 
-        i64 len = 0;
+        std::optional<u64> id_in_file;
 
-        return is_value_array(val) && copy_array_size(val, len) &&
-               random_sources_can_alloc(srcs, len) &&
-               for_each_array(
-                 val, [&](const auto /*i*/, const auto& elem) noexcept -> bool {
-                     auto& r  = srcs.random_sources.alloc();
-                     auto  id = srcs.random_sources.get_id(r);
+        auto& rnd = src.emplace<external_source_definition::random_source>();
 
-                     std::optional<u64> id_in_file;
+        return for_each_member(
+                 value,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_in_file);
 
-                     auto_stack s(this, "srcs random source");
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(s_name);
 
-                     return for_each_member(
-                              elem,
-                              [&](const auto  name,
-                                  const auto& value) noexcept -> bool {
-                                  if ("id"sv == name)
-                                      return read_temp_u64(value) &&
-                                             copy_u64_to(id_in_file);
+                     if ("type"sv == name) {
+                         return read_temp_string(value) &&
+                                copy_string_to(rnd.type) &&
+                                read_distribution_type(value, rnd);
+                     }
 
-                                  if ("name"sv == name)
-                                      return read_temp_string(value) &&
-                                             copy_string_to(r.name);
-
-                                  if ("type"sv == name) {
-                                      return read_temp_string(value) &&
-                                             copy_string_to(r.distribution) &&
-                                             read_distribution_type(elem, r);
-                                  }
-
-                                  return true;
-                              }) &&
-                            optional_has_value(id_in_file) &&
-                            cache_random_mapping_add(*id_in_file, id);
-                 });
+                     return true;
+                 }) &&
+               optional_has_value(id_in_file) &&
+               cache_srcs_mapping_add(*id_in_file, id);
     }
 
     bool modeling_connect(generic_component&     compo,
@@ -4077,59 +3872,50 @@ struct json_dearchiver::impl {
         compo.type      = component_type::hsm;
         compo.id.hsm_id = mod().hsm_components.get_id(hsm);
 
-        std::optional<source::source_type> type;
-        std::optional<u64>                 id;
+        std::optional<u64> id;
 
         return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("states"sv == name)
-                         return read_hsm_states(
-                           value, hsm.machine.states, hsm.names, hsm.positions);
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("states"sv == name)
+                  return read_hsm_states(
+                    value, hsm.machine.states, hsm.names, hsm.positions);
 
-                     if ("top"sv == name)
-                         return read_temp_u64(value) &&
-                                copy_u64_to(hsm.machine.top_state);
+              if ("top"sv == name)
+                  return read_temp_u64(value) &&
+                         copy_u64_to(hsm.machine.top_state);
 
-                     if ("i1"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(hsm.i1);
+              if ("i1"sv == name)
+                  return read_temp_i64(value) && copy_i64_to(hsm.i1);
 
-                     if ("i2"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(hsm.i2);
+              if ("i2"sv == name)
+                  return read_temp_i64(value) && copy_i64_to(hsm.i2);
 
-                     if ("r1"sv == name)
-                         return read_temp_real(value) && copy_real_to(hsm.r1);
+              if ("r1"sv == name)
+                  return read_temp_real(value) && copy_real_to(hsm.r1);
 
-                     if ("r2"sv == name)
-                         return read_temp_real(value) && copy_real_to(hsm.r2);
+              if ("r2"sv == name)
+                  return read_temp_real(value) && copy_real_to(hsm.r2);
 
-                     if ("timeout"sv == name)
-                         return read_temp_real(value) &&
-                                copy_real_to(hsm.timeout);
+              if ("timeout"sv == name)
+                  return read_temp_real(value) && copy_real_to(hsm.timeout);
 
-                     if ("source-type"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(type);
+              if ("source-id"sv == name)
+                  return read_temp_u64(value) && copy_u64_to(id);
 
-                     if ("source-id"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(id);
+              if ("constants"sv == name)
+                  return value.IsArray() and
+                           std::cmp_less_equal(
+                             value.GetArray().Size(),
+                             hierarchical_state_machine::max_constants),
+                         for_each_array(
+                           value,
+                           [&](const auto i, const auto& val) noexcept -> bool {
+                               return read_temp_real(val) &&
+                                      copy_real_to(hsm.machine.constants[i]);
+                           });
 
-                     if ("constants"sv == name)
-                         return value.IsArray() and
-                                  std::cmp_less_equal(
-                                    value.GetArray().Size(),
-                                    hierarchical_state_machine::max_constants),
-                                for_each_array(
-                                  value,
-                                  [&](const auto  i,
-                                      const auto& val) noexcept -> bool {
-                                      return read_temp_real(val) &&
-                                             copy_real_to(
-                                               hsm.machine.constants[i]);
-                                  });
-
-                     return true;
-                 }) and
-               copy_to_source(type, id, hsm.src);
+              return true;
+          }); // FIXME SOURCE and (optional_has_value(id) ? ;
     }
 
     bool dispatch_component_type(const rapidjson::Value& val,
@@ -4278,18 +4064,8 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("name"sv == name)
                   return read_temp_string(value) && copy_string_to(compo.name);
-              if ("constant-sources"sv == name)
-                  return read_constant_sources(value, compo.srcs) and
-                         cache_constant_mapping_sort();
-              if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, compo.srcs) and
-                         cache_binary_file_mapping_sort();
-              if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, compo.srcs) and
-                         cache_text_file_mapping_sort();
-              if ("random-sources"sv == name)
-                  return read_random_sources(value, compo.srcs) and
-                         cache_random_mapping_sort();
+              if ("sources"sv == name)
+                  return read_sources(value, compo);
               if ("x"sv == name)
                   return read_input_ports(value, compo.x);
               if ("y"sv == name)
@@ -5131,14 +4907,9 @@ struct json_archiver::impl {
                const component& /*compo*/,
                const parameter& p) noexcept
     {
-        const auto [type, id] =
-          u64_to_u32s(p.integers[dynamic_queue_tag::source_ta]);
-
         writer.StartObject();
-        writer.Key("source-ta-type");
-        writer.Int64(type);
-        writer.Key("source-ta-id");
-        writer.Uint64(id);
+        writer.Key("source-id");
+        writer.Int64(p.integers[dynamic_queue_tag::source_ta]);
         writer.EndObject();
     }
 
@@ -5149,14 +4920,9 @@ struct json_archiver::impl {
                const component& /*compo*/,
                const parameter& p) noexcept
     {
-        const auto [type, id] =
-          u64_to_u32s(p.integers[priority_queue_tag::source_ta]);
-
         writer.StartObject();
-        writer.Key("source-ta-type");
-        writer.Int64(type);
-        writer.Key("source-ta-id");
-        writer.Uint64(id);
+        writer.Key("source-id");
+        writer.Uint64(p.integers[priority_queue_tag::source_ta]);
         writer.EndObject();
     }
 
@@ -5176,25 +4942,10 @@ struct json_archiver::impl {
         writer.Bool(flags[generator::option::ta_use_source]);
         writer.Key("value-is-external");
         writer.Bool(flags[generator::option::value_use_source]);
-
-        {
-            const auto [type, id] =
-              u64_to_u32s(p.integers[generator_tag::source_ta]);
-
-            writer.Key("source-ta-type");
-            writer.Int64(type);
-            writer.Key("source-ta-id");
-            writer.Uint64(id);
-        }
-
-        {
-            const auto [type, id] =
-              u64_to_u32s(p.integers[generator_tag::source_value]);
-            writer.Key("source-value-type");
-            writer.Int64(type);
-            writer.Key("source-value-id");
-            writer.Uint64(id);
-        }
+        writer.Key("source-ta-id");
+        writer.Int64(p.integers[generator_tag::source_ta]);
+        writer.Key("source-value-id");
+        writer.Int64(p.integers[generator_tag::source_value]);
 
         writer.EndObject();
     }
@@ -5460,12 +5211,8 @@ struct json_archiver::impl {
         if (c) {
             if (auto* hc = mod.hsm_components.try_to_get(c->id.hsm_id)) {
                 if (hc->machine.is_using_source()) {
-                    const auto [type, id] =
-                      u64_to_u32s(p.integers[hsm_wrapper_tag::source_value]);
-                    writer.Key("source-type");
-                    writer.Int64(type);
                     writer.Key("source-id");
-                    writer.Uint64(id);
+                    writer.Int64(p.integers[hsm_wrapper_tag::source_value]);
                 }
             }
         }
@@ -5537,268 +5284,159 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_constant_sources(const external_source& srcs, Writer& w) noexcept
+    void write_constant_source(
+      const external_source_definition::constant_source& cst,
+      Writer&                                            w) noexcept
     {
-        w.Key("constant-sources");
+        w.Key("parameters");
         w.StartArray();
-
-        const constant_source* src = nullptr;
-        while (srcs.constant_sources.next(src)) {
-            w.StartObject();
-            w.Key("id");
-            w.Uint64(ordinal(srcs.constant_sources.get_id(*src)));
-            w.Key("name");
-            w.String(src->name.c_str());
-            w.Key("parameters");
-
-            w.StartArray();
-            for (auto e = src->length, i = 0u; i != e; ++i)
-                w.Double(src->buffer[i]);
-            w.EndArray();
-
-            w.EndObject();
-        }
-
+        for (const auto v : cst.data)
+            w.Double(v);
         w.EndArray();
     }
 
     template<typename Writer>
-    void write_binary_file_sources(
-      const external_source&                     srcs,
-      const data_array<file_path, file_path_id>& files,
-      Writer&                                    w) noexcept
+    void write_binary_source(
+      const modeling&                                  mod,
+      const external_source_definition::binary_source& bin,
+      Writer&                                          w) noexcept
     {
-        w.Key("binary-file-sources");
-        w.StartArray();
-
-        const binary_file_source* src = nullptr;
-        while (srcs.binary_file_sources.next(src)) {
-            if (const auto* f = files.try_to_get(src->file_id); f) {
-                w.StartObject();
-                w.Key("id");
-                w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
-                w.Key("name");
-                w.String(src->name.c_str());
-                w.Key("max-clients");
-                w.Uint(src->max_clients);
-                w.Key("path");
-                w.String(f->path.data(),
-                         static_cast<rapidjson::SizeType>(f->path.size()));
-                w.EndObject();
-            }
-        }
-
-        w.EndArray();
-    }
-
-    template<typename Writer>
-    void write_text_file_sources(
-      const external_source&                     srcs,
-      const data_array<file_path, file_path_id>& files,
-      Writer&                                    w) noexcept
-    {
-        w.Key("text-file-sources");
-        w.StartArray();
-
-        const text_file_source* src = nullptr;
-        std::string             filepath;
-
-        while (srcs.text_file_sources.next(src)) {
-            if (const auto* f = files.try_to_get(src->file_id); f) {
-                w.StartObject();
-                w.Key("id");
-                w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
-                w.Key("name");
-                w.String(src->name.c_str());
-                w.Key("path");
-                w.String(f->path.data(),
-                         static_cast<rapidjson::SizeType>(f->path.size()));
-                w.EndObject();
-            }
-        }
-
-        w.EndArray();
-    }
-
-    template<typename Writer>
-    void write_binary_file_sources(const external_source& srcs,
-                                   Writer&                w) noexcept
-    {
-        w.Key("binary-file-sources");
-        w.StartArray();
-
-        const binary_file_source* src = nullptr;
-        while (srcs.binary_file_sources.next(src)) {
-            const auto str = src->file_path.string();
-
-            w.StartObject();
-            w.Key("id");
-            w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
-            w.Key("name");
-            w.String(src->name.c_str());
-            w.Key("max-clients");
-            w.Uint(src->max_clients);
+        if (const auto* f = mod.file_paths.try_to_get(bin.file)) {
             w.Key("path");
-            w.String(str.data(), static_cast<rapidjson::SizeType>(str.size()));
-            w.EndObject();
+            w.String(f->path.data(),
+                     static_cast<rapidjson::SizeType>(f->path.size()));
         }
-
-        w.EndArray();
     }
 
     template<typename Writer>
-    void write_text_file_sources(const external_source& srcs,
-                                 Writer&                w) noexcept
+    void write_text_source(const modeling&                                mod,
+                           const external_source_definition::text_source& txt,
+                           Writer& w) noexcept
     {
-        w.Key("text-file-sources");
-        w.StartArray();
-
-        const text_file_source* src = nullptr;
-        while (srcs.text_file_sources.next(src)) {
-            const auto str = src->file_path.string();
-            w.StartObject();
-            w.Key("id");
-            w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
-            w.Key("name");
-            w.String(src->name.c_str());
+        if (const auto* f = mod.file_paths.try_to_get(txt.file)) {
             w.Key("path");
-            w.String(str.data(), static_cast<rapidjson::SizeType>(str.size()));
-            w.EndObject();
+            w.String(f->path.data(),
+                     static_cast<rapidjson::SizeType>(f->path.size()));
         }
-
-        w.EndArray();
     }
 
     template<typename Writer>
-    void write_random_sources(const external_source& srcs, Writer& w) noexcept
+    void write_random_source(
+      const external_source_definition::random_source& rnd,
+      Writer&                                          w) noexcept
     {
-        w.Key("random-sources");
-        w.StartArray();
+        w.Key("type");
+        w.String(distribution_str(rnd.type));
 
-        const random_source* src = nullptr;
-        while (srcs.random_sources.next(src)) {
-            w.StartObject();
-            w.Key("id");
-            w.Uint64(ordinal(srcs.random_sources.get_id(*src)));
-            w.Key("name");
-            w.String(src->name.c_str());
-            w.Key("type");
-            w.String(distribution_str(src->distribution));
+        switch (rnd.type) {
+        case distribution_type::uniform_int:
+            w.Key("a");
+            w.Int(rnd.ints[0]);
+            w.Key("b");
+            w.Int(rnd.ints[1]);
+            break;
 
-            switch (src->distribution) {
-            case distribution_type::uniform_int:
-                w.Key("a");
-                w.Int(src->a32);
-                w.Key("b");
-                w.Int(src->b32);
-                break;
+        case distribution_type::uniform_real:
+            w.Key("a");
+            w.Double(rnd.reals[0]);
+            w.Key("b");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::uniform_real:
-                w.Key("a");
-                w.Double(src->a);
-                w.Key("b");
-                w.Double(src->b);
-                break;
+        case distribution_type::bernouilli:
+            w.Key("p");
+            w.Double(rnd.reals[0]);
+            ;
+            break;
 
-            case distribution_type::bernouilli:
-                w.Key("p");
-                w.Double(src->p);
-                ;
-                break;
+        case distribution_type::binomial:
+            w.Key("t");
+            w.Int(rnd.ints[0]);
+            w.Key("p");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::binomial:
-                w.Key("t");
-                w.Int(src->t32);
-                w.Key("p");
-                w.Double(src->p);
-                break;
+        case distribution_type::negative_binomial:
+            w.Key("t");
+            w.Int(rnd.ints[0]);
+            w.Key("p");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::negative_binomial:
-                w.Key("t");
-                w.Int(src->t32);
-                w.Key("p");
-                w.Double(src->p);
-                break;
+        case distribution_type::geometric:
+            w.Key("p");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::geometric:
-                w.Key("p");
-                w.Double(src->p);
-                break;
+        case distribution_type::poisson:
+            w.Key("mean");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::poisson:
-                w.Key("mean");
-                w.Double(src->mean);
-                break;
+        case distribution_type::exponential:
+            w.Key("lambda");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::exponential:
-                w.Key("lambda");
-                w.Double(src->lambda);
-                break;
+        case distribution_type::gamma:
+            w.Key("alpha");
+            w.Double(rnd.reals[0]);
+            w.Key("beta");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::gamma:
-                w.Key("alpha");
-                w.Double(src->alpha);
-                w.Key("beta");
-                w.Double(src->beta);
-                break;
+        case distribution_type::weibull:
+            w.Key("a");
+            w.Double(rnd.reals[0]);
+            w.Key("b");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::weibull:
-                w.Key("a");
-                w.Double(src->a);
-                w.Key("b");
-                w.Double(src->b);
-                break;
+        case distribution_type::exterme_value:
+            w.Key("a");
+            w.Double(rnd.reals[0]);
+            w.Key("b");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::exterme_value:
-                w.Key("a");
-                w.Double(src->a);
-                w.Key("b");
-                w.Double(src->b);
-                break;
+        case distribution_type::normal:
+            w.Key("mean");
+            w.Double(rnd.reals[0]);
+            w.Key("stddev");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::normal:
-                w.Key("mean");
-                w.Double(src->mean);
-                w.Key("stddev");
-                w.Double(src->stddev);
-                break;
+        case distribution_type::lognormal:
+            w.Key("m");
+            w.Double(rnd.reals[0]);
+            w.Key("s");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::lognormal:
-                w.Key("m");
-                w.Double(src->m);
-                w.Key("s");
-                w.Double(src->s);
-                break;
+        case distribution_type::chi_squared:
+            w.Key("n");
+            w.Double(rnd.reals[0]);
+            break;
 
-            case distribution_type::chi_squared:
-                w.Key("n");
-                w.Double(src->n);
-                break;
+        case distribution_type::cauchy:
+            w.Key("a");
+            w.Double(rnd.reals[0]);
+            w.Key("b");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::cauchy:
-                w.Key("a");
-                w.Double(src->a);
-                w.Key("b");
-                w.Double(src->b);
-                break;
+        case distribution_type::fisher_f:
+            w.Key("m");
+            w.Double(rnd.reals[0]);
+            w.Key("n");
+            w.Double(rnd.reals[1]);
+            break;
 
-            case distribution_type::fisher_f:
-                w.Key("m");
-                w.Double(src->m);
-                w.Key("n");
-                w.Double(src->n);
-                break;
-
-            case distribution_type::student_t:
-                w.Key("n");
-                w.Double(src->n);
-                break;
-            }
-
-            w.EndObject();
+        case distribution_type::student_t:
+            w.Key("n");
+            w.Double(rnd.reals[0]);
+            break;
         }
-
-        w.EndArray();
     }
 
     template<typename Writer>
@@ -6550,25 +6188,8 @@ struct json_archiver::impl {
         w.Double(hsm.r2);
         w.Key("timeout");
         w.Double(hsm.timeout);
-        w.Key("source-type");
-        w.Int(ordinal(hsm.src.type));
         w.Key("source-id");
-
-        switch (hsm.src.type) {
-        case source::source_type::binary_file:
-            w.Uint(get_index(hsm.src.id.binary_file_id));
-            break;
-        case source::source_type::text_file:
-            w.Uint(get_index(hsm.src.id.text_file_id));
-            break;
-        case source::source_type::random:
-            w.Uint(get_index(hsm.src.id.random_id));
-            break;
-        case source::source_type::constant:
-            w.Uint(get_index(hsm.src.id.constant_id));
-            break;
-        }
-
+        w.Int64(get_index(hsm.src));
         w.Key("constants");
         w.StartArray();
         for (const auto& c : hsm.machine.constants)
@@ -6584,10 +6205,61 @@ struct json_archiver::impl {
         w.Key("name");
         w.String(compo.name.c_str());
 
-        write_constant_sources(compo.srcs, w);
-        write_binary_file_sources(compo.srcs, mod.file_paths, w);
-        write_text_file_sources(compo.srcs, mod.file_paths, w);
-        write_random_sources(compo.srcs, w);
+        if (not compo.srcs.data.empty()) {
+            w.Key("sources");
+            w.StartArray();
+
+            const auto& names = compo.srcs.data.get<name_str>();
+            const auto& src =
+              compo.srcs.data.get<external_source_definition::source_element>();
+
+            for (const auto id : compo.srcs.data) {
+                w.StartObject();
+                w.Key("id");
+                w.Uint64(get_index(id));
+                w.Key("name");
+                w.String(names[get_index(id)].c_str());
+
+                switch (src[id].index()) {
+                case 0:
+                    write_constant_source(
+                      *std::get_if<external_source_definition::constant_source>(
+                        &src[id]),
+                      w);
+                    break;
+
+                case 1:
+                    write_binary_source(
+                      mod,
+                      *std::get_if<external_source_definition::binary_source>(
+                        &src[id]),
+                      w);
+                    break;
+
+                case 2:
+                    write_text_source(
+                      mod,
+                      *std::get_if<external_source_definition::text_source>(
+                        &src[id]),
+                      w);
+                    break;
+
+                case 3:
+                    write_random_source(
+                      *std::get_if<external_source_definition::random_source>(
+                        &src[id]),
+                      w);
+                    break;
+
+                default:
+                    unreachable();
+                }
+
+                w.EndObject();
+            }
+
+            w.EndArray();
+        }
 
         w.Key("colors");
         w.StartArray();
@@ -6881,10 +6553,7 @@ void json_dearchiver::destroy() noexcept
     stack.destroy();
 
     model_mapping.data.destroy();
-    constant_mapping.data.destroy();
-    binary_file_mapping.data.destroy();
-    random_mapping.data.destroy();
-    text_file_mapping.data.destroy();
+    srcs_mapping.data.destroy();
 }
 
 void json_dearchiver::clear() noexcept
@@ -6893,10 +6562,7 @@ void json_dearchiver::clear() noexcept
     stack.clear();
 
     model_mapping.data.clear();
-    constant_mapping.data.clear();
-    binary_file_mapping.data.clear();
-    random_mapping.data.clear();
-    text_file_mapping.data.clear();
+    srcs_mapping.data.clear();
 }
 
 status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
@@ -7211,10 +6877,7 @@ void json_archiver::destroy() noexcept
     buffer.destroy();
 
     model_mapping.data.destroy();
-    constant_mapping.data.destroy();
-    binary_file_mapping.data.destroy();
-    random_mapping.data.destroy();
-    text_file_mapping.data.destroy();
+    srcs_mapping.data.destroy();
 }
 
 void json_archiver::clear() noexcept
@@ -7222,10 +6885,7 @@ void json_archiver::clear() noexcept
     buffer.clear();
 
     model_mapping.data.clear();
-    constant_mapping.data.clear();
-    binary_file_mapping.data.clear();
-    random_mapping.data.clear();
-    text_file_mapping.data.clear();
+    srcs_mapping.data.clear();
 }
 
 } //  irt
