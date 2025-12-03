@@ -12,9 +12,8 @@ namespace irt {
 
 class application;
 
-/**
- * Displays widgets to control the parameter @c p according to the dynamics
- * type @c type.
+/** Displays widgets to control the parameter @c p according to the dynamics
+ * type @c type and the list of external source from @c modeling class.
  *
  * @return @c true if a modification of a parameter occured during the display,
  * @c false otherwise.
@@ -24,14 +23,28 @@ bool show_parameter_editor(application&                app,
                            dynamics_type               type,
                            parameter&                  p) noexcept;
 
-bool show_external_sources_combo(external_source& srcs,
-                                 const char*      title,
-                                 source&          src) noexcept;
+/** Displays widgets to control the parameter @c p according to the dynamics
+ * type @c type and the list of external source from @c simulation class.
+ *
+ * @return @c true if a modification of a parameter occured during the display,
+ * @c false otherwise.
+ */
+bool show_parameter_editor(application&     app,
+                           external_source& srcs,
+                           dynamics_type    type,
+                           parameter&       p) noexcept;
 
-bool show_external_sources_combo(external_source& srcs,
-                                 const char*      title,
-                                 source_type&     src_type,
-                                 source_any_id&   src_id) noexcept;
+/** Displays @c ImGui::ComboBox to select a external source from the simulation
+ * class and assign @c src_type and @c src_id according to user choices. */
+bool show_external_sources_combo(const char*      title,
+                                 external_source& srcs,
+                                 i64&             param) noexcept;
+
+/** Displays @c ImGui::ComboBox to select a external source from the modeling
+ * class and assign @c id according to use choice. */
+bool show_external_sources_combo(const char*                 title,
+                                 external_source_definition& srcs,
+                                 i64&                        param) noexcept;
 
 /**
  * Display widgets to control the HSM component from modeling.

@@ -402,11 +402,8 @@ struct binary_archiver::impl {
     template<typename Stream>
     bool do_serialize_external_source(Stream& io, random_source& src) noexcept
     {
-        return io(src.distribution) and io(src.a) and io(src.b) and
-               io(src.p) and io(src.mean) and io(src.lambda) and
-               io(src.alpha) and io(src.beta) and io(src.stddev) and
-               io(src.m) and io(src.s) and io(src.n) and io(src.a32) and
-               io(src.b32) and io(src.t32) and io(src.k32);
+        return io(src.distribution) and io(src.reals[0]) and
+               io(src.reals[1]) and io(src.ints[0]) and io(src.ints[1]);
     }
 
     template<typename Stream>

@@ -416,14 +416,16 @@ struct external_source_definition {
     enum class id : u32;
 
     struct constant_source {
-        small_vector<real, 8> data;
+        vector<real> data;
     };
 
     struct binary_source {
+        dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
     };
 
     struct text_source {
+        dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
     };
 
@@ -443,8 +445,16 @@ struct external_source_definition {
                   name_str>
       data;
 
-    bool can_alloc(std::integral auto i) const noexcept;
-    bool grow() noexcept;
+    template<typename T>
+    T& emplace(const external_source_definition::id id,
+               std::string_view                     name = "") noexcept
+    {
+        debug::ensure(data.exists(id));
+
+        data.get<name_str>(id) = name;
+        return data.get<external_source_definition::source_element>(id)
+          .emplace<T>();
+    }
 
     constant_source& alloc_constant_source(std::string_view name = "") noexcept;
     binary_source&   alloc_binary_source(std::string_view name = "") noexcept;
@@ -464,6 +474,8 @@ public:
     u32        length = default_length;
 
     constant_source() noexcept = default;
+    explicit constant_source(std::span<const real> src) noexcept;
+
     constant_source(const constant_source& src) noexcept;
     constant_source(constant_source&& src) noexcept = delete;
     constant_source& operator=(const constant_source& src) noexcept;
@@ -494,11 +506,12 @@ public:
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
-    file_path_id          file_id     = undefined<file_path_id>();
     u32                   next_client = 0;
     u64                   next_offset = 0;
 
     binary_file_source() noexcept = default;
+    explicit binary_file_source(const std::filesystem::path& p) noexcept;
+
     binary_file_source(const binary_file_source& other) noexcept;
     binary_file_source(binary_file_source&& other) noexcept = delete;
     binary_file_source& operator=(const binary_file_source& other) noexcept;
@@ -532,9 +545,10 @@ public:
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
-    file_path_id          file_id = undefined<file_path_id>();
 
     text_file_source() noexcept = default;
+    explicit text_file_source(const std::filesystem::path& p) noexcept;
+
     text_file_source(const text_file_source& other) noexcept;
     text_file_source(text_file_source&& other) noexcept = delete;
     text_file_source& operator=(const text_file_source& other) noexcept;
@@ -573,12 +587,16 @@ public:
     counter_type ctr{};
     key_type     key{}; // provided by @c external_source class.
 
-    double a = 0, b = 1, p = 0, mean = 0, lambda = 0, alpha = 0, beta = 0,
-           stddev = 0, m = 0, s = 0, n = 0;
-    int               a32 = 0, b32 = 0, t32 = 0, k32 = 0;
+    std::array<real, 2> reals;
+    std::array<i32, 2>  ints;
+
     distribution_type distribution = distribution_type::uniform_real;
 
     random_source() noexcept = default;
+    explicit random_source(const distribution_type  type,
+                           std::span<const real, 2> reals_,
+                           std::span<const i32, 2>  ints_) noexcept;
+
     random_source(const random_source& other) noexcept;
     random_source(random_source&& other) noexcept = delete;
     random_source& operator=(const random_source& other) noexcept;
@@ -877,8 +895,7 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
-    parameter& set_hsm_wrapper_value(const source_type   type,
-                                     const source_any_id id) noexcept;
+
     parameter& set_queue(real sigma) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
@@ -890,6 +907,18 @@ struct parameter {
                                     const source_any_id id) noexcept;
     parameter& set_priority_queue_ta(const source_type   type,
                                      const source_any_id id) noexcept;
+    parameter& set_hsm_wrapper_value(const source_type   type,
+                                     const source_any_id id) noexcept;
+    parameter& set_generator_ta(
+      const external_source_definition::id id) noexcept;
+    parameter& set_generator_value(
+      const external_source_definition::id id) noexcept;
+    parameter& set_dynamic_queue_ta(
+      const external_source_definition::id id) noexcept;
+    parameter& set_priority_queue_ta(
+      const external_source_definition::id id) noexcept;
+    parameter& set_hsm_wrapper_value(
+      const external_source_definition::id id) noexcept;
 
     std::array<real, 4> reals{};
     std::array<i64, 4>  integers{};

@@ -86,8 +86,8 @@ static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
 
 static inline const char* external_source_type_string[] = { "constant",
-                                                            "binary_file",
-                                                            "text_file",
+                                                            "binary-file",
+                                                            "text-file",
                                                             "random" };
 
 inline const char* external_source_str(const source_type type) noexcept

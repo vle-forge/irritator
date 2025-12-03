@@ -400,12 +400,11 @@ static bool show_local_simulation_settings(application&    app,
                       dynamics_type_names[ordinal(mdl.type)]);
 
                     ImGui::TableNextColumn();
-                    debug::breakpoint();
-                    // show_parameter_editor(
-                    //   app,
-                    //   ed.pj.sim.srcs,
-                    //   mdl.type,
-                    //   ed.pj.parameters.get<parameter>(elem.value));
+                    show_parameter_editor(
+                      app,
+                      ed.pj.sim.srcs,
+                      mdl.type,
+                      ed.pj.parameters.get<parameter>(elem.value));
 
                     ImGui::PopID();
                 }
@@ -710,6 +709,7 @@ static bool show_project_parameters(application&    app,
             auto&       params  = ed.pj.parameters.get<parameter>();
 
             for (const auto id : ed.pj.parameters) {
+
                 const auto* mdl = ed.pj.sim.models.try_to_get(mdl_ids[id]);
                 if (not mdl)
                     continue;
@@ -731,9 +731,8 @@ static bool show_project_parameters(application&    app,
                 ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
 
                 ImGui::TableNextColumn();
-                debug::breakpoint();
-                // up += show_parameter_editor(
-                //   app, ed.pj.sim.srcs, mdl->type, params[id]);
+                up += show_parameter_editor(
+                  app, ed.pj.sim.srcs, mdl->type, params[id]);
 
                 ImGui::PopID();
             }

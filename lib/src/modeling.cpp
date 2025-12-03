@@ -871,6 +871,34 @@ bool modeling::create_directories(const dir_path& dir) noexcept
     return false;
 }
 
+void modeling::remove_files(const dir_path& dir) noexcept
+{
+    if (dir.path.empty())
+        return;
+
+    if (auto* reg = registred_paths.try_to_get(dir.parent); reg) {
+        try {
+            std::error_code       ec;
+            std::filesystem::path p{ reg->path.sv() };
+            if (std::filesystem::exists(p, ec)) {
+                p /= dir.path.sv();
+
+                std::filesystem::directory_iterator it{ p, ec };
+                std::filesystem::directory_iterator et{};
+
+                for (; it != et; ++it) {
+                    if (it->is_regular_file() and
+                        (it->path().extension() == ".irt" or
+                         it->path().extension() == ".desc")) {
+                        std::filesystem::remove(it->path(), ec);
+                    }
+                }
+            }
+        } catch (...) {
+        }
+    }
+}
+
 void modeling::remove_file(registred_path& reg,
                            dir_path&       dir,
                            file_path&      file) noexcept

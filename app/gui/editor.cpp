@@ -10,22 +10,6 @@
 
 namespace irt {
 
-// static bool show_external_sources_combo(external_source& srcs,
-//                                         const char*      title,
-//                                         i64&             param) noexcept
-// {
-//     auto uparam = static_cast<u64>(param);
-//     auto src    = get_source(uparam);
-
-//     if (show_external_sources_combo(srcs, title, src)) {
-//         uparam = from_source(src);
-//         param  = static_cast<i64>(uparam);
-//         return true;
-//     }
-
-//     return false;
-// }
-
 static void build_selected_source_label(const source_type      src_type,
                                         const source_any_id    src_id,
                                         const external_source& srcs,
@@ -85,68 +69,57 @@ static void build_selected_source_label(const source_type      src_type,
     }
 }
 
-bool show_external_sources_combo(external_source_definition& srcs,
-                                 const char*                 title,
-                                 i64&                        src) noexcept
-{
-    auto       id      = enum_cast<external_source_definition::id>(src);
-    const auto copy_id = id;
-
-    show_combobox_external_sources(srcs, id, title);
-
-    if (id != copy_id) {
-        src = ordinal(copy_id);
-        return true;
-    }
-
-    return false;
-}
-
 /////////////////////////////////////////////////////////////////////
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_log_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_exp_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_sin_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_cos_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_integer_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_compare_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("a < b", &p.reals[qss_compare_tag::equal]);
@@ -156,17 +129,19 @@ static bool show_parameter(qss_compare_tag,
     return b1 or b2;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(counter_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_integrator_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[qss_integrator_tag::X]);
@@ -175,41 +150,46 @@ static bool show_parameter(qss_integrator_tag,
     return b1 or b2;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_multiplier_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_sum_2_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_sum_3_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_sum_4_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_wsum_2_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -220,9 +200,10 @@ static bool show_parameter(qss_wsum_2_tag,
     return b1 or b2;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_wsum_3_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -235,9 +216,10 @@ static bool show_parameter(qss_wsum_3_tag,
     return b1 or b2 or b3;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_wsum_4_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 =
@@ -252,9 +234,10 @@ static bool show_parameter(qss_wsum_4_tag,
     return b1 or b2 or b3 or b4;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(queue_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     auto value = p.reals[0];
@@ -269,33 +252,37 @@ static bool show_parameter(queue_tag,
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(dynamic_queue_tag,
                            application& /*app*/,
-                           external_source_definition& srcs,
-                           parameter&                  p) noexcept
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
 {
+
     return show_external_sources_combo(
-      srcs, "time", p.integers[dynamic_queue_tag::source_ta]);
+      "Time", srcs, p.integers[dynamic_queue_tag::source_ta]);
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(priority_queue_tag,
                            application& /*app*/,
-                           external_source_definition& srcs,
-                           parameter&                  p) noexcept
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
 {
     const auto b1 =
       ImGui::InputReal("priority delta", &p.reals[priority_queue_tag::sigma]);
 
     const auto b2 = show_external_sources_combo(
-      srcs, "time", p.integers[priority_queue_tag::source_ta]);
+      "Time", srcs, p.integers[priority_queue_tag::source_ta]);
 
     return b1 or b2;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(generator_tag,
                            application& /*app*/,
-                           external_source_definition& srcs,
-                           parameter&                  p) noexcept
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
 {
     static const char* items[] = { "source", "external events" };
 
@@ -338,8 +325,10 @@ static bool show_parameter(generator_tag,
         p.integers[generator_tag::i_options] = flags.to_unsigned();
 
     if (flags[generator::option::ta_use_source]) {
+        ImGui::PushID(ordinal(generator::option::ta_use_source));
+
         if (show_external_sources_combo(
-              srcs, "time", p.integers[generator_tag::source_ta]))
+              "Time", srcs, p.integers[generator_tag::source_ta]))
             is_changed = true;
 
         if (ImGui::InputReal("offset", &p.reals[0])) {
@@ -351,19 +340,27 @@ static bool show_parameter(generator_tag,
         HelpMarker(
           "Unchecked, the generator stops to send data if the source are "
           "empty or undefined. Checked, the simulation will stop.");
+
+        ImGui::PopID();
     }
 
-    if (flags[generator::option::value_use_source])
+    if (flags[generator::option::value_use_source]) {
+        ImGui::PushID(ordinal(generator::option::value_use_source));
+
         if (show_external_sources_combo(
-              srcs, "source", p.integers[generator_tag::source_value]))
+              "Value", srcs, p.integers[generator_tag::source_value]))
             is_changed = true;
+
+        ImGui::PopID();
+    }
 
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(constant_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     static const char* type_names[] = { "constant",
@@ -461,17 +458,19 @@ bool show_extented_constant_parameter(const modeling&    mod,
     return ret;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_inverse_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_cross_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("threshold", &p.reals[0]);
@@ -481,17 +480,19 @@ static bool show_parameter(qss_cross_tag,
     return b1 or b2 or b3;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_flipflop_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_filter_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lower threshold", &p.reals[0]);
@@ -500,41 +501,46 @@ static bool show_parameter(qss_filter_tag,
     return b1 or b2;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_power_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[qss_power_tag::exponent]);
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_gain_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     return ImGui::InputReal("k", &p.reals[qss_gain_tag::k]);
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(qss_square_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(accumulator_2_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(time_func_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     static const char* items[] = { "time", "square", "sin" };
@@ -555,9 +561,10 @@ static bool show_parameter(time_func_tag,
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(logical_and_2_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -577,9 +584,10 @@ static bool show_parameter(logical_and_2_tag,
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(logical_or_2_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -599,9 +607,10 @@ static bool show_parameter(logical_or_2_tag,
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(logical_and_3_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -627,9 +636,10 @@ static bool show_parameter(logical_and_3_tag,
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(logical_or_3_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
     bool is_changed = false;
@@ -655,9 +665,10 @@ static bool show_parameter(logical_or_3_tag,
     return is_changed;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(logical_invert_tag,
                            application& /*app*/,
-                           external_source_definition& /*srcs*/,
+                           ExternalSourceType& /*srcs*/,
                            parameter& /*p*/) noexcept
 {
     return false;
@@ -681,10 +692,11 @@ bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept
     return false;
 }
 
+template<typename ExternalSourceType>
 static bool show_parameter(hsm_wrapper_tag,
                            application& /*app*/,
-                           external_source_definition& srcs,
-                           parameter&                  p) noexcept
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
 {
     int changed = false;
 
@@ -697,7 +709,7 @@ static bool show_parameter(hsm_wrapper_tag,
     changed += ImGui::InputDouble("timer", &p.reals[hsm_wrapper_tag::timer]);
 
     changed += show_external_sources_combo(
-      srcs, "value", p.integers[hsm_wrapper_tag::source_value]);
+      "Value", srcs, p.integers[hsm_wrapper_tag::source_value]);
 
     return changed;
 }
@@ -709,10 +721,22 @@ bool show_parameter_editor(application&                app,
 {
     return dispatch(
       type,
-      [](const auto                  tag,
-         application&                app,
-         external_source_definition& srcs,
-         parameter&                  p) noexcept -> bool {
+      [](const auto tag, auto& app, auto& srcs, auto& p) noexcept -> bool {
+          return show_parameter(tag, app, srcs, p);
+      },
+      app,
+      srcs,
+      p);
+}
+
+bool show_parameter_editor(application&     app,
+                           external_source& srcs,
+                           dynamics_type    type,
+                           parameter&       p) noexcept
+{
+    return dispatch(
+      type,
+      [](const auto tag, auto& app, auto& srcs, auto& p) noexcept -> bool {
           return show_parameter(tag, app, srcs, p);
       },
       app,

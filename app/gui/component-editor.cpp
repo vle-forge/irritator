@@ -1940,6 +1940,10 @@ struct component_editor::impl {
                             0
                         };
 
+                        if (not compo.srcs.data.can_alloc(1) and
+                            not compo.srcs.data.grow<2, 1>())
+                            ImGui::TextUnformatted("Not Enough memor");
+
                         if (ImGui::Button("new constant", size))
                             compo.srcs.alloc_constant_source();
 

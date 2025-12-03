@@ -146,6 +146,172 @@ int main()
         }
     };
 
+    "external-source-write"_test = [] {
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
+
+        expect(fatal(mod.components.can_alloc(1) or mod.components.reserve(1)));
+        auto& component = mod.alloc_generic_component();
+
+        auto& generic = mod.generic_components.get(component.id.generic_id);
+        expect(
+          fatal(generic.children.can_alloc(5) or generic.children.reserve(5)));
+
+        auto& generator = mod.alloc(generic, irt::dynamics_type::generator);
+        auto& priority_queue =
+          mod.alloc(generic, irt::dynamics_type::priority_queue);
+        auto& dynamic_queue =
+          mod.alloc(generic, irt::dynamics_type::dynamic_queue);
+
+        const auto gen_id = generic.children.get_id(generator);
+        const auto pri_id = generic.children.get_id(priority_queue);
+        const auto dyn_id = generic.children.get_id(dynamic_queue);
+
+        expect(fatal(component.srcs.data.can_alloc(4) or
+                     component.srcs.data.reserve(4)));
+        const auto gen_src_1_id = component.srcs.data.alloc_id();
+        const auto gen_src_2_id = component.srcs.data.alloc_id();
+        const auto prio_src_id  = component.srcs.data.alloc_id();
+        const auto dyn_src_id   = component.srcs.data.alloc_id();
+
+        auto& gen_src_1 =
+          component.srcs
+            .emplace<irt::external_source_definition::constant_source>(
+              gen_src_1_id, "generator-1");
+
+        auto& gen_src_2 =
+          component.srcs
+            .emplace<irt::external_source_definition::constant_source>(
+              gen_src_2_id, "generator-2");
+
+        auto& prio_src =
+          component.srcs
+            .emplace<irt::external_source_definition::constant_source>(
+              prio_src_id, "priority-queue");
+
+        auto& dyn_src =
+          component.srcs
+            .emplace<irt::external_source_definition::constant_source>(
+              dyn_src_id, "dynamic-queue");
+
+        gen_src_1.data.resize(3, 1.0);
+        gen_src_2.data.resize(3, 2.0);
+        prio_src.data.resize(3, 3.0);
+        dyn_src.data.resize(3, 4.0);
+
+        generic.children_parameters[gen_id].set_generator_ta(gen_src_1_id);
+        generic.children_parameters[gen_id].set_generator_value(gen_src_2_id);
+        generic.children_parameters[pri_id].set_priority_queue_ta(prio_src_id);
+        generic.children_parameters[dyn_id].set_dynamic_queue_ta(dyn_src_id);
+
+        irt::registred_path_str temp_path;
+        expect(fatal(get_temp_registred_path(temp_path)));
+
+        auto& reg  = mod.alloc_registred("temp", 0);
+        auto& dir  = mod.alloc_dir(reg);
+        auto& file = mod.alloc_file(dir);
+        reg.path   = temp_path;
+        dir.path   = "test";
+        file.path  = "external-source.irt";
+
+        mod.create_directories(reg);
+        mod.create_directories(dir);
+        mod.remove_files(dir);
+
+        component.reg_path = mod.registred_paths.get_id(reg);
+        component.dir      = mod.dir_paths.get_id(dir);
+        component.file     = mod.file_paths.get_id(file);
+
+        expect(eq(mod.components.size(), 1u));
+        expect(eq(mod.generic_components.size(), 1u));
+        expect(fatal(mod.save(component).has_value()));
+    };
+
+    "external-source-write"_test = [] {
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
+
+        irt::registred_path_str temp_path;
+        expect(fatal(get_temp_registred_path(temp_path)));
+
+        auto& reg = mod.alloc_registred("temp", 0);
+        reg.path  = temp_path;
+
+        expect(eq(mod.components.size(), 0u));
+        expect(eq(mod.generic_components.size(), 0u));
+
+        expect(fatal(mod.fill_components().has_value()));
+        expect(ge(mod.components.size(), 1u));
+        expect(ge(mod.generic_components.size(), 1u));
+
+        auto p_id = [&mod]() noexcept {
+            for (const auto& p : mod.dir_paths)
+                if (p.path == "test")
+                    return mod.dir_paths.get_id(p);
+            return irt::undefined<irt::dir_path_id>();
+        }();
+
+        expect(fatal(irt::is_defined(p_id)));
+
+        auto f_id = [&mod, p_id]() noexcept {
+            for (const auto& f : mod.file_paths)
+                if (f.parent == p_id and f.path == "external-source.irt")
+                    return mod.file_paths.get_id(f);
+            return irt::undefined<irt::file_path_id>();
+        }();
+
+        expect(fatal(irt::is_defined(f_id)));
+
+        auto& component = mod.components.get<irt::component>(
+          mod.file_paths.get(f_id).component);
+
+        expect(fatal(component.type == irt::component_type::generic));
+
+        auto& generic = mod.generic_components.get(component.id.generic_id);
+        expect(eq(generic.children.size(), 3u));
+        expect(eq(component.srcs.data.size(), 4u));
+
+        irt::external_source_definition::id ids[4]{};
+        for (const auto src : component.srcs.data) {
+            if (component.srcs.data.get<irt::name_str>(src) ==
+                "generator-1"sv) {
+                ids[0] = src;
+            } else if (component.srcs.data.get<irt::name_str>(src) ==
+                       "generator-2"sv) {
+                ids[1] = src;
+            } else if (component.srcs.data.get<irt::name_str>(src) ==
+                       "priority-queue"sv) {
+                ids[2] = src;
+            } else if (component.srcs.data.get<irt::name_str>(src) ==
+                       "dynamic-queue"sv) {
+                ids[3] = src;
+            }
+        }
+
+        for (const auto& id : ids)
+            expect(irt::is_defined(id));
+
+        irt::child_id cids[3]{};
+        for (const auto& ch : generic.children) {
+            if (ch.type == irt::child_type::model) {
+                if (ch.id.mdl_type == irt::dynamics_type::generator) {
+                    cids[0] = generic.children.get_id(ch);
+                } else if (ch.id.mdl_type ==
+                           irt::dynamics_type::priority_queue) {
+                    cids[1] = generic.children.get_id(ch);
+                } else if (ch.id.mdl_type ==
+                           irt::dynamics_type::dynamic_queue) {
+                    cids[2] = generic.children.get_id(ch);
+                }
+            }
+        }
+
+        for (const auto& id : cids)
+            expect(irt::is_defined(id));
+    };
+
     "easy"_test = [] {
         irt::journal_handler jn;
         irt::modeling        mod{ jn };
@@ -965,10 +1131,9 @@ int main()
         auto& g  = mod.grid_components.get(cg.id.grid_id);
         g.resize(5, 5, mod.components.get_id(c3));
 
-        expect(!pj.set(
-          mod,
-          cg)); /* Fail to build the project since the constant
-                   models can not be initialized with dyn.port equals to 17. */
+        expect(!pj.set(mod, cg)); /* Fail to build the project since the
+                                     constant models can not be initialized
+                                     with dyn.port equals to 17. */
 
         irt::on_error_callback = old_error_callback;
     };
@@ -1002,8 +1167,8 @@ int main()
             auto p_in  = compo.get_or_add_x("in");
             auto p_out = compo.get_or_add_y("out");
 
-            // Switches the counter component input port from @a classic to @a
-            // sums. This change will add @a dynamics_type::qss3_sum4 and
+            // Switches the counter component input port from @a classic to
+            // @a sums. This change will add @a dynamics_type::qss3_sum4 and
             // connections.
 
             compo.x.get<irt::port_option>(p_in) = irt::port_option::sum;
@@ -1084,8 +1249,8 @@ int main()
             auto p_in  = compo.get_or_add_x("in");
             auto p_out = compo.get_or_add_y("out");
 
-            // Switches the counter component input port from @a classic to @a
-            // sums. This change will add @a dynamics_type::qss3_sum4 and
+            // Switches the counter component input port from @a classic to
+            // @a sums. This change will add @a dynamics_type::qss3_sum4 and
             // connections.
 
             compo.x.get<irt::port_option>(p_in) = irt::port_option::sum;
@@ -1229,11 +1394,12 @@ int main()
                       9u * 4u      // The 3x3 center models with 4 connections
                         + 4u * 2u  // The 4 corner models with 2 connections
                         + 12u * 3u // The 12 border models with 3 connections
-                        + 1u // The connection from component (3, 3) in grid to
-                             // root counter model.
+                        + 1u // The connection from component (3, 3) in grid
+                             // to root counter model.
                       ));
 
-            // We replace the output-connection in grid with a connection-pack.
+            // We replace the output-connection in grid with a
+            // connection-pack.
 
             g.output_connections.clear();
 
@@ -1278,7 +1444,8 @@ int main()
                         0),
                       25u));
 
-            // We replace the @c port_option::classic component output port to a
+            // We replace the @c port_option::classic component output port
+            // to a
             // @c port_option::sum.
             expect(cg.y.get<irt::port_option>(cg_output_port_id) ==
                    irt::port_option::classic);
@@ -1508,7 +1675,8 @@ int main()
 
             expect(pj.set(mod, cg).has_value());
 
-            // Six components plus 2 automatic 4 sum models (5 input models A,
+            // Six components plus 2 automatic 4 sum models (5 input models
+            // A,
             // .., E for port m and 2 for port n.
 
             expect(eq(pj.sim.models.ssize(), 6 * 4 + 2 + 2));
@@ -1669,14 +1837,15 @@ int main()
 
             expect(pj.set(mod, head).has_value());
 
-            // Six components plus 2 automatic 4 sum models (5 input models A,
+            // Six components plus 2 automatic 4 sum models (5 input models
+            // A,
             // .., E for port m and 2 for port n + 2 output sum models and 1
             // counter.
             expect(eq(pj.sim.models.ssize(), 6 * 4 + 2 + 2 + 2 + 1));
 
-            // 5 edges + 2 edge for sum models for port m and n + 6 edges to sum
-            // models and 1 edge between sum models and finally on 1edge from
-            // sum model to counter.
+            // 5 edges + 2 edge for sum models for port m and n + 6 edges to
+            // sum models and 1 edge between sum models and finally on 1edge
+            // from sum model to counter.
             expect(
               eq(get_connection_number(pj.sim), (g.g.edges.size() + 2u) * 2u) +
               8u);

@@ -719,4 +719,47 @@ parameter& parameter::set_priority_queue_ta(const source_type   type,
     return *this;
 }
 
+parameter& parameter::set_hsm_wrapper_value(
+  const external_source_definition::id id) noexcept
+{
+    integers[hsm_wrapper_tag::source_value] = ordinal(id);
+    return *this;
+}
+
+parameter& parameter::set_generator_ta(
+  const external_source_definition::id id) noexcept
+{
+    bitflags<generator::option> flags(integers[generator_tag::i_options]);
+    flags.set(generator::option::ta_use_source, true);
+
+    integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
+    integers[generator_tag::source_ta] = ordinal(id);
+    return *this;
+}
+
+parameter& parameter::set_generator_value(
+  const external_source_definition::id id) noexcept
+{
+    bitflags<generator::option> flags(integers[generator_tag::i_options]);
+    flags.set(generator::option::value_use_source, true);
+    integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
+
+    integers[generator_tag::source_value] = ordinal(id);
+    return *this;
+}
+
+parameter& parameter::set_dynamic_queue_ta(
+  const external_source_definition::id id) noexcept
+{
+    integers[dynamic_queue_tag::source_ta] = ordinal(id);
+    return *this;
+}
+
+parameter& parameter::set_priority_queue_ta(
+  const external_source_definition::id id) noexcept
+{
+    integers[priority_queue_tag::source_ta] = ordinal(id);
+    return *this;
+}
+
 } // namespace irt

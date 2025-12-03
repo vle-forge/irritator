@@ -8,6 +8,7 @@
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include <optional>
@@ -555,10 +556,16 @@ static auto make_tree_leaf(simulation_copy&          sc,
 
           sc.pj.sim.parameters[new_mdl_id] = gen.children_parameters[ch_idx];
 
-          if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
-              convert_mod_to_sim_source(std::span(compo->data(), compo->size()),
-                                        new_mdl.type,
-                                        sc.pj.sim.parameters[new_mdl_id]);
+          if constexpr (std::is_same_v<Dynamics, generator> or
+                        std::is_same_v<Dynamics, priority_queue> or
+                        std::is_same_v<Dynamics, dynamic_queue> or
+                        std::is_same_v<Dynamics, hsm_wrapper>) {
+              if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
+                  convert_mod_to_sim_source(
+                    std::span(compo->data(), compo->size()),
+                    new_mdl.type,
+                    sc.pj.sim.parameters[new_mdl_id]);
+              }
           }
 
           sc.pj.sim.parameters[new_mdl_id].copy_to(new_mdl);
@@ -731,7 +738,8 @@ static bool external_sources_reserve_add(const external_source_definition& src,
            data_array_reserve_add(dst.random_sources, more_reserve[3]);
 }
 
-static status external_source_copy(vector<mod_to_sim_srcs>&          v,
+static status external_source_copy(const modeling&                   mod,
+                                   vector<mod_to_sim_srcs>&          v,
                                    const external_source_definition& src,
                                    external_source& dst) noexcept
 {
@@ -741,6 +749,7 @@ static status external_source_copy(vector<mod_to_sim_srcs>&          v,
 
     const auto& src_elems =
       src.data.get<external_source_definition::source_element>();
+    const auto& src_names = src.data.get<name_str>();
 
     for (const auto id : src.data) {
         switch (src_elems[id].index()) {
@@ -748,8 +757,9 @@ static status external_source_copy(vector<mod_to_sim_srcs>&          v,
             auto& n_src =
               *std::get_if<external_source_definition::constant_source>(
                 &src_elems[id]);
-            auto& n_res    = dst.constant_sources.alloc();
-            auto  n_res_id = dst.constant_sources.get_id(n_res);
+            auto& n_res   = dst.constant_sources.alloc(n_src.data);
+            n_res.name    = src_names[id];
+            auto n_res_id = dst.constant_sources.get_id(n_res);
 
             for (int i = 0; i < n_src.data.ssize(); ++i)
                 n_res.buffer[i] = n_src.data[i];
@@ -762,21 +772,28 @@ static status external_source_copy(vector<mod_to_sim_srcs>&          v,
             auto& n_src =
               *std::get_if<external_source_definition::binary_source>(
                 &src_elems[id]);
-            auto& n_res    = dst.binary_file_sources.alloc();
-            auto  n_res_id = dst.binary_file_sources.get_id(n_res);
 
-            n_res.file_id = n_src.file;
+            const auto p =
+              make_file(mod, n_src.file).value_or(std::filesystem::path{});
+
+            auto& n_res   = dst.binary_file_sources.alloc(p);
+            n_res.name    = src_names[id];
+            auto n_res_id = dst.binary_file_sources.get_id(n_res);
 
             v.emplace_back(id, n_res_id);
+
         } break;
 
         case 2: {
             auto& n_src = *std::get_if<external_source_definition::text_source>(
               &src_elems[id]);
-            auto& n_res    = dst.text_file_sources.alloc();
-            auto  n_res_id = dst.text_file_sources.get_id(n_res);
 
-            n_res.file_id = n_src.file;
+            const auto p =
+              make_file(mod, n_src.file).value_or(std::filesystem::path{});
+
+            auto& n_res   = dst.text_file_sources.alloc(p);
+            n_res.name    = src_names[id];
+            auto n_res_id = dst.text_file_sources.get_id(n_res);
 
             v.emplace_back(id, n_res_id);
         } break;
@@ -785,12 +802,10 @@ static status external_source_copy(vector<mod_to_sim_srcs>&          v,
             auto& n_src =
               *std::get_if<external_source_definition::random_source>(
                 &src_elems[id]);
-            auto& n_res    = dst.random_sources.alloc();
-            auto  n_res_id = dst.random_sources.get_id(n_res);
-
-            n_res.distribution = n_src.type;
-            // FIXME Copy parameters
-            debug::breakpoint();
+            auto& n_res =
+              dst.random_sources.alloc(n_src.type, n_src.reals, n_src.ints);
+            n_res.name    = src_names[id];
+            auto n_res_id = dst.random_sources.get_id(n_res);
 
             v.emplace_back(id, n_res_id);
         } break;
@@ -822,7 +837,8 @@ static status update_external_source(simulation_copy& sc,
             vector_reserve_add(sc.srcs_mod_to_sim.data.back().value,
                                compo.srcs.data.size());
 
-            irt_check(external_source_copy(sc.srcs_mod_to_sim.data.back().value,
+            irt_check(external_source_copy(sc.mod,
+                                           sc.srcs_mod_to_sim.data.back().value,
                                            compo.srcs,
                                            sc.pj.sim.srcs));
 
@@ -1618,8 +1634,10 @@ static auto make_tree_from(simulation_copy&                     sc,
 
         vector_reserve_add(sc.srcs_mod_to_sim.data.back().value, nb);
 
-        irt_check(external_source_copy(
-          sc.srcs_mod_to_sim.data.back().value, parent.srcs, sc.pj.sim.srcs));
+        irt_check(external_source_copy(sc.mod,
+                                       sc.srcs_mod_to_sim.data.back().value,
+                                       parent.srcs,
+                                       sc.pj.sim.srcs));
     }
 
     switch (parent.type) {

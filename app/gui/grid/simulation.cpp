@@ -140,7 +140,7 @@ static bool display_grid_simulation(application& app,
                     if (ImGui::MenuItem("open"))
                         debug::breakpoint();
                     // app.project_wnd.select(pj,
-                    //                        pj.tree_nodes.get(*tn_id_opt));
+                    // pj.tree_nodes.get(*tn_id_opt));
                     ImGui::EndMenu();
                 }
             }

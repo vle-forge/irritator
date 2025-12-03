@@ -1514,6 +1514,7 @@ public:
     bool exists(const dir_path& dir) noexcept;
     bool create_directories(const registred_path& dir) noexcept;
     bool create_directories(const dir_path& dir) noexcept;
+    void remove_files(const dir_path& dir) noexcept;
 
     void remove_file(registred_path& reg,
                      dir_path&       dir,

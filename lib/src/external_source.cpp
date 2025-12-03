@@ -29,18 +29,11 @@
 
 namespace irt {
 
-bool external_source_definition::can_alloc(std::integral auto i) const noexcept
-{
-    return data.can_alloc(i);
-}
-
-bool external_source_definition::grow() noexcept { return data.grow<2, 1>(); }
-
 external_source_definition::constant_source&
 external_source_definition::alloc_constant_source(
   std::string_view name) noexcept
 {
-    debug::ensure(can_alloc(1));
+    debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
     data.get<name_str>(id) = name;
@@ -52,7 +45,7 @@ external_source_definition::alloc_constant_source(
 external_source_definition::binary_source&
 external_source_definition::alloc_binary_source(std::string_view name) noexcept
 {
-    debug::ensure(can_alloc(1));
+    debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
     data.get<name_str>(id) = name;
@@ -63,7 +56,7 @@ external_source_definition::alloc_binary_source(std::string_view name) noexcept
 external_source_definition::text_source&
 external_source_definition::alloc_text_source(std::string_view name) noexcept
 {
-    debug::ensure(can_alloc(1));
+    debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
     data.get<name_str>(id) = name;
@@ -74,7 +67,7 @@ external_source_definition::alloc_text_source(std::string_view name) noexcept
 external_source_definition::random_source&
 external_source_definition::alloc_random_source(std::string_view name) noexcept
 {
-    debug::ensure(can_alloc(1));
+    debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
     data.get<name_str>(id) = name;
@@ -88,6 +81,15 @@ constant_source::constant_source(const constant_source& other) noexcept
 {
     std::copy_n(
       std::data(other.buffer), std::size(other.buffer), std::data(buffer));
+}
+
+constant_source::constant_source(std::span<const real> src) noexcept
+{
+    const auto len =
+      std::min(src.size(), static_cast<size_t>(external_source_chunk_size));
+
+    std::copy_n(src.data(), len, std::data(buffer));
+    length = static_cast<u32>(len);
 }
 
 constant_source& constant_source::operator=(
@@ -127,6 +129,10 @@ status constant_source::finalize(source& src) noexcept
 
     return success();
 }
+
+binary_file_source::binary_file_source(const std::filesystem::path& p) noexcept
+  : file_path(p)
+{}
 
 binary_file_source::binary_file_source(const binary_file_source& other) noexcept
   : name(other.name)
@@ -288,6 +294,10 @@ status binary_file_source::finalize(source& src) noexcept
 
     return success();
 }
+
+text_file_source::text_file_source(const std::filesystem::path& p) noexcept
+  : file_path(p)
+{}
 
 text_file_source::text_file_source(const text_file_source& other) noexcept
   : name(other.name)
@@ -502,6 +512,14 @@ void random_source_generate(random_source& ext,
     random_source_end_source(ext, src);
 }
 
+random_source::random_source(const distribution_type  type,
+                             std::span<const real, 2> reals_,
+                             std::span<const i32, 2>  ints_) noexcept
+  : reals{ reals_[0], reals_[1] }
+  , ints{ ints_[0], ints_[1] }
+  , distribution{ type }
+{}
+
 random_source::random_source(const random_source& other) noexcept
   : name(other.name)
   , buffers(other.buffers)
@@ -511,21 +529,8 @@ random_source::random_source(const random_source& other) noexcept
   , next_client(other.next_client)
   , ctr(other.ctr)
   , key(other.key)
-  , a(other.a)
-  , b(other.b)
-  , p(other.p)
-  , mean(other.mean)
-  , lambda(other.lambda)
-  , alpha(other.alpha)
-  , beta(other.beta)
-  , stddev(other.stddev)
-  , m(other.m)
-  , s(other.s)
-  , n(other.n)
-  , a32(other.a32)
-  , b32(other.b32)
-  , t32(other.t32)
-  , k32(other.k32)
+  , reals(other.reals)
+  , ints(other.ints)
   , distribution(other.distribution)
 {}
 
@@ -549,22 +554,11 @@ void random_source::swap(random_source& other) noexcept
     std::swap(next_client, other.next_client);
     std::swap(ctr, other.ctr);
     std::swap(key, other.key);
+    std::swap(reals[0], other.reals[0]);
+    std::swap(reals[1], other.reals[1]);
+    std::swap(ints[0], other.ints[0]);
+    std::swap(ints[1], other.ints[1]);
     std::swap(distribution, other.distribution);
-    std::swap(a, other.a);
-    std::swap(b, other.b);
-    std::swap(p, other.p);
-    std::swap(mean, other.mean);
-    std::swap(lambda, other.lambda);
-    std::swap(alpha, other.alpha);
-    std::swap(beta, other.beta);
-    std::swap(stddev, other.stddev);
-    std::swap(m, other.m);
-    std::swap(s, other.s);
-    std::swap(n, other.n);
-    std::swap(a32, other.a32);
-    std::swap(b32, other.b32);
-    std::swap(t32, other.t32);
-    std::swap(k32, other.k32);
 }
 
 status random_source::init() noexcept
@@ -592,82 +586,91 @@ static status random_source_fill_buffer(random_source& ext,
     switch (ext.distribution) {
     case distribution_type::uniform_int:
         random_source_generate(
-          ext, std::uniform_int_distribution(ext.a32, ext.b32), src);
+          ext, std::uniform_int_distribution(ext.ints[0], ext.ints[1]), src);
         break;
 
     case distribution_type::uniform_real:
         random_source_generate(
-          ext, std::uniform_real_distribution(ext.a, ext.b), src);
+          ext, std::uniform_real_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::bernouilli:
-        random_source_generate(ext, std::bernoulli_distribution(ext.p), src);
+        random_source_generate(
+          ext, std::bernoulli_distribution(ext.reals[0]), src);
         break;
 
     case distribution_type::binomial:
         random_source_generate(
-          ext, std::binomial_distribution(ext.t32, ext.p), src);
+          ext, std::binomial_distribution(ext.ints[0], ext.reals[0]), src);
         break;
 
     case distribution_type::negative_binomial:
         random_source_generate(
-          ext, std::negative_binomial_distribution(ext.t32, ext.p), src);
+          ext,
+          std::negative_binomial_distribution(ext.ints[0], ext.reals[0]),
+          src);
         break;
 
     case distribution_type::geometric:
-        random_source_generate(ext, std::geometric_distribution(ext.p), src);
+        random_source_generate(
+          ext, std::geometric_distribution(ext.reals[0]), src);
         break;
 
     case distribution_type::poisson:
-        random_source_generate(ext, std::poisson_distribution(ext.mean), src);
+        random_source_generate(
+          ext, std::poisson_distribution(ext.reals[0]), src);
         break;
 
     case distribution_type::exponential:
         random_source_generate(
-          ext, std::exponential_distribution(ext.lambda), src);
+          ext, std::exponential_distribution(ext.reals[0]), src);
         break;
 
     case distribution_type::gamma:
         random_source_generate(
-          ext, std::gamma_distribution(ext.alpha, ext.beta), src);
+          ext, std::gamma_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::weibull:
         random_source_generate(
-          ext, std::weibull_distribution(ext.a, ext.b), src);
+          ext, std::weibull_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::exterme_value:
         random_source_generate(
-          ext, std::extreme_value_distribution(ext.a, ext.b), src);
+          ext,
+          std::extreme_value_distribution(ext.reals[0], ext.reals[1]),
+          src);
         break;
 
     case distribution_type::normal:
         random_source_generate(
-          ext, std::normal_distribution(ext.mean, ext.stddev), src);
+          ext, std::normal_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::lognormal:
         random_source_generate(
-          ext, std::lognormal_distribution(ext.m, ext.s), src);
+          ext, std::lognormal_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::chi_squared:
-        random_source_generate(ext, std::chi_squared_distribution(ext.n), src);
+        random_source_generate(
+          ext, std::chi_squared_distribution(ext.reals[0]), src);
         break;
 
     case distribution_type::cauchy:
         random_source_generate(
-          ext, std::cauchy_distribution(ext.a, ext.b), src);
+          ext, std::cauchy_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::fisher_f:
         random_source_generate(
-          ext, std::fisher_f_distribution(ext.m, ext.n), src);
+          ext, std::fisher_f_distribution(ext.reals[0], ext.reals[1]), src);
         break;
 
     case distribution_type::student_t:
-        random_source_generate(ext, std::student_t_distribution(ext.n), src);
+        random_source_generate(
+          ext, std::student_t_distribution(ext.reals[0]), src);
         break;
     }
 

@@ -1133,9 +1133,9 @@ struct json_dearchiver::impl {
     {
         if (temp_string == "constant"sv)
             type = source_type::constant;
-        else if (temp_string == "binary"sv)
+        else if (temp_string == "binary-file"sv)
             type = source_type::binary_file;
-        else if (temp_string == "text"sv)
+        else if (temp_string == "text-file"sv)
             type = source_type::text_file;
         else if (temp_string == "random"sv)
             type = source_type::random;
@@ -2494,7 +2494,7 @@ struct json_dearchiver::impl {
         return for_first_member(
           val, "type"sv, [&](const auto& value) noexcept -> bool {
               return read_temp_string(value) and copy_to_source_type(type) and
-                     alloc_and_read_source(value, type, compo);
+                     alloc_and_read_source(val, type, compo);
           });
     }
 
@@ -4909,7 +4909,8 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("source-id");
-        writer.Int64(p.integers[dynamic_queue_tag::source_ta]);
+        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+          p.integers[dynamic_queue_tag::source_ta])));
         writer.EndObject();
     }
 
@@ -4922,7 +4923,8 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("source-id");
-        writer.Uint64(p.integers[priority_queue_tag::source_ta]);
+        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+          p.integers[priority_queue_tag::source_ta])));
         writer.EndObject();
     }
 
@@ -4943,9 +4945,11 @@ struct json_archiver::impl {
         writer.Key("value-is-external");
         writer.Bool(flags[generator::option::value_use_source]);
         writer.Key("source-ta-id");
-        writer.Int64(p.integers[generator_tag::source_ta]);
+        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+          p.integers[generator_tag::source_ta])));
         writer.Key("source-value-id");
-        writer.Int64(p.integers[generator_tag::source_value]);
+        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+          p.integers[generator_tag::source_value])));
 
         writer.EndObject();
     }
@@ -5212,7 +5216,9 @@ struct json_archiver::impl {
             if (auto* hc = mod.hsm_components.try_to_get(c->id.hsm_id)) {
                 if (hc->machine.is_using_source()) {
                     writer.Key("source-id");
-                    writer.Int64(p.integers[hsm_wrapper_tag::source_value]);
+                    writer.Uint64(
+                      get_index(enum_cast<external_source_definition::id>(
+                        p.integers[hsm_wrapper_tag::source_value])));
                 }
             }
         }
@@ -6219,6 +6225,8 @@ struct json_archiver::impl {
                 w.Uint64(get_index(id));
                 w.Key("name");
                 w.String(names[get_index(id)].c_str());
+                w.Key("type");
+                w.String(external_source_type_string[src[id].index()]);
 
                 switch (src[id].index()) {
                 case 0:
