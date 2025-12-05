@@ -9,6 +9,7 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
+#include <irritator/random.hpp>
 
 #include <fmt/format.h>
 
@@ -1560,5 +1561,81 @@ int main()
         f->rewind();
 
         expect(f->tell() == 0);
+    };
+
+    "random-philox-64"_test = [] {
+        constexpr irt::u64 seed   = 0x1234567890123456;
+        constexpr irt::u64 mdl_id = 0xffffffff00000001;
+        constexpr irt::u64 step   = 0;
+
+        irt::philox_64                            rng{ seed, mdl_id, step };
+        std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
+
+        auto sum = 0.0;
+        for (irt::u32 i = 0; i < 1000; ++i) {
+            const auto v = dist(rng);
+            expect(ge(v, 0.0));
+            expect(lt(v, 1.0));
+
+            sum += v;
+        }
+
+        expect(approx(sum / 1000.0, 0.5, 1.e-1));
+    };
+
+    "random-philox-64-view"_test = [] {
+        std::array<irt::u64, 6> param{
+            0x1234567890123456, // seed
+            0xffffffff00000001, // ordinal(model_id)
+            0u,                 // step
+            0u,                 // index
+            0u,                 // first random number
+            0u,                 // second random number
+        };
+
+        irt::philox_64_view                       rng(param);
+        std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
+
+        auto sum = 0.0;
+        for (irt::u32 i = 0; i < 1000; ++i) {
+            const auto v = dist(rng);
+            expect(ge(v, 0.0));
+            expect(lt(v, 1.0));
+
+            sum += v;
+        }
+
+        expect(approx(sum / 1000.0, 0.5, 1.e-1));
+    };
+
+    "random-philo-64-compare"_test = [] {
+        constexpr irt::u64 seed   = 0x1234567890123456;
+        constexpr irt::u64 mdl_id = 0xffffffff00000001;
+        constexpr irt::u64 step   = 0;
+
+        irt::real sum_1 = 0.0;
+        irt::real sum_2 = 0.0;
+
+        {
+            irt::philox_64                            rng{ seed, mdl_id, step };
+            std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
+
+            for (irt::u32 i = 0; i < 1000; ++i)
+                sum_1 += dist(rng);
+        }
+
+        {
+            std::array<irt::u64, 6> param{
+                seed, mdl_id, step, 0u, 0u, 0u,
+            };
+
+            irt::philox_64_view                       rng(param);
+            std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
+
+            for (irt::u32 i = 0; i < 1000; ++i)
+                sum_2 += dist(rng);
+        }
+
+        expect(eq(sum_1, sum_2));
     };
 }

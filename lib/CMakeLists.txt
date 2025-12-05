@@ -17,6 +17,7 @@ set(public_irritator_header
     include/irritator/modeling-helpers.hpp
     include/irritator/modeling.hpp
     include/irritator/observation.hpp
+    include/irritator/random.hpp
     include/irritator/thread.hpp
     include/irritator/timeline.hpp)
 
