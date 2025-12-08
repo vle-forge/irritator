@@ -1051,12 +1051,13 @@ void application::start_init_source(const project_id  pj_id,
                       random_id)) {
                     (void)c->init();
 
-                    source     src(random_id);
-                    chunk_type tmp{};
+                    source_data data;
+                    source      src(random_id);
+                    chunk_type  tmp{};
                     src.buffer = tmp;
-                    (void)c->init(src);
+                    (void)c->init(src, data);
 
-                    data_ed.fill_plot(src.buffer);
+                    data_ed.fill_plot(tmp);
                 }
             }
         }

@@ -276,8 +276,7 @@ struct binary_archiver::impl {
     template<typename Stream>
     bool do_serialize_source(Stream& io, source& src) noexcept
     {
-        return io(src.id) and io(src.type) and io(src.index) and
-               io(src.chunk_id.data(), src.chunk_id.size());
+        return io(src.id) and io(src.type) and io(src.index);
     }
 
     template<typename Stream>

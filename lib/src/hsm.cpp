@@ -1103,8 +1103,8 @@ expected<bool> hierarchical_state_machine::handle(
                                 buffer. This function can only eat one value
                                 from the buffer of the source. */
         if (exec.source_value.is_empty())
-            irt_check(
-              srcs.dispatch(exec.source_value, source_operation_type::update));
+            irt_check(srcs.dispatch(
+              exec.source_value, exec.src_data, source_operation_type::update));
     }
 
     switch (event) {

@@ -299,6 +299,7 @@ struct parameter;
 struct model;
 class simulation;
 class hierarchical_state_machine;
+struct source_data;
 class source;
 
 enum class registred_path_id : u32;
@@ -489,10 +490,10 @@ public:
     constant_source& operator=(constant_source&& src) noexcept = delete;
 
     status init() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
+    status init(source& src, source_data& data) noexcept;
+    status update(source& src, source_data& data) noexcept;
+    status restore(source& src, source_data& data) noexcept;
+    status finalize(source& src, source_data& data) noexcept;
 };
 
 //! Use a file with a set of double real in binary mode (little endian) to
@@ -528,10 +529,10 @@ public:
 
     status init() noexcept;
     void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
+    status init(source& src, source_data& data) noexcept;
+    status update(source& src, source_data& data) noexcept;
+    status restore(source& src, source_data& data) noexcept;
+    status finalize(source& src, source_data& data) noexcept;
 
     bool seekg(const long to_seek) noexcept;
     bool read(source& src, const int length) noexcept;
@@ -565,10 +566,10 @@ public:
 
     status init() noexcept;
     void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
+    status init(source& src, source_data& data) noexcept;
+    status update(source& src, source_data& data) noexcept;
+    status restore(source& src, source_data& data) noexcept;
+    status finalize(source& src, source_data& data) noexcept;
 
     bool read_chunk() noexcept;
 };
@@ -602,37 +603,42 @@ public:
 
     status init() noexcept;
     void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
+    status init(source& src, source_data& data) noexcept;
+    status update(source& src, source_data& data) noexcept;
+    status restore(source& src, source_data& data) noexcept;
+    status finalize(source& src, source_data& data) noexcept;
 };
 
-/**  @brief Reference external source from a model.
- * A @c source references a external data (files, PRNG, etc.). Model uses the
- * source to get data external to the simulation. */
+/// @brief Stores random source generator state, text and binary files
+/// positions.
+struct source_data {
+    /// Stores external data for text, binary and random external sources to
+    /// enable restore operation in past (for instance position in the text or
+    /// binary files and seed parameters for random source).
+    std::array<u64, 6> chunk_id{};
+
+    /// Stores random source to enable restore operationin past (for instance
+    /// parameters of the random distribution).
+    std::array<real, 2> chunk_real{};
+};
+
+/// Reference external source from a model.
+///
+/// A @c source references a external data (files, PRNG, etc.). Model uses the
+/// source to get data external to the simulation. */
 class source
 {
 public:
-    /** A view on external-source buffers provided by binary or text files,
-     * random or constant vectors. */
+    /// A view on external-source buffers provided by binary or text files,
+    /// random or constant vectors. */
     std::span<double> buffer;
 
-    /** Stores external data for text, binary and random external sources
-     * to enable restore operation in past (for instance position in the
-     * text or binary files and seed parameters for random source). */
-    std::array<u64, 6> chunk_id{};
+    source_any_id id = undefined<constant_source_id>();
 
-    /** Stores random source to enable restore operation
-     * in past (for instance parameters of the random distribution). */
-    std::array<real, 2> chunk_real{};
-
-    source_any_id id   = undefined<constant_source_id>();
-    source_type   type = source_type::constant;
-
-    /** Index of the next double to read the @a buffer or in the @c chunk_real
-     */
+    /// Index of the next double to read the @a buffer or in the @c chunk_real
     u16 index = 0u;
+
+    source_type type = source_type::constant;
 
     source() noexcept = default;
 
@@ -648,27 +654,27 @@ public:
     source& operator=(const source& src) noexcept;
     source& operator=(source&& src) noexcept;
 
-    /** Reset the buffer and assign a new type/id. */
+    /// Reset the buffer and assign a new type/id.
     void reset(const source_type type, const source_any_id id) noexcept;
 
-    /** Reset the buffer and assign a new type/id from the @a parameter. */
+    /// Reset the buffer and assign a new type/id from the @a parameter.
     void reset(const i64 param) noexcept;
 
-    /** Reset the position in the @a buffer. */
+    /// Reset the position in the @a buffer.
     void reset() noexcept;
 
-    /** Clear the source, buffer is released, id, type and index are zero
-     * initialized. */
+    /// Clear the source, buffer is released, id, type and index are zero
+    /// initialized.
     void clear() noexcept;
 
-    /** Check if the source is empty and required a filling.
-     *  @return true if all data in the buffer are read, false otherwise. */
+    /// Check if the source is empty and required a filling.
+    /// @return true if all data in the buffer are read, false otherwise.
     bool is_empty() const noexcept;
 
-    /** Get the next double in the buffer. Use the @c is_empty() function first
-     * before calling @c next() otherwise, the index returns to the initial
-     * index.
-     * @return The current chunk value or zero if buffer is empty. */
+    /// Get the next double in the buffer. Use the @c is_empty() function first
+    /// before calling @c next() otherwise, the index returns to the initial
+    /// index.
+    /// @return The current chunk value or zero if buffer is empty. */
     double next() noexcept;
 };
 
@@ -718,7 +724,9 @@ public:
 
     status import_from(const external_source& srcs);
 
-    status dispatch(source& src, const source_operation_type op) noexcept;
+    status dispatch(source&                     src,
+                    source_data&                data,
+                    const source_operation_type op) noexcept;
 
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
@@ -726,15 +734,22 @@ public:
 
 //! To be used in model declaration to initialize a source instance
 //! according to the type of the external source.
-inline status initialize_source(simulation& sim, source& src) noexcept;
+inline status initialize_source(simulation&  sim,
+                                source&      src,
+                                source_data& data) noexcept;
 
 //! To be used in model declaration to get a new real from a source instance
 //! according to the type of the external source.
-inline status update_source(simulation& sim, source& src, double& val) noexcept;
+inline status update_source(simulation&  sim,
+                            source&      src,
+                            source_data& data,
+                            double&      val) noexcept;
 
 //! To be used in model declaration to finalize and clear a source instance
 //! according to the type of the external source.
-inline status finalize_source(simulation& sim, source& src) noexcept;
+inline status finalize_source(simulation&  sim,
+                              source&      src,
+                              source_data& data) noexcept;
 
 /*****************************************************************************
  *
@@ -3945,8 +3960,10 @@ struct generator {
     time sigma;
     real value;
 
-    source           source_ta;
-    source           source_value;
+    source_data src_data;
+    source      source_ta;
+    source      source_value;
+
     bitflags<option> flags;
 
     generator() noexcept = default;
@@ -3968,7 +3985,7 @@ struct generator {
         sigma = time_domain<time>::infinity;
 
         if (flags[option::ta_use_source]) {
-            if (initialize_source(sim, source_ta).has_error())
+            if (initialize_source(sim, source_ta, src_data).has_error())
                 return new_error(
                   simulation_errc::generator_ta_initialization_error);
 
@@ -3977,7 +3994,7 @@ struct generator {
 
         value = zero;
         if (flags[option::value_use_source]) {
-            if (initialize_source(sim, source_value).has_error())
+            if (initialize_source(sim, source_value, src_data).has_error())
                 return new_error(
                   simulation_errc::generator_source_initialization_error);
 
@@ -3990,10 +4007,10 @@ struct generator {
     status finalize(simulation& sim) noexcept
     {
         if (flags[option::ta_use_source])
-            irt_check(finalize_source(sim, source_ta));
+            irt_check(finalize_source(sim, source_ta, src_data));
 
         if (flags[option::value_use_source])
-            irt_check(finalize_source(sim, source_value));
+            irt_check(finalize_source(sim, source_value, src_data));
 
         return success();
     }
@@ -4014,13 +4031,15 @@ struct generator {
         if (is_zero(r)) {
             if (flags[option::value_use_source] and
                 not update_source_by_input_port) {
-                if (const auto ret = update_source(sim, source_value, value);
+                if (const auto ret =
+                      update_source(sim, source_value, src_data, value);
                     ret.has_error())
                     return ret.error();
             }
 
             if (flags[option::ta_use_source]) {
-                if (const auto ret = update_source(sim, source_ta, sigma);
+                if (const auto ret =
+                      update_source(sim, source_ta, src_data, sigma);
                     ret.has_error())
                     return ret.error();
 
@@ -4773,7 +4792,8 @@ public:
         std::array<u8, 4>   message_ports;
         int                 messages = 0;
 
-        source source_value;
+        source_data src_data;
+        source      source_value;
 
         std::bitset<4> values; //<! Bit storage message available on X port
                                // in big endian.
@@ -5356,7 +5376,8 @@ struct dynamic_queue {
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
 
-    source source_ta;
+    source_data src_data;
+    source      source_ta;
 
     dynamic_queue() noexcept = default;
 
@@ -5371,7 +5392,7 @@ struct dynamic_queue {
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
 
-        irt_check(initialize_source(sim, source_ta));
+        irt_check(initialize_source(sim, source_ta, src_data));
 
         return success();
     }
@@ -5384,7 +5405,7 @@ struct dynamic_queue {
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, source_ta));
+        irt_check(finalize_source(sim, source_ta, src_data));
 
         return success();
     }
@@ -5414,7 +5435,8 @@ struct priority_queue {
     dated_message_id fifo = undefined<dated_message_id>();
     real             ta   = 1.0;
 
-    source source_ta;
+    source_data src_data;
+    source      source_ta;
 
     priority_queue() noexcept = default;
 
@@ -5433,7 +5455,7 @@ private:
 public:
     status initialize(simulation& sim) noexcept
     {
-        irt_check(initialize_source(sim, source_ta));
+        irt_check(initialize_source(sim, source_ta, src_data));
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -5449,7 +5471,7 @@ public:
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, source_ta));
+        irt_check(finalize_source(sim, source_ta, src_data));
 
         return success();
     }
@@ -6596,23 +6618,30 @@ inline void copy(const model& src, model& dst) noexcept
     });
 }
 
-inline status initialize_source(simulation& sim, source& src) noexcept
+inline status initialize_source(simulation&  sim,
+                                source&      src,
+                                source_data& data) noexcept
 {
-    return sim.srcs.dispatch(src, source_operation_type::initialize);
+    return sim.srcs.dispatch(src, data, source_operation_type::initialize);
 }
 
-inline status update_source(simulation& sim, source& src, double& val) noexcept
+inline status update_source(simulation&  sim,
+                            source&      src,
+                            source_data& data,
+                            double&      val) noexcept
 {
     if (src.is_empty())
-        irt_check(sim.srcs.dispatch(src, source_operation_type::update));
+        irt_check(sim.srcs.dispatch(src, data, source_operation_type::update));
 
     val = src.next();
     return success();
 }
 
-inline status finalize_source(simulation& sim, source& src) noexcept
+inline status finalize_source(simulation&  sim,
+                              source&      src,
+                              source_data& data) noexcept
 {
-    return sim.srcs.dispatch(src, source_operation_type::finalize);
+    return sim.srcs.dispatch(src, data, source_operation_type::finalize);
 }
 
 //! observer
@@ -8216,7 +8245,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
         if ((*machine)->flags[hierarchical_state_machine::option::use_source]) {
-            irt_check(initialize_source(sim, exec.source_value));
+            irt_check(initialize_source(sim, exec.source_value, exec.src_data));
         }
 
         irt_check((*machine)->start(exec, sim.srcs));
@@ -8347,7 +8376,7 @@ inline status hsm_wrapper::finalize(simulation& sim) noexcept
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
         if ((*machine)->flags[hierarchical_state_machine::option::use_source])
-            irt_check(finalize_source(sim, exec.source_value));
+            irt_check(finalize_source(sim, exec.source_value, exec.src_data));
 
         return success();
     } else {
@@ -8601,7 +8630,7 @@ inline status dynamic_queue::transition(simulation& sim,
                       simulation_errc::dated_messages_container_full);
 
                 real ta = zero;
-                irt_check(update_source(sim, source_ta, ta));
+                irt_check(update_source(sim, source_ta, src_data, ta));
                 ar->push_head({ t + ta, msg[0], msg[1], msg[2] });
             }
         }
@@ -8652,7 +8681,7 @@ inline status priority_queue::transition(simulation& sim,
             for (const auto& msg : lst) {
                 real value = zero;
 
-                irt_check(update_source(sim, source_ta, value));
+                irt_check(update_source(sim, source_ta, src_data, value));
 
                 if (auto ret =
                       try_to_insert(sim, static_cast<real>(value) + t, msg);
@@ -8705,24 +8734,21 @@ inline source::source(const source_type type_, const source_any_id id_) noexcept
 
 inline source::source(const source& src) noexcept
   : buffer(src.buffer)
-  , chunk_id(src.chunk_id)
   , id(src.id)
-  , type(src.type)
   , index(src.index)
+  , type(src.type)
 {}
 
 inline source::source(source&& src) noexcept
   : buffer(src.buffer)
-  , chunk_id(src.chunk_id)
   , id(src.id)
-  , type(src.type)
   , index(src.index)
+  , type(src.type)
 {
     src.buffer = std::span<double>();
     src.index  = 0;
     src.type   = source_type::constant;
     src.id     = undefined<constant_source_id>();
-    std::fill_n(src.chunk_id.data(), src.chunk_id.size(), 0);
 }
 
 inline source& source::operator=(const source& src) noexcept
@@ -8794,7 +8820,6 @@ inline void source::clear() noexcept
     id     = undefined<constant_source_id>();
     type   = source_type::constant;
     index  = 0;
-    std::fill_n(chunk_id.data(), chunk_id.size(), 0);
 }
 
 inline bool source::is_empty() const noexcept

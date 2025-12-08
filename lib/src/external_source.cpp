@@ -91,7 +91,7 @@ constant_source& constant_source::operator=(
 
 status constant_source::init() noexcept { return success(); }
 
-status constant_source::init(source& src) noexcept
+status constant_source::init(source& src, source_data&) noexcept
 {
     src.buffer = std::span(buffer.data(), length);
     src.index  = 0;
@@ -99,16 +99,19 @@ status constant_source::init(source& src) noexcept
     return success();
 }
 
-status constant_source::update(source& src) noexcept
+status constant_source::update(source& src, source_data&) noexcept
 {
     src.index = 0;
 
     return success();
 }
 
-status constant_source::restore(source& /*src*/) noexcept { return success(); }
+status constant_source::restore(source& /*src*/, source_data&) noexcept
+{
+    return success();
+}
 
-status constant_source::finalize(source& src) noexcept
+status constant_source::finalize(source& src, source_data&) noexcept
 {
     src.clear();
 
@@ -214,9 +217,10 @@ bool binary_file_source::read(source& src, const int length) noexcept
 int binary_file_source::tellg() noexcept { return ifs.tellg(); }
 
 static status binary_file_source_fill_buffer(binary_file_source& ext,
-                                             source&             src) noexcept
+                                             source&             src,
+                                             source_data&        data) noexcept
 {
-    const auto to_seek = src.chunk_id[1] * sizeof(double);
+    const auto to_seek = data.chunk_id[1] * sizeof(double);
 
     if (!ext.seekg(static_cast<long>(to_seek)))
         return new_error(external_source_errc::binary_file_eof_error);
@@ -229,19 +233,19 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
         return new_error(external_source_errc::binary_file_eof_error);
 
     const auto current_position = static_cast<u64>(tellg) / sizeof(double);
-    src.chunk_id[1]             = current_position;
-    ext.offsets[numeric_cast<int>(src.chunk_id[0])] = current_position;
+    data.chunk_id[1]            = current_position;
+    ext.offsets[numeric_cast<int>(data.chunk_id[0])] = current_position;
 
     return success();
 }
 
-status binary_file_source::init(source& src) noexcept
+status binary_file_source::init(source& src, source_data& data) noexcept
 {
-    src.buffer      = std::span(buffers[next_client]);
-    src.index       = 0;
-    src.chunk_id[0] = next_client;
-    src.chunk_id[1] = next_offset;
-    offsets[numeric_cast<int>(src.chunk_id[0])] = next_offset;
+    src.buffer       = std::span(buffers[next_client]);
+    src.index        = 0;
+    data.chunk_id[0] = next_client;
+    data.chunk_id[1] = next_offset;
+    offsets[numeric_cast<int>(data.chunk_id[0])] = next_offset;
 
     next_client += 1;
     next_offset += external_source_chunk_size;
@@ -249,31 +253,31 @@ status binary_file_source::init(source& src) noexcept
     if (!(next_offset < max_reals))
         return new_error(external_source_errc::binary_file_eof_error);
 
-    return binary_file_source_fill_buffer(*this, src);
+    return binary_file_source_fill_buffer(*this, src, data);
 }
 
-status binary_file_source::update(source& src) noexcept
+status binary_file_source::update(source& src, source_data& data) noexcept
 {
     const auto distance = external_source_chunk_size * max_clients;
-    const auto next     = src.chunk_id[1] + distance;
+    const auto next     = data.chunk_id[1] + distance;
 
     if (!(next + external_source_chunk_size < max_reals))
         return new_error(external_source_errc::binary_file_eof_error);
 
     src.index = 0;
 
-    return binary_file_source_fill_buffer(*this, src);
+    return binary_file_source_fill_buffer(*this, src, data);
 }
 
-status binary_file_source::restore(source& src) noexcept
+status binary_file_source::restore(source& src, source_data& data) noexcept
 {
-    if (offsets[numeric_cast<int>(src.chunk_id[0])] != src.chunk_id[1])
-        return binary_file_source_fill_buffer(*this, src);
+    if (offsets[numeric_cast<int>(data.chunk_id[0])] != data.chunk_id[1])
+        return binary_file_source_fill_buffer(*this, src, data);
 
     return success();
 }
 
-status binary_file_source::finalize(source& src) noexcept
+status binary_file_source::finalize(source& src, source_data&) noexcept
 {
     src.clear();
 
@@ -341,7 +345,7 @@ text_file_source& text_file_source::operator=(
     return *this;
 }
 
-status text_file_source::init(source& src) noexcept
+status text_file_source::init(source& src, source_data& data) noexcept
 {
     src.buffer = std::span(buffer);
     src.index  = 0;
@@ -350,8 +354,8 @@ status text_file_source::init(source& src) noexcept
     if (tellg == -1)
         return new_error(external_source_errc::text_file_eof_error);
 
-    src.chunk_id[0] = static_cast<u64>(tellg);
-    offset          = static_cast<u64>(tellg);
+    data.chunk_id[0] = static_cast<u64>(tellg);
+    offset           = static_cast<u64>(tellg);
 
     return text_file_source_fill_buffer(*this, src);
 }
@@ -362,7 +366,7 @@ void text_file_source::finalize() noexcept
         ifs.close();
 }
 
-status text_file_source::update(source& src) noexcept
+status text_file_source::update(source& src, source_data& data) noexcept
 {
     src.index = 0;
 
@@ -370,21 +374,21 @@ status text_file_source::update(source& src) noexcept
     if (tellg == -1)
         return new_error(external_source_errc::text_file_eof_error);
 
-    src.chunk_id[0] = static_cast<u64>(tellg);
-    offset          = static_cast<u64>(tellg);
+    data.chunk_id[0] = static_cast<u64>(tellg);
+    offset           = static_cast<u64>(tellg);
 
     return text_file_source_fill_buffer(*this, src);
 }
 
-status text_file_source::restore(source& src) noexcept
+status text_file_source::restore(source& src, source_data& data) noexcept
 {
     src.buffer = std::span(buffer);
 
-    if (offset != src.chunk_id[0]) {
-        if (!(is_numeric_castable<std::ifstream::off_type>(src.chunk_id[0])))
+    if (offset != data.chunk_id[0]) {
+        if (!(is_numeric_castable<std::ifstream::off_type>(data.chunk_id[0])))
             return new_error(external_source_errc::text_file_eof_error);
 
-        if (!ifs.seekg(numeric_cast<std::ifstream::off_type>(src.chunk_id[0])))
+        if (!ifs.seekg(numeric_cast<std::ifstream::off_type>(data.chunk_id[0])))
             return new_error(external_source_errc::text_file_eof_error);
 
         const auto tellg = ifs.tellg();
@@ -397,7 +401,7 @@ status text_file_source::restore(source& src) noexcept
     return text_file_source_fill_buffer(*this, src);
 }
 
-status text_file_source::finalize(source& src) noexcept
+status text_file_source::finalize(source& src, source_data&) noexcept
 {
     src.clear();
     offset = 0;
@@ -442,137 +446,142 @@ void random_source::swap(random_source& other) noexcept
 
 status random_source::init() noexcept { return success(); }
 
-status random_source::finalize(source& src) noexcept
+status random_source::finalize(source& src, source_data& data) noexcept
 {
-    src.chunk_id[2] = 0;
+    data.chunk_id[2] = 0;
 
     return success();
 }
 
-status random_source::init(source& src) noexcept
+status random_source::init(source& src, source_data& data) noexcept
 {
-    src.buffer = std::span(src.chunk_real);
+    src.buffer = std::span(data.chunk_real);
     src.index  = 0;
 
-    src.chunk_id[0] = 0u; // seed ?
-    src.chunk_id[1] = 0u; // ordinal(model_id) ?
-    src.chunk_id[2] = 0u; // step
-    src.chunk_id[3] = 0u; // index
-    src.chunk_id[4] = 0u; // First random generator
-    src.chunk_id[5] = 0u; // Second random generator
+    data.chunk_id[0] = 0u; // seed ?
+    data.chunk_id[1] = 0u; // ordinal(model_id) ?
+    data.chunk_id[2] = 0u; // step
+    data.chunk_id[3] = 0u; // index
+    data.chunk_id[4] = 0u; // First random generator
+    data.chunk_id[5] = 0u; // Second random generator
 
-    src.chunk_real[0] = 0.0;
-    src.chunk_real[1] = 0.0;
+    data.chunk_real[0] = 0.0;
+    data.chunk_real[1] = 0.0;
 
     return success();
 }
 
-status random_source::update(source& src) noexcept
+status random_source::update(source& src, source_data& data) noexcept
 {
-    philox_64_view rng{ src.chunk_id };
+    philox_64_view rng{ data.chunk_id };
     src.index = 0;
 
     switch (distribution) {
     case distribution_type::uniform_int:
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::uniform_int_distribution(ints[0], ints[1])(rng);
-        src.chunk_real[1] =
+        data.chunk_real[1] =
           std::uniform_int_distribution(ints[0], ints[1])(rng);
         break;
 
     case distribution_type::uniform_real:
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::uniform_real_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] =
+        data.chunk_real[1] =
           std::uniform_real_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::bernouilli:
-        src.chunk_real[0] = std::bernoulli_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::bernoulli_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::bernoulli_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::bernoulli_distribution(reals[0])(rng);
         break;
 
     case distribution_type::binomial:
-        src.chunk_real[0] = std::binomial_distribution(ints[0], reals[0])(rng);
-        src.chunk_real[1] = std::binomial_distribution(ints[0], reals[0])(rng);
+        data.chunk_real[0] = std::binomial_distribution(ints[0], reals[0])(rng);
+        data.chunk_real[1] = std::binomial_distribution(ints[0], reals[0])(rng);
         break;
 
     case distribution_type::negative_binomial:
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::negative_binomial_distribution(ints[0], reals[0])(rng);
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::negative_binomial_distribution(ints[0], reals[0])(rng);
         break;
 
     case distribution_type::geometric:
-        src.chunk_real[0] = std::geometric_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::geometric_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::geometric_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::geometric_distribution(reals[0])(rng);
         break;
 
     case distribution_type::poisson:
-        src.chunk_real[0] = std::poisson_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::poisson_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::poisson_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::poisson_distribution(reals[0])(rng);
         break;
 
     case distribution_type::exponential:
-        src.chunk_real[0] = std::exponential_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::exponential_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::exponential_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::exponential_distribution(reals[0])(rng);
         break;
 
     case distribution_type::gamma:
-        src.chunk_real[0] = std::gamma_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] = std::gamma_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::gamma_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[1] = std::gamma_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::weibull:
-        src.chunk_real[0] = std::weibull_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] = std::weibull_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::weibull_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[1] = std::weibull_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::exterme_value:
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::extreme_value_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::extreme_value_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::normal:
-        src.chunk_real[0] = std::normal_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] = std::normal_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::normal_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[1] = std::normal_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::lognormal:
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::lognormal_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[0] =
+        data.chunk_real[0] =
           std::lognormal_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::chi_squared:
-        src.chunk_real[0] = std::chi_squared_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::chi_squared_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::chi_squared_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::chi_squared_distribution(reals[0])(rng);
         break;
 
     case distribution_type::cauchy:
-        src.chunk_real[0] = std::cauchy_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] = std::cauchy_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::cauchy_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[1] = std::cauchy_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::fisher_f:
-        src.chunk_real[0] = std::fisher_f_distribution(reals[0], reals[1])(rng);
-        src.chunk_real[1] = std::fisher_f_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] =
+          std::fisher_f_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[1] =
+          std::fisher_f_distribution(reals[0], reals[1])(rng);
         break;
 
     case distribution_type::student_t:
-        src.chunk_real[0] = std::student_t_distribution(reals[0])(rng);
-        src.chunk_real[1] = std::student_t_distribution(reals[0])(rng);
+        data.chunk_real[0] = std::student_t_distribution(reals[0])(rng);
+        data.chunk_real[1] = std::student_t_distribution(reals[0])(rng);
         break;
     }
 
     return success();
 }
 
-status random_source::restore(source& /*src*/) noexcept { return success(); }
+status random_source::restore(source& /*src*/, source_data& /*data*/) noexcept
+{
+    return success();
+}
 
 status external_source::prepare() noexcept
 {
@@ -600,50 +609,52 @@ void external_source::finalize() noexcept
         src.finalize();
 }
 
-template<typename Source>
-static status external_source_dispatch(Source&               s,
+template<typename ExternalSource>
+static status external_source_dispatch(ExternalSource&       s,
                                        source&               src,
+                                       source_data&          data,
                                        source_operation_type op) noexcept
 {
     switch (op) {
     case source_operation_type::initialize:
-        return s.init(src);
+        return s.init(src, data);
 
     case source_operation_type::update:
-        return s.update(src);
+        return s.update(src, data);
 
     case source_operation_type::restore:
-        return s.restore(src);
+        return s.restore(src, data);
 
     case source_operation_type::finalize:
-        return s.finalize(src);
+        return s.finalize(src, data);
     }
 
     unreachable();
 }
 
 status external_source::dispatch(source&                     src,
+                                 source_data&                data,
                                  const source_operation_type op) noexcept
 {
     switch (src.type) {
     case source_type::binary_file: {
         if (auto* bin_src =
               binary_file_sources.try_to_get(src.id.binary_file_id))
-            return external_source_dispatch(*bin_src, src, op);
+            return external_source_dispatch(*bin_src, src, data, op);
 
         return new_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
-            return external_source_dispatch(*cst_src, src, op);
+            return external_source_dispatch(*cst_src, src, data, op);
 
         return new_error(external_source_errc::constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
-            return external_source_dispatch(*rnd_src, src, op);
+            return external_source_dispatch(*rnd_src, src, data, op);
 
         return new_error(external_source_errc::random_unknown);
 
@@ -651,7 +662,7 @@ status external_source::dispatch(source&                     src,
 
     case source_type::text_file: {
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
-            return external_source_dispatch(*txt_src, src, op);
+            return external_source_dispatch(*txt_src, src, data, op);
 
         return new_error(external_source_errc::text_file_unknown);
     } break;

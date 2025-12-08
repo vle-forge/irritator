@@ -1189,7 +1189,8 @@ bool show_external_sources_combo(const char*                 title,
 void show_menu_external_sources(application&     app,
                                 external_source& srcs,
                                 const char*      title,
-                                source&          src) noexcept
+                                source&          src,
+                                source_data&     src_data) noexcept
 {
     small_string<64> tmp;
 
@@ -1279,7 +1280,7 @@ void show_menu_external_sources(application&     app,
 
     if (constant_ptr) {
         src.reset();
-        if (auto ret = constant_ptr->init(src); !ret) {
+        if (auto ret = constant_ptr->init(src, src_data); !ret) {
             app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize constant source";
             });
@@ -1288,7 +1289,7 @@ void show_menu_external_sources(application&     app,
 
     if (binary_file_ptr) {
         src.reset();
-        if (auto ret = binary_file_ptr->init(src); !ret) {
+        if (auto ret = binary_file_ptr->init(src, src_data); !ret) {
             app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize binary file source";
             });
@@ -1297,7 +1298,7 @@ void show_menu_external_sources(application&     app,
 
     if (text_file_ptr) {
         src.reset();
-        if (auto ret = text_file_ptr->init(src); !ret) {
+        if (auto ret = text_file_ptr->init(src, src_data); !ret) {
             app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize text file source";
             });
@@ -1306,7 +1307,7 @@ void show_menu_external_sources(application&     app,
 
     if (random_ptr) {
         src.reset();
-        if (auto ret = random_ptr->init(src); !ret) {
+        if (auto ret = random_ptr->init(src, src_data); !ret) {
             app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize random source";
             });
