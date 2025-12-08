@@ -610,6 +610,12 @@ public:
     status update(source& src, source_data& data) noexcept;
     status restore(source& src, source_data& data) noexcept;
     status finalize(source& src, source_data& data) noexcept;
+
+    /// Fill @c buffer according to @a philox_64 parameters @c data and
+    /// distribution type and parameters @c src.
+    void fill(std::span<real>    buffer,
+              const source&      src,
+              const source_data& data) noexcept;
 };
 
 /// @brief Stores random source generator state, text and binary files

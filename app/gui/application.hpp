@@ -906,13 +906,8 @@ struct hsm_simulation_editor {
 class project_external_source_editor
 {
 public:
-    enum class plot_status {
-        empty,
-        work_in_progress,
-        data_available,
-    };
-
     project_external_source_editor() noexcept;
+
     ~project_external_source_editor() noexcept;
 
     void show(application& app, project_editor& pj) noexcept;
@@ -934,22 +929,14 @@ public:
         u64                        id_sel = 0;
     } sel;
 
-    /** Fill the underlying @c plot vector with reals from the @c data
-     * parameter. This operation is framed by the change of @c status:
-     * - entering function, status is status::work_in_progress.
-     * - exiting function, status is status::data_available.
-     *
-     * The @c mutex protect access to @c plot.
-     */
+    /// Copy data into the plot shared buffer.
     void fill_plot(std::span<double> data) noexcept;
 
 private:
-    vector<float>  plot;
-    ImPlotContext* context          = nullptr;
-    plot_status    m_status         = plot_status::empty;
-    bool           show_file_dialog = false;
+    shared_buffer<vector<float>> plot;
 
-    spin_mutex mutex;
+    ImPlotContext* context          = nullptr;
+    bool           show_file_dialog = false;
 };
 
 enum class command_type {

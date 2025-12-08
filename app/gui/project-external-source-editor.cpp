@@ -588,25 +588,6 @@ bool show_random_distribution_input(random_source& src) noexcept
     return up > 0;
 }
 
-// static void task_try_finalize_source(application&        app,
-//                                      u64                 id,
-//                                      source_type type)
-//                                      noexcept
-// {
-//     source src;
-//     src.id   = id;
-//     src.type = type;
-
-//     if (auto ret = app.pj.sim.srcs.dispatch(src,
-//     if (auto ret = ed.pj.sim.srcs.dispatch(src,
-//     source::operation_type::finalize);
-//         !ret) {
-//         auto& n = app.notifications.alloc(log_level::error);
-//         n.title = "Fail to finalize data";
-//         app.notifications.enable(n);
-//     }
-// }
-
 project_external_source_editor::project_external_source_editor() noexcept
   : context{ ImPlot::CreateContext() }
 {}
@@ -968,30 +949,21 @@ void project_external_source_editor::show(application&    app,
             }
         }
 
-        if (m_status == plot_status::data_available) {
-            if (std::unique_lock lock(mutex, std::try_to_lock);
-                lock.owns_lock()) {
-                debug::ensure(plot.size() > 0);
+        plot.read([&](const auto& vec, const auto version) noexcept {
+            if (vec.empty())
+                return;
 
-                ImPlot::SetNextAxesToFit();
-                if (ImPlot::BeginPlot("External source preview",
-                                      ImVec2(-1, -1))) {
-                    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+            ImPlot::SetNextAxesToFit();
+            if (ImPlot::BeginPlot("External source preview", ImVec2(-1, -1))) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                    ImPlot::PlotScatter(
-                      "value", plot.data(), plot.size(), 1.0, 0.0);
+                ImPlot::PlotScatter("value", vec.data(), vec.size(), 1.0, 0.0);
 
-                    ImPlot::PopStyleVar(2);
-                    ImPlot::EndPlot();
-                }
-            } else {
-                ImGui::TextUnformatted("preview in progress");
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
             }
-        } else if (m_status == plot_status::work_in_progress)
-            ImGui::TextUnformatted("preview in progress");
-        else
-            ImGui::TextUnformatted("not data to build preview");
+        });
 
         if ((up or old.id_sel != sel.id_sel) and
             any_equal(
@@ -1352,44 +1324,42 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::constant and
+    return type_sel.has_value() and * type_sel == source_type::constant and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::text_file and
+    return type_sel.has_value() and * type_sel == source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::binary_file and
+    return type_sel.has_value() and * type_sel == source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::random and
+    return type_sel.has_value() and * type_sel == source_type::random and
            id_sel == ordinal(id);
 }
 
 void project_external_source_editor::fill_plot(std::span<double> data) noexcept
 {
-    m_status = plot_status::work_in_progress;
+    plot.write([&](auto& vec) noexcept {
+        vec.clear();
+        vec.reserve(data.size());
 
-    std::unique_lock lock(mutex);
-
-    plot.clear();
-    plot.reserve(data.size());
-
-    for (sz i = 0, e = data.size(); i != e; ++i)
-        plot.push_back(static_cast<float>(data[i]));
-
-    m_status = plot_status::data_available;
+        std::transform(data.begin(),
+                       data.end(),
+                       std::back_inserter(vec),
+                       [](const auto v) { return static_cast<float>(v); });
+    });
 }
 
 } // namespace irt

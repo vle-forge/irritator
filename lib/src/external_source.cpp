@@ -581,6 +581,21 @@ status random_source::update(source& src, source_data& data) noexcept
     return success();
 }
 
+void random_source::fill(std::span<real>    buffer,
+                         const source&      src,
+                         const source_data& data) noexcept
+{
+    source      source_copy{ src };
+    source_data source_data{ data };
+
+    for (auto i = 0; i < buffer.size(); i += 2) {
+        update(source_copy, source_data);
+
+        buffer[i]     = source_data.chunk_real[0];
+        buffer[i + 1] = source_data.chunk_real[1];
+    }
+}
+
 status random_source::restore(source& /*src*/, source_data& /*data*/) noexcept
 {
     return success();

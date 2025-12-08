@@ -1039,9 +1039,13 @@ void application::start_init_source(const project_id  pj_id,
     add_gui_task([this, pj_id, id, type]() noexcept {
         if (auto* sim_ed = pjs.try_to_get(pj_id)) {
             if (type == source_type::constant) {
+                const auto constant_id = enum_cast<constant_source_id>(id);
+
                 if (auto* c = sim_ed->pj.sim.srcs.constant_sources.try_to_get(
-                      enum_cast<constant_source_id>(id))) {
-                    (void)c->init();
+                      constant_id)) {
+                    if (c->init().has_error())
+                        return;
+
                     data_ed.fill_plot(std::span(c->buffer.data(), c->length));
                 }
             } else {
@@ -1049,16 +1053,29 @@ void application::start_init_source(const project_id  pj_id,
 
                 if (auto* c = sim_ed->pj.sim.srcs.random_sources.try_to_get(
                       random_id)) {
-                    (void)c->init();
 
+                    if (c->init().has_error())
+                        return;
+
+                    source      src;
                     source_data data;
-                    source      src(random_id);
-                    chunk_type  tmp{};
-                    src.buffer = tmp;
-                    (void)c->init(
-                      0x648593178264597, enum_cast<model_id>(id), src, data);
 
-                    data_ed.fill_plot(tmp);
+                    src.index  = 0;
+                    src.buffer = std::span(data.chunk_real);
+
+                    data.chunk_id[0] = 0x648593178264597;
+                    data.chunk_id[1] =
+                      static_cast<u64>(reinterpret_cast<uintptr_t>(c));
+                    data.chunk_id[2] = 0;
+                    data.chunk_id[3] = 0;
+                    data.chunk_id[4] = 0;
+                    data.chunk_id[5] = 0;
+
+                    chunk_type buffer;
+
+                    c->fill(std::span(buffer), src, data);
+
+                    data_ed.fill_plot(buffer);
                 }
             }
         }
