@@ -966,8 +966,7 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                               builder.graph_ed->psf.beta,
                               builder.graph_ed->psf.id,
                               builder.graph_ed->psf.nodes,
-                              builder.graph_ed->seed,
-                              builder.graph_ed->key)) {
+                              graph_compo.rng)) {
                             std::scoped_lock lock(builder.graph_ed->mutex);
                             builder.graph_ed->g.swap(graph_compo.g);
                             graph_compo.param.scale = builder.graph_ed->psf;
@@ -997,8 +996,7 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                               builder.graph_ed->psw.k,
                               builder.graph_ed->psw.id,
                               builder.graph_ed->psw.nodes,
-                              builder.graph_ed->seed,
-                              builder.graph_ed->key)) {
+                              graph_compo.rng)) {
 
                             std::scoped_lock lock(builder.graph_ed->mutex);
                             builder.graph_ed->g.swap(graph_compo.g);

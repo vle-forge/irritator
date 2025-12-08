@@ -4,6 +4,7 @@
 
 #include <irritator/dot-parser.hpp>
 #include <irritator/format.hpp>
+#include <irritator/random.hpp>
 
 #include <cctype>
 #include <charconv>
@@ -17,72 +18,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
-#ifndef R123_USE_CXX11
-#define R123_USE_CXX11 1
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif
-
-#include <Random123/philox.h>
-#include <Random123/uniform.hpp>
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
 namespace irt {
-
-struct local_rng {
-    using rng          = r123::Philox4x64;
-    using counter_type = r123::Philox4x64::ctr_type;
-    using key_type     = r123::Philox4x64::key_type;
-    using result_type  = counter_type::value_type;
-
-    static_assert(counter_type::static_size == 4);
-    static_assert(key_type::static_size == 2);
-
-    result_type operator()() noexcept
-    {
-        if (last_elem == 0) {
-            c.incr();
-
-            rng b{};
-            rdata = b(c, k);
-
-            n++;
-            last_elem = rdata.size();
-        }
-
-        return rdata[--last_elem];
-    }
-
-    local_rng(std::span<const u64> c0, std::span<const u64> uk) noexcept
-      : n(0)
-      , last_elem(0)
-    {
-        std::copy_n(c0.data(), c0.size(), c.data());
-        std::copy_n(uk.data(), uk.size(), k.data());
-    }
-
-    constexpr static result_type(min)() noexcept
-    {
-        return (std::numeric_limits<result_type>::min)();
-    }
-
-    constexpr static result_type(max)() noexcept
-    {
-        return (std::numeric_limits<result_type>::max)();
-    }
-
-    counter_type c;
-    key_type     k;
-    counter_type rdata{ 0u, 0u, 0u, 0u };
-    u64          n;
-    sz           last_elem;
-};
 
 //
 // dot-parser
@@ -1350,12 +1286,11 @@ graph& graph::operator=(graph&& other) noexcept
     return *this;
 }
 
-expected<void> graph::init_scale_free_graph(double            alpha,
-                                            double            beta,
-                                            component_id      compo_id,
-                                            int               n,
-                                            std::span<u64, 4> seed,
-                                            std::span<u64, 2> key) noexcept
+expected<void> graph::init_scale_free_graph(double       alpha,
+                                            double       beta,
+                                            component_id compo_id,
+                                            int          n,
+                                            philox_64&   rng) noexcept
 {
     clear();
 
@@ -1372,14 +1307,13 @@ expected<void> graph::init_scale_free_graph(double            alpha,
     }
 
     if (const unsigned n = nodes.max_used(); n > 1) {
-        local_rng                               r(seed, key);
         std::uniform_int_distribution<unsigned> d(0u, n - 1);
 
         auto first = nodes.begin();
         bool stop  = false;
 
         while (not stop) {
-            unsigned xv = d(r);
+            unsigned xv = d(rng);
             unsigned degree =
               (xv == 0 ? 0 : unsigned(beta * std::pow(xv, -alpha)));
 
@@ -1390,7 +1324,7 @@ expected<void> graph::init_scale_free_graph(double            alpha,
                     break;
                 }
 
-                xv     = d(r);
+                xv     = d(rng);
                 degree = (xv == 0 ? 0 : unsigned(beta * std::pow(xv, -alpha)));
             }
 
@@ -1399,7 +1333,7 @@ expected<void> graph::init_scale_free_graph(double            alpha,
 
             auto second = undefined<graph_node_id>();
             do {
-                const auto idx = d(r);
+                const auto idx = d(rng);
                 second         = nodes.get_from_index(idx);
             } while (not is_defined(second) or *first == second or
                      exists_edge(*first, second));
@@ -1424,12 +1358,11 @@ expected<void> graph::init_scale_free_graph(double            alpha,
     return expected<void>();
 }
 
-expected<void> graph::init_small_world_graph(double            probability,
-                                             i32               k,
-                                             component_id      compo_id,
-                                             int               n,
-                                             std::span<u64, 4> seed,
-                                             std::span<u64, 2> key) noexcept
+expected<void> graph::init_small_world_graph(double       probability,
+                                             i32          k,
+                                             component_id compo_id,
+                                             int          n,
+                                             philox_64&   rng) noexcept
 {
     clear();
     if (const auto r = reserve(n, n * 8); r.has_error())
@@ -1445,7 +1378,6 @@ expected<void> graph::init_small_world_graph(double            probability,
     }
 
     if (const auto n = nodes.max_used(); n > 1) {
-        local_rng                          r(seed, key);
         std::uniform_real_distribution<>   dr(0.0, 1.0);
         std::uniform_int_distribution<int> di(0, n - 1);
 
@@ -1462,12 +1394,12 @@ expected<void> graph::init_small_world_graph(double            probability,
             }
             first = source;
 
-            double x = dr(r);
+            double x = dr(rng);
             if (x < probability) {
                 auto lower = (source + n - k / 2) % n;
                 auto upper = (source + k / 2) % n;
                 do {
-                    second = di(r);
+                    second = di(rng);
                 } while (
                   (second >= lower && second <= upper) ||
                   (upper < lower && (second >= lower || second <= upper)));

@@ -14,72 +14,7 @@
 #include <algorithm>
 #include <random>
 
-#ifndef R123_USE_CXX11
-#define R123_USE_CXX11 1
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif
-
-#include <Random123/philox.h>
-#include <Random123/uniform.hpp>
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
-
 namespace irt {
-
-struct local_rng {
-    using rng          = r123::Philox4x64;
-    using counter_type = r123::Philox4x64::ctr_type;
-    using key_type     = r123::Philox4x64::key_type;
-    using result_type  = counter_type::value_type;
-
-    static_assert(counter_type::static_size == 4);
-    static_assert(key_type::static_size == 2);
-
-    result_type operator()() noexcept
-    {
-        if (last_elem == 0) {
-            c.incr();
-
-            rng b{};
-            rdata = b(c, k);
-
-            n++;
-            last_elem = rdata.size();
-        }
-
-        return rdata[--last_elem];
-    }
-
-    local_rng(std::span<const u64> c0, std::span<const u64> uk) noexcept
-      : n(0)
-      , last_elem(0)
-    {
-        std::copy_n(c0.data(), c0.size(), c.data());
-        std::copy_n(uk.data(), uk.size(), k.data());
-    }
-
-    constexpr static result_type min R123_NO_MACRO_SUBST() noexcept
-    {
-        return std::numeric_limits<result_type>::min();
-    }
-
-    constexpr static result_type max R123_NO_MACRO_SUBST() noexcept
-    {
-        return std::numeric_limits<result_type>::max();
-    }
-
-    counter_type c;
-    key_type     k;
-    counter_type rdata{ 0u, 0u, 0u, 0u };
-    u64          n;
-    sz           last_elem;
-};
 
 bool graph_component::exists_child(const std::string_view name) const noexcept
 {
@@ -168,6 +103,10 @@ static auto get_edges(modeling&                             mod,
 
     return std::nullopt;
 }
+
+graph_component::graph_component() noexcept
+  : rng(static_cast<u64>(reinterpret_cast<uintptr_t>(this)), 0x957864123u, 0u)
+{}
 
 void graph_component::update_position() noexcept
 {

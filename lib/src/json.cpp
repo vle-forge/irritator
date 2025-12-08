@@ -3681,8 +3681,7 @@ struct json_dearchiver::impl {
                                                      graph.param.scale.beta,
                                                      graph.param.scale.id,
                                                      graph.param.scale.nodes,
-                                                     graph.seed,
-                                                     graph.key);
+                                                     graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
 
@@ -3695,8 +3694,7 @@ struct json_dearchiver::impl {
                                              graph.param.small.k,
                                              graph.param.small.id,
                                              graph.param.small.nodes,
-                                             graph.seed,
-                                             graph.key);
+                                             graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
 

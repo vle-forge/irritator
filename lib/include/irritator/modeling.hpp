@@ -13,10 +13,10 @@
 #include <irritator/global.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/macros.hpp>
+#include <irritator/random.hpp>
 #include <irritator/thread.hpp>
 
 #include <optional>
-#include <variant>
 
 namespace irt {
 
@@ -639,19 +639,17 @@ public:
     /** Swap the content of the graph with @a other. */
     void swap(graph& g) noexcept;
 
-    expected<void> init_scale_free_graph(double            alpha,
-                                         double            beta,
-                                         component_id      id,
-                                         int               nodes,
-                                         std::span<u64, 4> seed,
-                                         std::span<u64, 2> key) noexcept;
+    expected<void> init_scale_free_graph(double       alpha,
+                                         double       beta,
+                                         component_id id,
+                                         int          nodes,
+                                         philox_64&   rng) noexcept;
 
-    expected<void> init_small_world_graph(double            probability,
-                                          i32               k,
-                                          component_id      id,
-                                          int               nodes,
-                                          std::span<u64, 4> seed,
-                                          std::span<u64, 2> key) noexcept;
+    expected<void> init_small_world_graph(double       probability,
+                                          i32          k,
+                                          component_id id,
+                                          int          nodes,
+                                          philox_64&   rng) noexcept;
 
     /**
      * Add a new node in graph. Grow containers if necessary.
@@ -799,10 +797,10 @@ public:
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
-    random_graph_param param   = { .scale = scale_free_param{} };
-    graph_type         g_type  = graph_type::scale_free;
-    u64                seed[4] = { 0u, 0u, 0u, 0u };
-    u64                key[2]  = { 0u, 0u };
+    random_graph_param param  = { .scale = scale_free_param{} };
+    graph_type         g_type = graph_type::scale_free;
+
+    philox_64 rng;
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
@@ -813,7 +811,7 @@ public:
 
     connection_type type = connection_type::name;
 
-    graph_component() noexcept                             = default;
+    graph_component() noexcept;
     graph_component(const graph_component& other) noexcept = default;
 
     bool     exists_child(const std::string_view name) const noexcept;
