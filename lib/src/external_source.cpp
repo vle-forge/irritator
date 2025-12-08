@@ -601,29 +601,29 @@ void external_source::finalize() noexcept
 }
 
 template<typename Source>
-static status external_source_dispatch(Source&                s,
-                                       source&                src,
-                                       source::operation_type op) noexcept
+static status external_source_dispatch(Source&               s,
+                                       source&               src,
+                                       source_operation_type op) noexcept
 {
     switch (op) {
-    case source::operation_type::initialize:
+    case source_operation_type::initialize:
         return s.init(src);
 
-    case source::operation_type::update:
+    case source_operation_type::update:
         return s.update(src);
 
-    case source::operation_type::restore:
+    case source_operation_type::restore:
         return s.restore(src);
 
-    case source::operation_type::finalize:
+    case source_operation_type::finalize:
         return s.finalize(src);
     }
 
     unreachable();
 }
 
-status external_source::dispatch(source&                      src,
-                                 const source::operation_type op) noexcept
+status external_source::dispatch(source&                     src,
+                                 const source_operation_type op) noexcept
 {
     switch (src.type) {
     case source_type::binary_file: {

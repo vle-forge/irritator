@@ -1104,7 +1104,7 @@ expected<bool> hierarchical_state_machine::handle(
                                 from the buffer of the source. */
         if (exec.source_value.is_empty())
             irt_check(
-              srcs.dispatch(exec.source_value, source::operation_type::update));
+              srcs.dispatch(exec.source_value, source_operation_type::update));
     }
 
     switch (event) {

@@ -340,6 +340,13 @@ enum class source_type : u8 {
     random,      /**< How to retrieve old position in debug mode? */
 };
 
+enum class source_operation_type : u8 {
+    initialize, /**< Initialize the buffer at simulation init step. */
+    update,     /**< Update the buffer when all values are read. */
+    restore,    /**< Restore the buffer when debug mode activated. */
+    finalize    /**< Clear the buffer at simulation finalize step. */
+};
+
 /** The identifier of the external source. */
 union source_any_id {
     constexpr source_any_id() noexcept
@@ -607,13 +614,6 @@ public:
 class source
 {
 public:
-    enum class operation_type : u8 {
-        initialize, /**< Initialize the buffer at simulation init step. */
-        update,     /**< Update the buffer when all values are read. */
-        restore,    /**< Restore the buffer when debug mode activated. */
-        finalize    /**< Clear the buffer at simulation finalize step. */
-    };
-
     /** A view on external-source buffers provided by binary or text files,
      * random or constant vectors. */
     std::span<double> buffer;
@@ -718,7 +718,7 @@ public:
 
     status import_from(const external_source& srcs);
 
-    status dispatch(source& src, const source::operation_type op) noexcept;
+    status dispatch(source& src, const source_operation_type op) noexcept;
 
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
@@ -6598,13 +6598,13 @@ inline void copy(const model& src, model& dst) noexcept
 
 inline status initialize_source(simulation& sim, source& src) noexcept
 {
-    return sim.srcs.dispatch(src, source::operation_type::initialize);
+    return sim.srcs.dispatch(src, source_operation_type::initialize);
 }
 
 inline status update_source(simulation& sim, source& src, double& val) noexcept
 {
     if (src.is_empty())
-        irt_check(sim.srcs.dispatch(src, source::operation_type::update));
+        irt_check(sim.srcs.dispatch(src, source_operation_type::update));
 
     val = src.next();
     return success();
@@ -6612,7 +6612,7 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
 
 inline status finalize_source(simulation& sim, source& src) noexcept
 {
-    return sim.srcs.dispatch(src, source::operation_type::finalize);
+    return sim.srcs.dispatch(src, source_operation_type::finalize);
 }
 
 //! observer
