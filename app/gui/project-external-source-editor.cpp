@@ -37,7 +37,6 @@ static status display_allocate_external_source(application&    app,
                                                project_editor& ed,
                                                source_type     part) noexcept
 {
-
     switch (part) {
     case source_type::constant:
         return try_allocate_external_source(
@@ -167,8 +166,8 @@ bool show_random_distribution_input(
             src.ints[1] = 100;
         }
 
-        int a = src.ints[0];
-        int b = src.ints[1];
+        auto a = src.ints[0];
+        auto b = src.ints[1];
 
         if (ImGui::InputInt("a", &a)) {
             up++;
@@ -197,7 +196,6 @@ bool show_random_distribution_input(
 
         auto a = src.reals[0];
         auto b = src.reals[1];
-
         if (ImGui::InputDouble("a", &a)) {
             ++up;
             if (a < b)
@@ -216,11 +214,14 @@ bool show_random_distribution_input(
     } break;
 
     case distribution_type::bernouilli:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 0.5;
-        }
-        if (ImGui::InputDouble("p", &src.reals[0]))
+
+        if (auto p = src.reals[0];
+            ImGui::InputDouble("p", &p) and 0.0 <= p and p <= 1.0) {
+            src.reals[0] = p;
             ++up;
+        }
         break;
 
     case distribution_type::binomial:
@@ -228,10 +229,17 @@ bool show_random_distribution_input(
             src.reals[0] = 0.5;
             src.ints[0]  = 1;
         }
-        if (ImGui::InputDouble("p", &src.reals[0]))
+
+        if (auto p = src.reals[0];
+            ImGui::InputDouble("p", &p) and 0.0 <= p and p <= 1.0) {
+            src.reals[0] = p;
             ++up;
-        if (ImGui::InputInt("t", &src.ints[0]))
+        }
+
+        if (auto t = src.ints[0]; ImGui::InputInt("t", &t) and t >= 0) {
+            src.ints[0] = t;
             ++up;
+        }
         break;
 
     case distribution_type::negative_binomial:
@@ -239,34 +247,49 @@ bool show_random_distribution_input(
             src.reals[0] = 0.5;
             src.ints[0]  = 1;
         }
-        if (ImGui::InputDouble("p", &src.reals[0]))
+
+        if (auto p = src.reals[0];
+            ImGui::InputDouble("p", &p) and 0.0 < p and p <= 1.0) {
+            src.reals[0] = p;
             ++up;
-        if (ImGui::InputInt("t", &src.ints[0]))
+        }
+
+        if (auto t = src.ints[0]; ImGui::InputInt("t", &t) and 0 < t) {
+            src.ints[0] = t;
             ++up;
+        }
         break;
 
     case distribution_type::geometric:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 0.5;
-        }
-        if (ImGui::InputDouble("p", &src.reals[0]))
+
+        if (auto p = src.reals[0];
+            ImGui::InputDouble("p", &p) and 0.0 <= p and p < 1.0) {
+            src.reals[0] = p;
             ++up;
+        }
         break;
 
     case distribution_type::poisson:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 0.5;
-        }
-        if (ImGui::InputDouble("mean", &src.reals[0]))
+
+        if (auto m = src.reals[0]; ImGui::InputDouble("mean", &m) and 0.0 < m) {
+            src.reals[0] = m;
             ++up;
+        }
         break;
 
     case distribution_type::exponential:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 1.0;
-        }
-        if (ImGui::InputDouble("lambda", &src.reals[0]))
+
+        if (auto l = src.reals[0];
+            ImGui::InputDouble("lambda", &l) and 0.0 < l) {
+            src.reals[0] = l;
             ++up;
+        }
         break;
 
     case distribution_type::gamma:
@@ -274,10 +297,17 @@ bool show_random_distribution_input(
             src.reals[0] = 1.0;
             src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("alpha", &src.reals[0]))
+
+        if (auto a = src.reals[0];
+            ImGui::InputDouble("alpha", &a) and 0.0 < a) {
+            src.reals[0] = a;
             ++up;
-        if (ImGui::InputDouble("beta", &src.reals[1]))
+        }
+
+        if (auto b = src.reals[1]; ImGui::InputDouble("beta", &b) and 0.0 < b) {
+            src.reals[1] = b;
             ++up;
+        }
         break;
 
     case distribution_type::weibull:
@@ -285,10 +315,16 @@ bool show_random_distribution_input(
             src.reals[0] = 1.0;
             src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("a", &src.reals[0]))
+
+        if (auto a = src.reals[0]; ImGui::InputDouble("a", &a) and 0.0 < a) {
+            src.reals[0] = a;
             ++up;
-        if (ImGui::InputDouble("b", &src.reals[1]))
+        }
+
+        if (auto b = src.reals[1]; ImGui::InputDouble("b", &b) and 0.0 < b) {
+            src.reals[1] = b;
             ++up;
+        }
         break;
 
     case distribution_type::exterme_value:
@@ -296,10 +332,16 @@ bool show_random_distribution_input(
             src.reals[0] = 1.0;
             src.reals[1] = 0.0;
         }
-        if (ImGui::InputDouble("a", &src.reals[0]))
+
+        if (auto a = src.reals[0]; ImGui::InputDouble("a", &a)) {
+            src.reals[0] = a;
             ++up;
-        if (ImGui::InputDouble("b", &src.reals[1]))
+        }
+
+        if (auto b = src.reals[1]; ImGui::InputDouble("b", &b) and 0.0 < b) {
+            src.reals[1] = b;
             ++up;
+        }
         break;
 
     case distribution_type::normal:
@@ -307,10 +349,17 @@ bool show_random_distribution_input(
             src.reals[0] = 0.0;
             src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("mean", &src.reals[0]))
+
+        if (auto m = src.reals[0]; ImGui::InputDouble("mean", &m)) {
+            src.reals[0] = m;
             ++up;
-        if (ImGui::InputDouble("stddev", &src.reals[1]))
+        }
+
+        if (auto s = src.reals[1];
+            ImGui::InputDouble("stddev", &s) and 0.0 < s) {
+            src.reals[1] = s;
             ++up;
+        }
         break;
 
     case distribution_type::lognormal:
@@ -318,29 +367,44 @@ bool show_random_distribution_input(
             src.reals[0] = 0.0;
             src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("m", &src.reals[0]))
+
+        if (auto m = src.reals[0]; ImGui::InputDouble("mean", &m)) {
+            src.reals[0] = m;
             ++up;
-        if (ImGui::InputDouble("s", &src.reals[1]))
+        }
+
+        if (auto s = src.reals[1];
+            ImGui::InputDouble("stddev", &s) and 0.0 < s) {
+            src.reals[1] = s;
             ++up;
+        }
         break;
 
     case distribution_type::chi_squared:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 1.0;
-        }
-        if (ImGui::InputDouble("n", &src.reals[0]))
+
+        if (auto n = src.reals[0]; ImGui::InputDouble("n", &n) and 0 < n) {
+            src.reals[0] = n;
             ++up;
+        }
         break;
 
     case distribution_type::cauchy:
         if (old_current != current_item) {
-            src.reals[0] = 1.0;
-            src.reals[1] = 0.0;
+            src.reals[0] = 0.0;
+            src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("a", &src.reals[0]))
+
+        if (auto a = src.reals[0]; ImGui::InputDouble("a", &a)) {
+            src.reals[0] = a;
             ++up;
-        if (ImGui::InputDouble("b", &src.reals[1]))
+        }
+
+        if (auto b = src.reals[1]; ImGui::InputDouble("b", &b) and 0.0 < b) {
+            src.reals[1] = b;
             ++up;
+        }
         break;
 
     case distribution_type::fisher_f:
@@ -348,18 +412,26 @@ bool show_random_distribution_input(
             src.reals[0] = 1.0;
             src.reals[1] = 1.0;
         }
-        if (ImGui::InputDouble("m", &src.reals[0]))
+
+        if (auto m = src.reals[0]; ImGui::InputDouble("m", &m) and 0 < m) {
+            src.reals[0] = m;
             ++up;
-        if (ImGui::InputDouble("s", &src.reals[1]))
+        }
+
+        if (auto n = src.reals[1]; ImGui::InputDouble("s", &n) and 0 < n) {
+            src.reals[1] = n;
             ++up;
+        }
         break;
 
     case distribution_type::student_t:
-        if (old_current != current_item) {
+        if (old_current != current_item)
             src.reals[0] = 1.0;
-        }
-        if (ImGui::InputDouble("n", &src.reals[0]))
+
+        if (auto n = src.reals[0]; ImGui::InputDouble("n", &n) and 0 < n) {
+            src.reals[0] = n;
             ++up;
+        }
         break;
     }
 
