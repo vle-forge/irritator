@@ -919,7 +919,7 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
     }
 }
 
-void hsm_component_editor_data::show_panel(application&   app,
+void hsm_component_editor_data::show_panel(application& /*app*/,
                                            component&     compo,
                                            hsm_component& hsm) noexcept
 {

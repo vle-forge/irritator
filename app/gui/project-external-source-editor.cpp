@@ -917,18 +917,6 @@ void project_external_source_editor::show(application&    app,
 
                     up += ImGui::InputSmallString("name", ptr->name);
 
-                    if (ImGui::InputScalar(
-                          "max source",
-                          ImGuiDataType_U32,
-                          reinterpret_cast<void*>(&ptr->max_clients))) {
-                        up++;
-                        if (auto ret = ptr->init(); !ret) {
-                            app.jn.push(log_level::error, [](auto& t, auto&) {
-                                t = "Fail to initialize random source";
-                            });
-                        }
-                    }
-
                     up += show_random_distribution_input(*ptr);
                 }
             } break;
@@ -1363,28 +1351,28 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel == source_type::constant and
+    return type_sel.has_value() and *type_sel == source_type::constant and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel == source_type::text_file and
+    return type_sel.has_value() and *type_sel == source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel == source_type::binary_file and
+    return type_sel.has_value() and *type_sel == source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel == source_type::random and
+    return type_sel.has_value() and *type_sel == source_type::random and
            id_sel == ordinal(id);
 }
 

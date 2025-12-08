@@ -567,28 +567,17 @@ public:
 };
 
 //! Use a prng to produce set of double real. This external source can be
-//! shared between @c max_clients sources. Each client read a @c
+//! shared between multiple sources. Each client read a @c
 //! external_source_chunk_size real of the set.
 //!
 //! The source::chunk_id[0-5] array is used to store the prng state.
 class random_source
 {
 public:
-    using counter_type = std::array<u64, 4>;
-    using key_type     = std::array<u64, 4>;
-    using result_type  = std::array<u64, 4>;
+    name_str name;
 
-    name_str                   name;
-    vector<chunk_type>         buffers;
-    vector<std::array<u64, 4>> counters;
-    u32          max_clients   = 1; // number of source max (must be >= 1).
-    u32          start_counter = 0; // provided by @c external_source class.
-    u32          next_client   = 0;
-    counter_type ctr{};
-    key_type     key{}; // provided by @c external_source class.
-
-    std::array<real, 2> reals;
-    std::array<i32, 2>  ints;
+    std::array<real, 2> reals; // reals parameters for distribution
+    std::array<i32, 2>  ints;  // and integers part.
 
     distribution_type distribution = distribution_type::uniform_real;
 
@@ -632,12 +621,17 @@ public:
     /** Stores external data for text, binary and random external sources
      * to enable restore operation in past (for instance position in the
      * text or binary files and seed parameters for random source). */
-    std::array<u64, 4> chunk_id{};
+    std::array<u64, 6> chunk_id{};
+
+    /** Stores random source to enable restore operation
+     * in past (for instance parameters of the random distribution). */
+    std::array<real, 2> chunk_real{};
 
     source_any_id id   = undefined<constant_source_id>();
     source_type   type = source_type::constant;
 
-    /** Index of the next double to read the @a buffer. */
+    /** Index of the next double to read the @a buffer or in the @c chunk_real
+     */
     u16 index = 0u;
 
     source() noexcept = default;
@@ -8718,8 +8712,8 @@ inline source::source(const source& src) noexcept
 {}
 
 inline source::source(source&& src) noexcept
-  : buffer(std::move(src.buffer))
-  , chunk_id(std::move(src.chunk_id))
+  : buffer(src.buffer)
+  , chunk_id(src.chunk_id)
   , id(src.id)
   , type(src.type)
   , index(src.index)

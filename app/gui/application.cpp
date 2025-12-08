@@ -1049,7 +1049,6 @@ void application::start_init_source(const project_id  pj_id,
 
                 if (auto* c = sim_ed->pj.sim.srcs.random_sources.try_to_get(
                       random_id)) {
-                    c->max_clients = 1;
                     (void)c->init();
 
                     source     src(random_id);

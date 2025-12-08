@@ -5,27 +5,12 @@
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/random.hpp>
 
 #include <filesystem>
 #include <fstream>
 #include <random>
 #include <utility>
-
-#ifndef R123_USE_CXX11
-#define R123_USE_CXX11 1
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#endif
-
-#include <Random123/philox.h>
-#include <Random123/uniform.hpp>
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
 
 namespace irt {
 
@@ -420,98 +405,6 @@ status text_file_source::finalize(source& src) noexcept
     return success();
 }
 
-struct local_rng {
-    using rng          = r123::Philox4x64;
-    using counter_type = r123::Philox4x64::ctr_type;
-    using key_type     = r123::Philox4x64::key_type;
-    using result_type  = counter_type::value_type;
-
-    static_assert(counter_type::static_size == 4);
-    static_assert(key_type::static_size == 2);
-
-    static_assert(std::numeric_limits<result_type>::digits >= 64,
-                  "The result_type must have at least 32 bits");
-
-    result_type operator()() noexcept
-    {
-        if (last_elem == 0) {
-            c.incr();
-
-            rng b;
-            rdata = b(c, k);
-
-            n++;
-            last_elem = rdata.size();
-        }
-
-        return rdata[--last_elem];
-    }
-
-    local_rng(const random_source::counter_type& c0,
-              const random_source::key_type&     uk) noexcept
-      : n(0)
-      , last_elem(0)
-    {
-        std::copy_n(c0.data(), c0.size(), c.data());
-        std::copy_n(uk.data(), uk.size(), k.data());
-    }
-
-    constexpr static result_type min R123_NO_MACRO_SUBST() noexcept
-    {
-        return std::numeric_limits<result_type>::min();
-    }
-
-    constexpr static result_type max R123_NO_MACRO_SUBST() noexcept
-    {
-        return std::numeric_limits<result_type>::max();
-    }
-
-    counter_type c;
-    key_type     k;
-    counter_type rdata;
-    u64          n;
-    sz           last_elem;
-};
-
-void random_source_start_source(random_source& ext, source& src) noexcept
-{
-    ext.ctr = {
-        { src.chunk_id[0], src.chunk_id[1], src.chunk_id[2], src.chunk_id[3] }
-    };
-}
-
-void random_source_end_source(random_source& ext, source& src) noexcept
-{
-    src.chunk_id[0] = ext.ctr[0];
-    src.chunk_id[1] = ext.ctr[1];
-    src.chunk_id[2] = ext.ctr[2];
-    src.chunk_id[3] = ext.ctr[3];
-
-    const auto client = numeric_cast<int>(src.chunk_id[3] - ext.start_counter);
-
-    ext.counters[client][0] = ext.ctr[0];
-    ext.counters[client][1] = ext.ctr[1];
-    ext.counters[client][2] = ext.ctr[2];
-    ext.counters[client][3] = ext.ctr[3];
-}
-
-template<typename Distribution>
-void random_source_generate(random_source& ext,
-                            Distribution   dist,
-                            source&        src) noexcept
-{
-    random_source_start_source(ext, src);
-    local_rng gen(ext.ctr, ext.key);
-
-    const auto client = numeric_cast<int>(src.chunk_id[3] - ext.start_counter);
-
-    for (sz i = 0, e = ext.buffers[client].size(); i < e; ++i)
-        src.buffer[i] = dist(gen);
-
-    std::copy_n(gen.c.data(), gen.c.size(), ext.ctr.data());
-    random_source_end_source(ext, src);
-}
-
 random_source::random_source(const distribution_type  type,
                              std::span<const real, 2> reals_,
                              std::span<const i32, 2>  ints_) noexcept
@@ -522,13 +415,6 @@ random_source::random_source(const distribution_type  type,
 
 random_source::random_source(const random_source& other) noexcept
   : name(other.name)
-  , buffers(other.buffers)
-  , counters(other.counters)
-  , max_clients(other.max_clients)
-  , start_counter(other.start_counter)
-  , next_client(other.next_client)
-  , ctr(other.ctr)
-  , key(other.key)
   , reals(other.reals)
   , ints(other.ints)
   , distribution(other.distribution)
@@ -547,13 +433,6 @@ random_source& random_source::operator=(const random_source& other) noexcept
 void random_source::swap(random_source& other) noexcept
 {
     std::swap(name, other.name);
-    std::swap(buffers, other.buffers);
-    std::swap(counters, other.counters);
-    std::swap(max_clients, other.max_clients);
-    std::swap(start_counter, other.start_counter);
-    std::swap(next_client, other.next_client);
-    std::swap(ctr, other.ctr);
-    std::swap(key, other.key);
     std::swap(reals[0], other.reals[0]);
     std::swap(reals[1], other.reals[1]);
     std::swap(ints[0], other.ints[0]);
@@ -561,212 +440,164 @@ void random_source::swap(random_source& other) noexcept
     std::swap(distribution, other.distribution);
 }
 
-status random_source::init() noexcept
-{
-    next_client = 0;
-
-    if (max_clients <= 1)
-        max_clients = default_max_client_number;
-
-    buffers.resize(max_clients);
-    counters.resize(max_clients);
-
-    return success();
-}
+status random_source::init() noexcept { return success(); }
 
 status random_source::finalize(source& src) noexcept
 {
-    src.clear();
-    return success();
-}
-
-static status random_source_fill_buffer(random_source& ext,
-                                        source&        src) noexcept
-{
-    switch (ext.distribution) {
-    case distribution_type::uniform_int:
-        random_source_generate(
-          ext, std::uniform_int_distribution(ext.ints[0], ext.ints[1]), src);
-        break;
-
-    case distribution_type::uniform_real:
-        random_source_generate(
-          ext, std::uniform_real_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::bernouilli:
-        random_source_generate(
-          ext, std::bernoulli_distribution(ext.reals[0]), src);
-        break;
-
-    case distribution_type::binomial:
-        random_source_generate(
-          ext, std::binomial_distribution(ext.ints[0], ext.reals[0]), src);
-        break;
-
-    case distribution_type::negative_binomial:
-        random_source_generate(
-          ext,
-          std::negative_binomial_distribution(ext.ints[0], ext.reals[0]),
-          src);
-        break;
-
-    case distribution_type::geometric:
-        random_source_generate(
-          ext, std::geometric_distribution(ext.reals[0]), src);
-        break;
-
-    case distribution_type::poisson:
-        random_source_generate(
-          ext, std::poisson_distribution(ext.reals[0]), src);
-        break;
-
-    case distribution_type::exponential:
-        random_source_generate(
-          ext, std::exponential_distribution(ext.reals[0]), src);
-        break;
-
-    case distribution_type::gamma:
-        random_source_generate(
-          ext, std::gamma_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::weibull:
-        random_source_generate(
-          ext, std::weibull_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::exterme_value:
-        random_source_generate(
-          ext,
-          std::extreme_value_distribution(ext.reals[0], ext.reals[1]),
-          src);
-        break;
-
-    case distribution_type::normal:
-        random_source_generate(
-          ext, std::normal_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::lognormal:
-        random_source_generate(
-          ext, std::lognormal_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::chi_squared:
-        random_source_generate(
-          ext, std::chi_squared_distribution(ext.reals[0]), src);
-        break;
-
-    case distribution_type::cauchy:
-        random_source_generate(
-          ext, std::cauchy_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::fisher_f:
-        random_source_generate(
-          ext, std::fisher_f_distribution(ext.reals[0], ext.reals[1]), src);
-        break;
-
-    case distribution_type::student_t:
-        random_source_generate(
-          ext, std::student_t_distribution(ext.reals[0]), src);
-        break;
-    }
+    src.chunk_id[2] = 0;
 
     return success();
 }
 
 status random_source::init(source& src) noexcept
 {
-    src.buffer = std::span(buffers[next_client]);
+    src.buffer = std::span(src.chunk_real);
     src.index  = 0;
 
-    src.chunk_id[0] = 0;
-    src.chunk_id[1] = 0;
-    src.chunk_id[2] = 0;
-    src.chunk_id[3] = start_counter + next_client;
+    src.chunk_id[0] = 0u; // seed ?
+    src.chunk_id[1] = 0u; // ordinal(model_id) ?
+    src.chunk_id[2] = 0u; // step
+    src.chunk_id[3] = 0u; // index
+    src.chunk_id[4] = 0u; // First random generator
+    src.chunk_id[5] = 0u; // Second random generator
 
-    counters[next_client][0] = src.chunk_id[0];
-    counters[next_client][1] = src.chunk_id[1];
-    counters[next_client][2] = src.chunk_id[2];
-    counters[next_client][3] = src.chunk_id[3];
-
-    next_client += 1;
-
-    return random_source_fill_buffer(*this, src);
-}
-
-status random_source::update(source& src) noexcept
-{
-    src.index = 0;
-
-    return random_source_fill_buffer(*this, src);
-}
-
-status random_source::restore(source& src) noexcept
-{
-    debug::ensure(src.chunk_id[3] >= start_counter);
-
-    const auto client = numeric_cast<int>(src.chunk_id[3] - start_counter);
-
-    if (!(counters[client][0] == src.chunk_id[0] &&
-          counters[client][1] == src.chunk_id[1] &&
-          counters[client][2] == src.chunk_id[2] &&
-          counters[client][3] == src.chunk_id[3]))
-        return random_source_fill_buffer(*this, src);
+    src.chunk_real[0] = 0.0;
+    src.chunk_real[1] = 0.0;
 
     return success();
 }
 
+status random_source::update(source& src) noexcept
+{
+    philox_64_view rng{ src.chunk_id };
+    src.index = 0;
+
+    switch (distribution) {
+    case distribution_type::uniform_int:
+        src.chunk_real[0] =
+          std::uniform_int_distribution(ints[0], ints[1])(rng);
+        src.chunk_real[1] =
+          std::uniform_int_distribution(ints[0], ints[1])(rng);
+        break;
+
+    case distribution_type::uniform_real:
+        src.chunk_real[0] =
+          std::uniform_real_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] =
+          std::uniform_real_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::bernouilli:
+        src.chunk_real[0] = std::bernoulli_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::bernoulli_distribution(reals[0])(rng);
+        break;
+
+    case distribution_type::binomial:
+        src.chunk_real[0] = std::binomial_distribution(ints[0], reals[0])(rng);
+        src.chunk_real[1] = std::binomial_distribution(ints[0], reals[0])(rng);
+        break;
+
+    case distribution_type::negative_binomial:
+        src.chunk_real[0] =
+          std::negative_binomial_distribution(ints[0], reals[0])(rng);
+        src.chunk_real[0] =
+          std::negative_binomial_distribution(ints[0], reals[0])(rng);
+        break;
+
+    case distribution_type::geometric:
+        src.chunk_real[0] = std::geometric_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::geometric_distribution(reals[0])(rng);
+        break;
+
+    case distribution_type::poisson:
+        src.chunk_real[0] = std::poisson_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::poisson_distribution(reals[0])(rng);
+        break;
+
+    case distribution_type::exponential:
+        src.chunk_real[0] = std::exponential_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::exponential_distribution(reals[0])(rng);
+        break;
+
+    case distribution_type::gamma:
+        src.chunk_real[0] = std::gamma_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] = std::gamma_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::weibull:
+        src.chunk_real[0] = std::weibull_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] = std::weibull_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::exterme_value:
+        src.chunk_real[0] =
+          std::extreme_value_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[0] =
+          std::extreme_value_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::normal:
+        src.chunk_real[0] = std::normal_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] = std::normal_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::lognormal:
+        src.chunk_real[0] =
+          std::lognormal_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[0] =
+          std::lognormal_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::chi_squared:
+        src.chunk_real[0] = std::chi_squared_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::chi_squared_distribution(reals[0])(rng);
+        break;
+
+    case distribution_type::cauchy:
+        src.chunk_real[0] = std::cauchy_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] = std::cauchy_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::fisher_f:
+        src.chunk_real[0] = std::fisher_f_distribution(reals[0], reals[1])(rng);
+        src.chunk_real[1] = std::fisher_f_distribution(reals[0], reals[1])(rng);
+        break;
+
+    case distribution_type::student_t:
+        src.chunk_real[0] = std::student_t_distribution(reals[0])(rng);
+        src.chunk_real[1] = std::student_t_distribution(reals[0])(rng);
+        break;
+    }
+
+    return success();
+}
+
+status random_source::restore(source& /*src*/) noexcept { return success(); }
+
 status external_source::prepare() noexcept
 {
-    {
-        constant_source* src = nullptr;
-        while (constant_sources.next(src))
-            irt_check(src->init());
-    }
+    for (auto& src : constant_sources)
+        irt_check(src.init());
 
-    {
-        binary_file_source* src = nullptr;
-        while (binary_file_sources.next(src))
-            irt_check(src->init());
-    }
+    for (auto& src : binary_file_sources)
+        irt_check(src.init());
 
-    {
-        text_file_source* src = nullptr;
-        while (text_file_sources.next(src))
-            irt_check(src->init());
-    }
+    for (auto& src : text_file_sources)
+        irt_check(src.init());
 
-    {
-        u32            start_counter = 0;
-        random_source* src           = nullptr;
-        while (random_sources.next(src)) {
-            src->key           = { { seed[0], seed[1] } };
-            src->start_counter = start_counter;
-            start_counter += src->max_clients;
-
-            irt_check(src->init());
-        }
-    }
+    for (auto& src : random_sources)
+        irt_check(src.init());
 
     return success();
 }
 
 void external_source::finalize() noexcept
 {
-    {
-        binary_file_source* src = nullptr;
-        while (binary_file_sources.next(src))
-            src->finalize();
-    }
+    for (auto& src : binary_file_sources)
+        src.finalize();
 
-    {
-        text_file_source* src = nullptr;
-        while (text_file_sources.next(src))
-            src->finalize();
-    }
+    for (auto& src : text_file_sources)
+        src.finalize();
 }
 
 template<typename Source>
