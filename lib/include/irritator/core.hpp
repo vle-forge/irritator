@@ -603,7 +603,10 @@ public:
 
     status init() noexcept;
     void   finalize() noexcept;
-    status init(source& src, source_data& data) noexcept;
+    status init(const u64      sim_seed,
+                const model_id mdl_id,
+                source&        src,
+                source_data&   data) noexcept;
     status update(source& src, source_data& data) noexcept;
     status restore(source& src, source_data& data) noexcept;
     status finalize(source& src, source_data& data) noexcept;
@@ -722,34 +725,28 @@ public:
     //! @c binary_file_source etc.). Usefull to close opened files.
     void finalize() noexcept;
 
-    status import_from(const external_source& srcs);
+    //! To be used in model declaration to initialize a source instance
+    //! according to the type of the external source.
+    template<typename Dynamics>
+    inline status initialize_source(Dynamics&    dyn,
+                                    source&      src,
+                                    source_data& data) noexcept;
 
-    status dispatch(source&                     src,
-                    source_data&                data,
-                    const source_operation_type op) noexcept;
+    //! To be used in model declaration to get a new real from a source instance
+    //! according to the type of the external source.
+    inline status update_source(source& src, source_data& data) noexcept;
+
+    //! To be used in model declaration to get a new real from a source instance
+    //! according to the type of the external source.
+    inline status restore_source(source& src, source_data& data) noexcept;
+
+    //! To be used in model declaration to finalize and clear a source instance
+    //! according to the type of the external source.
+    inline status finalize_source(source& src, source_data& data) noexcept;
 
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
 };
-
-//! To be used in model declaration to initialize a source instance
-//! according to the type of the external source.
-inline status initialize_source(simulation&  sim,
-                                source&      src,
-                                source_data& data) noexcept;
-
-//! To be used in model declaration to get a new real from a source instance
-//! according to the type of the external source.
-inline status update_source(simulation&  sim,
-                            source&      src,
-                            source_data& data,
-                            double&      val) noexcept;
-
-//! To be used in model declaration to finalize and clear a source instance
-//! according to the type of the external source.
-inline status finalize_source(simulation&  sim,
-                              source&      src,
-                              source_data& data) noexcept;
 
 /*****************************************************************************
  *
@@ -3985,7 +3982,8 @@ struct generator {
         sigma = time_domain<time>::infinity;
 
         if (flags[option::ta_use_source]) {
-            if (initialize_source(sim, source_ta, src_data).has_error())
+            if (sim.srcs.initialize_source(*this, source_ta, src_data)
+                  .has_error())
                 return new_error(
                   simulation_errc::generator_ta_initialization_error);
 
@@ -3994,7 +3992,8 @@ struct generator {
 
         value = zero;
         if (flags[option::value_use_source]) {
-            if (initialize_source(sim, source_value, src_data).has_error())
+            if (sim.srcs.initialize_source(*this, source_value, src_data)
+                  .has_error())
                 return new_error(
                   simulation_errc::generator_source_initialization_error);
 
@@ -4007,10 +4006,10 @@ struct generator {
     status finalize(simulation& sim) noexcept
     {
         if (flags[option::ta_use_source])
-            irt_check(finalize_source(sim, source_ta, src_data));
+            irt_check(sim.srcs.finalize_source(source_ta, src_data));
 
         if (flags[option::value_use_source])
-            irt_check(finalize_source(sim, source_value, src_data));
+            irt_check(sim.srcs.finalize_source(source_value, src_data));
 
         return success();
     }
@@ -4031,17 +4030,25 @@ struct generator {
         if (is_zero(r)) {
             if (flags[option::value_use_source] and
                 not update_source_by_input_port) {
-                if (const auto ret =
-                      update_source(sim, source_value, src_data, value);
-                    ret.has_error())
-                    return ret.error();
+                if (source_value.is_empty()) {
+                    if (const auto ret =
+                          sim.srcs.update_source(source_value, src_data);
+                        ret.has_error())
+                        return ret.error();
+                }
+
+                value = source_value.next();
             }
 
             if (flags[option::ta_use_source]) {
-                if (const auto ret =
-                      update_source(sim, source_ta, src_data, sigma);
-                    ret.has_error())
-                    return ret.error();
+                if (source_ta.is_empty()) {
+                    if (const auto ret =
+                          sim.srcs.update_source(source_ta, src_data);
+                        ret.has_error())
+                        return ret.error();
+                }
+
+                sigma = source_ta.next();
 
                 if (not std::isfinite(sigma) or std::signbit(sigma))
                     return new_error(simulation_errc::ta_abnormal);
@@ -5392,7 +5399,7 @@ struct dynamic_queue {
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
 
-        irt_check(initialize_source(sim, source_ta, src_data));
+        irt_check(sim.srcs.initialize_source(*this, source_ta, src_data));
 
         return success();
     }
@@ -5405,7 +5412,7 @@ struct dynamic_queue {
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, source_ta, src_data));
+        irt_check(sim.srcs.finalize_source(source_ta, src_data));
 
         return success();
     }
@@ -5455,7 +5462,7 @@ private:
 public:
     status initialize(simulation& sim) noexcept
     {
-        irt_check(initialize_source(sim, source_ta, src_data));
+        irt_check(sim.srcs.initialize_source(*this, source_ta, src_data));
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -5471,7 +5478,7 @@ public:
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, source_ta, src_data));
+        irt_check(sim.srcs.finalize_source(source_ta, src_data));
 
         return success();
     }
@@ -6618,30 +6625,162 @@ inline void copy(const model& src, model& dst) noexcept
     });
 }
 
-inline status initialize_source(simulation&  sim,
-                                source&      src,
-                                source_data& data) noexcept
+template<typename Dynamics>
+inline status external_source::initialize_source(Dynamics&    dyn,
+                                                 source&      src,
+                                                 source_data& data) noexcept
 {
-    return sim.srcs.dispatch(src, data, source_operation_type::initialize);
+
+    switch (src.type) {
+    case source_type::binary_file: {
+        if (auto* bin_src =
+              binary_file_sources.try_to_get(src.id.binary_file_id))
+            return bin_src->init(src, data);
+
+        return new_error(external_source_errc::binary_file_unknown);
+    } break;
+
+    case source_type::constant: {
+        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
+            return cst_src->init(src, data);
+
+        return new_error(external_source_errc::constant_unknown);
+    } break;
+
+    case source_type::random: {
+        const auto& sim = container_of(this, &simulation::srcs);
+
+        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
+            return rnd_src->init(
+              sim.srcs.seed[0], sim.models.get_id(get_model(dyn)), src, data);
+
+        return new_error(external_source_errc::random_unknown);
+
+    } break;
+
+    case source_type::text_file: {
+        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
+            return txt_src->init(src, data);
+
+        return new_error(external_source_errc::text_file_unknown);
+    } break;
+    }
+
+    unreachable();
 }
 
-inline status update_source(simulation&  sim,
-                            source&      src,
-                            source_data& data,
-                            double&      val) noexcept
+inline status external_source::restore_source(source&      src,
+                                              source_data& data) noexcept
 {
-    if (src.is_empty())
-        irt_check(sim.srcs.dispatch(src, data, source_operation_type::update));
+    switch (src.type) {
+    case source_type::binary_file: {
+        if (auto* bin_src =
+              binary_file_sources.try_to_get(src.id.binary_file_id))
+            return bin_src->restore(src, data);
 
-    val = src.next();
-    return success();
+        return new_error(external_source_errc::binary_file_unknown);
+    } break;
+
+    case source_type::constant: {
+        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
+            return cst_src->restore(src, data);
+
+        return new_error(external_source_errc::constant_unknown);
+    } break;
+
+    case source_type::random: {
+        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
+            return rnd_src->restore(src, data);
+
+        return new_error(external_source_errc::random_unknown);
+
+    } break;
+
+    case source_type::text_file: {
+        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
+            return txt_src->restore(src, data);
+
+        return new_error(external_source_errc::text_file_unknown);
+    } break;
+    }
+
+    unreachable();
 }
 
-inline status finalize_source(simulation&  sim,
-                              source&      src,
-                              source_data& data) noexcept
+inline status external_source::update_source(source&      src,
+                                             source_data& data) noexcept
 {
-    return sim.srcs.dispatch(src, data, source_operation_type::finalize);
+    switch (src.type) {
+    case source_type::binary_file: {
+        if (auto* bin_src =
+              binary_file_sources.try_to_get(src.id.binary_file_id))
+            return bin_src->update(src, data);
+
+        return new_error(external_source_errc::binary_file_unknown);
+    } break;
+
+    case source_type::constant: {
+        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
+            return cst_src->update(src, data);
+
+        return new_error(external_source_errc::constant_unknown);
+    } break;
+
+    case source_type::random: {
+        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
+            return rnd_src->update(src, data);
+
+        return new_error(external_source_errc::random_unknown);
+
+    } break;
+
+    case source_type::text_file: {
+        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
+            return txt_src->update(src, data);
+
+        return new_error(external_source_errc::text_file_unknown);
+    } break;
+    }
+
+    unreachable();
+}
+
+inline status external_source::finalize_source(source&      src,
+                                               source_data& data) noexcept
+{
+    switch (src.type) {
+    case source_type::binary_file: {
+        if (auto* bin_src =
+              binary_file_sources.try_to_get(src.id.binary_file_id))
+            return bin_src->finalize(src, data);
+
+        return new_error(external_source_errc::binary_file_unknown);
+    } break;
+
+    case source_type::constant: {
+        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
+            return cst_src->finalize(src, data);
+
+        return new_error(external_source_errc::constant_unknown);
+    } break;
+
+    case source_type::random: {
+        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
+            return rnd_src->finalize(src, data);
+
+        return new_error(external_source_errc::random_unknown);
+
+    } break;
+
+    case source_type::text_file: {
+        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
+            return txt_src->finalize(src, data);
+
+        return new_error(external_source_errc::text_file_unknown);
+    } break;
+    }
+
+    unreachable();
 }
 
 //! observer
@@ -8245,7 +8384,8 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
         if ((*machine)->flags[hierarchical_state_machine::option::use_source]) {
-            irt_check(initialize_source(sim, exec.source_value, exec.src_data));
+            irt_check(sim.srcs.initialize_source(
+              *this, exec.source_value, exec.src_data));
         }
 
         irt_check((*machine)->start(exec, sim.srcs));
@@ -8376,7 +8516,8 @@ inline status hsm_wrapper::finalize(simulation& sim) noexcept
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
         if ((*machine)->flags[hierarchical_state_machine::option::use_source])
-            irt_check(finalize_source(sim, exec.source_value, exec.src_data));
+            irt_check(
+              sim.srcs.finalize_source(exec.source_value, exec.src_data));
 
         return success();
     } else {
@@ -8629,8 +8770,11 @@ inline status dynamic_queue::transition(simulation& sim,
                     return new_error(
                       simulation_errc::dated_messages_container_full);
 
-                real ta = zero;
-                irt_check(update_source(sim, source_ta, src_data, ta));
+                if (source_ta.is_empty())
+                    irt_check(sim.srcs.update_source(source_ta, src_data));
+
+                const auto ta = source_ta.next();
+
                 ar->push_head({ t + ta, msg[0], msg[1], msg[2] });
             }
         }
@@ -8679,9 +8823,11 @@ inline status priority_queue::transition(simulation& sim,
 
         if (not lst.empty()) {
             for (const auto& msg : lst) {
-                real value = zero;
 
-                irt_check(update_source(sim, source_ta, src_data, value));
+                if (source_ta.is_empty())
+                    irt_check(sim.srcs.update_source(source_ta, src_data));
+
+                real value = source_ta.next();
 
                 if (auto ret =
                       try_to_insert(sim, static_cast<real>(value) + t, msg);

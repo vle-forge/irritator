@@ -1307,11 +1307,11 @@ void show_menu_external_sources(application&     app,
 
     if (random_ptr) {
         src.reset();
-        if (auto ret = random_ptr->init(src, src_data); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto&) {
-                t = "Fail to initalize random source";
-            });
-        }
+        // if (auto ret = random_ptr->init(src, src_data); !ret) {
+        //     app.jn.push(log_level::error, [](auto& t, auto&) {
+        //         t = "Fail to initalize random source";
+        //     });
+        // }
     }
 }
 

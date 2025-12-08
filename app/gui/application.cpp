@@ -1055,7 +1055,8 @@ void application::start_init_source(const project_id  pj_id,
                     source      src(random_id);
                     chunk_type  tmp{};
                     src.buffer = tmp;
-                    (void)c->init(src, data);
+                    (void)c->init(
+                      0x648593178264597, enum_cast<model_id>(id), src, data);
 
                     data_ed.fill_plot(tmp);
                 }

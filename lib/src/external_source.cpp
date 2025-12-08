@@ -453,13 +453,16 @@ status random_source::finalize(source& src, source_data& data) noexcept
     return success();
 }
 
-status random_source::init(source& src, source_data& data) noexcept
+status random_source::init(const u64      sim_seed,
+                           const model_id mdl_id,
+                           source&        src,
+                           source_data&   data) noexcept
 {
     src.buffer = std::span(data.chunk_real);
     src.index  = 0;
 
-    data.chunk_id[0] = 0u; // seed ?
-    data.chunk_id[1] = 0u; // ordinal(model_id) ?
+    data.chunk_id[0] = sim_seed;
+    data.chunk_id[1] = ordinal(mdl_id);
     data.chunk_id[2] = 0u; // step
     data.chunk_id[3] = 0u; // index
     data.chunk_id[4] = 0u; // First random generator
@@ -607,68 +610,6 @@ void external_source::finalize() noexcept
 
     for (auto& src : text_file_sources)
         src.finalize();
-}
-
-template<typename ExternalSource>
-static status external_source_dispatch(ExternalSource&       s,
-                                       source&               src,
-                                       source_data&          data,
-                                       source_operation_type op) noexcept
-{
-    switch (op) {
-    case source_operation_type::initialize:
-        return s.init(src, data);
-
-    case source_operation_type::update:
-        return s.update(src, data);
-
-    case source_operation_type::restore:
-        return s.restore(src, data);
-
-    case source_operation_type::finalize:
-        return s.finalize(src, data);
-    }
-
-    unreachable();
-}
-
-status external_source::dispatch(source&                     src,
-                                 source_data&                data,
-                                 const source_operation_type op) noexcept
-{
-    switch (src.type) {
-    case source_type::binary_file: {
-        if (auto* bin_src =
-              binary_file_sources.try_to_get(src.id.binary_file_id))
-            return external_source_dispatch(*bin_src, src, data, op);
-
-        return new_error(external_source_errc::binary_file_unknown);
-    } break;
-
-    case source_type::constant: {
-        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
-            return external_source_dispatch(*cst_src, src, data, op);
-
-        return new_error(external_source_errc::constant_unknown);
-    } break;
-
-    case source_type::random: {
-        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
-            return external_source_dispatch(*rnd_src, src, data, op);
-
-        return new_error(external_source_errc::random_unknown);
-
-    } break;
-
-    case source_type::text_file: {
-        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
-            return external_source_dispatch(*txt_src, src, data, op);
-
-        return new_error(external_source_errc::text_file_unknown);
-    } break;
-    }
-
-    unreachable();
 }
 
 external_source::external_source(
