@@ -710,6 +710,9 @@ public:
     data_array<binary_file_source, binary_file_source_id> binary_file_sources;
     data_array<text_file_source, text_file_source_id>     text_file_sources;
     data_array<random_source, random_source_id>           random_sources;
+
+    u64 seed = { 0xdeadbeef12345678U };
+
     int binary_file_max_client = 8;
     int random_max_client      = 8;
 
@@ -720,8 +723,6 @@ public:
 
     //! Call `clear()` and release memory.
     void destroy() noexcept;
-
-    u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
 
     //! Call the @c init function for all sources (@c constant_source, @c
     //! binary_file_source etc.).
@@ -6658,7 +6659,7 @@ inline status external_source::initialize_source(Dynamics&    dyn,
 
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->init(
-              sim.srcs.seed[0], sim.models.get_id(get_model(dyn)), src, data);
+              sim.srcs.seed, sim.models.get_id(get_model(dyn)), src, data);
 
         return new_error(external_source_errc::random_unknown);
 

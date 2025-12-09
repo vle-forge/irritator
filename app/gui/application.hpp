@@ -535,9 +535,6 @@ private:
     graph_component::dot_file_param    pdf{};
     graph                              g;
 
-    u64 seed[4];
-    u64 key[2];
-
     vector<ImVec2> displacements;
 
     vector<graph_node_id> selected_nodes;

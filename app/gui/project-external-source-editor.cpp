@@ -841,14 +841,13 @@ void project_external_source_editor::show(application&    app,
         ImGui::EndTable();
 
         ImGui::Spacing();
-        ImGui::InputScalarN("seed",
-                            ImGuiDataType_U64,
-                            &pj.pj.sim.srcs.seed,
-                            2,
-                            nullptr,
-                            nullptr,
-                            nullptr,
-                            ImGuiInputTextFlags_CharsHexadecimal);
+        ImGui::InputScalar("Seed",
+                           ImGuiDataType_U64,
+                           &pj.pj.sim.srcs.seed,
+                           nullptr,
+                           nullptr,
+                           nullptr,
+                           ImGuiInputTextFlags_CharsHexadecimal);
 
         display_allocate_external_source(app, pj);
     }
