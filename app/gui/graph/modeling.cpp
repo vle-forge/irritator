@@ -917,7 +917,6 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
 
         if (st != job::none) {
             scoped_flag_run(running, [&]() {
-                const auto id   = ed.get_id(*this);
                 const auto g_id = graph_id;
 
                 switch (st) {

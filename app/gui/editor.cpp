@@ -10,67 +10,6 @@
 
 namespace irt {
 
-static void build_selected_source_label(const source_type      src_type,
-                                        const source_any_id    src_id,
-                                        const external_source& srcs,
-                                        small_string<63>&      label) noexcept
-{
-    switch (src_type) {
-    case source_type::binary_file: {
-        const auto id    = src_id.binary_file_id;
-        const auto index = get_index(id);
-        if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source_type::binary_file),
-                   index,
-                   es->name.c_str());
-        }
-    } break;
-
-    case source_type::constant: {
-        const auto id    = src_id.constant_id;
-        const auto index = get_index(id);
-        if (auto* es = srcs.constant_sources.try_to_get(id)) {
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source_type::constant),
-                   index,
-                   es->name.c_str());
-        }
-    } break;
-
-    case source_type::random: {
-        const auto id    = src_id.random_id;
-        const auto index = get_index(id);
-        if (auto* es = srcs.random_sources.try_to_get(id)) {
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source_type::random),
-                   index,
-                   es->name.c_str());
-        }
-    } break;
-
-    case source_type::text_file: {
-        const auto id    = src_id.text_file_id;
-        const auto index = get_index(id);
-        if (auto* es = srcs.text_file_sources.try_to_get(id)) {
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source_type::text_file),
-                   index,
-                   es->name.c_str());
-        }
-    } break;
-
-    default:
-        unreachable();
-    }
-}
-
-/////////////////////////////////////////////////////////////////////
-
 template<typename ExternalSourceType>
 static bool show_parameter(qss_log_tag,
                            application& /*app*/,
