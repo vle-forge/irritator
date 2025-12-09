@@ -446,7 +446,7 @@ void random_source::swap(random_source& other) noexcept
 
 status random_source::init() noexcept { return success(); }
 
-status random_source::finalize(source& src, source_data& data) noexcept
+status random_source::finalize(source& /*src*/, source_data& data) noexcept
 {
     data.chunk_id[2] = 0;
 
@@ -588,7 +588,7 @@ void random_source::fill(std::span<real>    buffer,
     source      source_copy{ src };
     source_data source_data{ data };
 
-    for (auto i = 0; i < buffer.size(); i += 2) {
+    for (sz i = 0u; i < buffer.size(); i += 2u) {
         update(source_copy, source_data);
 
         buffer[i]     = source_data.chunk_real[0];
