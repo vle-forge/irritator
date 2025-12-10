@@ -1025,7 +1025,10 @@ public:
     // Writer: copy-from-active, update staging, then publish.
     // Avoids slots currently pinned by readers.
     template<typename Fn, typename... Args>
-    void write(Fn&& fn, Args&&... args) noexcept
+    auto write(Fn&& fn, Args&&... args) noexcept
+      -> decltype(std::invoke(std::forward<Fn>(fn),
+                              std::declval<T&>(),
+                              std::forward<Args>(args)...))
     {
         std::lock_guard<std::mutex> wlock(writer_);
 
@@ -1042,24 +1045,47 @@ public:
         versions_[s].store(versions_[a].load(std::memory_order_relaxed),
                            std::memory_order_relaxed);
 
-        // Produce
-        std::invoke(
-          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
-        versions_[s].fetch_add(1, std::memory_order_relaxed);
+        // Produce - handle void and non-void return types
+        if constexpr (std::is_void_v<decltype(std::invoke(
+                        std::forward<Fn>(fn),
+                        buffers_[s],
+                        std::forward<Args>(args)...))>) {
+            std::invoke(
+              std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+            versions_[s].fetch_add(1, std::memory_order_relaxed);
 
-        // Publish new active
-        active_.store(s, std::memory_order_release);
+            // Publish new active
+            active_.store(s, std::memory_order_release);
 
-        // Rotate indices (old active becomes spare)
-        const auto old_active = a;
-        const auto old_spare  = spare_;
-        spare_                = old_active;
-        staging_              = old_spare;
+            // Rotate indices (old active becomes spare)
+            const auto old_active = a;
+            const auto old_spare  = spare_;
+            spare_                = old_active;
+            staging_              = old_spare;
+        } else {
+            auto result = std::invoke(
+              std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+            versions_[s].fetch_add(1, std::memory_order_relaxed);
+
+            // Publish new active
+            active_.store(s, std::memory_order_release);
+
+            // Rotate indices (old active becomes spare)
+            const auto old_active = a;
+            const auto old_spare  = spare_;
+            spare_                = old_active;
+            staging_              = old_spare;
+
+            return result;
+        }
     }
 
     // Writer: overwrite staging without copying from active.
     template<typename Fn, typename... Args>
-    void write_only(Fn&& fn, Args&&... args) noexcept
+    auto write_only(Fn&& fn, Args&&... args) noexcept
+      -> decltype(std::invoke(std::forward<Fn>(fn),
+                              std::declval<T&>(),
+                              std::forward<Args>(args)...))
     {
         std::lock_guard<std::mutex> wlock(writer_);
 
@@ -1069,24 +1095,47 @@ public:
         const std::size_t s = pick_staging_slot(a);
         debug::ensure(s != a);
 
-        // Overwrite staging
-        std::invoke(
-          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
-        versions_[s].fetch_add(1, std::memory_order_relaxed);
+        // Overwrite staging - handle void and non-void return types
+        if constexpr (std::is_void_v<decltype(std::invoke(
+                        std::forward<Fn>(fn),
+                        buffers_[s],
+                        std::forward<Args>(args)...))>) {
+            std::invoke(
+              std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+            versions_[s].fetch_add(1, std::memory_order_relaxed);
 
-        // Publish and rotate
-        active_.store(s, std::memory_order_release);
+            // Publish and rotate
+            active_.store(s, std::memory_order_release);
 
-        const auto old_active = a;
-        const auto old_spare  = spare_;
-        spare_                = old_active;
-        staging_              = old_spare;
+            const auto old_active = a;
+            const auto old_spare  = spare_;
+            spare_                = old_active;
+            staging_              = old_spare;
+        } else {
+            auto result = std::invoke(
+              std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+            versions_[s].fetch_add(1, std::memory_order_relaxed);
+
+            // Publish and rotate
+            active_.store(s, std::memory_order_release);
+
+            const auto old_active = a;
+            const auto old_spare  = spare_;
+            spare_                = old_active;
+            staging_              = old_spare;
+
+            return result;
+        }
     }
 
     // Reader: lock-free, no copy, with pinning to prevent writer reuse of the
     // slot.
     template<typename Fn, typename... Args>
-    void read(Fn&& fn, Args&&... args) const noexcept
+    auto read(Fn&& fn, Args&&... args) const noexcept
+      -> decltype(std::invoke(std::forward<Fn>(fn),
+                              std::declval<const T&>(),
+                              std::declval<std::uint64_t>(),
+                              std::forward<Args>(args)...))
     {
         // Snapshot active
         const auto idx = active_.load(std::memory_order_acquire);
@@ -1096,35 +1145,68 @@ public:
 
         const auto ver = versions_[idx].load(std::memory_order_acquire);
 
-        // Invoke on const reference (no copy)
-        std::invoke(std::forward<Fn>(fn),
-                    buffers_[idx],
-                    ver,
-                    std::forward<Args>(args)...);
+        // Invoke and handle void/non-void return types
+        if constexpr (std::is_void_v<decltype(std::invoke(
+                        std::forward<Fn>(fn),
+                        buffers_[idx],
+                        ver,
+                        std::forward<Args>(args)...))>) {
+            std::invoke(std::forward<Fn>(fn),
+                        buffers_[idx],
+                        ver,
+                        std::forward<Args>(args)...);
 
-        // Unpin
-        reader_counts_[idx].fetch_sub(1, std::memory_order_release);
+            // Unpin
+            reader_counts_[idx].fetch_sub(1, std::memory_order_release);
+        } else {
+            auto result = std::invoke(std::forward<Fn>(fn),
+                                      buffers_[idx],
+                                      ver,
+                                      std::forward<Args>(args)...);
+
+            // Unpin
+            reader_counts_[idx].fetch_sub(1, std::memory_order_release);
+
+            return result;
+        }
     }
 
     // Try-read: guarantees the same active index before and after the callback.
     // Still pinned to avoid reuse while reading.
     template<typename Fn, typename... Args>
-    bool try_read(Fn&& fn, Args&&... args) const noexcept
+    auto try_read(Fn&& fn, Args&&... args) const noexcept
     {
+        using return_type = decltype(std::invoke(std::forward<Fn>(fn),
+                                                 std::declval<const T&>(),
+                                                 std::declval<std::uint64_t>(),
+                                                 std::forward<Args>(args)...));
+
         const auto idx1 = active_.load(std::memory_order_acquire);
         reader_counts_[idx1].fetch_add(1, std::memory_order_acquire);
 
         const auto ver1 = versions_[idx1].load(std::memory_order_acquire);
 
-        std::invoke(std::forward<Fn>(fn),
-                    buffers_[idx1],
-                    ver1,
-                    std::forward<Args>(args)...);
+        if constexpr (std::is_void_v<return_type>) {
+            std::invoke(std::forward<Fn>(fn),
+                        buffers_[idx1],
+                        ver1,
+                        std::forward<Args>(args)...);
 
-        reader_counts_[idx1].fetch_sub(1, std::memory_order_release);
+            reader_counts_[idx1].fetch_sub(1, std::memory_order_release);
 
-        const auto idx2 = active_.load(std::memory_order_acquire);
-        return idx1 == idx2;
+            const auto idx2 = active_.load(std::memory_order_acquire);
+            return idx1 == idx2;
+        } else {
+            auto result = std::invoke(std::forward<Fn>(fn),
+                                      buffers_[idx1],
+                                      ver1,
+                                      std::forward<Args>(args)...);
+
+            reader_counts_[idx1].fetch_sub(1, std::memory_order_release);
+
+            const auto idx2 = active_.load(std::memory_order_acquire);
+            return std::make_pair(idx1 == idx2, std::move(result));
+        }
     }
 
 private:
