@@ -276,27 +276,17 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
 
 static void show_dirpath_component(application& app, dir_path& dir) noexcept
 {
-    if (std::unique_lock lock(dir.mutex, std::try_to_lock); lock.owns_lock()) {
-        if (ImGui::TreeNodeEx(&dir,
-                              ImGuiTreeNodeFlags_DefaultOpen,
-                              "%.*s",
-                              dir.path.ssize(),
-                              dir.path.data())) {
-            for_each_component(
-              app.mod,
-              dir,
-              [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
-                  if (std::unique_lock lock(file.mutex, std::try_to_lock);
-                      lock.owns_lock())
-                      show_file_component(app, file, compo);
-                  else
-                      ImGui::TextDisabled("file is being updated");
-              });
+    if (ImGui::TreeNodeEx(&dir,
+                          ImGuiTreeNodeFlags_DefaultOpen,
+                          "%.*s",
+                          dir.path.ssize(),
+                          dir.path.data())) {
+        for_each_component(
+          app.mod, dir, [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
+              show_file_component(app, file, compo);
+          });
 
-            ImGui::TreePop();
-        }
-    } else {
-        ImGui::TextDisabled("The directory is being updated");
+        ImGui::TreePop();
     }
 }
 
@@ -321,18 +311,21 @@ static void show_repertories_components(application&    app,
         ImGui::PushID(reg_dir);
         if (ImGui::TreeNodeEx(select->c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-            int i = 0;
-            while (i != reg_dir->children.ssize()) {
-                auto  dir_id = reg_dir->children[i];
-                auto* dir    = mod.dir_paths.try_to_get(dir_id);
+            reg_dir->children.write([&](auto& vec) noexcept {
+                int i = 0;
+                while (i != vec.ssize()) {
+                    auto  dir_id = vec[i];
+                    auto* dir    = mod.dir_paths.try_to_get(dir_id);
 
-                if (dir) {
-                    show_dirpath_component(app, *dir);
-                    ++i;
-                } else {
-                    reg_dir->children.swap_pop_back(i);
+                    if (dir) {
+                        show_dirpath_component(app, *dir);
+                        ++i;
+                    } else {
+                        vec.swap_pop_back(i);
+                    }
                 }
-            }
+            });
+
             ImGui::TreePop();
         }
         ImGui::PopID();

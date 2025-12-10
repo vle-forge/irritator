@@ -38,11 +38,18 @@ constexpr T* find(data_array<T, Identifier>& data,
 }
 
 template<typename T, typename Identifier>
-constexpr bool exist(data_array<T, Identifier>& data,
-                     vector<Identifier>&        container,
-                     std::string_view           name) noexcept
+constexpr bool exist(const data_array<T, Identifier>& data,
+                     const vector<Identifier>&        container,
+                     std::string_view                 name) noexcept
 {
-    return find(data, container, name) != nullptr;
+    for (const auto id : container) {
+        if (const auto* item = data.try_to_get(id)) {
+            if (item->path.sv() == name)
+                return true;
+        }
+    }
+
+    return false;
 }
 
 static void add_extension(file_path_str& file) noexcept
@@ -529,16 +536,22 @@ struct component_editor::impl {
                 directory_path_str dir_name;
 
                 if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-                    if (!exist(app.mod.dir_paths,
-                               reg_dir->children,
-                               dir_name.sv())) {
+                    const auto exists = reg_dir->children.read(
+                      [&](const auto& vec, const auto /*ver*/) {
+                          return exist(app.mod.dir_paths, vec, dir_name.sv());
+                      });
+
+                    if (exists) {
                         auto& new_dir = app.mod.dir_paths.alloc();
                         auto  dir_id  = app.mod.dir_paths.get_id(new_dir);
                         auto  reg_id = app.mod.registred_paths.get_id(*reg_dir);
                         new_dir.parent = reg_id;
                         new_dir.path   = dir_name;
                         new_dir.status = dir_path::state::unread;
-                        reg_dir->children.emplace_back(dir_id);
+
+                        reg_dir->children.write(
+                          [&](auto& vec) { vec.emplace_back(dir_id); });
+
                         compo.reg_path = reg_id;
                         compo.dir      = dir_id;
 
@@ -563,7 +576,10 @@ struct component_editor::impl {
                     f.component = app.mod.components.get_id(compo);
                     f.parent    = app.mod.dir_paths.get_id(*dir);
                     compo.file  = id;
-                    dir->children.emplace_back(id);
+
+                    dir->children.write(
+                      [&](auto& vec) { vec.emplace_back(id); });
+
                     file = &f;
                 }
 

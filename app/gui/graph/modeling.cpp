@@ -61,18 +61,22 @@ static auto dot_file_combobox(const modeling& mod,
         }
 
         int local_id = 0;
-        for (const auto elem_id : dir.children) {
-            if (const auto* elem = mod.file_paths.try_to_get(elem_id);
-                elem and elem->type == file_path::file_type::dot_file) {
-                ImGui::PushID(++local_id);
 
-                if (ImGui::Selectable(elem->path.c_str(), file_id == elem_id)) {
-                    file_id = elem_id;
-                }
+        dir.children.read(
+          [&](const auto& vec, const auto /*version*/) noexcept {
+              for (const auto elem_id : vec) {
+                  if (const auto* elem = mod.file_paths.try_to_get(elem_id);
+                      elem and elem->type == file_path::file_type::dot_file) {
+                      ImGui::PushID(++local_id);
 
-                ImGui::PopID();
-            }
-        }
+                      if (ImGui::Selectable(elem->path.c_str(),
+                                            file_id == elem_id))
+                          file_id = elem_id;
+
+                      ImGui::PopID();
+                  }
+              }
+          });
 
         ImGui::EndCombo();
     }

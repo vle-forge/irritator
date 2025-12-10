@@ -170,29 +170,38 @@ static auto push_back_if_not_exists(modeling&                    mod,
     const auto  u8str = file.u8string();
     const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-    int i = 0;
-    while (i < dir.children.ssize()) {
-        if (auto* f = mod.file_paths.try_to_get(dir.children[i]); f) {
-            if (f->path.sv() == cstr)
-                return std::nullopt;
+    const auto already_exists =
+      dir.children.write([&](auto& vec) noexcept -> bool {
+          int i = 0;
+          while (i < vec.ssize()) {
+              if (auto* f = mod.file_paths.try_to_get(vec[i]); f) {
+                  if (f->path.sv() == cstr)
+                      return true;
 
-            ++i;
+                  ++i;
+              } else {
+                  vec.swap_pop_back(i);
+              }
+          }
+
+          return false;
+      });
+
+    if (not already_exists) {
+        if (mod.file_paths.can_alloc()) {
+            auto& fp    = mod.file_paths.alloc();
+            auto  fp_id = mod.file_paths.get_id(fp);
+            fp.path     = cstr;
+            fp.parent   = mod.dir_paths.get_id(dir);
+            fp.type     = type;
+            return fp_id;
         } else {
-            dir.children.swap_pop_back(i);
+            dir.flags.set(dir_path::dir_flags::too_many_file);
+            return std::nullopt;
         }
     }
 
-    if (mod.file_paths.can_alloc()) {
-        auto& fp    = mod.file_paths.alloc();
-        auto  fp_id = mod.file_paths.get_id(fp);
-        fp.path     = cstr;
-        fp.parent   = mod.dir_paths.get_id(dir);
-        fp.type     = type;
-        return fp_id;
-    } else {
-        dir.flags.set(dir_path::dir_flags::too_many_file);
-        return std::nullopt;
-    }
+    return std::nullopt;
 }
 
 dir_path_id registred_path::search(
@@ -212,7 +221,7 @@ bool registred_path::exists(const data_array<dir_path, dir_path_id>& data,
     return search(data, dir_name) != undefined<dir_path_id>();
 }
 
-auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
+void dir_path::refresh(modeling& mod) noexcept
 {
     namespace fs = std::filesystem;
 
@@ -249,8 +258,6 @@ auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
             flags.set(dir_path::dir_flags::access_error);
         }
     }
-
-    return ret;
 }
 
 static file_path& add_to_dir(modeling&                  mod,
@@ -264,7 +271,8 @@ static file_path& add_to_dir(modeling&                  mod,
     file.path     = cstr;
     file.parent   = mod.dir_paths.get_id(dir);
     file.type     = type;
-    dir.children.emplace_back(file_id);
+
+    dir.children.write([&](auto& vec) noexcept { vec.emplace_back(file_id); });
     return file;
 }
 
@@ -371,7 +379,10 @@ static void prepare_component_loading(modeling&              mod,
                                    "lookup in subdirectory {}\n",
                                    it->path().string());
 
-                        reg_dir.children.emplace_back(dir_id);
+                        reg_dir.children.write([&](auto& vec) noexcept {
+                            vec.emplace_back(dir_id);
+                        });
+
                         prepare_component_loading(
                           mod, reg_dir, dir, it->path());
                     } else {
@@ -633,22 +644,24 @@ status modeling::fill_components() noexcept
 
 status modeling::fill_components(registred_path& path) noexcept
 {
-    for (auto dir_id : path.children)
-        if (auto* dir = dir_paths.try_to_get(dir_id); dir)
-            free(*dir);
+    path.children.write([&](auto& vec) noexcept {
+        for (auto dir_id : vec)
+            if (auto* dir = dir_paths.try_to_get(dir_id))
+                free(*dir);
 
-    path.children.clear();
+        vec.clear();
 
-    try {
-        std::filesystem::path p(path.path.c_str());
-        std::error_code       ec;
+        try {
+            std::filesystem::path p(path.path.c_str());
+            std::error_code       ec;
 
-        if (std::filesystem::exists(p, ec) &&
-            std::filesystem::is_directory(p, ec)) {
-            prepare_component_loading(*this, path, p);
+            if (std::filesystem::exists(p, ec) &&
+                std::filesystem::is_directory(p, ec)) {
+                prepare_component_loading(*this, path, p);
+            }
+        } catch (...) {
         }
-    } catch (...) {
-    }
+    });
 
     return success();
 }
@@ -665,16 +678,17 @@ auto search_reg(const modeling& mod, std::string_view name) noexcept
 
 auto search_dir_in_reg(const modeling&       mod,
                        const registred_path& reg,
-                       std::string_view      name) noexcept -> const dir_path*
+                       std::string_view      name) noexcept -> dir_path*
 {
-    for (auto dir_id : reg.children) {
-        if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-            if (name == dir->path.sv())
-                return dir;
-        }
-    }
+    return reg.children.read(
+      [&](const auto& vec, const auto /*version*/) -> dir_path* {
+          for (auto dir_id : vec)
+              if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir)
+                  if (name == dir->path.sv())
+                      return dir;
 
-    return nullptr;
+          return nullptr;
+      });
 }
 
 auto search_dir(const modeling& mod, std::string_view name) noexcept
@@ -682,12 +696,19 @@ auto search_dir(const modeling& mod, std::string_view name) noexcept
 {
     for (auto reg_id : mod.component_repertories) {
         if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
-            for (auto dir_id : reg->children) {
-                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-                    if (dir->path.sv() == name)
-                        return dir;
-                }
-            }
+            auto* dir = reg->children.read(
+              [&](const auto& vec, const auto /*version*/) -> dir_path* {
+                  for (auto dir_id : vec) {
+                      if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+                          if (dir->path.sv() == name)
+                              return dir;
+                      }
+                  }
+                  return nullptr;
+              });
+
+            if (dir)
+                return dir;
         }
     }
 
@@ -696,14 +717,17 @@ auto search_dir(const modeling& mod, std::string_view name) noexcept
 
 auto search_file(const modeling&  mod,
                  const dir_path&  dir,
-                 std::string_view name) noexcept -> const file_path*
+                 std::string_view name) noexcept -> file_path*
 {
-    for (auto file_id : dir.children)
-        if (auto* file = mod.file_paths.try_to_get(file_id); file)
-            if (file->path.sv() == name)
-                return file;
+    return dir.children.read(
+      [&](const auto& vec, const auto /*version*/) noexcept -> file_path* {
+          for (auto file_id : vec)
+              if (auto* file = mod.file_paths.try_to_get(file_id); file)
+                  if (file->path.sv() == name)
+                      return file;
 
-    return nullptr;
+          return nullptr;
+      });
 }
 
 auto modeling::search_graph_id(const dir_path_id  dir_id,
@@ -767,8 +791,10 @@ bool modeling::can_alloc_registred(i32 number) const noexcept
 
 static bool exist_file(const dir_path& dir, const file_path_id id) noexcept
 {
-    return std::find(dir.children.begin(), dir.children.end(), id) !=
-           dir.children.end();
+    return dir.children.read(
+      [&](const auto& vec, const auto /*version*/) noexcept {
+          return std::find(vec.begin(), vec.end(), id) != vec.end();
+      });
 }
 
 file_path& modeling::alloc_file(dir_path& dir) noexcept
@@ -778,7 +804,7 @@ file_path& modeling::alloc_file(dir_path& dir) noexcept
     file.component = undefined<component_id>();
     file.parent    = dir_paths.get_id(dir);
 
-    dir.children.emplace_back(id);
+    dir.children.write([&](auto& vec) { vec.emplace_back(id); });
 
     return file;
 }
@@ -790,7 +816,7 @@ dir_path& modeling::alloc_dir(registred_path& reg) noexcept
     dir.parent = registred_paths.get_id(reg);
     dir.status = dir_path::state::unread;
 
-    reg.children.emplace_back(id);
+    reg.children.write([&](auto& vec) { vec.emplace_back(id); });
 
     return dir;
 }
@@ -931,14 +957,15 @@ void modeling::move_file(registred_path& /*reg*/,
 {
     auto id = file_paths.get_id(file);
 
-    if (auto it = std::find(from.children.begin(), from.children.end(), id);
-        it != from.children.end())
-        from.children.erase(it);
+    from.children.write([&](auto& vec) noexcept {
+        if (auto it = std::find(vec.begin(), vec.end(), id); it != vec.end())
+            vec.erase(it);
+    });
 
     debug::ensure(!exist_file(to, id));
 
     file.parent = dir_paths.get_id(to);
-    to.children.emplace_back(id);
+    to.children.write([&](auto& vec) { vec.emplace_back(id); });
 }
 
 bool modeling::can_alloc_grid_component() const noexcept
@@ -1345,18 +1372,23 @@ void modeling::free(file_path& file) noexcept
 
 void modeling::free(dir_path& dir) noexcept
 {
-    for (auto file_id : dir.children)
-        if (auto* file = file_paths.try_to_get(file_id); file)
-            free(*file);
+    dir.children.write([&](auto& vec) noexcept {
+        for (auto file_id : vec)
+            if (auto* file = file_paths.try_to_get(file_id); file)
+                free(*file);
+    });
 
     dir_paths.free(dir);
 }
 
 void modeling::free(registred_path& reg_dir) noexcept
 {
-    for (auto dir_id : reg_dir.children)
-        if (auto* dir = dir_paths.try_to_get(dir_id); dir)
-            free(*dir);
+    reg_dir.children.write(
+      [&](auto& vec) noexcept {
+          for (auto dir_id : vec)
+              if (auto* dir = dir_paths.try_to_get(dir_id); dir)
+                  free(*dir);
+    });
 
     registred_paths.free(reg_dir);
 }

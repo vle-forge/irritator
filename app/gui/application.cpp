@@ -81,23 +81,33 @@ static auto combobox_dir(application&          app,
     auto* dir_preview = get_dir_preview(app, in_out);
 
     if (ImGui::BeginCombo("Dir", dir_preview)) {
-        int i = 0;
-        ImGui::PushID(i++);
+        ImGui::PushID(0);
         if (ImGui::Selectable("##empty-dir", is_undefined(in_out))) {
             in_out = undefined<dir_path_id>();
+            ret    = true;
         }
         ImGui::PopID();
 
-        for (auto id : reg.children) {
-            if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
-                ImGui::PushID(i++);
-                if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
-                    in_out = id;
-                    ret    = true;
-                }
-                ImGui::PopID();
-            }
-        }
+        ret =
+          ret or
+          reg.children.read([&](const auto& vec,
+                                const auto /*version*/) noexcept -> bool {
+              auto has_changes = false;
+              for (const auto id : vec) {
+                  if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
+                      ImGui::PushID(get_index(id));
+
+                      if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
+                          in_out      = id;
+                          has_changes = true;
+                      }
+
+                      ImGui::PopID();
+                  }
+              }
+
+              return has_changes;
+          });
         ImGui::EndCombo();
     }
 
@@ -121,7 +131,9 @@ static auto combobox_newdir(application&    app,
                 new_dir.parent = reg_id;
                 new_dir.path   = dir_name;
                 new_dir.status = dir_path::state::unread;
-                reg.children.emplace_back(dir_id);
+
+                reg.children.write(
+                  [&](auto& vec) noexcept { vec.emplace_back(dir_id); });
                 ret = true;
 
                 if (not app.mod.create_directories(new_dir)) {
@@ -181,7 +193,10 @@ static auto combobox_file(application&              app,
         f.component = undefined<component_id>();
         f.parent    = app.mod.dir_paths.get_id(dir);
         f.type      = file_path::file_type::dot_file;
-        dir.children.emplace_back(in_out);
+
+        dir.children.write(
+          [&](auto& vec) noexcept { vec.emplace_back(in_out); });
+
         file = &f;
     }
 
@@ -875,8 +890,6 @@ void application::start_load_project(const registred_path_id id,
         if (not file)
             return;
 
-        std::scoped_lock lock(file->mutex);
-
         auto f_opt = try_open_file(file->path.c_str(), open_mode::read);
         if (not f_opt)
             return;
@@ -944,8 +957,6 @@ void application::start_save_project(const registred_path_id id,
         auto* file = mod.registred_paths.try_to_get(id);
         if (not file)
             return;
-
-        std::scoped_lock lock(file->mutex);
 
         auto f_opt = try_open_file(file->path.c_str(), open_mode::write);
         if (not f_opt)
@@ -1088,11 +1099,9 @@ void application::start_dir_path_refresh(const dir_path_id id) noexcept
         auto* dir = mod.dir_paths.try_to_get(id);
 
         if (dir and dir->status != dir_path::state::lock) {
-            std::scoped_lock lock(dir->mutex);
-            dir->status   = dir_path::state::lock;
-            auto children = dir->refresh(mod);
-            dir->children = std::move(children);
-            dir->status   = dir_path::state::read;
+            dir->status = dir_path::state::lock;
+            dir->refresh(mod);
+            dir->status = dir_path::state::read;
         }
     });
 }
@@ -1103,7 +1112,6 @@ void application::start_dir_path_free(const dir_path_id id) noexcept
         auto* dir = mod.dir_paths.try_to_get(id);
 
         if (dir and dir->status != dir_path::state::lock) {
-            std::scoped_lock lock(dir->mutex);
             dir->status = dir_path::state::lock;
             mod.dir_paths.free(*dir);
         }
@@ -1116,7 +1124,6 @@ void application::start_reg_path_free(const registred_path_id id) noexcept
         auto* reg = mod.registred_paths.try_to_get(id);
 
         if (reg and reg->status != registred_path::state::lock) {
-            std::scoped_lock lock(reg->mutex);
             reg->status = registred_path::state::lock;
             mod.registred_paths.free(*reg);
         }
@@ -1133,7 +1140,6 @@ void application::start_file_remove(const registred_path_id r,
         auto* file = mod.file_paths.try_to_get(f);
 
         if (reg and dir and file) {
-            std::scoped_lock lock(dir->mutex);
             mod.remove_file(*reg, *dir, *file);
 
             jn.push(log_level::info, [&](auto& t, auto& m) {

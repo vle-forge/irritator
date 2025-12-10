@@ -1263,7 +1263,6 @@ private:
     std::size_t staging_{ 1 };
     std::size_t spare_{ 2 };
 };
-
 /**
  * @brief A non-owning buffer of @a std::bytes.
  *

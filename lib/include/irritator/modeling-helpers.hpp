@@ -44,16 +44,22 @@ inline file_path_id get_file_from_component(const modeling&        mod,
                                             const component&       compo,
                                             const std::string_view str) noexcept
 {
+    auto ret = undefined<file_path_id>();
+
     if (const auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
-        for (const auto f_id : dir->children) {
-            if (const auto* f = mod.file_paths.try_to_get(f_id); f) {
-                if (f->path.sv() == str)
-                    return f_id;
-            }
-        }
+        ret = dir->children.read(
+          [&](const auto& vec,
+              const auto /*version*/) noexcept -> file_path_id {
+              for (const auto f_id : vec)
+                  if (const auto* f = mod.file_paths.try_to_get(f_id); f)
+                      if (f->path.sv() == str)
+                          return f_id;
+
+              return undefined<file_path_id>();
+          });
     }
 
-    return undefined<file_path_id>();
+    return ret;
 }
 
 inline std::optional<std::filesystem::path> make_file(
@@ -128,13 +134,14 @@ void for_each_component(const modeling&       mod,
                         const dir_path&       dir_path,
                         Function&&            f) noexcept
 {
-    for_specified_data(
-      mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
-          if (auto* c =
-                mod.components.try_to_get<component>(file_path.component))
-              std::invoke(
-                std::forward<Function>(f), reg_path, dir_path, file_path, *c);
-      });
+    dir_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
+        for_specified_data(mod.file_paths, vec, [&](auto& file_path) noexcept {
+            if (auto* c =
+                  mod.components.try_to_get<component>(file_path.component))
+                std::invoke(
+                  std::forward<Function>(f), reg_path, dir_path, file_path, *c);
+        });
+    });
 }
 
 template<typename Function>
@@ -143,13 +150,18 @@ void for_each_component(modeling&       mod,
                         dir_path&       dir_path,
                         Function&&      f) noexcept
 {
-    for_specified_data(
-      mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
-          if (auto* c =
-                mod.components.try_to_get<component>(file_path.component))
-              std::invoke(
-                std::forward<Function>(f), reg_path, dir_path, file_path, *c);
-      });
+    dir_path.children.write([&](auto& vec) noexcept {
+        for_specified_data(
+          mod.file_paths, vec, [&](const auto& file_path) noexcept {
+              if (auto* c =
+                    mod.components.try_to_get<component>(file_path.component))
+                  std::invoke(std::forward<Function>(f),
+                              reg_path,
+                              dir_path,
+                              file_path,
+                              *c);
+          });
+    });
 }
 
 template<typename Function>
@@ -157,13 +169,14 @@ void for_each_component(modeling&  mod,
                         dir_path&  dir_path,
                         Function&& f) noexcept
 {
-    for_specified_data(
-      mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
-          if (auto* c =
-                mod.components.try_to_get<component>(file_path.component)) {
-              std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
-          }
-      });
+    dir_path.children.write([&](auto& vec) noexcept {
+        for_specified_data(mod.file_paths, vec, [&](auto& file_path) noexcept {
+            if (auto* c =
+                  mod.components.try_to_get<component>(file_path.component)) {
+                std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
+            }
+        });
+    });
 }
 
 template<typename Function>
@@ -171,13 +184,16 @@ void for_each_component(const modeling& mod,
                         const dir_path& dir_path,
                         Function&&      f) noexcept
 {
-    for_specified_data(
-      mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
-          if (auto* c =
-                mod.components.try_to_get<component>(file_path.component)) {
-              std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
-          }
-      });
+    dir_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
+        for_specified_data(
+          mod.file_paths, vec, [&](const auto& file_path) noexcept {
+              if (auto* c =
+                    mod.components.try_to_get<component>(file_path.component)) {
+                  std::invoke(
+                    std::forward<Function>(f), dir_path, file_path, *c);
+              }
+          });
+    });
 }
 
 template<typename Function>
@@ -185,11 +201,12 @@ void for_each_component(modeling&       mod,
                         registred_path& reg_path,
                         Function&&      f) noexcept
 {
-    for_specified_data(
-      mod.dir_paths, reg_path.children, [&](auto& dir_path) noexcept {
-          return for_each_component(
-            mod, reg_path, dir_path, std::forward<Function>(f));
-      });
+    reg_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
+        for_specified_data(mod.dir_paths, vec, [&](auto& dir_path) noexcept {
+            return for_each_component(
+              mod, reg_path, dir_path, std::forward<Function>(f));
+        });
+    });
 }
 
 template<typename Function>
@@ -197,11 +214,13 @@ void for_each_component(const modeling&       mod,
                         const registred_path& reg_path,
                         Function&&            f) noexcept
 {
-    for_specified_data(
-      mod.dir_paths, reg_path.children, [&](const auto& dir_path) noexcept {
-          return for_each_component(
-            mod, reg_path, dir_path, std::forward<Function>(f));
-      });
+    reg_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
+        for_specified_data(
+          mod.dir_paths, vec, [&](const auto& dir_path) noexcept {
+              return for_each_component(
+                mod, reg_path, dir_path, std::forward<Function>(f));
+          });
+    });
 }
 
 template<typename Function>

@@ -117,20 +117,24 @@ auto show_data_file_input(const modeling&    mod,
         ret = file_id;
 
         if (ImGui::BeginCombo("Select file", preview)) {
-            for (const auto f_id : dir->children) {
-                if (const auto* file = mod.file_paths.try_to_get(f_id); file) {
-                    const auto str = file->path.sv();
-                    const auto dot = str.find_last_of(".");
-                    const auto ext = str.substr(dot);
+            dir->children.read(
+              [&](const auto& vec, const auto /*version*/) noexcept {
+                  for (const auto f_id : vec) {
+                      if (const auto* file = mod.file_paths.try_to_get(f_id);
+                          file) {
+                          const auto str = file->path.sv();
+                          const auto dot = str.find_last_of(".");
+                          const auto ext = str.substr(dot);
 
-                    if (not(ext == ".irt" or ext == ".txt")) {
-                        if (ImGui::Selectable(file->path.c_str(),
-                                              file_id == f_id)) {
-                            ret = f_id;
-                        }
-                    }
-                }
-            }
+                          if (not(ext == ".irt" or ext == ".txt")) {
+                              if (ImGui::Selectable(file->path.c_str(),
+                                                    file_id == f_id)) {
+                                  ret = f_id;
+                              }
+                          }
+                      }
+                  }
+              });
             ImGui::EndCombo();
         }
     } else {
@@ -1395,28 +1399,28 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::constant and
+    return type_sel.has_value() and * type_sel == source_type::constant and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::text_file and
+    return type_sel.has_value() and * type_sel == source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::binary_file and
+    return type_sel.has_value() and * type_sel == source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::random and
+    return type_sel.has_value() and * type_sel == source_type::random and
            id_sel == ordinal(id);
 }
 

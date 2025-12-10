@@ -1012,12 +1012,12 @@ struct registred_path {
     registred_path_str path; /**< Stores an absolute path in utf8 format. */
     name_str           name; /**< Stores a user name, the same name as in the
                                 configuration file. */
-    vector<dir_path_id> children;
+
+    shared_buffer<vector<dir_path_id>> children;
 
     state               status = state::unread;
     bitflags<reg_flags> flags;
     i8                  priority = 0;
-    spin_mutex          mutex;
 };
 
 struct dir_path {
@@ -1036,13 +1036,13 @@ struct dir_path {
         read_only,
     };
 
-    directory_path_str   path; /**< stores a directory name in utf8. */
-    registred_path_id    parent{ 0 };
-    vector<file_path_id> children;
+    directory_path_str path; /**< stores a directory name in utf8. */
+    registred_path_id  parent{ 0 };
+
+    shared_buffer<vector<file_path_id>> children;
 
     state               status = state::unread;
     bitflags<dir_flags> flags;
-    spin_mutex          mutex;
 
     /**
      * Refresh the `children` vector with new file in the filesystem.
@@ -1051,7 +1051,7 @@ struct dir_path {
      * vector but a flag is added in the `file_path` to indicate an absence
      * of existence in the filesystem.
      */
-    vector<file_path_id> refresh(modeling& mod) noexcept;
+    void refresh(modeling& mod) noexcept;
 };
 
 struct file_path {
@@ -1079,10 +1079,9 @@ struct file_path {
     dir_path_id   parent{ 0 };
     component_id  component{ 0 };
 
-    file_type            type{ file_type::undefined_file };
+    file_type            type   = file_type::undefined_file;
     state                status = state::unread;
     bitflags<file_flags> flags;
-    spin_mutex           mutex;
 };
 
 struct tree_node {
