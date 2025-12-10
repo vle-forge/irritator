@@ -61,70 +61,71 @@ concept has_store_function = requires(T t, component_editor& ed) {
     { t.store(ed) } -> std::same_as<void>;
 };
 
+bool push_back_if_not_find(application&          app,
+                           vector<component_id>& vec,
+                           const component_id    id) noexcept
+{
+    if (std::ranges::none_of(vec,
+                             [id](const auto other) { return id == other; })) {
+        if (not vec.can_alloc(1) and not vec.template grow<2, 1>()) {
+            app.jn.push(log_level::error,
+                        [&vec](auto& title, auto& msg) noexcept {
+                            title = "Adding connection pack error";
+                            format(msg,
+                                   "Not enough memory to allocate "
+                                   "more connection pack ({})",
+                                   vec.capacity());
+                        });
+
+            return false;
+        }
+
+        vec.emplace_back(id);
+    }
+
+    return true;
+};
+
 static void update_component_list(application&      app,
                                   component_editor& ed,
                                   const component&  compo) noexcept
 {
     app.add_gui_task([&]() noexcept {
-        std::unique_lock lock(ed.component_list_mutex);
-        ed.component_list.clear();
+        ed.component_list.write([&](auto& vec) noexcept {
+            vec.clear();
 
-        auto push_back_if_not_find =
-          [](auto& app, auto& vec, const auto id) noexcept {
-              if (std::ranges::none_of(
-                    vec, [id](const auto other) { return id == other; })) {
-                  if (not vec.can_alloc(1) and not vec.template grow<2, 1>()) {
-                      app.jn.push(log_level::error,
-                                  [&vec](auto& title, auto& msg) noexcept {
-                                      title = "Adding connection pack error";
-                                      format(msg,
-                                             "Not enough memory to allocate "
-                                             "more connection pack ({})",
-                                             vec.capacity());
-                                  });
+            switch (compo.type) {
+            case component_type::generic:
+                for (const auto& c :
+                     app.mod.generic_components.get(compo.id.generic_id)
+                       .children)
+                    if (c.type == child_type::component)
+                        if (not push_back_if_not_find(app, vec, c.id.compo_id))
+                            break;
+                break;
 
-                      return false;
-                  }
-
-                  vec.emplace_back(id);
-              }
-
-              return true;
-          };
-
-        switch (compo.type) {
-        case component_type::generic:
-            for (const auto& c :
-                 app.mod.generic_components.get(compo.id.generic_id).children)
-                if (c.type == child_type::component)
-                    if (not push_back_if_not_find(
-                          app, ed.component_list, c.id.compo_id))
+            case component_type::grid:
+                for (const auto id :
+                     app.mod.grid_components.get(compo.id.grid_id).children())
+                    if (not push_back_if_not_find(app, vec, id))
                         break;
-            break;
+                break;
 
-        case component_type::grid:
-            for (const auto id :
-                 app.mod.grid_components.get(compo.id.grid_id).children())
-                if (not push_back_if_not_find(app, ed.component_list, id))
-                    break;
-            break;
+            case component_type::graph:
+                for (const auto id :
+                     app.mod.graph_components.get(compo.id.graph_id).g.nodes) {
+                    const auto c_id =
+                      app.mod.graph_components.get(compo.id.graph_id)
+                        .g.node_components[id];
+                    if (not push_back_if_not_find(app, vec, c_id))
+                        break;
+                }
+                break;
 
-        case component_type::graph:
-            for (const auto id :
-                 app.mod.graph_components.get(compo.id.graph_id).g.nodes) {
-                const auto c_id =
-                  app.mod.graph_components.get(compo.id.graph_id)
-                    .g.node_components[id];
-                if (not push_back_if_not_find(app, ed.component_list, c_id))
-                    break;
+            default:
+                break;
             }
-            break;
-
-        default:
-            break;
-        }
-
-        ed.component_list_updating.clear();
+        });
     });
 }
 
@@ -156,11 +157,11 @@ static auto combobox_port_id(const auto* label,
     return p_id;
 }
 
-static auto combobox_component_id(const auto& mod,
-                                  const auto* label,
-                                  const auto& component_list,
-                                  auto        c_id,
-                                  auto        p_id) noexcept
+static auto combobox_component_id(const modeling&             mod,
+                                  const char*                 label,
+                                  const vector<component_id>& component_list,
+                                  component_id                c_id,
+                                  port_id                     p_id) noexcept
   -> std::pair<component_id, port_id>
 {
     const char* preview =
@@ -1827,13 +1828,11 @@ struct component_editor::impl {
         static auto c_p = undefined<port_id>();
         static auto c   = undefined<component_id>();
 
-        if (ed.component_list_updating.test()) {
-            ImGui::TextUnformatted("Component update in progress");
-        } else {
-            p = combobox_port_id("input port", compo.x, p);
+        p = combobox_port_id("input port", compo.x, p);
 
-            const auto child = combobox_component_id(
-              app.mod, "child component", ed.component_list, c, c_p);
+        ed.component_list.read([&](const auto& vec, auto /*version*/) noexcept {
+            const auto child =
+              combobox_component_id(app.mod, "child component", vec, c, c_p);
             c   = child.first;
             c_p = app.mod.components.exists(c)
                     ? combobox_component_port_id(
@@ -1841,20 +1840,20 @@ struct component_editor::impl {
                         app.mod.components.get<component>(c).x,
                         child.second)
                     : combobox_component_port_id_empty("child port");
-        }
 
-        if (is_defined(p) and is_defined(c_p) and is_defined(c) and
-            std::ranges::none_of(
-              compo.input_connection_pack, [&](const auto& con) {
-                  return con.parent_port == p and con.child_port == c_p and
-                         con.child_component == c;
-              })) {
-            compo.input_connection_pack.push_back(connection_pack{
-              .parent_port = p, .child_port = c_p, .child_component = c });
-            p   = undefined<port_id>();
-            c_p = undefined<port_id>();
-            c   = undefined<component_id>();
-        }
+            if (is_defined(p) and is_defined(c_p) and is_defined(c) and
+                std::ranges::none_of(
+                  compo.input_connection_pack, [&](const auto& con) {
+                      return con.parent_port == p and con.child_port == c_p and
+                             con.child_component == c;
+                  })) {
+                compo.input_connection_pack.push_back(connection_pack{
+                  .parent_port = p, .child_port = c_p, .child_component = c });
+                p   = undefined<port_id>();
+                c_p = undefined<port_id>();
+                c   = undefined<component_id>();
+            }
+        });
     }
 
     static void show_output_connection_packs(application& app,
@@ -1872,13 +1871,12 @@ struct component_editor::impl {
         static auto c_p = undefined<port_id>();
         static auto c   = undefined<component_id>();
 
-        if (ed.component_list_updating.test()) {
-            ImGui::TextUnformatted("Component update in progress");
-        } else {
-            p = combobox_port_id("output port", compo.y, p);
+        p = combobox_port_id("output port", compo.y, p);
 
-            const auto child = combobox_component_id(
-              app.mod, "child component", ed.component_list, c, c_p);
+        ed.component_list.read([&](const auto& vec,
+                                   const auto /*version*/) noexcept {
+            const auto child =
+              combobox_component_id(app.mod, "child component", vec, c, c_p);
             c   = child.first;
             c_p = app.mod.components.exists(c)
                     ? combobox_component_port_id(
@@ -1886,20 +1884,20 @@ struct component_editor::impl {
                         app.mod.components.get<component>(c).y,
                         child.second)
                     : combobox_component_port_id_empty("child port");
-        }
 
-        if (is_defined(p) and is_defined(c_p) and is_defined(c) and
-            std::ranges::none_of(
-              compo.output_connection_pack, [&](const auto& con) {
-                  return con.parent_port == p and con.child_port == c_p and
-                         con.child_component == c;
-              })) {
-            compo.output_connection_pack.push_back(connection_pack{
-              .parent_port = p, .child_port = c_p, .child_component = c });
-            p   = undefined<port_id>();
-            c_p = undefined<port_id>();
-            c   = undefined<component_id>();
-        }
+            if (is_defined(p) and is_defined(c_p) and is_defined(c) and
+                std::ranges::none_of(
+                  compo.output_connection_pack, [&](const auto& con) {
+                      return con.parent_port == p and con.child_port == c_p and
+                             con.child_component == c;
+                  })) {
+                compo.output_connection_pack.push_back(connection_pack{
+                  .parent_port = p, .child_port = c_p, .child_component = c });
+                p   = undefined<port_id>();
+                c_p = undefined<port_id>();
+                c   = undefined<component_id>();
+            }
+        });
     }
 
     template<typename ComponentEditor>

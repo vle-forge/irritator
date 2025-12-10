@@ -1227,9 +1227,8 @@ public:
     /// List of tabulation opened in the @a ImGui::BeginTabBar.
     vector<tab> tabs;
 
-    vector<component_id> component_list;
-    spin_mutex           component_list_mutex;
-    std::atomic_flag     component_list_updating = ATOMIC_FLAG_INIT;
+    /// Stores the list of component_id opened in the editor.
+    shared_buffer<vector<component_id>> component_list;
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
