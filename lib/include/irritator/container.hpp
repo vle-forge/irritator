@@ -2255,6 +2255,8 @@ public:
     constexpr data_array& operator=(const data_array& other) noexcept;
     constexpr data_array& operator=(data_array&& other) noexcept;
 
+    void swap(data_array& other) noexcept;
+
     explicit constexpr data_array(std::integral auto capacity) noexcept;
 
     constexpr ~data_array() noexcept;
@@ -4174,12 +4176,16 @@ constexpr data_array<T, Identifier, A>::data_array(
           reinterpret_cast<item*>(A::allocate(sizeof(item) * other.m_capacity));
         m_capacity = other.m_capacity;
 
-        for (u32 i = 0; i < other.m_max_used; ++i) {
-            if (is_valid(other.m_items[i].id)) {
-                std::construct_at(std::addressof(m_items[i].item),
-                                  other.m_items[i].item);
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            std::uninitialized_copy_n(other.m_items, other.m_max_used, m_items);
+        } else {
+            for (u32 i = 0; i < other.m_max_used; ++i) {
+                if (is_valid(other.m_items[i].id)) {
+                    std::construct_at(std::addressof(m_items[i].item),
+                                      other.m_items[i].item);
+                }
+                m_items[i].id = other.m_items[i].id;
             }
-            m_items[i].id = other.m_items[i].id;
         }
 
         m_max_size  = other.m_max_size;
@@ -4212,8 +4218,8 @@ constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
   const data_array& other) noexcept
 {
     if (this != &other) {
-        auto& copy = other;
-        std::swap(copy, *this);
+        auto copy = other;
+        copy.swap(*this);
     }
 
     return *this;
@@ -4260,6 +4266,17 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
 
     if (m_items)
         A::deallocate(m_items, sizeof(item) * m_capacity);
+}
+
+template<typename T, typename Identifier, typename A>
+void data_array<T, Identifier, A>::swap(data_array& other) noexcept
+{
+    std::swap(other.m_items, m_items);
+    std::swap(other.m_max_size, m_max_size);
+    std::swap(other.m_max_used, m_max_used);
+    std::swap(other.m_capacity, m_capacity);
+    std::swap(other.m_next_key, m_next_key);
+    std::swap(other.m_free_head, m_free_head);
 }
 
 template<typename T, typename Identifier, typename A>

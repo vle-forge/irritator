@@ -1506,6 +1506,133 @@ int main()
         }
     };
 
+    "data-array-freelist-int"_test = [] {
+        irt::data_array<int, test_id> a(8);
+
+        auto& a1 = a.alloc(1);
+        auto& a2 = a.alloc(2);
+        auto& a3 = a.alloc(3);
+        auto& a4 = a.alloc(4);
+
+        auto a4_id = a.get_id(a4);
+
+        a.free(a1);
+        a.free(a2);
+        a.free(a3);
+
+        expect(eq(a.ssize(), 1));
+
+        auto b = a;
+        expect(eq(a.ssize(), 1));
+
+        expect(neq(b.try_to_get(a4_id), nullptr));
+    };
+
+    "data-array-freelist-copyable"_test = [] {
+        struct copyable {
+            copyable() noexcept = default;
+
+            explicit copyable(int x_) noexcept
+              : x{ x_ }
+            {}
+
+            int x;
+        };
+
+        static_assert(std::is_trivially_copyable_v<copyable> == true);
+
+        irt::data_array<copyable, test_id> a(8);
+
+        auto& a1 = a.alloc(1);
+        auto& a2 = a.alloc(2);
+        auto& a3 = a.alloc(3);
+        auto& a4 = a.alloc(4);
+
+        auto a4_id = a.get_id(a4);
+
+        a.free(a1);
+        a.free(a2);
+        a.free(a3);
+
+        expect(eq(a.ssize(), 1));
+
+        auto b = a;
+        expect(eq(a.ssize(), 1));
+
+        expect(neq(b.try_to_get(a4_id), nullptr));
+    };
+
+    "data-array-freelist-copyable-ctor"_test = [] {
+        struct copyable {
+            int x;
+
+            copyable() noexcept = default;
+
+            explicit copyable(int x_) noexcept
+              : x(x_)
+            {}
+
+            copyable(const copyable&) = default;
+        };
+
+        static_assert(std::is_trivially_copyable_v<copyable> == true);
+
+        irt::data_array<copyable, test_id> a(8);
+
+        auto& a1 = a.alloc(1);
+        auto& a2 = a.alloc(2);
+        auto& a3 = a.alloc(3);
+        auto& a4 = a.alloc(4);
+
+        auto a4_id = a.get_id(a4);
+
+        a.free(a1);
+        a.free(a2);
+        a.free(a3);
+
+        expect(eq(a.ssize(), 1));
+
+        auto b = a;
+        expect(eq(a.ssize(), 1));
+
+        expect(neq(b.try_to_get(a4_id), nullptr));
+    };
+
+    "data-array-freelist-uncopyable"_test = [] {
+        struct uncopyable {
+            int x;
+
+            uncopyable() noexcept = default;
+
+            explicit uncopyable(int x_) noexcept
+              : x(x_)
+            {}
+
+            uncopyable(const uncopyable& other) noexcept { x = other.x; }
+        };
+
+        static_assert(std::is_trivially_copyable_v<uncopyable> == false);
+        irt::data_array<uncopyable, test_id> a(8);
+
+        auto& a1 = a.alloc(1);
+        auto& a2 = a.alloc(2);
+        auto& a3 = a.alloc(3);
+        auto& a4 = a.alloc(4);
+
+        auto a4_id = a.get_id(a4);
+
+        a.free(a1);
+        a.free(a2);
+        a.free(a3);
+
+        expect(eq(a.ssize(), 1));
+
+        auto b = a;
+        expect(eq(a.ssize(), 1));
+
+        expect(neq(b.try_to_get(a4_id), nullptr));
+    };
+
     "id-data-array"_test = [] {
         struct pos3d {
             pos3d() = default;
