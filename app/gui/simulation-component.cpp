@@ -143,7 +143,7 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
-    ed.tl.reset();
+    ed.snaps.reset();
 
     if (ed.pj.tn_head()) {
         ed.pj.sim.clean();
@@ -180,24 +180,6 @@ static void simulation_init(application& app, project_editor& ed) noexcept
             ed.save_simulation_raw_data = project_editor::raw_data_type::none;
         }
     }
-}
-
-static bool debug_run(application& app, project_editor& sim_ed) noexcept
-{
-    if (auto ret = run(sim_ed.tl, sim_ed.pj.sim); not ret) {
-        sim_ed.simulation_state = simulation_status::finish_requiring;
-
-        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
-            t = "Simulation debug task run error";
-            format(msg,
-                   "Fail in {} with error {}",
-                   ordinal(ret.error().cat()),
-                   ret.error().value());
-        });
-        return false;
-    }
-
-    return true;
 }
 
 static void finalize_raw_obs(project_editor& ed) noexcept
@@ -915,16 +897,12 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             simulation_last_finite_t = sim_t;
             pj.sim.current_time(sim_t);
 
-            if (store_all_changes) {
-                if (auto ret = debug_run(app, *this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
-                }
-            } else {
-                if (auto ret = run(app, *this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
-                }
+            if (store_all_changes)
+                snaps.emplace_back(pj.sim);
+
+            if (auto ret = run(app, *this); !ret) {
+                simulation_state = simulation_status::finish_requiring;
+                return;
             }
 
             if (time_domain<time>::is_infinity(pj.sim.current_time()))
@@ -961,16 +939,15 @@ void project_editor::start_simulation_static_run(application& app) noexcept
                     simulation_display_current = pj.sim.current_time();
                     return;
                 }
-            } else if (store_all_changes) {
-                if (auto ret = debug_run(app, *this); !ret) {
+            } else {
+                if (store_all_changes)
+                    snaps.emplace_back(pj.sim);
+
+                if (not run(app, *this)) {
                     simulation_state = simulation_status::finish_requiring;
                     simulation_display_current = pj.sim.current_time();
                     return;
                 }
-            } else if (auto ret = run(app, *this); !ret) {
-                simulation_state = simulation_status::finish_requiring;
-                simulation_display_current = pj.sim.current_time();
-                return;
             }
 
             start_simulation_observation(app);
@@ -1003,22 +980,27 @@ void project_editor::start_simulation_static_run(application& app) noexcept
     });
 }
 
-void project_editor::start_simulation_start_1(application& app) noexcept
+void project_editor::start_simulation_step_by_step(application& app) noexcept
 {
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
-                           simulation_status::pause_forced,
-                           simulation_status::debugged);
+    const auto state = any_equal(simulation_state,
+                                 simulation_status::initialized,
+                                 simulation_status::pause_forced,
+                                 simulation_status::debugged);
 
     if (state) {
         app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
             if (auto* parent = pj.tn_head(); parent) {
                 simulation_state = simulation_status::running;
 
-                if (auto ret = debug_run(app, *this); !ret) {
+                const auto current_time = pj.sim.current_time();
+
+                if (not run(app, *this)) {
                     simulation_state = simulation_status::finish_requiring;
                     return;
                 }
+
+                if (current_time != pj.sim.current_time())
+                    snaps.emplace_back(pj.sim);
 
                 if (pj.file_obs.can_update(pj.sim.current_time()))
                     pj.file_obs.update(pj.sim, pj);
@@ -1073,31 +1055,21 @@ void project_editor::start_simulation_finish(application& app) noexcept
         simulation_state = simulation_status::finishing;
         pj.sim.immediate_observers.clear();
 
-        if (store_all_changes) {
-            if (auto ret = finalize(tl, pj.sim); !ret) {
-                app.jn.push(log_level::error, [](auto& t, auto& m) {
-                    t = "Simulation finalizing fail (with store all changes "
-                        "option)";
-                    m = "FIXME from ret";
-                });
-            } else {
-                stop_simulation_observation(app);
-            }
-        } else {
-            if (auto ret = pj.sim.finalize(); !ret) {
-                app.jn.push(log_level::error, [](auto& t, auto& m) {
-                    t = "Simulation finalizing fail";
-                    m = "FIXME from ret";
-                });
-            } else {
-                stop_simulation_observation(app);
-            }
+        if (store_all_changes)
+            snaps.emplace_back(pj.sim);
 
-            if (save_simulation_raw_data !=
-                project_editor::raw_data_type::none) {
-                finalize_raw_obs(*this);
-            }
-        };
+        if (pj.sim.finalize().has_error()) {
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Simulation finalizing fail";
+                m = "FIXME from ret";
+            });
+        } else {
+            stop_simulation_observation(app);
+        }
+
+        if (save_simulation_raw_data != project_editor::raw_data_type::none) {
+            finalize_raw_obs(*this);
+        }
 
         simulation_state = simulation_status::finished;
     });
@@ -1106,19 +1078,14 @@ void project_editor::start_simulation_finish(application& app) noexcept
 void project_editor::start_simulation_advance(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        if (tl.can_advance()) {
-            if (auto ret = advance(tl, pj.sim); not ret) {
-                if (ret.error().cat() == category::simulation) {
-                    app.jn.push(log_level::error, [](auto& t, auto& m) {
-                        t = "Fail to advance the simulation";
-                        format(m, "Advance message");
-                    });
-                } else {
-                    app.jn.push(log_level::error, [](auto& t, auto& m) {
-                        t = "Fail to advance the simulation";
-                        format(m, "Unknwon message");
-                    });
-                }
+        if (snaps.empty())
+            return;
+
+        if (current_snap >= 0) {
+            const auto* snap = snaps.ptr_from_index(current_snap);
+            if (snaps.previous(snap)) {
+                pj.sim       = *snap;
+                current_snap = snaps.index_from_ptr(snap);
             }
         }
     });
@@ -1127,45 +1094,14 @@ void project_editor::start_simulation_advance(application& app) noexcept
 void project_editor::start_simulation_back(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        if (tl.can_back()) {
-            if (auto ret = back(tl, pj.sim); not ret) {
-                if (ret.error().cat() == category::simulation) {
-                    app.jn.push(log_level::error, [](auto& t, auto& m) {
-                        t = "Fail to advance the simulation";
-                        format(m, "Advance message");
-                    });
-                } else {
-                    app.jn.push(log_level::error, [](auto& t, auto& m) {
-                        t = "Fail to advance the simulation";
-                        format(m, "Unknwon message");
-                    });
-                }
-            }
-        }
-    });
-}
+        if (snaps.empty())
+            return;
 
-void project_editor::start_enable_or_disable_debug(application& app) noexcept
-{
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        tl.reset();
-
-        if (auto ret = initialize(tl, pj.sim); not ret) {
-            simulation_state = simulation_status::not_started;
-
-            if (ret.error().cat() == category::simulation) {
-                app.jn.push(log_level::error, [&ret](auto& t, auto& m) {
-                    t = "Debug mode failed to initialize";
-                    format(m,
-                           "Fail to initialize the debug mode: {}",
-                           ret.error().value());
-                });
-            } else {
-                app.jn.push(log_level::error, [](auto& t, auto& m) {
-                    t = "Debug mode failed to initialize";
-                    format(m,
-                           "Fail to initialize the debug mode: Unknown error");
-                });
+        if (current_snap >= 0) {
+            const auto* snap = snaps.ptr_from_index(current_snap);
+            if (snaps.next(snap)) {
+                pj.sim       = *snap;
+                current_snap = snaps.index_from_ptr(snap);
             }
         }
     });

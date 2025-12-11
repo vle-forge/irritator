@@ -1048,13 +1048,12 @@ struct project_editor {
     void stop_simulation_observation(application& app) noexcept;
     void start_simulation_live_run(application& app) noexcept;
     void start_simulation_static_run(application& app) noexcept;
-    void start_simulation_start_1(application& app) noexcept;
+    void start_simulation_step_by_step(application& app) noexcept;
     void start_simulation_pause(application& app) noexcept;
     void start_simulation_stop(application& app) noexcept;
     void start_simulation_finish(application& app) noexcept;
     void start_simulation_advance(application& app) noexcept;
     void start_simulation_back(application& app) noexcept;
-    void start_enable_or_disable_debug(application& app) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
@@ -1086,7 +1085,16 @@ struct project_editor {
      */
     bool is_simulation_running() const noexcept;
 
-    timeline tl;
+    // timeline tl;
+
+    /// Default stores 128 snapshots.
+    ///
+    /// @TODO Adds this parameters in global file settings.
+    simulation_snapshot_handler snaps{ 128 };
+
+    /// The index of the current selected
+    int current_snap = -1;
+
     name_str name;
 
     real simulation_last_finite_t   = 0;

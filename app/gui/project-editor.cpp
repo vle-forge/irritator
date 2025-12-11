@@ -23,8 +23,7 @@
 namespace irt {
 
 project_editor::project_editor(const std::string_view default_name) noexcept
-  : tl(32768, 4096, 65536, 65536, 32768, 32768)
-  , name{ default_name }
+  : name{ default_name }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
@@ -145,18 +144,20 @@ static void show_simulation_action_buttons(application&    app,
     if (ed.store_all_changes) {
         ImGui::SameLine();
         if (ImGui::Button("step-by-step", small_button))
-            ed.start_simulation_start_1(app);
+            ed.start_simulation_step_by_step(app);
     }
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(!ed.tl.can_back());
+    const auto have_snaphot = ed.store_all_changes and not ed.snaps.empty();
+
+    ImGui::BeginDisabled(not have_snaphot);
     if (ImGui::Button("<", small_button))
         ed.start_simulation_back(app);
     ImGui::EndDisabled();
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(!ed.tl.can_advance());
+    ImGui::BeginDisabled(not have_snaphot);
     if (ImGui::Button(">", small_button))
         ed.start_simulation_advance(app);
     ImGui::EndDisabled();
