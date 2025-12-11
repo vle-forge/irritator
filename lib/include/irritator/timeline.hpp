@@ -6,136 +6,252 @@
 #define ORG_VLEPROJECT_IRRITATOR_TIMELINE_2022
 
 #include <irritator/core.hpp>
-#include <irritator/ext.hpp>
-#include <irritator/thread.hpp>
 
 namespace irt {
 
-enum class timeline_point_type : u8 {
-    simulation, //! a copy of state of model (basic - deep copy for now)
-    model,      //! user add, remove or change value in a model
-    connection  //! user add, remove or change value in a connection
+/// Stores a simulation-snapshot circular buffer.
+///
+/// This class stores simulation snapshot and build a timeline of simulations.
+class simulation_snapshot_handler
+{
+public:
+    constexpr simulation_snapshot_handler() noexcept = default;
+    explicit simulation_snapshot_handler(const int capacity) noexcept;
+
+    bool reserve(const int capacity) noexcept;
+    void emplace_back(const simulation& sim) noexcept;
+
+    /// Clear the ring-buffer without deallocation.
+    constexpr void reset() noexcept;
+
+    /// Return nullptr if empty otherwise the oldest element.
+    constexpr simulation_snapshot*       front() noexcept;
+    constexpr const simulation_snapshot* front() const noexcept;
+
+    /// Return nullptr if empty otherwise the latest element.
+    constexpr simulation_snapshot*       back() noexcept;
+    constexpr const simulation_snapshot* back() const noexcept;
+
+    constexpr bool next(simulation_snapshot*& snap) noexcept;
+    constexpr bool next(const simulation_snapshot*& snap) const noexcept;
+    constexpr bool previous(simulation_snapshot*& snap) noexcept;
+    constexpr bool previous(const simulation_snapshot*& snap) const noexcept;
+
+    constexpr void erase_after(const simulation_snapshot* snap) noexcept;
+
+    constexpr unsigned capacity() const noexcept;
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr bool     empty() const noexcept;
+
+    constexpr int index_from_ptr(
+      const simulation_snapshot* data) const noexcept;
+    constexpr const simulation_snapshot* ptr_from_index(int idx) const noexcept;
+
+private:
+    vector<simulation_snapshot> ring;
+
+    int m_front    = 0;
+    int m_back     = 0;
+    int m_capacity = 1;
 };
 
-struct simulation_point {
-    simulation_point() noexcept = default;
+// Implementation
 
-    simulation_point(const simulation_point& rhs) noexcept = delete;
-    simulation_point(simulation_point&& rhs) noexcept      = default;
+inline constexpr void simulation_snapshot_handler::reset() noexcept
+{
+    m_front    = 0;
+    m_back     = 0;
+    m_capacity = ring.capacity() + 1;
+}
 
-    time t;
+inline constexpr simulation_snapshot*
+simulation_snapshot_handler::front() noexcept
+{
+    return empty() ? nullptr : std::addressof(ring[m_front]);
+}
 
-    vector<model>    models;
-    vector<model_id> model_ids;
-    vector<message>  message_alloc;
-};
+inline constexpr const simulation_snapshot* simulation_snapshot_handler::front()
+  const noexcept
+{
+    return empty() ? nullptr : std::addressof(ring[m_front]);
+}
 
-static_assert(std::is_move_constructible_v<simulation_point>);
-static_assert(not std::is_move_assignable_v<simulation_point>);
-static_assert(not std::is_copy_constructible_v<simulation_point>);
-static_assert(not std::is_copy_assignable_v<simulation_point>);
+inline constexpr simulation_snapshot*
+simulation_snapshot_handler::back() noexcept
+{
+    return empty()       ? nullptr
+           : m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                         : std::addressof(ring[m_back - 1]);
+}
 
-struct model_point {
-    time t;
+inline constexpr const simulation_snapshot* simulation_snapshot_handler::back()
+  const noexcept
+{
+    return empty()       ? nullptr
+           : m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                         : std::addressof(ring[m_back - 1]);
+}
 
-    model    mdl;
-    model_id id;
+inline constexpr bool simulation_snapshot_handler::next(
+  simulation_snapshot*& snap) noexcept
+{
+    if (snap == nullptr) {
+        if (empty())
+            return false;
 
-    enum class operation_type {
-        add,
-        remove,
-        change,
-    };
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
 
-    operation_type type = operation_type::add;
-};
+    const auto idx = ring.index_from_ptr(snap);
 
-struct connection_point {
-    time t;
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
 
-    model_id src;
-    model_id dst;
-    i8       port_src;
-    i8       port_dst;
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
 
-    enum class operation_type {
-        add,
-        remove,
-    };
+inline constexpr bool simulation_snapshot_handler::next(
+  const simulation_snapshot*& snap) const noexcept
+{
+    if (snap == nullptr) {
+        if (m_front == m_back) // ring is empty, returns false
+            return false;
 
-    operation_type type = operation_type::add;
-};
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
 
-struct timeline_point {
-    timeline_point() noexcept = default;
+    const auto idx = ring.index_from_ptr(snap);
 
-    timeline_point(timeline_point_type type_, i32 index_, i32 bag_) noexcept
-      : index(index_)
-      , bag(bag_)
-      , type(type_)
-    {}
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
 
-    i32                 index;
-    i32                 bag;
-    timeline_point_type type = timeline_point_type::simulation;
-};
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
 
-struct timeline {
-    bool can_alloc(timeline_point_type type,
-                   i32                 models   = 0,
-                   i32                 messages = 0) noexcept;
+inline constexpr bool simulation_snapshot_handler::previous(
+  simulation_snapshot*& snap) noexcept
+{
+    if (snap == nullptr) {
+        if (empty())
+            return false;
 
-    simulation_point& alloc_simulation_point() noexcept;
-    model_point&      alloc_model_point() noexcept;
-    connection_point& alloc_connection_point() noexcept;
+        snap = m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                           : std::addressof(ring[m_back - 1]);
+        return true;
+    }
 
-    timeline(i32 simulation_points,
-             i32 model_points,
-             i32 connection_points,
-             i32 timeline_points,
-             i32 model_number,
-             i32 message_number) noexcept;
+    const auto idx     = ring.index_from_ptr(snap);
+    const auto new_idx = idx == 0 ? m_capacity - 1 : m_back - 1;
 
-    timeline(const timeline& other) noexcept = default;
-    timeline(timeline&& other) noexcept      = default;
+    if (new_idx % m_capacity == m_back) {
+        snap = nullptr;
+        return false;
+    }
 
-    void reset() noexcept;
-    void cleanup_after_current_bag() noexcept;
+    snap = std::addressof(ring[new_idx]);
+    return true;
+}
 
-    vector<simulation_point>    sim_points;
-    vector<model_point>         model_points;
-    vector<connection_point>    connection_points;
-    ring_buffer<timeline_point> points;
+inline constexpr bool simulation_snapshot_handler::previous(
+  const simulation_snapshot*& snap) const noexcept
+{
+    if (snap == nullptr) {
+        if (m_front == m_back) // ring is empty, returns false
+            return false;
 
-    i32 max_models_number       = 0;
-    i32 max_messages_number     = 0;
-    i32 current_models_number   = 0;
-    i32 current_messages_number = 0;
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
 
-    bool can_advance() const noexcept;
-    bool can_back() const noexcept;
+    const auto idx = ring.index_from_ptr(snap);
 
-    ring_buffer<timeline_point>::iterator current_bag;
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
 
-    i32 bag;
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
 
-    mutable spin_mutex mutex;
-};
+inline constexpr void simulation_snapshot_handler::erase_after(
+  const simulation_snapshot* snap) noexcept
+{
+    if (snap == nullptr)
+        return;
 
-//! @brief Initialize simulation and store first state.
-status initialize(timeline& tl, simulation&) noexcept;
+    const auto idx = ring.index_from_ptr(snap);
 
-//! @brief Run one step of simulation and store state.
-status run(timeline& tl, simulation&) noexcept;
+    if ((idx + 1) % m_capacity == m_front)
+        return;
 
-//! @brief Finalize the simulation.
-status finalize(timeline& tl, simulation&) noexcept;
+    m_back = idx + 1;
+}
 
-//! @brief  Advance the simulation by one step.
-status advance(timeline& tl, simulation& sim) noexcept;
+inline constexpr unsigned simulation_snapshot_handler::capacity() const noexcept
+{
+    return m_capacity - 1;
+}
 
-//! @brief  Back the simulation by one step.
-status back(timeline& tl, simulation& sim) noexcept;
+inline constexpr unsigned simulation_snapshot_handler::size() const noexcept
+{
+    if (m_back >= m_front)
+        return static_cast<unsigned>(m_back - m_front);
+
+    return static_cast<unsigned>(m_capacity - (m_front - m_back));
+}
+
+inline constexpr int simulation_snapshot_handler::ssize() const noexcept
+{
+    if (m_back >= m_front)
+        return m_back - m_front;
+
+    return m_capacity - (m_front - m_back);
+}
+
+inline constexpr bool simulation_snapshot_handler::empty() const noexcept
+{
+    return m_front == m_back;
+}
+
+inline constexpr int simulation_snapshot_handler::index_from_ptr(
+  const simulation_snapshot* ptr) const noexcept
+{
+    if (not(ring.data() <= ptr and ptr < (ring.data() + ring.size())))
+        return -1;
+
+    const auto distance = std::distance(ptr, ring.data());
+    if (std::cmp_less_equal(0, distance) and
+        std::cmp_less(distance, INTMAX_MAX))
+        if (ptr_from_index(static_cast<int>(distance)))
+            return static_cast<int>(distance);
+
+    return -1;
+}
+
+inline constexpr const simulation_snapshot*
+simulation_snapshot_handler::ptr_from_index(int idx) const noexcept
+{
+    if (idx < 0)
+        return nullptr;
+
+    if (m_front < m_back)
+        return (m_front <= idx and idx < m_back) ? std::addressof(ring[idx])
+                                                 : nullptr;
+
+    return ((m_front <= idx and idx < m_capacity) or idx < m_back)
+             ? std::addressof(ring[idx])
+             : nullptr;
+}
 
 } // namespace irt
 

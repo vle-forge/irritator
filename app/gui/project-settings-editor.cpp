@@ -252,10 +252,6 @@ static bool show_project_simulation_settings(application&    app,
     up += ImGui::Checkbox("Enable live edition", &ed.allow_user_changes);
     if (ImGui::Checkbox("Store simulation", &ed.store_all_changes)) {
         ++up;
-        if (ed.store_all_changes and
-            ed.simulation_state == simulation_status::running) {
-            ed.start_enable_or_disable_debug(app);
-        }
     }
 
     up += ImGui::Checkbox("Real time", &ed.real_time);
