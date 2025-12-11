@@ -1029,6 +1029,8 @@ private:
 public:
     using handle = u32;
 
+    heap() noexcept = default;
+
     explicit constexpr heap(
       constrained_value<int, 512, INT_MAX> pcapacity) noexcept;
 
@@ -1127,6 +1129,7 @@ public:
     using internal_value_type = heap<A>;
     using handle              = u32;
 
+    scheduller() noexcept = default;
     explicit scheduller(constrained_value<int, 512, INT_MAX> capacity) noexcept;
 
     bool reserve(std::integral auto new_capacity) noexcept;
@@ -1285,6 +1288,28 @@ struct output_port {
                   Args&&... args) noexcept;
 };
 
+/// Stores a copy main data simulation.
+///
+/// This class is used to dump a snapshot of the simulation keeping all
+/// identifiants.
+struct simulation_snapshot {
+
+    simulation_snapshot() noexcept = default;
+
+    explicit simulation_snapshot(const simulation& sim) noexcept;
+
+    /// Reuse the allocated snapshot and copy simulation data
+    simulation_snapshot& operator=(const simulation& sim) noexcept;
+
+    data_array<model, model_id>                              models;
+    data_array<observer, observer_id>                        observers;
+    data_array<block_node, block_node_id>                    nodes;
+    data_array<output_port, output_port_id>                  output_ports;
+    data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
+    scheduller<allocator<new_delete_memory_resource>>        sched;
+    time                                                     t{};
+};
+
 class simulation
 {
 public:
@@ -1339,6 +1364,15 @@ public:
                  simulation_reserve_definition(),
                const external_source_reserve_definition& psrcs =
                  external_source_reserve_definition()) noexcept;
+
+    /// Assign all data from the @a snap snapshot to this simulation.
+    ///
+    /// The current simulation data are destroyed before assignment. Mainly used
+    /// to restore a state of previous simulation run.
+    ///
+    /// @param snap The snapshot to restore.
+    /// @return self.
+    simulation& operator=(const simulation_snapshot& snap) noexcept;
 
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
@@ -7596,6 +7630,20 @@ inline simulation::simulation(
   , sched(res.models)
   , srcs(p_srcs)
 {}
+
+inline simulation& simulation::operator=(
+  const simulation_snapshot& snap) noexcept
+{
+    models         = snap.models;
+    observers      = snap.observers;
+    nodes          = snap.nodes;
+    output_ports   = snap.output_ports;
+    dated_messages = snap.dated_messages;
+    sched          = snap.sched;
+    t              = snap.t;
+
+    return *this;
+}
 
 template<int Num, int Denum>
 bool simulation::grow_models() noexcept

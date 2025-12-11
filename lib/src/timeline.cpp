@@ -473,4 +473,241 @@ bool timeline::can_back() const noexcept
     return true;
 }
 
+simulation_snapshot::simulation_snapshot(const simulation& sim) noexcept
+  : models{ sim.models }
+  , observers{ sim.observers }
+  , nodes{ sim.nodes }
+  , output_ports{ sim.output_ports }
+  , dated_messages{ sim.dated_messages }
+  , sched{ sim.sched }
+  , t{ sim.current_time() }
+{}
+
+simulation_snapshot& simulation_snapshot::operator=(
+  const simulation& sim) noexcept
+{
+    models         = sim.models;
+    observers      = sim.observers;
+    nodes          = sim.nodes;
+    output_ports   = sim.output_ports;
+    dated_messages = sim.dated_messages;
+    sched          = sim.sched;
+    t              = sim.current_time();
+
+    return *this;
+}
+
+simulation_snapshot_handler::simulation_snapshot_handler(
+  std::integral auto capacity) noexcept
+{
+    if (capacity > 0) {
+        m_capacity = capacity + 1;
+        m_front    = 0;
+        m_back     = 0;
+
+        ring.resize(capacity);
+    }
+}
+
+bool simulation_snapshot_handler::reserve(std::integral auto capacity) noexcept
+{
+    if (std::cmp_less(m_capacity, capacity)) {
+        vector<simulation_snapshot> new_buffer(capacity + 1, reserve_tag);
+        if (std::cmp_less(new_buffer.capacity(), capacity))
+            return false;
+
+        simulation_snapshot* ptr = nullptr;
+        while (next(ptr))
+            new_buffer.push_back(*ptr);
+
+        const auto new_capacity = capacity + 1;
+        const auto new_front    = 0;
+        const auto new_back     = ssize();
+
+        m_capacity = new_capacity;
+        m_front    = new_front;
+        m_back     = new_back;
+        ring       = std::move(new_buffer);
+    }
+
+    return true;
+}
+
+void simulation_snapshot_handler::emplace_back(const simulation& sim) noexcept
+{
+    if ((m_back + 1) % m_capacity == m_front)
+        m_front = (m_front + 1) % m_capacity;
+
+    ring[m_back] = sim;
+    m_back       = (m_back + 1) % m_capacity;
+}
+
+constexpr simulation_snapshot* simulation_snapshot_handler::front() noexcept
+{
+    return empty() ? nullptr : std::addressof(ring[m_front]);
+}
+
+constexpr const simulation_snapshot* simulation_snapshot_handler::front()
+  const noexcept
+{
+    return empty() ? nullptr : std::addressof(ring[m_front]);
+}
+
+constexpr simulation_snapshot* simulation_snapshot_handler::back() noexcept
+{
+    return empty()       ? nullptr
+           : m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                         : std::addressof(ring[m_back - 1]);
+}
+
+constexpr const simulation_snapshot* simulation_snapshot_handler::back()
+  const noexcept
+{
+    return empty()       ? nullptr
+           : m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                         : std::addressof(ring[m_back - 1]);
+}
+
+constexpr bool simulation_snapshot_handler::next(
+  simulation_snapshot*& snap) noexcept
+{
+    if (snap == nullptr) {
+        if (empty())
+            return false;
+
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
+
+    const auto idx = ring.index_from_ptr(snap);
+
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
+
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
+
+constexpr bool simulation_snapshot_handler::next(
+  const simulation_snapshot*& snap) const noexcept
+{
+    if (snap == nullptr) {
+        if (m_front == m_back) // ring is empty, returns false
+            return false;
+
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
+
+    const auto idx = ring.index_from_ptr(snap);
+
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
+
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
+
+constexpr bool simulation_snapshot_handler::previous(
+  simulation_snapshot*& snap) noexcept
+{
+    if (snap == nullptr) {
+        if (empty())
+            return false;
+
+        snap = m_back == 0 ? std::addressof(ring[m_capacity - 1])
+                           : std::addressof(ring[m_back - 1]);
+        return true;
+    }
+
+    const auto idx     = ring.index_from_ptr(snap);
+    const auto new_idx = idx == 0 ? m_capacity - 1 : m_back - 1;
+
+    if (new_idx % m_capacity == m_back) {
+        snap = nullptr;
+        return false;
+    }
+
+    snap = std::addressof(ring[new_idx]);
+    return true;
+}
+
+constexpr bool simulation_snapshot_handler::previous(
+  const simulation_snapshot*& snap) const noexcept
+{
+    if (snap == nullptr) {
+        if (m_front == m_back) // ring is empty, returns false
+            return false;
+
+        snap = &ring[m_front]; // otherwise returns oldest element.
+        return true;
+    }
+
+    const auto idx = ring.index_from_ptr(snap);
+
+    if ((idx + 1) % m_capacity == m_front) {
+        snap = nullptr;
+        return false;
+    }
+
+    snap = std::addressof(ring[idx + 1]);
+    return true;
+}
+
+constexpr void simulation_snapshot_handler::erase_after(
+  const simulation_snapshot* snap) noexcept
+{
+    if (snap == nullptr)
+        return;
+
+    const auto idx = ring.index_from_ptr(snap);
+
+    if ((idx + 1) % m_capacity == m_front)
+        return;
+
+    m_back = idx + 1;
+}
+
+constexpr unsigned simulation_snapshot_handler::capacity() const noexcept
+{
+    return m_capacity - 1;
+}
+
+constexpr unsigned simulation_snapshot_handler::size() const noexcept
+{
+    if (m_back >= m_front)
+        return static_cast<unsigned>(m_back - m_front);
+
+    return static_cast<unsigned>(m_capacity - (m_front - m_back));
+}
+
+constexpr int simulation_snapshot_handler::ssize() const noexcept
+{
+    if (m_back >= m_front)
+        return m_back - m_front;
+
+    return m_capacity - (m_front - m_back);
+}
+
+constexpr bool simulation_snapshot_handler::empty() const noexcept
+{
+    return m_front == m_back;
+}
+
+constexpr int simulation_snapshot_handler::index_from_ptr(
+  const simulation_snapshot* ptr) const noexcept
+{
+    return ring.index_from_ptr(ptr);
+}
+
+constexpr bool simulation_snapshot_handler::is_ptr_valid(
+  simulation_snapshot* ptr) const noexcept
+{
+    return ring.data() <= ptr and ptr < ring.data() + ring.size();
+}
+
 } // namespace irt
