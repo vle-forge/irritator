@@ -145,7 +145,7 @@ static void show_simulation_action_buttons(application&    app,
     if (ed.store_all_changes) {
         ImGui::SameLine();
         if (ImGui::Button("step-by-step", small_button))
-            ed.start_simulation_start_1(app);
+            ed.start_simulation_step_by_step(app);
     }
 
     ImGui::SameLine();
