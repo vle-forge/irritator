@@ -55,7 +55,7 @@ target_sources(libirritator
 
 target_compile_options(libirritator PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-        -pipe -march=native -std=c++20
+        $<IF:$<BOOL:${WITH_NATIVE_ARCH}>,-pipe -march=native,-pipe>
         $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /utf-8 /EHsc /bigobj /Zc:__cplusplus /wd5030 /wd4251 /std:c++latest

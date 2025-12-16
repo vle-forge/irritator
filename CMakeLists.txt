@@ -4,7 +4,8 @@ project(irritator VERSION 0.1.0.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 
 option(WITH_GUI "Build the graphical user interface [default: ON]" ON)
-option(WITH_DEBUG "enable maximium debug code. [default: ON]" ON)
+option(WITH_DEBUG "Enable maximium debug code. [default: ON]" ON)
+option(WITH_NATIVE_ARCH "Enable the -march=native flags on GCC/Cang [default: ON]" ON)
 
 find_package(Threads REQUIRED)
 add_library(threads INTERFACE IMPORTED)

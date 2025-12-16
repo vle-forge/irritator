@@ -18,8 +18,8 @@ set_target_properties(app PROPERTIES
 target_compile_options(app
   PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-        -pipe -march=native
-        $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
+    $<IF:$<BOOL:${WITH_NATIVE_ARCH}>,-pipe -march=native,-pipe>
+    $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /utf-8 /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
