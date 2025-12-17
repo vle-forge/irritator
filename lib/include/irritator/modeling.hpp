@@ -28,6 +28,7 @@ enum class hsm_component_id : u32;
 enum class generic_component_id : u32;
 enum class graph_component_id : u32;
 enum class grid_component_id : u32;
+enum class simulation_component_id : u32;
 enum class tree_node_id : u64;
 enum class description_id : u64;
 enum class child_id : u32;

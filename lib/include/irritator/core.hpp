@@ -307,6 +307,7 @@ enum class dir_path_id : u32;
 enum class file_path_id : u32;
 
 enum class hsm_id : u32;
+enum class simulation_id : u32;
 enum class graph_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
@@ -1321,6 +1322,7 @@ public:
 
     data_array<model, model_id>                              models;
     data_array<hierarchical_state_machine, hsm_id>           hsms;
+    data_array<simulation, simulation_id>                    sims;
     data_array<observer, observer_id>                        observers;
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
