@@ -23,11 +23,9 @@ static inline constexpr const std::string_view component_status_string[] = {
     "unreadable"
 };
 
-static constexpr inline const char* component_type_names[] = { "none",
-                                                               "simple",
-                                                               "grid",
-                                                               "graph",
-                                                               "hsm" };
+static constexpr inline const char* component_type_names[] = {
+    "none", "simple", "grid", "graph", "hsm", "simulation"
+};
 
 static_assert(component_type_count == length(component_type_names));
 
@@ -55,26 +53,32 @@ auto get_internal_component_type(std::string_view name) noexcept
   -> std::optional<internal_component>;
 
 static constexpr inline const char* dynamics_type_names[] = {
-    "qss1_integrator", "qss1_multiplier", "qss1_cross",      "qss1_flipflop",
-    "qss1_filter",     "qss1_power",      "qss1_square",     "qss1_sum_2",
-    "qss1_sum_3",      "qss1_sum_4",      "qss1_wsum_2",     "qss1_wsum_3",
-    "qss1_wsum_4",     "qss1_inverse",    "qss1_integer",    "qss1_compare",
-    "qss1_gain",       "qss1_sin",        "qss1_cos",        "qss1_log",
-    "qss1_exp",        "qss2_integrator", "qss2_multiplier", "qss2_cross",
-    "qss2_flipflop",   "qss2_filter",     "qss2_power",      "qss2_square",
-    "qss2_sum_2",      "qss2_sum_3",      "qss2_sum_4",      "qss2_wsum_2",
-    "qss2_wsum_3",     "qss2_wsum_4",     "qss2_inverse",    "qss2_integer",
-    "qss2_compare",    "qss2_gain",       "qss2_sin",        "qss2_cos",
-    "qss2_log",        "qss2_exp",        "qss3_integrator", "qss3_multiplier",
-    "qss3_cross",      "qss3_flipflop",   "qss3_filter",     "qss3_power",
-    "qss3_square",     "qss3_sum_2",      "qss3_sum_3",      "qss3_sum_4",
-    "qss3_wsum_2",     "qss3_wsum_3",     "qss3_wsum_4",     "qss3_inverse",
-    "qss3_integer",    "qss3_compare",    "qss3_gain",       "qss3_sin",
-    "qss3_cos",        "qss3_log",        "qss3_exp",        "counter",
-    "queue",           "dynamic_queue",   "priority_queue",  "generator",
-    "constant",        "time_func",       "accumulator_2",   "logical_and_2",
-    "logical_and_3",   "logical_or_2",    "logical_or_3",    "logical_invert",
-    "hsm_wrapper"
+    "qss1_integrator", "qss1_multiplier", "qss1_cross",
+    "qss1_flipflop",   "qss1_filter",     "qss1_power",
+    "qss1_square",     "qss1_sum_2",      "qss1_sum_3",
+    "qss1_sum_4",      "qss1_wsum_2",     "qss1_wsum_3",
+    "qss1_wsum_4",     "qss1_inverse",    "qss1_integer",
+    "qss1_compare",    "qss1_gain",       "qss1_sin",
+    "qss1_cos",        "qss1_log",        "qss1_exp",
+    "qss2_integrator", "qss2_multiplier", "qss2_cross",
+    "qss2_flipflop",   "qss2_filter",     "qss2_power",
+    "qss2_square",     "qss2_sum_2",      "qss2_sum_3",
+    "qss2_sum_4",      "qss2_wsum_2",     "qss2_wsum_3",
+    "qss2_wsum_4",     "qss2_inverse",    "qss2_integer",
+    "qss2_compare",    "qss2_gain",       "qss2_sin",
+    "qss2_cos",        "qss2_log",        "qss2_exp",
+    "qss3_integrator", "qss3_multiplier", "qss3_cross",
+    "qss3_flipflop",   "qss3_filter",     "qss3_power",
+    "qss3_square",     "qss3_sum_2",      "qss3_sum_3",
+    "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",
+    "qss3_wsum_4",     "qss3_inverse",    "qss3_integer",
+    "qss3_compare",    "qss3_gain",       "qss3_sin",
+    "qss3_cos",        "qss3_log",        "qss3_exp",
+    "counter",         "queue",           "dynamic_queue",
+    "priority_queue",  "generator",       "constant",
+    "time_func",       "accumulator_2",   "logical_and_2",
+    "logical_and_3",   "logical_or_2",    "logical_or_3",
+    "logical_invert",  "hsm_wrapper",     "simulation_wrapper"
 };
 
 //! Try to get the dymamics type from a string. If the string is unknown,
@@ -241,6 +245,7 @@ constexpr static inline auto dot_output_dyn_index =
     1, // logical_or_3,
     1, // logical_invert,
     2, // hsm_wrapper
+    1, // simulation_wrapper
   });
 
 inline constexpr std::span<const std::string_view> get_output_port_names(
@@ -419,6 +424,8 @@ constexpr std::span<const std::string_view> get_output_port_names(
         return get_output_port_names(dot_output_index[1], names);
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return get_output_port_names(dot_output_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
+        return get_output_port_names(dot_output_index[1], names);
 
     unreachable();
 }
@@ -444,26 +451,11 @@ constexpr static inline auto dot_input_names =
                                     "in",
                                     "event" });
 
-constexpr static inline auto input_names =
-  std::to_array<std::string_view>({ "x-dot",
-                                    "reset",
-                                    "in",
-                                    "in-1",
-                                    "in-2",
-                                    "in-3",
-                                    "in-4",
-                                    "in",
-                                    "threshold",
-                                    "in-1",
-                                    "in-2",
-                                    "nb-1",
-                                    "nb-2",
-                                    "value",
-                                    "set-t",
-                                    "add-tr",
-                                    "mult-tr",
-                                    "in",
-                                    "event" });
+constexpr static inline auto input_names = std::to_array<std::string_view>(
+  { "x-dot", "reset", "in",        "in-1",      "in-2",    "in-3",
+    "in-4",  "in",    "threshold", "in-1",      "in-2",    "nb-1",
+    "nb-2",  "value", "set-t",     "add-tr",    "mult-tr", "in",
+    "event", "init",  "run",       "parameters" });
 
 constexpr static inline auto dot_input_index =
   std::to_array<std::pair<unsigned char, unsigned char>>(
@@ -476,88 +468,90 @@ constexpr static inline auto dot_input_index =
       { 7, 2 },   // 6. in..threshold
       { 9, 4 },   // 7. in-1..nb-2
       { 13, 4 },  // 8. value..mult-tr
-      { 17, 2 } } // 9. in..event
+      { 17, 2 },  // 9. in..event
+      { 19, 3 } } // 10. init,run,parameters
   );
 
 constexpr static inline auto dot_input_dyn_index =
   std::to_array<unsigned char>({
-    1, // qss1_integrator,
-    3, // qss1_multiplier,
-    6, // qss1_cross,
-    9, // qss1_flipflop,
-    2, // qss1_filter,
-    2, // qss1_power,
-    2, // qss1_square,
-    3, // qss1_sum_2,
-    4, // qss1_sum_3,
-    5, // qss1_sum_4,
-    3, // qss1_wsum_2,
-    4, // qss1_wsum_3,
-    5, // qss1_wsum_4,
-    2, // qss1_inverse,
-    2, // qss1_integer,
-    3, // qss1_compare
-    2, // qss1_gain,
-    2, // qss1_sin
-    2, // qss1_cos
-    2, // qss1_log
-    2, // qss1_exp
-    1, // qss2_integrator,
-    3, // qss2_multiplier,
-    6, // qss2_cross,
-    9, // qss2_flipflop,
-    2, // qss2_filter,
-    2, // qss2_power,
-    2, // qss2_square,
-    3, // qss2_sum_2,
-    4, // qss2_sum_3,
-    5, // qss2_sum_4,
-    3, // qss2_wsum_2,
-    4, // qss2_wsum_3,
-    5, // qss2_wsum_4,
-    2, // qss2_inverse,
-    2, // qss2_integer,
-    3, // qss2_compare
-    2, // qss2_gain,
-    2, // qss2_sin
-    2, // qss2_cos
-    2, // qss2_log
-    2, // qss2_exp
-    1, // qss3_integrator,
-    3, // qss3_multiplier,
-    6, // qss3_cross,
-    9, // qss3_flipflop,
-    2, // qss3_filter,
-    2, // qss3_power,
-    2, // qss3_square,
-    3, // qss3_sum_2,
-    4, // qss3_sum_3,
-    5, // qss3_sum_4,
-    3, // qss3_wsum_2,
-    4, // qss3_wsum_3,
-    5, // qss3_wsum_4,
-    2, // qss3_inverse,
-    2, // qss3_integer,
-    3, // qss3_compare
-    2, // qss3_gain,
-    2, // qss3_sin
-    2, // qss3_cos
-    2, // qss3_log
-    2, // qss3_exp
-    2, // counter,
-    2, // queue,
-    2, // dynamic_queue,
-    2, // priority_queue,
-    8, // generator,
-    0, // constant,
-    0, // time_func,
-    7, // accumulator_2,
-    3, // logical_and_2,
-    4, // logical_and_3,
-    3, // logical_or_2,
-    4, // logical_or_3,
-    2, // logical_invert,
-    5, // hsm_wrapper
+    1,  // qss1_integrator,
+    3,  // qss1_multiplier,
+    6,  // qss1_cross,
+    9,  // qss1_flipflop,
+    2,  // qss1_filter,
+    2,  // qss1_power,
+    2,  // qss1_square,
+    3,  // qss1_sum_2,
+    4,  // qss1_sum_3,
+    5,  // qss1_sum_4,
+    3,  // qss1_wsum_2,
+    4,  // qss1_wsum_3,
+    5,  // qss1_wsum_4,
+    2,  // qss1_inverse,
+    2,  // qss1_integer,
+    3,  // qss1_compare
+    2,  // qss1_gain,
+    2,  // qss1_sin
+    2,  // qss1_cos
+    2,  // qss1_log
+    2,  // qss1_exp
+    1,  // qss2_integrator,
+    3,  // qss2_multiplier,
+    6,  // qss2_cross,
+    9,  // qss2_flipflop,
+    2,  // qss2_filter,
+    2,  // qss2_power,
+    2,  // qss2_square,
+    3,  // qss2_sum_2,
+    4,  // qss2_sum_3,
+    5,  // qss2_sum_4,
+    3,  // qss2_wsum_2,
+    4,  // qss2_wsum_3,
+    5,  // qss2_wsum_4,
+    2,  // qss2_inverse,
+    2,  // qss2_integer,
+    3,  // qss2_compare
+    2,  // qss2_gain,
+    2,  // qss2_sin
+    2,  // qss2_cos
+    2,  // qss2_log
+    2,  // qss2_exp
+    1,  // qss3_integrator,
+    3,  // qss3_multiplier,
+    6,  // qss3_cross,
+    9,  // qss3_flipflop,
+    2,  // qss3_filter,
+    2,  // qss3_power,
+    2,  // qss3_square,
+    3,  // qss3_sum_2,
+    4,  // qss3_sum_3,
+    5,  // qss3_sum_4,
+    3,  // qss3_wsum_2,
+    4,  // qss3_wsum_3,
+    5,  // qss3_wsum_4,
+    2,  // qss3_inverse,
+    2,  // qss3_integer,
+    3,  // qss3_compare
+    2,  // qss3_gain,
+    2,  // qss3_sin
+    2,  // qss3_cos
+    2,  // qss3_log
+    2,  // qss3_exp
+    2,  // counter,
+    2,  // queue,
+    2,  // dynamic_queue,
+    2,  // priority_queue,
+    8,  // generator,
+    0,  // constant,
+    0,  // time_func,
+    7,  // accumulator_2,
+    3,  // logical_and_2,
+    4,  // logical_and_3,
+    3,  // logical_or_2,
+    4,  // logical_or_3,
+    2,  // logical_invert,
+    5,  // hsm_wrapper
+    10, // simulation_wrapper
   });
 
 inline constexpr std::span<const std::string_view> get_input_port_names(
@@ -736,6 +730,8 @@ constexpr std::span<const std::string_view> get_input_port_names(
         return get_input_port_names(dot_input_index[2], names);
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return get_input_port_names(dot_input_index[5], names);
+    if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
+        return get_input_port_names(dot_input_index[10], names);
 
     unreachable();
 }

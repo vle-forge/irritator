@@ -988,6 +988,11 @@ bool modeling::can_alloc_hsm_component() const noexcept
     return components.can_alloc(1) && hsm_components.can_alloc();
 }
 
+bool modeling::can_alloc_sim_component() const noexcept
+{
+    return components.can_alloc(1) && sim_components.can_alloc();
+}
+
 component& modeling::alloc_grid_component() noexcept
 {
     debug::ensure(can_alloc_grid_component());
@@ -1042,6 +1047,24 @@ component& modeling::alloc_hsm_component() noexcept
     h.clear();
     h.machine.states[0].super_id = hierarchical_state_machine::invalid_state_id;
     h.machine.top_state          = 0;
+
+    return new_compo;
+}
+
+component& modeling::alloc_sim_component() noexcept
+{
+    debug::ensure(can_alloc_sim_component());
+
+    auto new_compo_id = components.alloc_id();
+
+    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo = components.get<component>(new_compo_id);
+    format(new_compo.name, "sim {}", get_index(new_compo_id));
+    new_compo.type  = component_type::simulation;
+    new_compo.state = component_status::modified;
+
+    auto& h             = sim_components.alloc();
+    new_compo.id.sim_id = sim_components.get_id(h);
 
     return new_compo;
 }
@@ -1174,6 +1197,13 @@ void modeling::clear(component& compo) noexcept
           hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
         compo.id.hsm_id = undefined<hsm_component_id>();
         break;
+
+    case component_type::simulation:
+        if (auto* h = sim_components.try_to_get(compo.id.sim_id)) {
+            sim_components.free(*h);
+            compo.id.sim_id = undefined<simulation_component_id>();
+        }
+        break;
     }
 }
 
@@ -1194,6 +1224,9 @@ void modeling::free(graph_component& gen) noexcept
 void modeling::free(component& compo) noexcept
 {
     switch (compo.type) {
+    case component_type::none:
+        break;
+
     case component_type::generic:
         if_data_exists_do(
           generic_components, compo.id.generic_id, [&](auto& g) { free(g); });
@@ -1212,8 +1245,11 @@ void modeling::free(component& compo) noexcept
     case component_type::hsm:
         if_data_exists_do(
           hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
+        break;
 
-    default:
+    case component_type::simulation:
+        if (auto* s = sim_components.try_to_get(compo.id.sim_id))
+            sim_components.free(*s);
         break;
     }
 
@@ -1359,6 +1395,18 @@ status modeling::copy(const component& src, component& dst) noexcept
             dst.type      = component_type::hsm;
         }
         break;
+
+    case component_type::simulation:
+        if (auto* s = sim_components.try_to_get(src.id.sim_id)) {
+            if (not sim_components.can_alloc())
+                return new_error(modeling_errc::simulation_container_full);
+
+            auto& d       = sim_components.alloc(*s);
+            auto  d_id    = sim_components.get_id(d);
+            dst.id.sim_id = d_id;
+            dst.type      = component_type::simulation;
+        }
+        break;
     }
 
     return success();
@@ -1383,11 +1431,10 @@ void modeling::free(dir_path& dir) noexcept
 
 void modeling::free(registred_path& reg_dir) noexcept
 {
-    reg_dir.children.write(
-      [&](auto& vec) noexcept {
-          for (auto dir_id : vec)
-              if (auto* dir = dir_paths.try_to_get(dir_id); dir)
-                  free(*dir);
+    reg_dir.children.write([&](auto& vec) noexcept {
+        for (auto dir_id : vec)
+            if (auto* dir = dir_paths.try_to_get(dir_id); dir)
+                free(*dir);
     });
 
     registred_paths.free(reg_dir);

@@ -28,6 +28,7 @@ enum class hsm_component_id : u32;
 enum class generic_component_id : u32;
 enum class graph_component_id : u32;
 enum class grid_component_id : u32;
+enum class simulation_component_id : u32;
 enum class tree_node_id : u64;
 enum class description_id : u64;
 enum class child_id : u32;
@@ -101,14 +102,15 @@ constexpr int internal_component_count =
   ordinal(internal_component::qss3_van_der_pol) + 1;
 
 enum class component_type : u8 {
-    none,    ///< The component does not reference any container.
-    generic, ///< A classic component-model graph coupling.
-    grid,    ///< Grid with 4, 8 neighbourhood.
-    graph,   ///< Random graph generator
-    hsm      ///< HSM component
+    none,      ///< The component does not reference any container.
+    generic,   ///< A classic component-model graph coupling.
+    grid,      ///< Grid with 4, 8 neighbourhood.
+    graph,     ///< Random graph generator
+    hsm,       ///< HSM component
+    simulation ///< Simulation wrapper component
 };
 
-constexpr int component_type_count = ordinal(component_type::hsm) + 1;
+constexpr int component_type_count = ordinal(component_type::simulation) + 1;
 
 enum class component_status : u8 {
     unread,     ///< The component is not read (It is referenced by another
@@ -189,6 +191,17 @@ struct connection {
                left.index_src == right.index_src and
                left.index_dst == right.index_dst;
     }
+};
+
+/// A wrapper to a simulation project. Stores a references to the project file
+/// (.pirt) file and directory identifiers
+class simulation_component
+{
+public:
+    simulation_component() noexcept = default;
+
+    dir_path_id  dir_id  = undefined<dir_path_id>();
+    file_path_id file_id = undefined<file_path_id>();
 };
 
 /**
@@ -957,10 +970,11 @@ struct component {
     }
 
     union id {
-        generic_component_id generic_id;
-        grid_component_id    grid_id;
-        graph_component_id   graph_id;
-        hsm_component_id     hsm_id;
+        generic_component_id    generic_id;
+        grid_component_id       grid_id;
+        graph_component_id      graph_id;
+        hsm_component_id        hsm_id;
+        simulation_component_id sim_id;
     } id = {};
 
     component_type   type  = component_type::none;
@@ -1426,6 +1440,7 @@ public:
     data_array<grid_component, grid_component_id>       grid_components;
     data_array<graph_component, graph_component_id>     graph_components;
     data_array<hsm_component, hsm_component_id>         hsm_components;
+    data_array<simulation_component, simulation_component_id> sim_components;
 
     id_data_array<void,
                   component_id,
@@ -1531,11 +1546,13 @@ public:
     bool can_alloc_generic_component() const noexcept;
     bool can_alloc_graph_component() const noexcept;
     bool can_alloc_hsm_component() const noexcept;
+    bool can_alloc_sim_component() const noexcept;
 
     component& alloc_grid_component() noexcept;
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
     component& alloc_hsm_component() noexcept;
+    component& alloc_sim_component() noexcept;
 
     /// Checks if the child can be added to the parent to avoid recursive
     /// loop (ie. a component child which need the same component in

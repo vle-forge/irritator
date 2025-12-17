@@ -1789,8 +1789,8 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool try_read_child_hsm_component(const rapidjson::Value& val,
-                                      component_id&           c_id) noexcept
+    bool try_read_child_hsm_sim_component(const rapidjson::Value& val,
+                                          component_id&           c_id) noexcept
     {
         auto_stack a(this, "child simple or grid component");
 
@@ -1819,6 +1819,53 @@ struct json_dearchiver::impl {
                  reg_name, dir_path, file_path, c_id);
     }
 
+    bool copy_string_to_simluation_wrapper_type(i64& p) noexcept
+    {
+        const auto* result =
+          binary_find(std::begin(simulation_wrapper::run_type_names),
+                      std::end(simulation_wrapper::run_type_names),
+                      std::string_view(temp_string));
+
+        p = result ? static_cast<i64>(std::distance(
+                       std::begin(simulation_wrapper::run_type_names), result))
+                   : 0;
+
+        return true;
+    }
+
+    bool read_modeling_dynamics(const rapidjson::Value& val,
+                                simulation_wrapper_tag,
+                                parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics simulation wrapper");
+
+        static constexpr std::string_view n[] = { "run-type", "sim" };
+
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_temp_i64(value) &&
+                       copy_string_to_simluation_wrapper_type(
+                         p.integers[simulation_wrapper_tag::run]);
+
+            case 1: {
+                component_id c;
+                if (try_read_child_hsm_sim_component(value, c)) {
+                    p.integers[simulation_wrapper_tag::id] =
+                      static_cast<i64>(c);
+                    return true;
+                } else {
+                    warning("Simulation component not found");
+                    return true;
+                }
+            }
+
+            default:
+                return error("unknown element");
+            }
+        });
+    }
+
     bool read_modeling_dynamics(const rapidjson::Value& val,
                                 hsm_wrapper_tag,
                                 parameter& p) noexcept
@@ -1833,7 +1880,7 @@ struct json_dearchiver::impl {
             switch (idx) {
             case 0: {
                 component_id c;
-                if (try_read_child_hsm_component(value, c)) {
+                if (try_read_child_hsm_sim_component(value, c)) {
                     p.integers[hsm_wrapper_tag::id] = static_cast<i64>(c);
                     return true;
                 } else {
@@ -2007,6 +2054,10 @@ struct json_dearchiver::impl {
                 c.id.mdl_type,
                 [&]<typename Tag>(const Tag tag) noexcept -> bool {
                     if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
+                        return read_modeling_dynamics(value, tag, param);
+                    } else if constexpr (std::is_same_v<
+                                           Tag,
+                                           simulation_wrapper_tag>) {
                         return read_modeling_dynamics(value, tag, param);
                     } else if constexpr (std::is_same_v<Tag, constant_tag>) {
                         return read_modeling_dynamics(value, compo, tag, param);
@@ -2310,6 +2361,9 @@ struct json_dearchiver::impl {
 
         case component_type::hsm:
             return read_child_simple_or_grid_component(val, c_id);
+
+        case component_type::simulation:
+            break;
         }
 
         return error("unknown element");
@@ -3966,6 +4020,68 @@ struct json_dearchiver::impl {
           }); // FIXME SOURCE and (optional_has_value(id) ? ;
     }
 
+    bool copy_to_sim(simulation_component& sim,
+                     std::string_view      reg,
+                     std::string_view      dir,
+                     std::string_view      file) noexcept
+    {
+        registred_path* reg_ptr = search_reg(reg);
+        dir_path_id     dir_id{};
+        file_path_id    file_id{};
+
+        if (reg_ptr)
+            dir_id = search_dir_in_reg(*reg_ptr, dir);
+
+        if (is_undefined(dir_id))
+            dir_id = search_dir(dir);
+
+        if (is_defined(dir_id))
+            file_id = search_file(mod().dir_paths.get(dir_id), file);
+
+        if (is_defined(file_id)) {
+            sim.dir_id  = dir_id;
+            sim.file_id = file_id;
+            return true;
+        }
+
+        warning("Simulation component fail to access project");
+
+        return false;
+    }
+
+    bool read_simulation_component(const rapidjson::Value& val,
+                                   component&              compo) noexcept
+    {
+        auto_stack _(this, "component simulation");
+
+        auto& sim       = mod().sim_components.alloc();
+        compo.type      = component_type::simulation;
+        compo.id.sim_id = mod().sim_components.get_id(sim);
+
+        name_str           reg_name;
+        directory_path_str dir_path;
+        file_path_str      file_path;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("path"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(reg_name);
+
+                     if ("directory"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(dir_path);
+
+                     if ("file"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(file_path);
+
+                     return true;
+                 }) &&
+               copy_to_sim(sim, reg_name.sv(), dir_path.sv(), file_path.sv());
+    }
+
     bool dispatch_component_type(const rapidjson::Value& val,
                                  component&              compo) noexcept
     {
@@ -3984,6 +4100,9 @@ struct json_dearchiver::impl {
 
         case component_type::hsm:
             return read_hsm_component(val, compo);
+
+        case component_type::simulation:
+            return read_simulation_component(val, compo);
         }
 
         return error("unknown component type: {} ({})",
@@ -5239,6 +5358,38 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
+               const simulation_wrapper_tag,
+               const modeling& mod,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("sim");
+        writer.StartObject();
+
+        const auto id =
+          enum_cast<component_id>(p.integers[simulation_wrapper_tag::id]);
+        const auto* c = mod.components.try_to_get<component>(id);
+
+        if (c)
+            write_child_component_path(mod, *c, writer);
+
+        writer.EndObject();
+
+        writer.Key("run-type");
+        writer.String(simulation_wrapper::run_type_names
+                        [p.integers[simulation_wrapper_tag::run]]
+                          .data(),
+                      static_cast<rapidjson::SizeType>(
+                        simulation_wrapper::run_type_names
+                          [p.integers[simulation_wrapper_tag::run]]
+                            .size()));
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
                const hsm_wrapper_tag,
                const modeling& mod,
                const component& /*compo*/,
@@ -5563,6 +5714,9 @@ struct json_archiver::impl {
                 write_child_component_path(mod, *compo, w);
                 break;
             case component_type::hsm:
+                write_child_component_path(mod, *compo, w);
+                break;
+            case component_type::simulation:
                 write_child_component_path(mod, *compo, w);
                 break;
             }
@@ -6261,6 +6415,24 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
+    void write_simulation_component(modeling&                   mod,
+                                    const simulation_component& sim,
+                                    Writer&                     w) noexcept
+    {
+        if (auto* dir = mod.dir_paths.try_to_get(sim.dir_id)) {
+            const auto view = dir->path.sv();
+            w.Key("directory");
+            w.String(view.data(), view.size());
+        }
+
+        if (auto* file = mod.file_paths.try_to_get(sim.file_id)) {
+            const auto view = file->path.sv();
+            w.Key("file");
+            w.String(view.data(), view.size());
+        }
+    }
+
+    template<typename Writer>
     void do_component_save(Writer& w, modeling& mod, component& compo) noexcept
     {
         w.StartObject();
@@ -6368,6 +6540,12 @@ struct json_archiver::impl {
             if (p)
                 write_hsm_component(*p, w);
         } break;
+
+        case component_type::simulation:
+            auto* p = mod.sim_components.try_to_get(compo.id.sim_id);
+            if (p)
+                write_simulation_component(mod, *p, w);
+            break;
         }
 
         w.EndObject();

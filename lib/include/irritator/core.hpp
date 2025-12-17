@@ -307,6 +307,7 @@ enum class dir_path_id : u32;
 enum class file_path_id : u32;
 
 enum class hsm_id : u32;
+enum class simulation_id : u32;
 enum class graph_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
@@ -838,12 +839,13 @@ enum class dynamics_type : u8 {
     logical_or_2,
     logical_or_3,
     logical_invert,
-    hsm_wrapper
+    hsm_wrapper,
+    simulation_wrapper
 };
 
 constexpr i8 dynamics_type_last() noexcept
 {
-    return static_cast<i8>(dynamics_type::hsm_wrapper);
+    return static_cast<i8>(dynamics_type::simulation_wrapper);
 }
 
 constexpr sz dynamics_type_size() noexcept
@@ -1321,6 +1323,7 @@ public:
 
     data_array<model, model_id>                              models;
     data_array<hierarchical_state_machine, hsm_id>           hsms;
+    data_array<simulation, simulation_id>                    sims;
     data_array<observer, observer_id>                        observers;
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
@@ -1754,15 +1757,24 @@ inline constexpr auto get_message(simulation&       sim,
                                   const input_port& port) noexcept
   -> std::span<message>;
 
-/** Get a message from the list of messages according to the QSS level. If the
- * lists is empty(), this function returns a message with zero values, if the
- * list contains one value, is returns it finally, if the list contains more
- * messages, the message with the maximum value, slope and derivative is
- * returned.
- */
+/// Get a message from the list of messages according to the QSS level. If the
+/// lists is @c empty(), this function returns a message with zero values, if
+/// the list contains one value, is returns it finally, if the list contains
+/// more messages, the message with the maximum value, slope and derivative is
+/// returned.
 template<size_t QssLevel>
 inline auto get_qss_message(std::span<const message> msgs) noexcept
   -> const message&;
+
+/// Get the minimum value (@c message[0]) from the list of messages. If the list
+/// is empty, this function returns zero.
+constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
+  -> real;
+
+/// Get the maximum value (@c message[0]) from the list of messages. If the list
+/// is empty, this function returns zero.
+constexpr inline auto get_max_message(std::span<const message> msgs) noexcept
+  -> real;
 
 inline status send_message(simulation&    sim,
                            output_port_id output_port,
@@ -5043,6 +5055,64 @@ struct hsm_wrapper {
     observation_message observation(time t, time e) const noexcept;
 };
 
+/// A wrapper to a simulation object in @c simulation::sims array.
+///
+/// This dynamics allows to embed a simulation engine into the current
+/// simulation graph. The embedded simulation can be controlled via input port
+/// to initialize and run the simulation (with different run modes).
+///
+/// The simulation must have only one public parameter and only one observation
+/// message. The observation message will be copied to the @c y[0] output port.
+struct simulation_wrapper {
+    input_port     x[3]   = {};
+    output_port_id y[1]   = {};
+    simulation_id  sim_id = {};
+
+    constexpr static inline std::string_view run_type_names[] = {
+        "bag", "complete", "during", "time", "until",
+    };
+
+    /// Manage the behaviour of the embedded simulation.
+    enum class run_type : u8 {
+        bag,      ///< Run the simulation for a bag.
+        complete, ///< Run until the end of the simulation (time lime or
+                  ///< infinity).
+        during,   ///< Run for @c real parameter in message or infinity.
+        time,     ///< Run the simulation until the time change.
+        until,    ///< Run until @c real parameter in message or infinity.
+    };
+
+    enum i_port : u8 {
+        input_init, ///< Like simulation, a message on this port initialize the
+                    ///< simulation (copy parameter into models). Useless wit
+                    ///< the @c run_type::complete parameter.
+        input_run,  ///< Run the simulation according to the @c run_type
+                    ///< parameter.
+        input_parameter ///< A message to reset a parameter in the embedded
+                        ///< simulation. Send message to @c input_init port to
+                        ///< copy into models.
+    };
+
+    enum o_port : u8 {
+        output_observation ///< Observation message from the embedded
+                           ///< simulation.
+    };
+
+    time     sigma = time_domain<time>::infinity;
+    run_type run   = run_type::complete;
+
+    simulation_wrapper() noexcept = default;
+
+    /// Copy ctor does not copy embedded simulation and reset @c sim_id.
+    simulation_wrapper(const simulation_wrapper& other) noexcept;
+
+    status initialize(simulation& sim) noexcept;
+    status transition(simulation& sim, time t, time e, time r) noexcept;
+    status lambda(simulation& sim) noexcept;
+    status finalize(simulation& sim) noexcept;
+    observation_message observation(time t, time e) const noexcept;
+};
+
 template<std::size_t PortNumber>
 struct accumulator {
     input_port x[2u * PortNumber] = {};
@@ -5648,7 +5718,8 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(logical_or_2),
                sizeof(logical_or_3),
                sizeof(logical_invert),
-               sizeof(hsm_wrapper));
+               sizeof(hsm_wrapper),
+               sizeof(simulation_wrapper));
 }
 
 template<typename Dynamics>
@@ -5720,7 +5791,8 @@ concept dynamics =
   std::is_same_v<Dynamics, logical_or_2> or
   std::is_same_v<Dynamics, logical_or_3> or
   std::is_same_v<Dynamics, logical_invert> or
-  std::is_same_v<Dynamics, hsm_wrapper>;
+  std::is_same_v<Dynamics, hsm_wrapper> or
+  std::is_same_v<Dynamics, simulation_wrapper>;
 
 struct model {
     real tl     = zero;
@@ -5897,6 +5969,9 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return dynamics_type::hsm_wrapper;
+
+    if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
+        return dynamics_type::simulation_wrapper;
 
     unreachable();
 }
@@ -6218,6 +6293,12 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const hsm_wrapper*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+
+    case dynamics_type::simulation_wrapper:
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const simulation_wrapper*>(&mdl.dyn),
+          std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -6463,6 +6544,10 @@ constexpr auto dispatch(model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::hsm_wrapper:
         return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn),
                  std::forward<Args>(args)...);
+
+    case dynamics_type::simulation_wrapper:
+        return f(*reinterpret_cast<simulation_wrapper*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -6568,6 +6653,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::generator:
     case dynamics_type::time_func:
     case dynamics_type::hsm_wrapper:
+    case dynamics_type::simulation_wrapper:
     case dynamics_type::accumulator_2:
     case dynamics_type::qss1_integer:
     case dynamics_type::qss2_integer:
@@ -7000,6 +7086,18 @@ inline auto get_qss_message(std::span<const message> msgs) noexcept
 
               return false;
           });
+}
+
+constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
+  -> real
+{
+    return msgs.empty() ? zero : (*std::ranges::min_element(msgs))[0];
+}
+
+constexpr inline auto get_max_message(std::span<const message> msgs) noexcept
+  -> real
+{
+    return msgs.empty() ? zero : (*std::ranges::max_element(msgs))[0];
 }
 
 /**
@@ -8618,6 +8716,8 @@ inline bool simulation::can_alloc(dynamics_type      type,
 {
     if (type == dynamics_type::hsm_wrapper)
         return models.can_alloc(place) && hsms.can_alloc(place);
+    else if (type == dynamics_type::simulation_wrapper)
+        return models.can_alloc(place) and sims.can_alloc(place);
     else
         return models.can_alloc(place);
 }
@@ -8628,6 +8728,8 @@ inline bool simulation::can_alloc_dynamics(
 {
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return models.can_alloc(place) && hsms.can_alloc(place);
+    else if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
+        return models.can_alloc(place) && sims.can_alloc(place);
     else
         return models.can_alloc(place);
 }

@@ -431,6 +431,40 @@ static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
     param.reals[hsm_wrapper_tag::timer] = dyn.exec.timer;
 }
 
+static void model_init(const parameter& param, simulation_wrapper& dyn) noexcept
+{
+    switch (param.integers[simulation_wrapper_tag::run]) {
+    case ordinal(simulation_wrapper::run_type::complete):
+        dyn.run = simulation_wrapper::run_type::complete;
+        break;
+    case ordinal(simulation_wrapper::run_type::bag):
+        dyn.run = simulation_wrapper::run_type::bag;
+        break;
+    case ordinal(simulation_wrapper::run_type::time):
+        dyn.run = simulation_wrapper::run_type::time;
+        break;
+    case ordinal(simulation_wrapper::run_type::until):
+        dyn.run = simulation_wrapper::run_type::until;
+        break;
+    case ordinal(simulation_wrapper::run_type::during):
+        dyn.run = simulation_wrapper::run_type::during;
+        break;
+    default:
+        dyn.run = simulation_wrapper::run_type::complete;
+        break;
+    }
+
+    dyn.sim_id =
+      enum_cast<simulation_id>(param.integers[simulation_wrapper_tag::id]);
+}
+
+static void parameter_init(parameter&                param,
+                           const simulation_wrapper& dyn) noexcept
+{
+    param.integers[simulation_wrapper_tag::run] = ordinal(dyn.run);
+    param.integers[simulation_wrapper_tag::id]  = ordinal(dyn.sim_id);
+}
+
 static void model_init(const parameter& param, time_func& dyn) noexcept
 {
     dyn.offset   = param.reals[time_func_tag::offset];

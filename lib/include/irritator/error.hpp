@@ -103,6 +103,11 @@ enum class simulation_errc : std::int16_t {
     output_port_error,
     dated_messages_container_full,
 
+    embedded_simulation_source_error,
+    embedded_simulation_initialization_error,
+    embedded_simulation_search_error,
+    embedded_simulation_finalization_error,
+
     abstract_compare_output_value_error,
     abstract_compare_a_b_value_error,
     abstract_filter_threshold_condition_error,
@@ -205,6 +210,8 @@ enum class modeling_errc : std::int16_t {
     hsm_connection_container_full,
     hsm_connection_already_exist,
     hsm_children_container_full,
+
+    simulation_container_full,
 
     generic_input_connection_container_full,
     generic_output_connection_container_full,

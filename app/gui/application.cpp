@@ -622,7 +622,7 @@ void application::show_dock() noexcept
             auto* ge = graph_eds.try_to_get(v.graph_ed_id);
 
             if (not(tn and go and ge))
-                return false;
+                return true;
 
             small_string<64> name;
             format(
@@ -631,13 +631,13 @@ void application::show_dock() noexcept
             if (ge->show(name.c_str(), *this, *pj, *tn, *go) ==
                 graph_editor::show_result_type::request_to_close) {
                 graph_eds.free(*ge);
-                return false;
+                return true;
             }
         } else {
-            return false;
+            return true;
         }
 
-        return true;
+        return false;
     });
 
     if (output_ed.is_open)

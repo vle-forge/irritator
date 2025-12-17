@@ -643,6 +643,14 @@ static void show_dynamics_values(application&       app,
     ImGui::LabelFormat("timer", "{}", dyn.exec.timer);
 }
 
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const simulation_wrapper& dyn)
+{
+    ImGui::LabelFormat("run-type", "{}", ordinal(dyn.run));
+    ImGui::LabelFormat("id", "{}", ordinal(dyn.sim_id));
+}
+
 static constexpr auto is_in_node(
   std::span<generic_simulation_editor::node> nodes,
   const model_id                             mdl_id) noexcept

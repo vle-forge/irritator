@@ -704,6 +704,34 @@ static bool show_parameter(hsm_wrapper_tag,
     return changed;
 }
 
+constexpr static inline const char* simulation_wrapper_tag_run_type_names[] = {
+    "bag", "complete", "during", "time", "until",
+};
+
+template<typename ExternalSourceType>
+static bool show_parameter(simulation_wrapper_tag,
+                           application& app,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& p) noexcept
+{
+    int changed = false;
+
+    auto i = static_cast<int>(p.integers[simulation_wrapper_tag::run]);
+
+    if (ImGui::Combo("run-type",
+                     &i,
+                     simulation_wrapper_tag_run_type_names,
+                     length(simulation_wrapper_tag_run_type_names))) {
+        p.integers[simulation_wrapper_tag::run] = i;
+        ++changed;
+    }
+
+    if (ImGui::Button("simulation-id"))
+        debug::breakpoint();
+
+    return changed;
+}
+
 bool show_parameter_editor(application&                app,
                            external_source_definition& srcs,
                            dynamics_type               type,

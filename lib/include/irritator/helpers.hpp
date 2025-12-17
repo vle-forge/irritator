@@ -107,6 +107,12 @@ struct hsm_wrapper_tag {
         source_value
     };
 };
+struct simulation_wrapper_tag {
+    enum parameter_names : u8 {
+        run = 0,
+        id,
+    };
+};
 
 /** Dispatch the callable @c f with @c args argument according to @c type.
  *
@@ -325,6 +331,11 @@ constexpr auto dispatch(const dynamics_type type,
         return std::invoke(std::forward<Function>(f),
                            hsm_wrapper_tag{},
                            std::forward<Args>(args)...);
+
+    case dynamics_type::simulation_wrapper:
+        return std::invoke(std::forward<Function>(f),
+                           simulation_wrapper_tag{},
+                           std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -439,7 +450,7 @@ template<typename T>
 struct is_expected<::irt::expected<T>> : std::true_type {};
 
 /** A for-each-condition function which reads each element of the vector @c Vec
- * and apply the function @c Fn. If the function @c Fn returns false, the
+ * and apply the function @c Fn. If the function @c Fn returns true, the
  * element is removed from the vector using the @c vector<T>::erase .
  *
  * @code
@@ -449,24 +460,25 @@ struct is_expected<::irt::expected<T>> : std::true_type {};
  *           auto* obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
  *
  *           if (not(ged and obs))
- *               return false;
+ *               return true;
  *
  *           ged->show(app, ed, tn, *obs);
  *       }
  *
- *       return true;
+ *       return false;
  *   });
  * @endcode
  */
 template<typename Vec, typename Fn, typename... Args>
 void for_each_cond(Vec& vec, Fn&& fn, Args&&... args) noexcept
 {
-    for (auto it = vec.begin(); it != vec.end();) {
-        if (fn(*it, args...))
-            ++it;
-        else
-            it = vec.erase(it);
-    }
+    const auto [first, last] =
+      std::ranges::remove_if(vec, [&](const auto& elem) {
+          return std::invoke(
+            std::forward<Fn>(fn), elem, std::forward<Args>(args)...);
+      });
+
+    vec.erase(first, last);
 }
 
 //! @brief Apply the function @c f for all elements of the @c data_array.

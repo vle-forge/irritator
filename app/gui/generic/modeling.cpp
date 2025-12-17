@@ -912,6 +912,8 @@ static void show_popup_menuitem(application&                   app,
           app, parent, s_parent, dynamics_type::accumulator_2, click_pos);
         add_popup_menuitem(
           app, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
+        add_popup_menuitem(
+          app, parent, s_parent, dynamics_type::simulation_wrapper, click_pos);
 
         ImGui::EndPopup();
     }

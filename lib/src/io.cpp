@@ -75,9 +75,12 @@ auto get_component_type(std::string_view name) noexcept
     };
 
     static constexpr string_to_type table[] = {
-        { "graph", component_type::graph },    { "grid", component_type::grid },
-        { "hsm", component_type::hsm },        { "none", component_type::none },
+        { "graph", component_type::graph },
+        { "grid", component_type::grid },
+        { "hsm", component_type::hsm },
+        { "none", component_type::none },
         { "simple", component_type::generic },
+        { "simulation", component_type::simulation }
     };
 
     auto it = binary_find(
@@ -185,6 +188,7 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
         { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
         { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
         { "queue", dynamics_type::queue },
+        { "simulation_wrapper", dynamics_type::simulation_wrapper },
         { "time_func", dynamics_type::time_func }
     };
 

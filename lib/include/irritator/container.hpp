@@ -5378,6 +5378,9 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
   iterator first,
   iterator last) noexcept
 {
+    if (first == last)
+        return end();
+
     debug::ensure(first >= data() && first < data() + m_size && last > first &&
                   last <= data() + m_size);
 
