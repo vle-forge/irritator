@@ -861,7 +861,7 @@ static int show_all_visualisation_editor(application&    app,
         auto* tn    = ed.pj.tree_nodes.try_to_get(v.tn_id);
 
         if (not(g_ed and g_obs and tn))
-            return false;
+            return true;
 
         ImGui::PushID(current_pos);
         g_ed->show(app, ed, *tn, *g_obs);
@@ -873,7 +873,7 @@ static int show_all_visualisation_editor(application&    app,
             ImGui::TableNextRow();
         }
         ImGui::TableNextColumn();
-        return true;
+        return false;
     });
 
     return current_pos;
@@ -893,7 +893,7 @@ static int show_part_visualisation_editor(application&    app,
             auto* g_obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
 
             if (not(g_ed and g_obs))
-                return false;
+                return true;
 
             ImGui::PushID(current_pos);
             g_ed->show(app, ed, tn, *g_obs);
@@ -906,7 +906,7 @@ static int show_part_visualisation_editor(application&    app,
             }
             ImGui::TableNextColumn();
         }
-        return true;
+        return false;
     });
 
     return current_pos;
