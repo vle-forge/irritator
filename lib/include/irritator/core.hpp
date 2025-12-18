@@ -5030,8 +5030,8 @@ struct hsm_wrapper {
 /// This dynamics allows to embed a simulation engine into the current
 /// simulation graph.
 struct simulation_wrapper {
-    input_port    x[3]   = {};
-    output_port   y[1]   = {};
+    input_port    x[6]   = {};
+    output_port   y[4]   = {};
     simulation_id sim_id = {};
 
     /// Manage the behaviour of the embedded simulation.
@@ -5055,9 +5055,13 @@ struct simulation_wrapper {
                         ///< copy into models.
     };
 
-    time sigma;
+    model_id parameters[4] = {};
+    time     sigma         = time_domain<time>::infinity;
+    run_type run           = run_type::complete;
 
-    simulation_wrapper() noexcept;
+    simulation_wrapper() noexcept = default;
+
+    /// Copy ctor does not copy embedded simulation and reset @c sim_id.
     simulation_wrapper(const simulation_wrapper& other) noexcept;
 
     status initialize(simulation& sim) noexcept;

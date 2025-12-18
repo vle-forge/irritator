@@ -46,7 +46,7 @@ set(private_irritator_sources
     src/timeline.cpp
     src/variable-observer.cpp)
 
-add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources})
+add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources} "src/simulation.cpp")
 add_library(libirritator::libirritator ALIAS libirritator)
 
 target_sources(libirritator
@@ -120,7 +120,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN})
+  add_executable(${test_name} ${ARGN} "src/simulation.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
