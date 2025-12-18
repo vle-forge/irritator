@@ -5025,6 +5025,48 @@ struct hsm_wrapper {
     observation_message observation(time t, time e) const noexcept;
 };
 
+/// A wrapper to a simulation object in @c simulation::sims array.
+///
+/// This dynamics allows to embed a simulation engine into the current
+/// simulation graph.
+struct simulation_wrapper {
+    input_port    x[3]   = {};
+    output_port   y[1]   = {};
+    simulation_id sim_id = {};
+
+    /// Manage the behaviour of the embedded simulation.
+    enum class run_type : u8 {
+        complete, ///< Run until the end of the simulation (time lime or
+                  ///< infinity).
+        bag,      ///< Run the simulation for a bag.
+        time,     ///< Run the simulation until the time change.
+        until,    ///< Run until @c real parameter in message or infinity.
+        during,   ///< Run for @c real parameter in message or infinity.
+    };
+
+    enum input_port : u8 {
+        input_init, ///< Like simulation, a message on this port initialize the
+                    ///< simulation (copy parameter into models). Useless wit
+                    ///< the @c run_type::complete parameter.
+        input_run,  ///< Run the simulation according to the @c run_type
+                    ///< parameter.
+        input_parameter ///< A message to reset a parameter in the embedded
+                        ///< simulation. Send message to @c input_init port to
+                        ///< copy into models.
+    };
+
+    time sigma;
+
+    simulation_wrapper() noexcept;
+    simulation_wrapper(const simulation_wrapper& other) noexcept;
+
+    status initialize(simulation& sim) noexcept;
+    status transition(simulation& sim, time t, time e, time r) noexcept;
+    status lambda(simulation& sim) noexcept;
+    status finalize(simulation& sim) noexcept;
+    observation_message observation(time t, time e) const noexcept;
+};
+
 template<std::size_t PortNumber>
 struct accumulator {
     input_port x[2u * PortNumber] = {};

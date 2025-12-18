@@ -192,6 +192,49 @@ struct connection {
     }
 };
 
+/// A wrapper to a simulation project
+class simulation_component
+{
+public:
+    struct file_access_r {
+        dir_path_id  dir_id  = undefined<dir_path_id>();
+        file_path_id file_id = undefined<file_path_id>();
+    };
+
+    enum struct status : u8 {
+        nothing_to_do,
+        work_in_progress,
+        file_access_error,
+        done
+    };
+
+    auto get_file_access() const noexcept -> file_access_r;
+
+    /// Read the project from @c dir_id and @c file_id and fill input, outputs
+    /// ports numbers.
+    ///
+    /// @param tasks To perform the read in a @c task.
+    /// @param dir_id
+    /// @param file_id
+    void set_file_access(ordered_task_list& tasks,
+                         dir_path_id        dir_id,
+                         file_path_id       file_id) noexcept;
+
+    /// Waiting current job and clear the component.
+    void clear(ordered_task_list& task) noexcept;
+
+    auto get_status() const noexcept -> status;
+
+private:
+    dir_path_id  m_dir_id  = undefined<dir_path_id>();
+    file_path_id m_file_id = undefined<file_path_id>();
+
+    vector<name_str> inputs;
+    vector<name_str> outputs;
+
+    std::atomic<status> m_status = status::nothing_to_do;
+};
+
 /**
    A wrapper to the simulation @c hierarchical_state_machine class.
 
