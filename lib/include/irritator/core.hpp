@@ -5028,10 +5028,14 @@ struct hsm_wrapper {
 /// A wrapper to a simulation object in @c simulation::sims array.
 ///
 /// This dynamics allows to embed a simulation engine into the current
-/// simulation graph.
+/// simulation graph. The embedded simulation can be controlled via input port
+/// to initialize and run the simulation (with different run modes).
+///
+/// The simulation must have only one public parameter and only one observation
+/// message. The observation message will be copied to the @c y[0] output port.
 struct simulation_wrapper {
-    input_port    x[6]   = {};
-    output_port   y[4]   = {};
+    input_port    x[3]   = {};
+    output_port   y[1]   = {};
     simulation_id sim_id = {};
 
     /// Manage the behaviour of the embedded simulation.
@@ -5055,9 +5059,8 @@ struct simulation_wrapper {
                         ///< copy into models.
     };
 
-    model_id parameters[4] = {};
-    time     sigma         = time_domain<time>::infinity;
-    run_type run           = run_type::complete;
+    time     sigma = time_domain<time>::infinity;
+    run_type run   = run_type::complete;
 
     simulation_wrapper() noexcept = default;
 
