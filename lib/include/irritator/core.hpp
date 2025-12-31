@@ -8644,58 +8644,6 @@ inline observation_message hsm_wrapper::observation(time t,
     };
 }
 
-inline simulation_wrapper::simulation_wrapper(
-  const simulation_wrapper& other) noexcept
-  : sim_id{ undefined<simulation_id>() }
-  , sigma{ time_domain<time>::infinity }
-  , run{ other.run }
-{}
-
-inline status simulation_wrapper::initialize(simulation& sim) noexcept
-{
-    // TODO Must add observer/observation detection.
-
-    if (auto* ptr = sim.sims.try_to_get(sim_id))
-        return ptr->initialize();
-
-    return new_error(simulation_errc::embedded_simulation_initialization_error);
-}
-
-inline status simulation_wrapper::transition(simulation& sim,
-                                             time        t,
-                                             time        e,
-                                             time        r) noexcept
-{
-    if (auto* ptr = sim.sims.try_to_get(sim_id)) {
-        switch (run) {
-        case run_type::complete:;
-            return ptr->run();
-
-        case run_type::bag:
-            return ptr->run();
-
-        case run_type::time:
-            return ptr->run();
-
-        case run_type::until:
-            return ptr->run();
-
-        case run_type::during:
-            return ptr->run();
-        };
-    }
-
-    return new_error(simulation_errc::embedded_simulation_initialization_error);
-}
-
-inline status simulation_wrapper::lambda(simulation& sim) noexcept {}
-
-inline status simulation_wrapper::finalize(simulation& sim) noexcept {}
-
-inline observation_message simulation_wrapper::observation(time t, time e)
-  const noexcept
-{}
-
 inline bool simulation::can_alloc(std::integral auto place) const noexcept
 {
     return models.can_alloc(place);

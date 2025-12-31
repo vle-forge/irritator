@@ -43,6 +43,7 @@ set(private_irritator_sources
     src/modeling-internal.cpp
     src/parameter.cpp
     src/project.cpp
+    src/simulation.cpp
     src/timeline.cpp
     src/variable-observer.cpp)
 
