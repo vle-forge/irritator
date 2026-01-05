@@ -420,8 +420,9 @@ vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
         for (auto id : ids)
             ret.emplace_back(id);
 
+        const auto view = ret.view();
         std::sort(
-          ret.begin(), ret.end(), [&](const auto a, const auto b) noexcept {
+          view.begin(), view.end(), [&](const auto a, const auto b) noexcept {
               const auto idx_a = get_index(a);
               const auto idx_b = get_index(b);
 

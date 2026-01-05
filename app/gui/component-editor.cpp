@@ -56,7 +56,7 @@ bool push_back_if_not_find(application&          app,
                            vector<component_id>& vec,
                            const component_id    id) noexcept
 {
-    if (std::ranges::none_of(vec,
+    if (std::ranges::none_of(vec.view(),
                              [id](const auto other) { return id == other; })) {
         if (not vec.can_alloc(1) and not vec.template grow<2, 1>()) {
             app.jn.push(log_level::error,
@@ -166,7 +166,7 @@ static auto combobox_component_id(const modeling&             mod,
             p_id = undefined<port_id>();
         }
 
-        for (const auto id : component_list) {
+        component_list.for_each([&](const auto id) {
             if (mod.components.exists(id)) {
                 ImGui::PushID(ordinal(id));
                 if (ImGui::Selectable(
@@ -177,7 +177,7 @@ static auto combobox_component_id(const modeling&             mod,
                 }
                 ImGui::PopID();
             }
-        }
+        });
 
         ImGui::EndCombo();
     }
@@ -232,40 +232,37 @@ static void show_connection_pack(const modeling&          mod,
                                  PortGetter&& port_getter_fn) noexcept
 {
     auto& port_x_or_y = port_getter_fn(compo);
-    auto  it          = pack.begin();
     auto  push_id     = 0;
 
-    while (it != pack.end()) {
-        if (not port_x_or_y.exists(it->parent_port) or
-            not mod.components.exists(it->child_component) or
+    pack.erase_if([&](const auto& pack) noexcept -> bool {
+        if (not port_x_or_y.exists(pack.parent_port) or
+            not mod.components.exists(pack.child_component) or
             not port_getter_fn(
-                  mod.components.get<component>(it->child_component))
-                  .exists(it->child_port)) {
-            it = pack.erase(it);
-        } else {
-            const auto& child =
-              mod.components.get<component>(it->child_component);
-            auto to_del = false;
-
-            ImGui::PushID(push_id++);
-            if (ImGui::Button("-"))
-                to_del = true;
-            ImGui::SameLine();
-            ImGui::TextFormat(
-              "x: {} to component {} port {}",
-              port_x_or_y.template get<port_str>(it->parent_port).sv(),
-              child.name.sv(),
-              port_getter_fn(child)
-                .template get<port_str>(it->child_port)
-                .sv());
-
-            if (to_del)
-                it = pack.erase(it);
-            else
-                ++it;
-            ImGui::PopID();
+                  mod.components.get<component>(pack.child_component))
+                  .exists(pack.child_port)) {
+            return true;
         }
-    }
+
+        const auto& child = mod.components.get<component>(pack.child_component);
+        auto        to_del = false;
+
+        ImGui::PushID(push_id++);
+        if (ImGui::Button("-"))
+            to_del = true;
+        ImGui::SameLine();
+        ImGui::TextFormat(
+          "x: {} to component {} port {}",
+          port_x_or_y.template get<port_str>(pack.parent_port).sv(),
+          child.name.sv(),
+          port_getter_fn(child).template get<port_str>(pack.child_port).sv());
+
+        if (to_del)
+            return true;
+
+        ImGui::PopID();
+
+        return false;
+    });
 }
 
 struct component_editor::impl {
@@ -536,7 +533,7 @@ struct component_editor::impl {
                     const auto exists = reg_dir->children.read(
                       [&](const auto& vec, const auto /*ver*/) {
                           return path_exist(
-                            app.mod.dir_paths, vec, dir_name.sv());
+                            app.mod.dir_paths, vec.view(), dir_name.sv());
                       });
 
                     if (exists) {
@@ -1865,7 +1862,7 @@ struct component_editor::impl {
 
             if (is_defined(p) and is_defined(c_p) and is_defined(c) and
                 std::ranges::none_of(
-                  compo.input_connection_pack, [&](const auto& con) {
+                  compo.input_connection_pack.view(), [&](const auto& con) {
                       return con.parent_port == p and con.child_port == c_p and
                              con.child_component == c;
                   })) {
@@ -1909,7 +1906,7 @@ struct component_editor::impl {
 
             if (is_defined(p) and is_defined(c_p) and is_defined(c) and
                 std::ranges::none_of(
-                  compo.output_connection_pack, [&](const auto& con) {
+                  compo.output_connection_pack.view(), [&](const auto& con) {
                       return con.parent_port == p and con.child_port == c_p and
                              con.child_component == c;
                   })) {
@@ -2141,67 +2138,59 @@ struct component_editor::impl {
 
     static void display_tabs(application& app) noexcept
     {
-        auto it = app.component_ed.tabs.begin();
-
-        while (it != app.component_ed.tabs.end()) {
-            auto to_del = false;
-
-            switch (it->type) {
+        app.component_ed.tabs.erase_if([&](auto& elem) noexcept -> bool {
+            switch (elem.type) {
             case component_type::generic:
-                if (display_component_editor(
-                      app, app.generics, it->data.generic, *it) ==
-                    component_editor::show_result_t::request_to_close) {
-                    app.generics.free(it->data.generic);
-                    to_del = true;
+                if (show_result_t::request_to_close ==
+                    display_component_editor(
+                      app, app.generics, elem.data.generic, elem)) {
+                    app.generics.free(elem.data.generic);
+                    return true;
                 }
                 break;
 
             case component_type::grid:
-                if (display_component_editor(
-                      app, app.grids, it->data.grid, *it) ==
-                    component_editor::show_result_t::request_to_close) {
-                    app.grids.free(it->data.grid);
-                    to_del = true;
+                if (show_result_t::request_to_close ==
+                    display_component_editor(
+                      app, app.grids, elem.data.grid, elem)) {
+                    app.grids.free(elem.data.grid);
+                    return true;
                 }
                 break;
 
             case component_type::graph:
-                if (display_component_editor(
-                      app, app.graphs, it->data.graph, *it) ==
-                    component_editor::show_result_t::request_to_close) {
-                    app.graphs.free(it->data.graph);
-                    to_del = true;
+                if (show_result_t::request_to_close ==
+                    display_component_editor(
+                      app, app.graphs, elem.data.graph, elem)) {
+                    app.graphs.free(elem.data.graph);
+                    return true;
                 }
                 break;
 
             case component_type::hsm:
-                if (display_component_editor(
-                      app, app.hsms, it->data.hsm, *it) ==
-                    component_editor::show_result_t::request_to_close) {
-                    app.hsms.free(it->data.hsm);
-                    to_del = true;
+                if (show_result_t::request_to_close ==
+                    display_component_editor(
+                      app, app.hsms, elem.data.hsm, elem)) {
+                    app.hsms.free(elem.data.hsm);
+                    return true;
                 }
                 break;
 
             case component_type::simulation:
-                if (display_component_editor(
-                      app, app.sims, it->data.sim, *it) ==
-                    component_editor::show_result_t::request_to_close) {
-                    app.sims.free(it->data.sim);
-                    to_del = true;
+                if (show_result_t::request_to_close ==
+                    display_component_editor(
+                      app, app.sims, elem.data.sim, elem)) {
+                    app.sims.free(elem.data.sim);
+                    return true;
                 }
                 break;
 
             default:
-                to_del = true;
                 break;
             }
 
-            if (to_del)
-                it = app.component_ed.tabs.erase(it);
-            else
-                ++it;
-        }
+            return false;
+        });
     }
 };
 
@@ -2218,41 +2207,38 @@ void component_editor::display() noexcept
 }
 
 static auto find_in_tabs(const vector<component_editor::tab>& v,
-                         const component_id                   id) noexcept
-  -> vector<component_editor::tab>::const_iterator
+                         const component_id id) noexcept -> std::optional<int>
 {
-    const auto is_id = [id](const auto& d) { return id == d.id; };
-
-    return std::ranges::find_if(v, is_id);
+    return v.find_if([&](const auto& d) -> bool { return id == d.id; });
 }
 
 void component_editor::close(const component_id id) noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (auto it = find_in_tabs(tabs, id); it != tabs.end()) {
-        switch (it->type) {
+    if (auto idx = find_in_tabs(tabs, id); idx.has_value()) {
+        switch (tabs[*idx].type) {
         case component_type::generic:
-            app.generics.free(it->data.generic);
+            app.generics.free(tabs[*idx].data.generic);
             break;
 
         case component_type::grid:
-            app.grids.free(it->data.grid);
+            app.grids.free(tabs[*idx].data.grid);
             break;
 
         case component_type::graph:
-            app.graphs.free(it->data.graph);
+            app.graphs.free(tabs[*idx].data.graph);
             break;
 
         case component_type::hsm:
-            app.hsms.free(it->data.hsm);
+            app.hsms.free(tabs[*idx].data.hsm);
             break;
 
         default:
             break;
         }
 
-        tabs.erase(it);
+        tabs.erase(*idx);
     }
 }
 
@@ -2266,7 +2252,7 @@ void component_editor::request_to_open(const component_id id) noexcept
     auto& app   = container_of(this, &application::component_ed);
     auto& compo = app.mod.components.get<component>(id);
 
-    if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
+    if (auto idx = find_in_tabs(tabs, id); not idx.has_value()) {
         switch (compo.type) {
         case component_type::generic:
             if (app.generics.can_alloc(1)) {
@@ -2357,7 +2343,7 @@ void component_editor::clear_request_to_open() noexcept
 
 bool component_editor::is_component_open(const component_id id) const noexcept
 {
-    return find_in_tabs(tabs, id) != tabs.end();
+    return find_in_tabs(tabs, id).has_value();
 }
 
 void component_editor::add_generic_component_data() noexcept

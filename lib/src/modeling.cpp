@@ -458,19 +458,14 @@ static void prepare_component_loading(modeling&       mod,
 
 static void prepare_component_loading(modeling& mod) noexcept
 {
-    int i = 0;
-    while (i < mod.component_repertories.ssize()) {
-        const auto id      = mod.component_repertories[i];
-        auto*      reg_dir = mod.registred_paths.try_to_get(id);
-
-        if (reg_dir) {
+    mod.component_repertories.erase_if([&](const auto id) noexcept -> bool {
+        if (auto* reg_dir = mod.registred_paths.try_to_get(id)) {
             prepare_component_loading(mod, *reg_dir);
-            ++i;
-        } else {
-            auto it = mod.component_repertories.begin() + i;
-            mod.component_repertories.erase(it);
+            return false;
         }
-    }
+
+        return true;
+    });
 }
 
 status modeling::load_component(component& compo) noexcept
@@ -647,9 +642,10 @@ status modeling::fill_components() noexcept
 status modeling::fill_components(registred_path& path) noexcept
 {
     path.children.write([&](auto& vec) noexcept {
-        for (auto dir_id : vec)
+        vec.for_each([&](const auto dir_id) {
             if (auto* dir = dir_paths.try_to_get(dir_id))
                 free(*dir);
+        });
 
         vec.clear();
 
@@ -669,13 +665,13 @@ status modeling::fill_components(registred_path& path) noexcept
 }
 
 auto search_reg(const modeling& mod, std::string_view name) noexcept
-  -> const registred_path*
+  -> registred_path_id
 {
     for (const auto& reg : mod.registred_paths)
         if (name == reg.name.sv())
-            return &reg;
+            return mod.registred_paths.get_id(reg);
 
-    return nullptr;
+    return undefined<registred_path_id>();
 }
 
 auto search_dir_in_reg(const modeling&       mod,
@@ -684,7 +680,7 @@ auto search_dir_in_reg(const modeling&       mod,
 {
     return reg.children.read(
       [&](const auto& vec, const auto /*version*/) -> dir_path* {
-          for (auto dir_id : vec)
+          for (auto dir_id : vec.view())
               if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir)
                   if (name == dir->path.sv())
                       return dir;
@@ -696,11 +692,11 @@ auto search_dir_in_reg(const modeling&       mod,
 auto search_dir(const modeling& mod, std::string_view name) noexcept
   -> const dir_path*
 {
-    for (auto reg_id : mod.component_repertories) {
+    for (auto reg_id : mod.component_repertories.view()) {
         if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
             auto* dir = reg->children.read(
               [&](const auto& vec, const auto /*version*/) -> dir_path* {
-                  for (auto dir_id : vec) {
+                  for (auto dir_id : vec.view()) {
                       if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
                           if (dir->path.sv() == name)
                               return dir;
@@ -723,7 +719,7 @@ auto search_file(const modeling&  mod,
 {
     return dir.children.read(
       [&](const auto& vec, const auto /*version*/) noexcept -> file_path* {
-          for (auto file_id : vec)
+          for (auto file_id : vec.view())
               if (auto* file = mod.file_paths.try_to_get(file_id); file)
                   if (file->path.sv() == name)
                       return file;
@@ -755,12 +751,11 @@ component_id modeling::search_component_by_name(
   std::string_view dir,
   std::string_view file) const noexcept
 {
-    const registred_path* reg_ptr  = search_reg(*this, reg);
-    const dir_path*       dir_ptr  = nullptr;
-    const file_path*      file_ptr = nullptr;
+    const dir_path*  dir_ptr  = nullptr;
+    const file_path* file_ptr = nullptr;
 
-    if (reg_ptr)
-        dir_ptr = search_dir_in_reg(*this, *reg_ptr, dir);
+    if (auto reg_id = search_reg(*this, reg); is_defined(reg_id))
+        dir_ptr = search_dir_in_reg(*this, registred_paths.get(reg_id), dir);
 
     if (not dir_ptr)
         dir_ptr = search_dir(*this, dir);
@@ -795,7 +790,7 @@ static bool exist_file(const dir_path& dir, const file_path_id id) noexcept
 {
     return dir.children.read(
       [&](const auto& vec, const auto /*version*/) noexcept {
-          return std::find(vec.begin(), vec.end(), id) != vec.end();
+          return vec.find(id).has_value();
       });
 }
 
@@ -960,8 +955,8 @@ void modeling::move_file(registred_path& /*reg*/,
     auto id = file_paths.get_id(file);
 
     from.children.write([&](auto& vec) noexcept {
-        if (auto it = std::find(vec.begin(), vec.end(), id); it != vec.end())
-            vec.erase(it);
+        if (auto it = vec.find(id); it.has_value())
+            vec.erase(*it);
     });
 
     debug::ensure(!exist_file(to, id));
@@ -1423,7 +1418,7 @@ void modeling::free(file_path& file) noexcept
 void modeling::free(dir_path& dir) noexcept
 {
     dir.children.write([&](auto& vec) noexcept {
-        for (auto file_id : vec)
+        for (auto file_id : vec.view())
             if (auto* file = file_paths.try_to_get(file_id); file)
                 free(*file);
     });
@@ -1434,7 +1429,7 @@ void modeling::free(dir_path& dir) noexcept
 void modeling::free(registred_path& reg_dir) noexcept
 {
     reg_dir.children.write([&](auto& vec) noexcept {
-        for (auto dir_id : vec)
+        for (auto dir_id : vec.view())
             if (auto* dir = dir_paths.try_to_get(dir_id); dir)
                 free(*dir);
     });

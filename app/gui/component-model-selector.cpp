@@ -21,11 +21,10 @@ static void try_append(const application&                             app,
 {
     debug::ensure(out.ssize() == names.ssize());
 
-    if (auto it = std::find_if(
-          out.begin(),
-          out.end(),
-          [&](const auto& elem) noexcept { return elem.second == tn.id; });
-        it == out.end()) {
+    const auto idx =
+      out.find_if([&](const auto& elem) { return elem.second == tn.id; });
+
+    if (not idx.has_value()) {
         if (auto* compo = app.mod.components.try_to_get<component>(tn.id);
             compo) {
             out.emplace_back(std::make_pair(pj.tree_nodes.get_id(tn), tn.id));

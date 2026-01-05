@@ -326,7 +326,7 @@ public:
           unordered_worker_count == 0 ? 1 : unordered_worker_count,
           reserve_tag)
     {
-        for (auto& l : m_ordered_lists)
+        for (auto& l : m_ordered_lists.view())
             m_ordered_workers.emplace_back(l);
 
         const auto span = std::span<unordered_task_list>(
@@ -338,21 +338,21 @@ public:
 
     void start()
     {
-        for (auto& w : m_ordered_workers)
+        for (auto& w : m_ordered_workers.view())
             w.start();
-        for (auto& w : m_unordered_workers)
+        for (auto& w : m_unordered_workers.view())
             w.start();
     }
 
     void shutdown()
     {
-        for (auto& l : m_ordered_lists)
+        for (auto& l : m_ordered_lists.view())
             l.shutdown();
-        for (auto& l : m_unordered_lists)
+        for (auto& l : m_unordered_lists.view())
             l.shutdown();
-        for (auto& w : m_ordered_workers)
+        for (auto& w : m_ordered_workers.view())
             w.join();
-        for (auto& w : m_unordered_workers)
+        for (auto& w : m_unordered_workers.view())
             w.join();
     }
 

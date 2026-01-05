@@ -254,7 +254,8 @@ static void show_project_file_access(application&    app,
             if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
                 const auto exists = reg_dir->children.read(
                   [&](const auto& vec, const auto /*ver*/) {
-                      return path_exist(app.mod.dir_paths, vec, dir_name.sv());
+                      return path_exist(
+                        app.mod.dir_paths, vec.view(), dir_name.sv());
                   });
 
                 if (exists) {

@@ -390,7 +390,7 @@ void library_window::show_dirpath_content(
                           dir.path.ssize(),
                           dir.path.data())) {
         dir.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-            std::ranges::for_each(vec, [&](const auto file_id) noexcept {
+            std::ranges::for_each(vec.view(), [&](const auto file_id) noexcept {
                 auto* file = app.mod.file_paths.try_to_get(file_id);
                 if (file == nullptr)
                     return;
@@ -444,13 +444,13 @@ void library_window::show_repertories_content(
     auto& app = container_of(this, &application::library_wnd);
     auto& mod = app.mod;
 
-    for (auto id : mod.component_repertories) {
+    mod.component_repertories.for_each([&](const auto id) noexcept {
         small_string<31>  s;
         small_string<31>* select;
 
         auto* reg_dir = mod.registred_paths.try_to_get(id);
         if (!reg_dir || reg_dir->status == registred_path::state::error)
-            continue;
+            return;
 
         if (reg_dir->name.empty()) {
             format(s, "{}", ordinal(id));
@@ -462,22 +462,24 @@ void library_window::show_repertories_content(
         ImGui::PushID(reg_dir);
         if (ImGui::TreeNodeEx(select->c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-            reg_dir->children.read([&](const auto& vec,
-                                       const auto /*version*/) noexcept {
-                std::ranges::for_each(vec, [&](const auto dir_id) noexcept {
-                    auto* dir = mod.dir_paths.try_to_get(dir_id);
-                    if (dir == nullptr or dir->status == dir_path::state::error)
-                        return false;
+            reg_dir->children.read(
+              [&](const auto& vec, const auto /*version*/) noexcept {
+                  std::ranges::for_each(
+                    vec.view(), [&](const auto dir_id) noexcept {
+                        auto* dir = mod.dir_paths.try_to_get(dir_id);
+                        if (dir == nullptr or
+                            dir->status == dir_path::state::error)
+                            return false;
 
-                    show_dirpath_content(*dir, flags);
-                    return false;
-                });
-            });
+                        show_dirpath_content(*dir, flags);
+                        return false;
+                    });
+              });
 
             ImGui::TreePop();
         }
         ImGui::PopID();
-    }
+    });
 }
 
 void library_window::try_set_component_as_project(

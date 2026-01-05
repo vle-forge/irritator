@@ -774,7 +774,7 @@ static status external_source_copy(const modeling&                   mod,
             auto& n_src =
               *std::get_if<external_source_definition::constant_source>(
                 &src_elems[id]);
-            auto& n_res   = dst.constant_sources.alloc(n_src.data);
+            auto& n_res   = dst.constant_sources.alloc(n_src.data.view());
             n_res.name    = src_names[id];
             auto n_res_id = dst.constant_sources.get_id(n_res);
 
@@ -925,8 +925,8 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
                                           const vector<model_port>& outputs,
                                           simulation& sim) noexcept
 {
-    for (auto src : outputs) {
-        for (auto dst : inputs) {
+    for (auto src : outputs.view()) {
+        for (auto dst : inputs.view()) {
             if (auto ret = sim.connect(sim.models.get(src.mdl),
                                        src.port,
                                        sim.models.get(dst.mdl),
@@ -1021,7 +1021,7 @@ static void get_input_pack_models(
   const port_id                                         p,
   const data_array<generic_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.input_connection_pack) {
+    for (const auto& con : compo.input_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1046,7 +1046,7 @@ static void get_input_pack_models(
   const port_id                                       p,
   const data_array<graph_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.input_connection_pack) {
+    for (const auto& con : compo.input_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1070,7 +1070,7 @@ static void get_input_pack_models(
   const port_id                                      p,
   const data_array<grid_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.input_connection_pack) {
+    for (const auto& con : compo.input_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1208,7 +1208,7 @@ static void get_output_pack_models(
   const port_id                                         p,
   const data_array<generic_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.output_connection_pack) {
+    for (const auto& con : compo.output_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1233,7 +1233,7 @@ static void get_output_pack_models(
   const port_id                                       p,
   const data_array<graph_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.output_connection_pack) {
+    for (const auto& con : compo.output_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1257,7 +1257,7 @@ static void get_output_pack_models(
   const port_id                                      p,
   const data_array<grid_component::child, child_id>& children) noexcept
 {
-    for (const auto& con : compo.output_connection_pack) {
+    for (const auto& con : compo.output_connection_pack.view()) {
         if (con.parent_port != p)
             continue;
 
@@ -1327,7 +1327,7 @@ static auto prepare_sum_connections(
 
     auto contains =
       [](const auto& vec, const auto* tn, const auto p_id) noexcept -> bool {
-        return std::ranges::any_of(vec,
+        return std::ranges::any_of(vec.view(),
                                    [tn, p_id](const auto& e) noexcept -> bool {
                                        return e.is_equal(tn, p_id);
                                    });
@@ -1447,19 +1447,19 @@ static status simulation_copy_sum_connections(
   vector<sum_connection>&   connections,
   simulation&               sim) noexcept
 {
-    if (auto it = std::ranges::find_if(
-          connections,
-          [&](auto& elem) noexcept { return elem.is_equal(&tn, p_id); });
-        it != connections.end()) {
+    if (auto f = connections.find_if(
+          [&](const auto& elem) { return elem.is_equal(&tn, p_id); });
+        f.has_value()) {
+        auto& elem = connections[*f];
 
-        for (const auto& dst : inputs) {
-            if (auto ret = it->add_output_connection(sim, dst.mdl, dst.port);
+        for (const auto& dst : inputs.view()) {
+            if (auto ret = elem.add_output_connection(sim, dst.mdl, dst.port);
                 not ret)
                 return ret.error();
         }
 
-        for (const auto& src : outputs)
-            if (auto ret = it->add_source_connection(sim, src.mdl, src.port);
+        for (const auto& src : outputs.view())
+            if (auto ret = elem.add_source_connection(sim, src.mdl, src.port);
                 not ret)
                 return ret.error();
     }

@@ -52,7 +52,7 @@ inline file_path_id get_file_from_component(const modeling&        mod,
             ret = d->children.read(
               [&](const auto& vec,
                   const auto /*version*/) noexcept -> file_path_id {
-                  for (const auto f_id : vec)
+                  for (const auto f_id : vec.view())
                       if (const auto* f = mod.file_paths.try_to_get(f_id); f)
                           if (f->path.sv() == str)
                               return f_id;
@@ -68,9 +68,9 @@ inline file_path_id get_file_from_component(const modeling&        mod,
 /// Check if a @c T with name @c name exists in the @c data_array @c data. Used
 /// for @c file_path, @c dir_path and @c reg_path.
 template<typename T, typename Identifier>
-constexpr bool path_exist(const data_array<T, Identifier>& data,
-                          const vector<Identifier>&        container,
-                          std::string_view                 name) noexcept
+constexpr bool path_exist(const data_array<T, Identifier>&  data,
+                          const std::span<const Identifier> container,
+                          std::string_view                  name) noexcept
 {
     for (const auto id : container)
         if (const auto* item = data.try_to_get(id))

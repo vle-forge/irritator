@@ -675,7 +675,7 @@ static constexpr void build_links(
   std::span<generic_simulation_editor::node> nodes,
   vector<generic_simulation_editor::link>&   links) noexcept
 {
-    for (const auto& child : tn.children) {
+    for (const auto& child : tn.children.view()) {
         if (child.type == tree_node::child_node::type::model) {
             if (auto* mdl = sim.models.try_to_get(child.mdl)) {
                 dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
@@ -713,7 +713,7 @@ static constexpr void build_nodes(
 {
     constexpr std::string_view empty_name;
 
-    for (const auto& child : tn.children) {
+    for (const auto& child : tn.children.view()) {
         if (child.type == tree_node::child_node::type::model) {
             if (sim.models.try_to_get(child.mdl)) {
                 const auto* name = tn.model_id_to_unique_id.get(child.mdl);
@@ -786,7 +786,7 @@ static constexpr int copy(application&                                   app,
 {
     int ret = false;
 
-    for (const auto index : selection) {
+    for (const auto index : selection.view()) {
         if (pj_ed.pj.sim.models.try_to_get(nodes[index].mdl)) {
             if (not pj_ed.commands.push(command{
                   .type = command_type::copy_model,
@@ -837,7 +837,7 @@ static int free_model(application&       app,
 {
     int ret = false;
 
-    for (const auto index : selection) {
+    for (const auto index : selection.view()) {
         if (auto* mdl = pj_ed.pj.sim.models.try_to_get_from_pos(index)) {
             if (not pj_ed.commands.push(command{
                   .type = command_type::free_model,
@@ -902,7 +902,7 @@ static int disconnect(application&                                   app,
 {
     int ret = false;
 
-    for (const auto link_index : selection) {
+    selection.for_each([&](const auto link_index) {
         auto out = get_out(pj_ed.pj.sim, links[link_index].out);
         auto in  = get_in(pj_ed.pj.sim, links[link_index].in);
 
@@ -920,13 +920,11 @@ static int disconnect(application&                                   app,
                                 title = "Internal error during disconnection";
                                 msg   = "Project command order list is full";
                             });
-
-                return ret;
             }
 
             ++ret;
         }
-    }
+    });
 
     return ret;
 }
@@ -936,7 +934,7 @@ static void compute_connection_distance(
   const float                                    k,
   std::span<ImVec2>                              displacements) noexcept
 {
-    for (const auto& link : links) {
+    links.for_each([&](const auto& link) {
         const auto out = get_model_output_port(link.out);
         const auto in  = get_model_input_port(link.in);
 
@@ -955,7 +953,7 @@ static void compute_connection_distance(
             displacements[link.mdl_in].x -= dx * coeff;
             displacements[link.mdl_in].y -= dy * coeff;
         }
-    }
+    });
 }
 
 void generic_simulation_editor::compute_automatic_layout() noexcept
@@ -1341,7 +1339,7 @@ void generic_simulation_editor::init(application&     app,
         links_2nd.clear();
 
         build_nodes(pj_ed.pj.sim, tn, nodes_2nd);
-        build_links(pj_ed.pj.sim, tn, nodes_2nd, links_2nd);
+        build_links(pj_ed.pj.sim, tn, nodes_2nd.view(), links_2nd);
 
         if (std::unique_lock lock(mutex); lock.owns_lock()) {
             std::swap(links, links_2nd);
@@ -1364,7 +1362,7 @@ void generic_simulation_editor::init(application&    app,
         links_2nd.clear();
 
         build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes_2nd);
-        build_flat_links(pj_ed.pj.sim, nodes_2nd, links_2nd);
+        build_flat_links(pj_ed.pj.sim, nodes_2nd.view(), links_2nd);
 
         if (std::unique_lock lock(mutex); lock.owns_lock()) {
             std::swap(links, links_2nd);
@@ -1387,10 +1385,10 @@ void generic_simulation_editor::start_rebuild_task(
 
         if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(current)) {
             build_nodes(pj_ed.pj.sim, *tn, nodes_2nd);
-            build_links(pj_ed.pj.sim, *tn, nodes_2nd, links_2nd);
+            build_links(pj_ed.pj.sim, *tn, nodes_2nd.view(), links_2nd);
         } else {
             build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes_2nd);
-            build_flat_links(pj_ed.pj.sim, nodes_2nd, links_2nd);
+            build_flat_links(pj_ed.pj.sim, nodes_2nd.view(), links_2nd);
         }
 
         if (std::unique_lock lock(mutex); lock.owns_lock()) {
@@ -1464,7 +1462,7 @@ bool generic_simulation_editor::display(application&    app,
             if (is_editor_hovered and not ImGui::IsAnyItemHovered()) {
                 if (num_selected_nodes > 0) {
                     selected_nodes.resize(num_selected_nodes, -1);
-                    ImNodes::GetSelectedNodes(selected_nodes.begin());
+                    ImNodes::GetSelectedNodes(selected_nodes.data());
 
                     if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
                         changes +=
@@ -1482,9 +1480,8 @@ bool generic_simulation_editor::display(application&    app,
                     selected_links.resize(num_selected_links);
 
                     if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-                        std::fill_n(
-                          selected_links.begin(), selected_links.size(), -1);
-                        ImNodes::GetSelectedLinks(selected_links.begin());
+                        std::ranges::fill(selected_links.view(), -1);
+                        ImNodes::GetSelectedLinks(selected_links.data());
                         changes += disconnect(
                           app, pj_ed, current, links, selected_links);
                         selected_links.clear();

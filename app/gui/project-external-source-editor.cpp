@@ -119,7 +119,7 @@ auto show_data_file_input(const modeling&    mod,
         if (ImGui::BeginCombo("Select file", preview)) {
             dir->children.read(
               [&](const auto& vec, const auto /*version*/) noexcept {
-                  for (const auto f_id : vec) {
+                  for (const auto f_id : vec.view()) {
                       if (const auto* file = mod.file_paths.try_to_get(f_id);
                           file) {
                           const auto str = file->path.sv();

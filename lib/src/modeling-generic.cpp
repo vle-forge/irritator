@@ -238,7 +238,7 @@ static status import_in_generic(
     }
 
     if (gen.children_positions.size() <= positions.size()) {
-        for (const auto pair : src_to_this.data) {
+        for (const auto pair : src_to_this.data.view()) {
             const auto* src = children.try_to_get(pair.id);
             const auto* dst = gen.children.try_to_get(pair.value);
 
@@ -252,7 +252,7 @@ static status import_in_generic(
     }
 
     if (gen.children_names.size() <= names.size()) {
-        for (const auto pair : src_to_this.data) {
+        for (const auto pair : src_to_this.data.view()) {
             const auto* src = children.try_to_get(pair.id);
             const auto* dst = gen.children.try_to_get(pair.value);
 
@@ -269,7 +269,7 @@ static status import_in_generic(
     }
 
     if (gen.children_parameters.size() < parameters.size()) {
-        for (const auto pair : src_to_this.data) {
+        for (const auto pair : src_to_this.data.view()) {
             const auto* src = children.try_to_get(pair.id);
             const auto* dst = gen.children.try_to_get(pair.value);
 

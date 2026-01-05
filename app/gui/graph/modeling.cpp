@@ -64,7 +64,7 @@ static auto dot_file_combobox(const modeling& mod,
 
         dir.children.read(
           [&](const auto& vec, const auto /*version*/) noexcept {
-              for (const auto elem_id : vec) {
+              for (const auto elem_id : vec.view()) {
                   if (const auto* elem = mod.file_paths.try_to_get(elem_id);
                       elem and elem->type == file_path::file_type::dot_file) {
                       ImGui::PushID(++local_id);
@@ -371,7 +371,7 @@ void graph_component_editor_data::show_graph(application& app,
 
             if (not selected_nodes.empty() and
                 ImGui::MenuItem("Delete nodes")) {
-                for (auto id : selected_nodes) {
+                for (auto id : selected_nodes.view()) {
                     if (data.g.nodes.exists(id))
                         data.g.nodes.free(id);
                 }
@@ -380,7 +380,7 @@ void graph_component_editor_data::show_graph(application& app,
 
             if (not selected_edges.empty() and
                 ImGui::MenuItem("Delete edges")) {
-                for (auto id : selected_edges)
+                for (auto id : selected_edges.view())
                     if (data.g.edges.exists(id))
                         data.g.edges.free(id);
                 selected_edges.clear();
@@ -501,7 +501,7 @@ void graph_component_editor_data::show_graph(application& app,
           p_min, p_max, get_component_u32color(app, data.g.node_components[i]));
     }
 
-    for (const auto id : selected_nodes) {
+    selected_nodes.for_each([&](const auto id) {
         const auto i = get_index(id);
 
         ImVec2 p_min(origin.x + (data.g.node_positions[i][0] * zoom.x),
@@ -520,7 +520,7 @@ void graph_component_editor_data::show_graph(application& app,
           0.f,
           0,
           4.f);
-    }
+    });
 
     for (const auto id : data.g.edges) {
         const auto i   = get_index(id);
@@ -551,13 +551,13 @@ void graph_component_editor_data::show_graph(application& app,
           src, dst, to_ImU32(app.config.colors[style_color::edge]), 1.f);
     }
 
-    for (const auto id : selected_edges) {
+    selected_edges.for_each([&](const auto id) {
         const auto idx = get_index(id);
         const auto u_c = data.g.edges_nodes[idx][0].first;
         const auto v_c = data.g.edges_nodes[idx][1].first;
 
         if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
-            continue;
+            return;
 
         const auto p_src = get_index(u_c);
         const auto p_dst = get_index(v_c);
@@ -581,7 +581,7 @@ void graph_component_editor_data::show_graph(application& app,
           dst,
           to_ImU32(app.config.colors[style_color::edge_active]),
           1.0f);
-    }
+    });
 
     if (run_selection) {
         end_selection = io.MousePos;
@@ -1061,7 +1061,7 @@ void graph_component_editor_data::show_selected_nodes(
 
     if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
         if (ImGui::TreeNodeEx("selected nodes")) {
-            for (const auto id : selected_nodes) {
+            for (const auto id : selected_nodes.view()) {
                 if (graph->g.nodes.exists(id)) {
                     const auto idx = get_index(id);
                     ImGui::PushID(idx);
@@ -1129,7 +1129,7 @@ void graph_component_editor_data::show_selected_nodes(
             if (auto r = app.component_sel.combobox("component",
                                                     undefined<component_id>());
                 r) {
-                for (const auto id : selected_nodes) {
+                for (const auto id : selected_nodes.view()) {
                     if (graph->g.nodes.exists(id)) {
                         graph->g.node_components[id] = r.id;
                     }
@@ -1138,7 +1138,7 @@ void graph_component_editor_data::show_selected_nodes(
 
             static auto area = 1.f;
             if (ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
-                for (const auto id : selected_nodes) {
+                for (const auto id : selected_nodes.view()) {
                     if (graph->g.nodes.exists(id)) {
                         graph->g.node_areas[id] = area;
                     }

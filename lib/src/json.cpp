@@ -2104,7 +2104,7 @@ struct json_dearchiver::impl {
     {
         return reg.children.read(
           [&](const auto& vec, const auto /*version*/) -> dir_path_id {
-              for (const auto dir_id : vec) {
+              for (const auto dir_id : vec.view()) {
                   if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
                       if (name == dir->path.sv())
                           return dir_id;
@@ -2119,16 +2119,19 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "search directory");
 
-        for (auto reg_id : mod().component_repertories) {
-            if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
-                const auto dir_id = search_dir_in_reg(*reg, name);
+        const auto opt =
+          mod().component_repertories.find_if([&](const auto reg_id) {
+              if (auto* reg = mod().registred_paths.try_to_get(reg_id)) {
+                  const auto dir_id = search_dir_in_reg(*reg, name);
 
-                if (dir_id != undefined<dir_path_id>()) {
-                    out = dir_id;
-                    return true;
-                }
-            }
-        }
+                  if (dir_id != undefined<dir_path_id>()) {
+                      out = dir_id;
+                      return true;
+                  }
+              }
+
+              return false;
+          });
 
         return error("directory not found");
     }
@@ -2143,7 +2146,7 @@ struct json_dearchiver::impl {
             const auto id = dir->children.read(
               [&](const auto& vec,
                   const auto /*version*/) noexcept -> file_path_id {
-                  for (const auto file_id : vec)
+                  for (const auto file_id : vec.view())
                       if (auto* f = mod().file_paths.try_to_get(file_id); f)
                           if (f->path.sv() == file_name)
                               return file_id;
@@ -2171,7 +2174,7 @@ struct json_dearchiver::impl {
     {
         return reg.children.read(
           [&](const auto& vec, const auto /*version*/) noexcept -> dir_path_id {
-              for (const auto dir_id : vec)
+              for (const auto dir_id : vec.view())
                   if (auto* dir = mod().dir_paths.try_to_get(dir_id))
                       if (dir->path.sv() == dir_name)
                           return dir_id;
@@ -2190,7 +2193,7 @@ struct json_dearchiver::impl {
                     const std::string_view dir_name) const noexcept
       -> dir_path_id
     {
-        for (auto reg_id : mod().component_repertories) {
+        for (auto reg_id : mod().component_repertories.view()) {
             if (auto* reg = mod().registred_paths.try_to_get(reg_id);
                 reg and reg->name.sv() == reg_path) {
                 return search_dir(*reg, dir_name);
@@ -2208,13 +2211,13 @@ struct json_dearchiver::impl {
     auto search_dir(const std::string_view dir_name) const noexcept
       -> dir_path_id
     {
-        for (auto reg_id : mod().component_repertories) {
+        for (auto reg_id : mod().component_repertories.view()) {
             if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
 
                 const auto search_result = reg->children.read(
                   [&](const auto& vec,
                       const auto /*vers*/) noexcept -> dir_path_id {
-                      for (auto dir_id : vec) {
+                      for (auto dir_id : vec.view()) {
                           if (auto* dir = mod().dir_paths.try_to_get(dir_id);
                               dir) {
                               if (dir->path.sv() == dir_name)
@@ -2262,7 +2265,7 @@ struct json_dearchiver::impl {
     {
         return dir.children.read(
           [&](const auto& vec, const auto /*vers*/) noexcept -> file_path_id {
-              for (auto file_id : vec)
+              for (auto file_id : vec.view())
                   if (auto* file = mod().file_paths.try_to_get(file_id); file)
                       if (file->path.sv() == name)
                           return file_id;
@@ -5535,7 +5538,7 @@ struct json_archiver::impl {
     {
         w.Key("parameters");
         w.StartArray();
-        for (const auto v : cst.data)
+        for (const auto v : cst.data.view())
             w.Double(v);
         w.EndArray();
     }
@@ -5779,7 +5782,7 @@ struct json_archiver::impl {
                                 const component& compo,
                                 Writer&          w) noexcept
     {
-        for (const auto& con : compo.input_connection_pack) {
+        compo.input_connection_pack.for_each([&](const auto& con) {
             if (compo.x.exists(con.parent_port) and
                 mod.components.exists(con.child_component) and
                 mod.components.get<component>(con.child_component)
@@ -5792,13 +5795,13 @@ struct json_archiver::impl {
                 write_child_component(mod, con.child_component, w);
                 w.String("child-port");
                 w.String(mod.components.get<component>(con.child_component)
-                           .x.get<port_str>(con.child_port)
+                           .x.template get<port_str>(con.child_port)
                            .c_str());
                 w.EndObject();
             }
-        }
+        });
 
-        for (const auto& con : compo.output_connection_pack) {
+        compo.output_connection_pack.for_each([&](const auto& con) {
             if (compo.y.exists(con.parent_port) and
                 mod.components.exists(con.child_component) and
                 mod.components.get<component>(con.child_component)
@@ -5811,11 +5814,11 @@ struct json_archiver::impl {
                 write_child_component(mod, con.child_component, w);
                 w.String("child-port");
                 w.String(mod.components.get<component>(con.child_component)
-                           .y.get<port_str>(con.child_port)
+                           .y.template get<port_str>(con.child_port)
                            .c_str());
                 w.EndObject();
             }
-        }
+        });
     }
 
     template<typename Writer>

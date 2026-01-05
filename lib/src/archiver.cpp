@@ -357,7 +357,9 @@ struct binary_archiver::impl {
             buffer.resize(size);
             io(buffer.data(), size);
             buffer[size] = '\0';
-            src.file_path.assign(buffer.begin(), buffer.end());
+
+            const auto view = buffer.view();
+            src.file_path.assign(view.begin(), view.end());
             return true;
         } else {
             auto str       = src.file_path.string();
@@ -386,7 +388,9 @@ struct binary_archiver::impl {
             buffer.resize(size);
             io(buffer.data(), size);
             buffer[size] = '\0';
-            src.file_path.assign(buffer.begin(), buffer.end());
+
+            const auto view = buffer.view();
+            src.file_path.assign(view.begin(), view.end());
             return true;
         } else {
             auto str       = src.file_path.string();

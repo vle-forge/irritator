@@ -917,12 +917,12 @@ static bool write_constant_sources(std::FILE*        os,
 
     // Write the list of constant source where the number of uses is greater
     // than 0.
-    for (const auto& pair : sim_to_cpp.data) {
+    sim_to_cpp.data.for_each([&](const auto& pair) {
         if (pair.value > 0) {
             const auto& src = sim.srcs.constant_sources.get(pair.id);
             write_test_simulation_constant_source(os, src, pair.id);
         }
-    }
+    });
 
     return true;
 }
@@ -952,12 +952,12 @@ static bool write_test_simulation_hsm(std::FILE*        os,
 
     // Write this new list of hierarchical_state_machine with the new
     // identifier.
-    for (const auto& pair : sim_to_cpp.data) {
+    sim_to_cpp.data.for_each([&](const auto& pair) {
         if (pair.value > 0) {
             const auto& src = sim.hsms.get(pair.id);
             write_test_simulation_hsm(os, src, pair.id);
         }
-    }
+    });
 
     return true;
 }

@@ -93,7 +93,7 @@ static auto combobox_dir(application&          app,
           reg.children.read([&](const auto& vec,
                                 const auto /*version*/) noexcept -> bool {
               auto has_changes = false;
-              for (const auto id : vec) {
+              vec.for_each([&](const auto id) {
                   if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
                       ImGui::PushID(get_index(id));
 
@@ -104,7 +104,7 @@ static auto combobox_dir(application&          app,
 
                       ImGui::PopID();
                   }
-              }
+              });
 
               return has_changes;
           });
@@ -634,7 +634,7 @@ void application::show_dock() noexcept
             close_project_window(pjs.get_id(*to_close));
     }
 
-    for_each_cond(sim_wnds, [&](const auto& v) noexcept {
+    sim_wnds.erase_if([&](const auto& v) noexcept {
         if (auto* pj = pjs.try_to_get(v.pj_id)) {
             auto* tn = pj->pj.tree_nodes.try_to_get(v.tn_id);
             auto* go = pj->pj.graph_observers.try_to_get(v.graph_obs_id);
@@ -754,12 +754,9 @@ auto build_unique_component_vector(application& app, tree_node& tn)
         auto* cur = stack.back();
         stack.pop_back();
 
-        if (auto* compo = app.mod.components.try_to_get<component>(cur->id);
-            compo) {
-            if (auto it = std::find(ret.begin(), ret.end(), cur->id);
-                it == ret.end())
+        if (app.mod.components.try_to_get<component>(cur->id))
+            if (not ret.find(cur->id).has_value())
                 ret.emplace_back(cur->id);
-        }
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);

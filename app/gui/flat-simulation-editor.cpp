@@ -284,14 +284,14 @@ bool flat_simulation_editor::display(application&    app,
             auto tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
             stack.pop_back();
 
-            for (const auto& ch : cur->children) {
+            cur->children.for_each([&](const auto& ch) {
                 if (ch.type == tree_node::child_node::type::model) {
                     const auto  mdl_id = ch.mdl;
                     const auto* mdl    = pj_ed.pj.sim.models.try_to_get(mdl_id);
                     const auto  i      = get_index(mdl_id);
 
                     if (not mdl)
-                        continue;
+                        return;
 
                     ImVec2 p_min(origin.x + ((d.positions[i][0] - MW2) * zoom),
                                  origin.y + ((d.positions[i][1] - MH2) * zoom));
@@ -312,14 +312,13 @@ bool flat_simulation_editor::display(application&    app,
 
                     draw_connections(pj_ed.pj.sim,
                                      *mdl,
-                                     std::span<const ImVec2>(
-                                       d.positions.begin(), d.positions.size()),
+                                     d.positions.view(),
                                      origin,
                                      actions,
                                      zoom,
                                      draw_list);
                 }
-            }
+            });
 
             if (auto* sibling = cur->tree.get_sibling(); sibling)
                 stack.emplace_back(sibling);
@@ -437,12 +436,12 @@ constexpr static void move_models(auto&            data,
                                   const float      shift_x,
                                   const float      shift_y) noexcept
 {
-    for (const auto& c : tn.children) {
+    tn.children.for_each([&](const auto& c) {
         if (c.is_model()) {
             data.positions[c.mdl][0] += shift_x;
             data.positions[c.mdl][1] += shift_y;
         }
-    }
+    });
 }
 
 static void shift_tn_and_models(auto&            data,
@@ -527,14 +526,14 @@ static auto compute_max_rect(const vector<ImVec2>& tn_rects,
 {
     auto ret = model_width_height;
 
-    for (const auto& child : parent.children) {
+    parent.children.for_each([&](const auto& child) {
         if (child.is_tree_node()) {
             const auto* sub_tn    = child.tn;
             const auto  sub_tn_id = pj.tree_nodes.get_id(sub_tn);
 
             ret = ImMax(ret, tn_rects[sub_tn_id]);
         }
-    }
+    });
 
     return ret;
 }
@@ -582,11 +581,11 @@ static auto compute_automatic_layout(const project&        pj,
                      nodes.back().y + max_width_height_2.y);
     }
 
-    for (auto& node : nodes) {
+    nodes.for_each([&](auto& node) {
         const auto* sub_tn = tn.children[node.id].tn;
 
         shift_tn_and_models(data, pj, *sub_tn, node.x, node.y);
-    }
+    });
 
     data.tn_rects[pj.tree_nodes.get_id(tn)] = bound.width_height();
     data.tn_centers[pj.tree_nodes.get_id(tn)] += bound.center();
@@ -625,33 +624,34 @@ static auto max_point_in_vh_lines(const graph_component& g,
     const auto cx = dist.x / to_float(g.cache.size());
     const auto cy = dist.y / to_float(g.cache.size());
 
-    std::ranges::sort(hlines);
-    std::ranges::sort(vlines);
+    std::ranges::sort(hlines.view());
+    std::ranges::sort(vlines.view());
 
     {
-        auto it = hlines.begin();
-        while (it != hlines.end()) {
-            auto next = it + 1;
-            if (next == hlines.end())
+        int i = 0;
+        while (i < hlines.ssize()) {
+            int next = i + 1;
+            if (next >= hlines.ssize())
                 break;
 
-            if (*next - *it < cx)
+            if (hlines[next] - hlines[i] < cx)
                 hlines.erase(next);
             else
-                ++it;
+                ++i;
         }
     }
 
     {
-        auto it = vlines.begin();
-        while (it != vlines.end()) {
-            auto next = it + 1;
-            if (next == vlines.end())
+        int i = 0;
+        while (i != vlines.ssize()) {
+            int next = i + 1;
+            if (next >= vlines.ssize())
                 break;
-            if (*next - *it < cy)
+
+            if (vlines[next] - vlines[i] < cy)
                 vlines.erase(next);
             else
-                ++it;
+                ++i;
         }
     }
 
@@ -706,11 +706,11 @@ static void compute_automatic_layout(const project&         pj,
                      nodes.back().y + nodes.back().height);
     }
 
-    for (auto& node : nodes) {
+    nodes.for_each([&](auto& node) {
         const auto* sub_tn = tn.children[node.id].tn;
 
         shift_tn_and_models(data, pj, *sub_tn, node.x, node.y);
-    }
+    });
 
     data.tn_rects[pj.tree_nodes.get_id(tn)] = bound.width_height();
     data.tn_centers[pj.tree_nodes.get_id(tn)] += bound.center();
@@ -758,7 +758,7 @@ static void compute_automatic_layout(const project&           pj,
     }
     map.sort();
 
-    std::ranges::sort(nodes, [](const auto& left, const auto& rigth) {
+    std::ranges::sort(nodes.view(), [](const auto& left, const auto& rigth) {
         return left.y < rigth.y;
     });
 
@@ -779,7 +779,7 @@ static void compute_automatic_layout(const project&           pj,
     }
 
     rect_bound bound;
-    for (auto& node : nodes) {
+    nodes.for_each([&](auto& node) {
         for (const auto& con : gen.connections) {
             if (con.src == node.id) {
                 if (const auto* dst_ptr = map.get(con.dst); dst_ptr) {
@@ -812,9 +812,9 @@ static void compute_automatic_layout(const project&           pj,
 
         bound.update(node.x - node.width / 2.f, node.y - node.height / 2.f);
         bound.update(node.x + node.width / 2.f, node.y + node.height / 2.f);
-    }
+    });
 
-    for (auto& node : nodes) {
+    nodes.for_each([&](auto& node) {
         const auto& c = gen.children.get(node.id);
 
         if (c.type == child_type::model) {
@@ -825,7 +825,7 @@ static void compute_automatic_layout(const project&           pj,
 
             shift_tn_and_models(data, pj, *sub_tn, node.x, node.y);
         }
-    }
+    });
 
     data.tn_rects[pj.tree_nodes.get_id(tn)] = bound.width_height();
     data.tn_centers[pj.tree_nodes.get_id(tn)] += bound.center();
@@ -910,7 +910,7 @@ void flat_simulation_editor::rebuild(application&    app,
             compute_colors(d, pj_ed.pj.tree_nodes);
 
             rect_bound bound;
-            for (const auto& p : d.positions) {
+            for (const auto& p : d.positions.view()) {
                 bound.update(p.x - MW2, p.y - MH2);
                 bound.update(p.x + MW2, p.y + MH2);
             }

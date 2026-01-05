@@ -294,7 +294,7 @@ static bool show_local_simulation_settings(application&    app,
                 ImGui::TableSetupColumn("parameter", sflags);
                 ImGui::TableHeadersRow();
 
-                for (const auto& elem : tn.parameters_ids.data) {
+                for (const auto& elem : tn.parameters_ids.data.view()) {
                     const auto mdl_id =
                       ed.pj.parameters.get<model_id>(elem.value);
                     const auto& mdl = ed.pj.sim.models.get(mdl_id);
@@ -766,7 +766,7 @@ static int show_all_visualisation_editor(application&    app,
                                          int             current_pos,
                                          const int       max_column) noexcept
 {
-    for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+    ed.visualisation_eds.erase_if([&](const auto v) noexcept {
         auto* g_ed  = ed.graph_eds.try_to_get(v.graph_ed_id);
         auto* g_obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
         auto* tn    = ed.pj.tree_nodes.try_to_get(v.tn_id);
@@ -798,7 +798,7 @@ static int show_part_visualisation_editor(application&    app,
 {
     const auto parent = ed.pj.tree_nodes.get_id(tn);
 
-    for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+    ed.visualisation_eds.erase_if([&](const auto v) noexcept {
         if (v.tn_id == parent) {
             auto* g_ed  = ed.graph_eds.try_to_get(v.graph_ed_id);
             auto* g_obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);

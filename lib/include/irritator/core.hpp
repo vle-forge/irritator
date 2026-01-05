@@ -8389,7 +8389,7 @@ inline status simulation::run() noexcept
     sched.pop(immediate_models);
 
     active_output_ports.clear();
-    for (const auto id : immediate_models)
+    for (const auto id : immediate_models.view())
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
 
@@ -8397,7 +8397,7 @@ inline status simulation::run() noexcept
 
     u32 global_messages_number = 0;
 
-    for (const auto y_id : active_output_ports) {
+    for (const auto y_id : active_output_ports.view()) {
         if (auto* y = output_ports.try_to_get(y_id)) {
             y->for_each(
               models,
@@ -8433,7 +8433,7 @@ inline status simulation::run() noexcept
     message_buffer.resize(global_messages_number);
     u32 global_position = 0;
 
-    for (const auto y_id : active_output_ports) {
+    for (const auto y_id : active_output_ports.view()) {
         if (auto* y = output_ports.try_to_get(y_id)) {
             y->for_each(
               models,
@@ -8497,7 +8497,7 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
     sched.pop(immediate_models);
 
     // emitting_output_ports.clear();
-    for (const auto id : immediate_models)
+    for (const auto id : immediate_models.view())
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
 

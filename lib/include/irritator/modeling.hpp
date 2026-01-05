@@ -1204,25 +1204,23 @@ struct tree_node {
 
     auto get_unique_id(const model_id mdl_id) const noexcept -> std::string_view
     {
-        auto it = std::find_if(
-          unique_id_to_model_id.data.begin(),
-          unique_id_to_model_id.data.end(),
-          [mdl_id](const auto& elem) noexcept { return elem.value == mdl_id; });
+        const auto idx_opt = unique_id_to_model_id.data.find_if(
+          [&](const auto& elem) noexcept { return elem.value == mdl_id; });
 
-        return it == unique_id_to_model_id.data.end() ? std::string_view{}
-                                                      : it->id.sv();
+        return idx_opt.has_value()
+                 ? unique_id_to_model_id.data[*idx_opt].id.sv()
+                 : std::string_view{};
     }
 
     auto get_unique_id(const tree_node_id tn_id) const noexcept
       -> std::string_view
     {
-        auto it = std::find_if(
-          unique_id_to_tree_node_id.data.begin(),
-          unique_id_to_tree_node_id.data.end(),
-          [tn_id](const auto& elem) noexcept { return elem.value == tn_id; });
+        const auto idx_opt = unique_id_to_tree_node_id.data.find_if(
+          [&](const auto& elem) noexcept { return elem.value == tn_id; });
 
-        return it == unique_id_to_tree_node_id.data.end() ? std::string_view{}
-                                                          : it->id.sv();
+        return idx_opt.has_value()
+                 ? unique_id_to_tree_node_id.data[*idx_opt].id.sv()
+                 : std::string_view{};
     }
 };
 
@@ -2000,66 +1998,66 @@ inline generic_component::child::child(component_id component) noexcept
 
 inline std::span<tree_node_id> variable_observer::get_tn_ids() noexcept
 {
-    return m_tn_ids;
+    return m_tn_ids.view();
 }
 
 inline std::span<const tree_node_id> variable_observer::get_tn_ids()
   const noexcept
 {
-    return m_tn_ids;
+    return m_tn_ids.view();
 }
 
 inline std::span<model_id> variable_observer::get_mdl_ids() noexcept
 {
-    return m_mdl_ids;
+    return m_mdl_ids.view();
 }
 
 inline std::span<const model_id> variable_observer::get_mdl_ids() const noexcept
 {
-    return m_mdl_ids;
+    return m_mdl_ids.view();
 }
 
 inline std::span<observer_id> variable_observer::get_obs_ids() noexcept
 {
-    return m_obs_ids;
+    return m_obs_ids.view();
 }
 
 inline std::span<const observer_id> variable_observer::get_obs_ids()
   const noexcept
 {
-    return m_obs_ids;
+    return m_obs_ids.view();
 }
 
 inline std::span<name_str> variable_observer::get_names() noexcept
 {
-    return m_names;
+    return m_names.view();
 }
 
 inline std::span<const name_str> variable_observer::get_names() const noexcept
 {
-    return m_names;
+    return m_names.view();
 }
 
 inline std::span<color> variable_observer::get_colors() noexcept
 {
-    return m_colors;
+    return m_colors.view();
 }
 
 inline std::span<const color> variable_observer::get_colors() const noexcept
 {
-    return m_colors;
+    return m_colors.view();
 }
 
 inline std::span<variable_observer::type_options>
 variable_observer::get_options() noexcept
 {
-    return m_options;
+    return m_options.view();
 }
 
 inline std::span<const variable_observer::type_options>
 variable_observer::get_options() const noexcept
 {
-    return m_options;
+    return m_options.view();
 }
 
 inline tree_node::tree_node(component_id           id_,

@@ -12,7 +12,6 @@
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
-#include <random>
 
 namespace irt {
 
@@ -54,9 +53,9 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
     tr.sort();
     graph.cache_names.resize(tr.size());
 
-    for (const auto x : tr.data) {
+    tr.data.for_each([&](const auto& x) {
         graph.cache_names[x.value] = graph.make_unique_name_id(x.id);
-    }
+    });
 
     return tr;
 }

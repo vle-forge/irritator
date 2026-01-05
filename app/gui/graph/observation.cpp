@@ -355,7 +355,7 @@ void graph_editor::draw_graph(const graph&          g,
             }
         }
 
-        for (const auto id : selected_nodes) {
+        for (const auto id : selected_nodes.view()) {
             const auto i      = get_index(id);
             const auto area   = g.node_areas[i];
             const auto [x, y] = d.nodes[i];
@@ -368,7 +368,7 @@ void graph_editor::draw_graph(const graph&          g,
             draw_list->AddRect(p_min, p_max, node_color, 0.f, 0, 4.f);
         }
 
-        for (const auto id : selected_edges) {
+        for (const auto id : selected_edges.view()) {
             const auto& [from, to] = g.edges_nodes[id];
             if (g.nodes.exists(from.first) and g.nodes.exists(to.first)) {
                 const auto area_from        = g.node_areas[from.first] / 2.f;
@@ -436,7 +436,7 @@ void graph_editor::draw_graph(const graph& g,
             }
         }
 
-        for (const auto id : selected_nodes) {
+        for (const auto id : selected_nodes.view()) {
             const auto i      = get_index(id);
             const auto area   = g.node_areas[i];
             const auto [x, y] = d.nodes[i];
@@ -449,7 +449,7 @@ void graph_editor::draw_graph(const graph& g,
             draw_list->AddRect(p_min, p_max, node_color, 0.f, 0, 4.f);
         }
 
-        for (const auto id : selected_edges) {
+        for (const auto id : selected_edges.view()) {
             const auto& [from, to] = g.edges_nodes[id];
             if (g.nodes.exists(from.first) and g.nodes.exists(to.first)) {
                 const auto area_from        = g.node_areas[from.first] / 2.f;
@@ -564,7 +564,7 @@ bool graph_editor::draw_popup(application&                  app,
 
                 if (not selected_nodes.empty() and
                     ImGui::MenuItem("Delete nodes")) {
-                    for (auto id : selected_nodes) {
+                    for (auto id : selected_nodes.view()) {
                         if (g.nodes.exists(id))
                             g.nodes.free(id);
                     }
@@ -573,7 +573,7 @@ bool graph_editor::draw_popup(application&                  app,
 
                 if (not selected_edges.empty() and
                     ImGui::MenuItem("Delete edges")) {
-                    for (auto id : selected_edges)
+                    for (auto id : selected_edges.view())
                         if (g.edges.exists(id))
                             g.edges.free(id);
                     selected_edges.clear();

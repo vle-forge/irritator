@@ -908,11 +908,8 @@ int main()
         expect(eq(vec.capacity(), 4));
 
         vec.emplace_back(INT32_MAX);
-        irt::vector<int>::iterator it = vec.begin();
 
         vec.reserve(512);
-        if (vec.is_iterator_valid(it))
-            expect(eq(it, vec.begin()));
 
         expect(eq(vec.front(), INT32_MAX));
 
@@ -927,11 +924,6 @@ int main()
         vec.emplace_back(INT32_MIN);
         expect(eq(vec.ssize(), 4));
         expect(eq(vec.capacity(), 512));
-
-        it = vec.begin() + 2;
-
-        expect(eq(*it, INT32_MAX));
-        expect(eq(vec.index_from_ptr(it), 2));
     };
 
     "vector-erase"_test = [] {
@@ -952,20 +944,17 @@ int main()
         };
 
         irt::vector<t_1> v_1(10);
-        std::iota(v_1.begin(), v_1.end(), 0);
-
-        expect(v_1.is_iterator_valid(v_1.begin()));
+        auto             view = v_1.view();
+        std::iota(view.begin(), view.end(), 0);
 
         expect(eq(v_1[0].x, 0));
         expect(eq(v_1[9].x, 9));
-        v_1.erase(v_1.begin());
-        expect(v_1.is_iterator_valid(v_1.begin()));
+        v_1.erase(0);
 
         expect(eq(v_1[0].x, 1));
         expect(eq(v_1[8].x, 9));
         expect(eq(v_1.ssize(), 9));
-        v_1.erase(v_1.begin(), v_1.begin() + 5);
-        expect(v_1.is_iterator_valid(v_1.begin()));
+        v_1.erase(0, 5);
 
         expect(eq(v_1[0].x, 6));
         expect(eq(v_1[3].x, 9));
@@ -2347,7 +2336,7 @@ int main()
         expect(eq(data.size(), 0u));
         expect(data.empty());
         expect(eq(data.capacity(), 0));
-        expect(data.begin() == data.end());
+        expect(data.view().begin() == data.view().end());
 
         expect(eq(sdata.size(), 0u));
         expect(sdata.empty());
@@ -2361,7 +2350,7 @@ int main()
 
         expect(!data.empty());
         expect(data.full());
-        expect(data.begin() != data.end());
+        expect(data.view().begin() != data.view().end());
         expect(eq(0, data.capacity() - data.ssize()));
         expect(eq(10, data.capacity()));
         expect(eq(10, data.ssize()));
@@ -2427,8 +2416,7 @@ int main()
 
             other_data = data;
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), other_data.begin());
+            bool is_equal = data == other_data;
 
             expect(is_equal);
         }
@@ -2482,8 +2470,7 @@ int main()
 
             other_data = other_data;
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), other_data.begin());
+            bool is_equal = data == other_data;
 
             expect(is_equal);
         }
@@ -2497,40 +2484,6 @@ int main()
               std::equal(data.begin(), data.end(), other_data.begin());
 
             expect(is_equal);
-        }
-    };
-
-    "test_begin"_test = [] {
-        {
-            vec       data(10);
-            const vec constData(10);
-
-            expect(eq(&data[0], data.begin()));
-            expect(eq(&constData[0], constData.begin()));
-        }
-        {
-            svec       data(10);
-            const svec constData(10);
-
-            expect(eq(&data[0], data.begin()));
-            expect(eq(&constData[0], constData.begin()));
-        }
-    };
-
-    "test_end"_test = [] {
-        {
-            vec       data(10);
-            const vec constData(10);
-
-            expect(eq((&data[9]) + 1, data.end()));
-            expect(eq((&constData[9]) + 1, constData.end()));
-        }
-        {
-            svec       data(10);
-            const svec constData(10);
-
-            expect(eq((&data[9]) + 1, data.end()));
-            expect(eq((&constData[9]) + 1, constData.end()));
         }
     };
 
@@ -2566,8 +2519,7 @@ int main()
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), compare_data.begin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }
@@ -2658,8 +2610,7 @@ int main()
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), compare_data.begin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }
@@ -2696,8 +2647,7 @@ int main()
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), compare_data.begin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }
@@ -2757,8 +2707,7 @@ int main()
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), compare_data.begin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }
@@ -2809,8 +2758,7 @@ int main()
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.begin(), data.end(), compare_data.begin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }
@@ -2869,13 +2817,12 @@ int main()
                                 sorted_vec.begin() + INITIAL_SIZE);
             expect(eq(compare_data.size(), data.size()));
 
-            data.insert(data.cbegin() + offset, INITIAL_VALUE);
+            data.insert(0 + offset, INITIAL_VALUE);
             compare_data.insert(compare_data.cbegin() + offset, INITIAL_VALUE);
 
             expect(eq(compare_data.size(), data.size()));
 
-            bool is_equal =
-              std::equal(data.cbegin(), data.cend(), compare_data.cbegin());
+            bool is_equal = std::ranges::equal(data.view(), compare_data);
 
             expect(is_equal);
         }

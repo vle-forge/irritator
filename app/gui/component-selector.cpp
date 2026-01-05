@@ -71,12 +71,12 @@ void component_selector::data_type::update(const modeling& mod) noexcept
                            }
                        });
 
-    std::ranges::sort(by_names);
-    std::ranges::sort(by_files);
-    std::ranges::sort(by_generics);
-    std::ranges::sort(by_grids);
-    std::ranges::sort(by_graphs);
-    std::ranges::sort(by_hsms);
+    std::ranges::sort(by_names.view());
+    std::ranges::sort(by_files.view());
+    std::ranges::sort(by_generics.view());
+    std::ranges::sort(by_grids.view());
+    std::ranges::sort(by_graphs.view());
+    std::ranges::sort(by_hsms.view());
 }
 
 void component_selector::update() noexcept

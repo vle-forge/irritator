@@ -64,7 +64,7 @@ struct lambda_signature<R (C::*)(Args...) const volatile> {
 
 // ref-qualifiers variants
 template<typename C, typename R, typename... Args>
-struct lambda_signature<R (C::*)(Args...)&> {
+struct lambda_signature<R (C::*)(Args...) &> {
     using type = R(Args...);
 };
 template<typename C, typename R, typename... Args>
@@ -413,8 +413,6 @@ public:
 
     using container_type     = vector<value_type, A>;
     using size_type          = typename container_type::size_type;
-    using iterator           = typename container_type::iterator;
-    using const_iterator     = typename container_type::const_iterator;
     using reference          = typename container_type::reference;
     using const_reference    = typename container_type::const_reference;
     using pointer            = typename container_type::pointer;
@@ -612,51 +610,62 @@ constexpr void table<Identifier, T, Compare, A>::set(const Identifier id,
 template<typename Identifier, typename T, class Compare, typename A>
 constexpr T* table<Identifier, T, Compare, A>::get(Identifier id) noexcept
 {
-    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
-    return it == data.end() ? nullptr : &it->value;
+    const auto view = data.view();
+    const auto it =
+      binary_find(view.begin(), view.end(), id, value_type_compare{});
+
+    return it == view.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
 constexpr const T* table<Identifier, T, Compare, A>::get(
   Identifier id) const noexcept
 {
-    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    const auto view = data.view();
+    const auto it =
+      binary_find(view.begin(), view.end(), id, value_type_compare{});
 
-    return it == data.end() ? nullptr : &it->value;
+    return it == view.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
 template<typename U>
 constexpr T* table<Identifier, T, Compare, A>::get(U id) noexcept
 {
-    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    const auto view = data.view();
+    const auto it =
+      binary_find(view.begin(), view.end(), id, value_type_compare{});
 
-    return it == data.end() ? nullptr : &it->value;
+    return it == view.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
 template<typename U>
 constexpr const T* table<Identifier, T, Compare, A>::get(U id) const noexcept
 {
-    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    const auto view = data.view();
+    auto it = binary_find(view.begin(), view.end(), id, value_type_compare{});
 
-    return it == data.end() ? nullptr : &it->value;
+    return it == view.end() ? nullptr : &it->value;
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
 constexpr void table<Identifier, T, Compare, A>::erase(Identifier id) noexcept
 {
-    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    const auto view = data.view();
+    auto it = binary_find(view.begin(), view.end(), id, value_type_compare{});
 
-    if (it != data.end())
-        data.erase(it);
+    if (it != view.end())
+        data.erase(std::distance(view.begin(), it));
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
 constexpr void table<Identifier, T, Compare, A>::sort() noexcept
 {
-    if (data.size() > 1)
-        std::sort(data.begin(), data.end(), value_type_compare{});
+    if (data.size() > 1) {
+        const auto view = data.view();
+        std::sort(view.begin(), view.end(), value_type_compare{});
+    }
 }
 
 template<typename Identifier, typename T, class Compare, typename A>

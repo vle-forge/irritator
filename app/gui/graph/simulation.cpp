@@ -31,7 +31,7 @@ bool show_local_observers(application&    app,
     bool is_modified = false;
 
     if (ImGui::BeginTable("Graph observers", 6)) {
-        for (const auto id : tn.graph_observer_ids) {
+        for (const auto id : tn.graph_observer_ids.view()) {
             if (auto* graph = ed.pj.graph_observers.try_to_get(id)) {
                 ImGui::PushID(graph);
 
@@ -159,7 +159,7 @@ bool show_local_observers(application&    app,
         is_modified = true;
         ed.pj.graph_observers.free(*to_del);
 
-        for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+        ed.visualisation_eds.erase_if([&](const auto& v) noexcept -> bool {
             if (v.graph_obs_id == *to_del) {
                 ed.graph_eds.free(v.graph_ed_id);
                 return true;
