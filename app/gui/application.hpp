@@ -1270,8 +1270,31 @@ public:
 
     bool is_open = true;
 
+    bool show_component = true;
+    bool show_project   = true;
+    bool show_txt       = true;
+    bool show_data      = true;
+    bool show_dot       = true;
+
 private:
-    vector<tree_node*> stack;
+    vector<tree_node*>               stack;
+    std::unique_ptr<description_str> str_buffer;
+
+    description_str& buffer() noexcept
+    {
+        if (not str_buffer.get())
+            str_buffer = std::make_unique<description_str>();
+
+        return *(str_buffer.get());
+    }
+
+    void show_menu() noexcept;
+    void show_treeview() noexcept;
+    void show_repertories_content() noexcept;
+    void show_dirpath_content(dir_path&) noexcept;
+    void show_notsaved_content() noexcept;
+    void show_file_component(const file_path&, const component&) noexcept;
+    void show_file_project(const file_path&) noexcept;
 };
 
 class settings_window
