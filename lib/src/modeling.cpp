@@ -158,6 +158,9 @@ static auto detect_file_type(const std::filesystem::path& file) noexcept
     if (ext == ".data")
         return file_path::file_type::data_file;
 
+    if (ext == ".pirt")
+        return file_path::file_type::project_file;
+
     return file_path::file_type::undefined_file;
 }
 
@@ -326,6 +329,17 @@ static void prepare_component_loading(modeling&             mod,
             case file_path::file_type::txt_file:
                 break;
             case file_path::file_type::data_file:
+                break;
+            case file_path::file_type::project_file:
+                debug_logi(
+                  6, "found project irt file {}\n", it->path().string());
+                if (mod.file_paths.can_alloc() && mod.components.can_alloc(1)) {
+                    (void)add_to_dir(
+                      mod, dir, type, it->path().filename().u8string());
+                    // @TODO load project file?
+                } else {
+                    too_many_file = true;
+                }
                 break;
             }
         }

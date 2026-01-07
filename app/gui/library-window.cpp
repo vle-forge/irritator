@@ -166,15 +166,38 @@ static void show_component_popup_menu(application&     app,
     }
 }
 
-static void show_file_component(application&     app,
-                                const file_path& file,
-                                const component& c) noexcept
+void library_window::show_file_project(const file_path& file) noexcept
 {
+    auto& app = container_of(this, &application::library_wnd);
+
+    if (file.status == file_path::state::unread) {
+        format(buffer(), "{} (unread project)", file.path.sv());
+    } else {
+        format(buffer(), "{} (read project)", file.path.sv());
+    }
+
+    if (ImGui::Selectable(
+          buffer().c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)) {
+        if (ImGui::IsMouseDoubleClicked(0)) {
+            app.add_gui_task([&]() {
+                app.jn.push(log_level::notice,
+                            [&](auto& title, auto& /*msg*/) noexcept {
+                                title = "Missing load project file";
+                            });
+            });
+        }
+    }
+
+    // @TODO show_project_popup_menu(app, file);
+}
+
+void library_window::show_file_component(const file_path& file,
+                                         const component& c) noexcept
+{
+    auto&      app      = container_of(this, &application::library_wnd);
     const auto id       = app.mod.components.get_id(c);
     const bool selected = app.component_ed.is_component_open(id);
     const auto state    = c.state;
-
-    small_string<254> buffer;
 
     ImGui::PushID(&c);
 
@@ -191,12 +214,12 @@ static void show_file_component(application&     app,
         }
     }
 
-    format(buffer, "{} ({})", c.name.sv(), file.path.sv());
+    format(buffer(), "{} ({})", c.name.sv(), file.path.sv());
     ImGui::SameLine();
     if (state == component_status::unreadable) {
-        ImGui::TextDisabled("%s", buffer.c_str());
+        ImGui::TextDisabled("%s", buffer().c_str());
     } else {
-        if (ImGui::Selectable(buffer.c_str(),
+        if (ImGui::Selectable(buffer().c_str(),
                               selected,
                               ImGuiSelectableFlags_AllowDoubleClick)) {
             if (ImGui::IsMouseDoubleClicked(0))
@@ -237,12 +260,13 @@ static void show_file_component(application&     app,
     ImGui::PopStyleColor();
 }
 
-static void show_notsaved_components(irt::component_editor& ed) noexcept
+void library_window::show_notsaved_content() noexcept
 {
-    auto& app = container_of(&ed, &application::component_ed);
-
+    auto& app    = container_of(this, &application::library_wnd);
+    auto& ed     = app.component_ed;
     auto& compos = app.mod.components.get<component>();
     auto& colors = app.mod.components.get<component_color>();
+
     for (const auto id : app.mod.components) {
         auto& compo = compos[id];
 
@@ -274,25 +298,66 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
     }
 }
 
-static void show_dirpath_component(application& app, dir_path& dir) noexcept
+void library_window::show_dirpath_content(dir_path& dir) noexcept
 {
+    auto& app = container_of(this, &application::library_wnd);
+
+    if (dir.status == dir_path::state::error) {
+        ImGui::TextFormatDisabled("{} (error)", dir.path.sv());
+        return;
+    }
+
     if (ImGui::TreeNodeEx(&dir,
                           ImGuiTreeNodeFlags_DefaultOpen,
                           "%.*s",
                           dir.path.ssize(),
                           dir.path.data())) {
-        for_each_component(
-          app.mod, dir, [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
-              show_file_component(app, file, compo);
-          });
+        dir.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
+            std::ranges::for_each(vec, [&](const auto file_id) noexcept {
+                auto* file = app.mod.file_paths.try_to_get(file_id);
+                if (file == nullptr)
+                    return;
+
+                switch (file->type) {
+                case file_path::file_type::data_file:
+                    break;
+
+                case file_path::file_type::dot_file:
+                    break;
+
+                case file_path::file_type::irt_file: {
+                    auto* compo =
+                      app.mod.components.try_to_get<component>(file->component);
+
+                    if (not compo)
+                        return;
+
+                    show_file_component(*file, *compo);
+                    break;
+                }
+
+                case file_path::file_type::txt_file:
+                    break;
+
+                case file_path::file_type::undefined_file:
+                    break;
+
+                case file_path::file_type::project_file:
+                    show_file_project(*file);
+                    break;
+                }
+            });
+        });
 
         ImGui::TreePop();
     }
 }
 
-static void show_repertories_components(application&    app,
-                                        const modeling& mod) noexcept
+void library_window::show_repertories_content() noexcept
 {
+    auto& app = container_of(this, &application::library_wnd);
+    auto& mod = app.mod;
+
     for (auto id : mod.component_repertories) {
         small_string<31>  s;
         small_string<31>* select;
@@ -311,41 +376,21 @@ static void show_repertories_components(application&    app,
         ImGui::PushID(reg_dir);
         if (ImGui::TreeNodeEx(select->c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-            reg_dir->children.write([&](auto& vec) noexcept {
-                int i = 0;
-                while (i != vec.ssize()) {
-                    auto  dir_id = vec[i];
-                    auto* dir    = mod.dir_paths.try_to_get(dir_id);
+            reg_dir->children.read([&](const auto& vec,
+                                       const auto /*version*/) noexcept {
+                std::ranges::for_each(vec, [&](const auto dir_id) noexcept {
+                    auto* dir = mod.dir_paths.try_to_get(dir_id);
+                    if (dir == nullptr or dir->status == dir_path::state::error)
+                        return false;
 
-                    if (dir) {
-                        show_dirpath_component(app, *dir);
-                        ++i;
-                    } else {
-                        vec.swap_pop_back(i);
-                    }
-                }
+                    show_dirpath_content(*dir);
+                    return false;
+                });
             });
 
             ImGui::TreePop();
         }
         ImGui::PopID();
-    }
-}
-
-static void show_component_library(application& app) noexcept
-{
-    if (not ImGui::BeginChild("##component_library",
-                              ImGui::GetContentRegionAvail())) {
-        ImGui::EndChild();
-    } else {
-        show_repertories_components(app, app.mod);
-
-        if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
-            show_notsaved_components(app.component_ed);
-            ImGui::TreePop();
-        }
-
-        ImGui::EndChild();
     }
 }
 
@@ -462,15 +507,9 @@ auto library_window::is_component_deletable(const application& app,
              : is_component_deletable_t::deletable;
 }
 
-void library_window::show() noexcept
+void library_window::show_menu() noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
-
-    if (!ImGui::Begin(
-          library_window::name, &is_open, ImGuiWindowFlags_MenuBar)) {
-        ImGui::End();
-        return;
-    }
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("New")) {
@@ -485,6 +524,15 @@ void library_window::show() noexcept
 
             if (ImGui::MenuItem("hsm component"))
                 app.component_ed.add_hsm_component_data();
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Options")) {
+            ImGui::MenuItem("Display components", nullptr, &show_component);
+            ImGui::MenuItem("Display projects", nullptr, &show_project);
+            ImGui::MenuItem("Display text files", nullptr, &show_txt);
+            ImGui::MenuItem("Display data files", nullptr, &show_data);
+            ImGui::MenuItem("Display dot files", nullptr, &show_dot);
             ImGui::EndMenu();
         }
 
@@ -524,8 +572,35 @@ void library_window::show() noexcept
 
         ImGui::EndMenuBar();
     }
+}
 
-    show_component_library(app);
+void library_window::show_treeview() noexcept
+{
+    if (not ImGui::BeginChild("##component_library",
+                              ImGui::GetContentRegionAvail())) {
+        ImGui::EndChild();
+    } else {
+        show_repertories_content();
+
+        if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
+            show_notsaved_content();
+            ImGui::TreePop();
+        }
+
+        ImGui::EndChild();
+    }
+}
+
+void library_window::show() noexcept
+{
+    if (!ImGui::Begin(
+          library_window::name, &is_open, ImGuiWindowFlags_MenuBar)) {
+        ImGui::End();
+        return;
+    }
+
+    show_menu();
+    show_treeview();
 
     ImGui::End();
 }

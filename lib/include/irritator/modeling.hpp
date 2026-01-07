@@ -1086,7 +1086,8 @@ struct file_path {
         irt_file,
         dot_file,
         txt_file,
-        data_file
+        data_file,
+        project_file,
     };
 
     file_path_str path; /**< stores the file name as utf8 string. */
