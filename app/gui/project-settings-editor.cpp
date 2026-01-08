@@ -10,6 +10,7 @@
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include "imgui.h"
@@ -135,7 +136,7 @@ static bool show_registred_obseravation_path(application&    app,
       app.mod.registred_paths.try_to_get(ed.pj.observation_dir);
     const auto preview = reg_dir ? reg_dir->name.c_str() : "-";
 
-    if (ImGui::BeginCombo("Path", preview)) {
+    if (ImGui::BeginCombo("Path##Obs", preview)) {
         if (ImGui::Selectable("-", reg_dir == nullptr)) {
             ed.pj.observation_dir = undefined<registred_path_id>();
         }
@@ -190,6 +191,120 @@ static bool show_registred_obseravation_path(application&    app,
     return old_observation_dir != ed.pj.observation_dir;
 }
 
+static void show_project_file_access(application&    app,
+                                     project_editor& ed) noexcept
+{
+    auto&                        pj    = ed.pj;
+    static constexpr const char* empty = "";
+
+    auto*       reg_dir     = app.mod.registred_paths.try_to_get(pj.reg);
+    const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
+
+    if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
+        registred_path* list = nullptr;
+        while (app.mod.registred_paths.next(list)) {
+            if (list->status == registred_path::state::error)
+                continue;
+
+            if (ImGui::Selectable(list->path.c_str(),
+                                  reg_dir == list,
+                                  ImGuiSelectableFlags_None)) {
+                pj.reg  = app.mod.registred_paths.get_id(list);
+                reg_dir = list;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (reg_dir) {
+        auto* dir         = app.mod.dir_paths.try_to_get(pj.dir);
+        auto* dir_preview = dir ? dir->path.c_str() : empty;
+
+        if (ImGui::BeginCombo("Dir", dir_preview)) {
+            if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
+                pj.dir = undefined<dir_path_id>();
+                dir    = nullptr;
+            }
+
+            dir_path* list = nullptr;
+            while (app.mod.dir_paths.next(list)) {
+                if (ImGui::Selectable(list->path.c_str(), dir == list)) {
+                    pj.dir = app.mod.dir_paths.get_id(list);
+                    dir    = list;
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if (dir == nullptr) {
+            directory_path_str dir_name;
+
+            if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
+                const auto exists = reg_dir->children.read(
+                  [&](const auto& vec, const auto /*ver*/) {
+                      return path_exist(app.mod.dir_paths, vec, dir_name.sv());
+                  });
+
+                if (exists) {
+                    auto& new_dir  = app.mod.dir_paths.alloc();
+                    auto  dir_id   = app.mod.dir_paths.get_id(new_dir);
+                    auto  reg_id   = app.mod.registred_paths.get_id(*reg_dir);
+                    new_dir.parent = reg_id;
+                    new_dir.path   = dir_name;
+                    new_dir.status = dir_path::state::unread;
+
+                    reg_dir->children.write(
+                      [&](auto& vec) { vec.emplace_back(dir_id); });
+
+                    pj.reg = reg_id;
+                    pj.dir = dir_id;
+
+                    if (!app.mod.create_directories(new_dir)) {
+                        app.jn.push(log_level::error,
+                                    [&](auto& title, auto& /*msg*/) noexcept {
+                                        format(title,
+                                               "Fail to create directory {}",
+                                               new_dir.path.sv());
+                                    });
+                    }
+                }
+            }
+        }
+
+        if (dir) {
+            auto* file = app.mod.file_paths.try_to_get(pj.file);
+            if (!file) {
+                auto& f  = app.mod.file_paths.alloc();
+                auto  id = app.mod.file_paths.get_id(f);
+                f.parent = app.mod.dir_paths.get_id(*dir);
+                pj.file  = id;
+
+                dir->children.write([&](auto& vec) { vec.emplace_back(id); });
+
+                file = &f;
+            }
+
+            if (ImGui::InputFilteredString("File##text", file->path)) {
+                if (not has_extension(file->path.sv(),
+                                      file_path::file_type::project_file)) {
+                    add_extension(file->path,
+                                  file_path::file_type::project_file);
+                }
+            }
+
+            const auto is_save_enabled = is_valid_filename(
+              file->path.sv(), file_path::file_type::project_file);
+
+            ImGui::BeginDisabled(!is_save_enabled);
+            if (ImGui::Button("Save")) {
+                app.start_save_project(app.pjs.get_id(ed));
+            }
+
+            ImGui::EndDisabled();
+        }
+    }
+}
+
 static bool show_project_simulation_settings(application&    app,
                                              project_editor& ed) noexcept
 {
@@ -204,6 +319,8 @@ static bool show_project_simulation_settings(application&    app,
         if (not project_name_already_exists(app, app.pjs.get_id(ed), name.sv()))
             ed.name = name;
     }
+
+    show_project_file_access(app, ed);
 
     if (ImGui::InputReal("Begin", &begin))
         ed.pj.sim.limits.set_bound(begin, end);
@@ -269,18 +386,6 @@ static bool show_project_simulation_settings(application&    app,
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 
-    ImGui::SeparatorText("Save");
-
-    const auto sz = ImGui::ComputeButtonSize(2);
-    ImGui::BeginDisabled(is_undefined(ed.project_file));
-    if (ImGui::Button("Save", sz))
-        ed.save_project_file = true;
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-
-    if (ImGui::Button("Save as...", sz))
-        ed.save_as_project_file = true;
-
     ImGui::SeparatorText("Observation");
 
     up += show_registred_obseravation_path(app, ed);
@@ -310,8 +415,10 @@ static bool show_project_simulation_settings(application&    app,
       "None: do nothing.\n"
       "Graph: writes the simulation graph using a dot format into the "
       "observation directory path defined above"
-      "Binary or Text: writes graph and all transition for all models during "
-      "the simulation. A csv file format is used and the file is opened into "
+      "Binary or Text: writes graph and all transition for all models "
+      "during "
+      "the simulation. A csv file format is used and the file is opened "
+      "into "
       "the observation directroy defined above.\nPlease note, the file "
       "may be large.");
 

@@ -1081,6 +1081,10 @@ struct file_path {
         read_only,
     };
 
+    constexpr static std::string_view file_type_names[] = {
+        ".undefined", ".irt", ".dot", ".txt", ".data", ".pirt"
+    };
+
     enum class file_type : u8 {
         undefined_file,
         irt_file,
@@ -1850,6 +1854,11 @@ public:
     registred_path_id
       observation_dir; /**< The output directory used by all text observation
                           file. If undefined, the current repertory is used. */
+
+    registred_path_id reg  = registred_path_id{ 0 };
+    dir_path_id       dir  = dir_path_id{ 0 };
+    file_path_id      file = file_path_id{ 0 };
+
 private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();

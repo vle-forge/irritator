@@ -4,6 +4,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include "application.hpp"
@@ -35,32 +36,6 @@ constexpr T* find(data_array<T, Identifier>& data,
     }
 
     return nullptr;
-}
-
-template<typename T, typename Identifier>
-constexpr bool exist(const data_array<T, Identifier>& data,
-                     const vector<Identifier>&        container,
-                     std::string_view                 name) noexcept
-{
-    for (const auto id : container) {
-        if (const auto* item = data.try_to_get(id)) {
-            if (item->path.sv() == name)
-                return true;
-        }
-    }
-
-    return false;
-}
-
-static void add_extension(file_path_str& file) noexcept
-{
-    const std::decay_t<decltype(file)> tmp(file);
-
-    if (auto dot = tmp.sv().find_last_of('.'); dot == std::string_view::npos) {
-        format(file, "{}.irt", tmp.sv().substr(0, dot));
-    } else {
-        format(file, "{}.irt", tmp.sv());
-    }
 }
 
 template<typename T>
@@ -538,7 +513,8 @@ struct component_editor::impl {
                 if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
                     const auto exists = reg_dir->children.read(
                       [&](const auto& vec, const auto /*ver*/) {
-                          return exist(app.mod.dir_paths, vec, dir_name.sv());
+                          return path_exist(
+                            app.mod.dir_paths, vec, dir_name.sv());
                       });
 
                     if (exists) {
@@ -584,9 +560,10 @@ struct component_editor::impl {
                 }
 
                 if (ImGui::InputFilteredString("File##text", file->path)) {
-                    if (not file->path.sv().ends_with(".irt")) {
-                        add_extension(file->path);
-                    }
+                    if (not has_extension(file->path.sv(),
+                                          file_path::file_type::irt_file))
+                        add_extension(file->path,
+                                      file_path::file_type::irt_file);
                 }
 
                 const auto is_save_enabled =

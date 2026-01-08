@@ -1234,44 +1234,6 @@ auto project_editor::show(application& app) noexcept -> show_result_t
 
     ImGui::End();
 
-    if (save_project_file) {
-        if (auto* regf = app.mod.registred_paths.try_to_get(project_file);
-            regf) {
-            save_project_file    = false;
-            save_as_project_file = false;
-
-            app.start_save_project(project_file, app.pjs.get_id(*this));
-        } else {
-            save_project_file    = false;
-            save_as_project_file = true;
-        }
-    }
-
-    if (save_as_project_file) {
-        const char*              title = "Select project file path to save";
-        const std::u8string_view default_filename = u8"filename.irt";
-        const char8_t*           filters[]        = { u8".irt", nullptr };
-
-        ImGui::OpenPopup(title);
-        if (app.f_dialog.show_save_file(title, default_filename, filters)) {
-            if (app.f_dialog.state == file_dialog::status::ok) {
-                if (app.mod.registred_paths.can_alloc(1)) {
-                    auto& path   = app.mod.registred_paths.alloc();
-                    project_file = app.mod.registred_paths.get_id(path);
-                    auto  u8str  = app.f_dialog.result.u8string();
-                    auto* str    = reinterpret_cast<const char*>(u8str.c_str());
-                    path.path    = str;
-
-                    app.start_save_project(project_file, app.pjs.get_id(*this));
-                }
-            }
-            save_project_file    = false;
-            save_as_project_file = false;
-
-            app.f_dialog.clear();
-        }
-    }
-
     return is_open ? show_result_t::success : show_result_t::request_to_close;
 }
 

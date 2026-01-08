@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
+#include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 
@@ -62,6 +63,67 @@ inline file_path_id get_file_from_component(const modeling&        mod,
     return ret;
 }
 
+/// Check if a @c T with name @c name exists in the @c data_array @c data. Used
+/// for @c file_path, @c dir_path and @c reg_path.
+template<typename T, typename Identifier>
+constexpr bool path_exist(const data_array<T, Identifier>& data,
+                          const vector<Identifier>&        container,
+                          std::string_view                 name) noexcept
+{
+    for (const auto id : container)
+        if (const auto* item = data.try_to_get(id))
+            if (item->path.sv() == name)
+                return true;
+
+    return false;
+}
+
+/// Adds the extension to the file path string according to @c type extension.
+constexpr void add_extension(
+  file_path_str&       file,
+  file_path::file_type type = file_path::file_type::irt_file) noexcept
+{
+    const std::decay_t<decltype(file)> tmp(file);
+
+    if (auto dot = tmp.sv().find_last_of('.'); dot == std::string_view::npos) {
+        format(file,
+               "{}{}",
+               tmp.sv().substr(0, dot),
+               file_path::file_type_names[ordinal(type)]);
+    } else {
+        format(
+          file, "{}{}", tmp.sv(), file_path::file_type_names[ordinal(type)]);
+    }
+}
+
+/// Checks if the file path string has the corresponding @c type extension.
+constexpr bool has_extension(
+  const std::string_view filename,
+  file_path::file_type   type = file_path::file_type::irt_file) noexcept
+{
+    if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
+        const auto ext = filename.substr(dot);
+        return ext == file_path::file_type_names[ordinal(type)];
+    }
+
+    return false;
+}
+
+/// Checks if the file path string has a valid filename and has the
+/// corresponding @c type extension.
+constexpr bool is_valid_filename(
+  const std::string_view filename,
+  file_path::file_type   type = file_path::file_type::irt_file) noexcept
+{
+    return not filename.empty() and filename[0] != '.' and
+           filename[0] != '-' and all_char_valid(filename) and
+           filename.ends_with(file_path::file_type_names[ordinal(type)]);
+}
+
+static_assert(is_valid_filename("file.irt"));
+static_assert(is_valid_filename("file.pirt",
+                                file_path::file_type::project_file));
+
 inline std::optional<std::filesystem::path> make_file(
   const registred_path& r,
   const dir_path&       d,
@@ -98,7 +160,9 @@ inline std::optional<std::filesystem::path> make_file(
     return std::nullopt;
 }
 
-inline expected<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
+inline expected<file> open_file(const dir_path&  dir_p,
+                                const file_path& file_p,
+                                const open_mode mode = open_mode::read) noexcept
 {
     try {
         std::filesystem::path p = dir_p.path.u8sv();
@@ -107,7 +171,7 @@ inline expected<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
         std::u8string u8str = p.u8string();
         const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        return file::open(cstr, open_mode::read);
+        return file::open(cstr, mode);
     } catch (...) {
         return new_error(file_errc::memory_error);
     }

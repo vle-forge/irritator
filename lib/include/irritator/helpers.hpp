@@ -646,7 +646,7 @@ auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
     return nullptr;
 }
 
-inline bool all_char_valid(const std::string_view v) noexcept
+constexpr inline bool all_char_valid(const std::string_view v) noexcept
 {
     for (auto c : v)
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
@@ -656,21 +656,21 @@ inline bool all_char_valid(const std::string_view v) noexcept
     return true;
 }
 
-inline bool is_valid_irt_filename(const std::string_view v) noexcept
+constexpr inline bool is_valid_irt_filename(const std::string_view v) noexcept
 {
     return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
            v.ends_with(".irt");
 }
 
-inline bool is_valid_dot_filename(const std::string_view v) noexcept
+constexpr inline bool is_valid_dot_filename(const std::string_view v) noexcept
 {
     return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
            v.ends_with(".dot");
 }
 
 template<std::size_t Size>
-inline void add_extension(small_string<Size>&    str,
-                          const std::string_view extension) noexcept
+constexpr inline void add_extension(small_string<Size>&    str,
+                                    const std::string_view extension) noexcept
 {
     const std::decay_t<decltype(str)> tmp(str);
 
