@@ -464,37 +464,6 @@ static void cleanup_sim_or_gui_task(DataArray& d_array) noexcept
         d_array.free(*to_del);
 }
 
-static bool open_project(application& app) noexcept
-{
-    const char*    title     = "Select project file path to load";
-    const char8_t* filters[] = { u8".irt", nullptr };
-    auto           ret       = true;
-
-    ImGui::OpenPopup(title);
-    if (app.f_dialog.show_load_file(title, filters)) {
-        if (app.f_dialog.state == file_dialog::status::ok) {
-            auto  u8str = app.f_dialog.result.u8string();
-            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
-
-            if (app.mod.registred_paths.can_alloc(1)) {
-                auto& path = app.mod.registred_paths.alloc();
-                auto  id   = app.mod.registred_paths.get_id(path);
-                path.path  = str;
-
-                if (auto opt = app.alloc_project_window(); opt.has_value()) {
-                    auto& pj        = app.pjs.get(*opt);
-                    pj.project_file = id;
-                    app.start_load_project(id, *opt);
-                }
-            }
-        }
-        ret = false;
-        app.f_dialog.clear();
-    }
-
-    return ret;
-}
-
 void application::request_open_directory_dlg(
   const registred_path_id id) noexcept
 {
@@ -506,17 +475,12 @@ void application::request_open_directory_dlg(
 
 auto application::show_menu() noexcept -> show_result_t
 {
-    static bool show_menu_load_project = false;
-
     show_result_t ret = show_result_t::success;
 
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("New project"))
                 alloc_project_window();
-
-            if (ImGui::MenuItem("Open project"))
-                show_menu_load_project = true;
 
             if (ImGui::MenuItem("Quit"))
                 ret = show_result_t::request_to_close;
@@ -547,9 +511,6 @@ auto application::show_menu() noexcept -> show_result_t
 
         ImGui::EndMainMenuBar();
     }
-
-    if (show_menu_load_project)
-        show_menu_load_project = open_project(*this);
 
     if (show_imgui_demo)
         ImGui::ShowDemoWindow(&show_imgui_demo);
@@ -880,97 +841,115 @@ std::optional<file> application::try_open_file(const char* filename,
         return std::make_optional(std::move(*f));
 }
 
-void application::start_load_project(const registred_path_id id,
-                                     const project_id        pj_id) noexcept
+// void application::start_load_project(const project_id pj_id) noexcept
+//{
+//     add_gui_task([&]() noexcept {
+//         std::scoped_lock _(mod.reg_paths_mutex);
+//
+//         auto* file = mod.registred_paths.try_to_get(id);
+//         if (not file)
+//             return;
+//
+//         auto f_opt = try_open_file(file->path.c_str(), open_mode::read);
+//         if (not f_opt)
+//             return;
+//
+//         auto* sim_ed = pjs.try_to_get(pj_id);
+//         if (not sim_ed)
+//             return;
+//
+//         json_dearchiver dearc;
+//         if (auto ret =
+//               dearc(sim_ed->pj, mod, sim_ed->pj.sim, file->path.sv(),
+//               *f_opt);
+//             ret) {
+//             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept
+//             {
+//                 format(
+//                   title, "Loading project file {} success",
+//                   file->path.c_str());
+//             });
+//
+//         } else {
+//             jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+//                 format(
+//                   title, "Loading project file {} error",
+//                   file->path.c_str());
+//
+//                 if (ret.error().cat() == category::json) {
+//                     switch (static_cast<json_errc>(ret.error().value())) {
+//                     case json_errc::memory_error:
+//                         format(msg,
+//                                "json de-archiving memory error: not "
+//                                "enough memory\n");
+//                         break;
+//
+//                     case json_errc::arg_error:
+//                         format(msg, "json de-archiving internal error\n");
+//                         break;
+//
+//                     case json_errc::file_error:
+//                         format(msg,
+//                                "json de-archiving memory error: not "
+//                                "enough memory\n");
+//                         break;
+//
+//                     case json_errc::invalid_project_format:
+//                         format(msg,
+//                                "json de-archiving json format error "
+//                                "`{}' at offset "
+//                                "{}\n",
+//                                0,
+//                                0);
+//                         break;
+//
+//                     default:
+//                         format(msg, "json de-archiving unknown error\n");
+//                     }
+//                 }
+//             });
+//         }
+//     });
+// }
+
+void application::start_save_project(const project_id pj_id) noexcept
 {
-    add_gui_task([&, id]() noexcept {
+    add_gui_task([&]() noexcept {
         std::scoped_lock _(mod.reg_paths_mutex);
 
-        auto* file = mod.registred_paths.try_to_get(id);
-        if (not file)
+        auto* ed = pjs.try_to_get(pj_id);
+
+        if (not ed)
             return;
 
-        auto f_opt = try_open_file(file->path.c_str(), open_mode::read);
-        if (not f_opt)
-            return;
+        const auto* dir  = mod.dir_paths.try_to_get(ed->pj.dir);
+        const auto* file = mod.file_paths.try_to_get(ed->pj.file);
 
-        auto* sim_ed = pjs.try_to_get(pj_id);
-        if (not sim_ed)
-            return;
-
-        json_dearchiver dearc;
-        if (auto ret =
-              dearc(sim_ed->pj, mod, sim_ed->pj.sim, file->path.sv(), *f_opt);
-            ret) {
+        if (not(dir and file)) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-                format(
-                  title, "Loading project file {} success", file->path.c_str());
+                title = "Saving project error: undefined directory and/or file";
             });
 
-        } else {
-            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                format(
-                  title, "Loading project file {} error", file->path.c_str());
-
-                if (ret.error().cat() == category::json) {
-                    switch (static_cast<json_errc>(ret.error().value())) {
-                    case json_errc::memory_error:
-                        format(msg,
-                               "json de-archiving memory error: not "
-                               "enough memory\n");
-                        break;
-
-                    case json_errc::arg_error:
-                        format(msg, "json de-archiving internal error\n");
-                        break;
-
-                    case json_errc::file_error:
-                        format(msg,
-                               "json de-archiving memory error: not "
-                               "enough memory\n");
-                        break;
-
-                    case json_errc::invalid_project_format:
-                        format(msg,
-                               "json de-archiving json format error "
-                               "`{}' at offset "
-                               "{}\n",
-                               0,
-                               0);
-                        break;
-
-                    default:
-                        format(msg, "json de-archiving unknown error\n");
-                    }
-                }
-            });
+            return;
         }
-    });
-}
 
-void application::start_save_project(const registred_path_id id,
-                                     const project_id        pj_id) noexcept
-{
-    add_gui_task([&, id, pj_id]() noexcept {
-        std::scoped_lock _(mod.reg_paths_mutex);
+        auto f = open_file(*dir, *file, open_mode::write);
+        if (f.has_error()) {
+            jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
+                format(title,
+                       "Saving project error: fail to save {}/{}",
+                       dir->path.sv(),
+                       file->path.sv());
+            });
 
-        auto* file = mod.registred_paths.try_to_get(id);
-        if (not file)
             return;
-
-        auto f_opt = try_open_file(file->path.c_str(), open_mode::write);
-        if (not f_opt)
-            return;
-
-        auto* sim_ed = pjs.try_to_get(pj_id);
-        if (not sim_ed)
-            return;
+        }
 
         json_archiver arc;
         if (auto ret =
-              arc(sim_ed->pj,
+              arc(ed->pj,
                   mod,
-                  *f_opt,
+                  *f,
                   json_archiver::print_option::indent_2_one_line_array);
             ret) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {

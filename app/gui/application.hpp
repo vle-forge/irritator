@@ -1068,9 +1068,6 @@ struct project_editor {
 
     bool allow_user_changes = false;
 
-    bool save_project_file    = false;
-    bool save_as_project_file = false;
-
     enum class raw_data_type : u8 { none, graph, binary, text };
 
     raw_data_type save_simulation_raw_data = raw_data_type::none;
@@ -1592,10 +1589,8 @@ public:
      */
     unordered_task_list& get_unordered_task_list() noexcept;
 
-    void start_load_project(const registred_path_id file,
-                            const project_id        pj_id) noexcept;
-    void start_save_project(const registred_path_id file,
-                            const project_id        pj_id) noexcept;
+    void start_load_project(const project_id pj_id) noexcept;
+    void start_save_project(const project_id pj_id) noexcept;
     void start_save_component(const component_id id) noexcept;
     void start_init_source(const project_id  pj_id,
                            const u64         id,
