@@ -137,6 +137,10 @@ void memory_window::show() noexcept
                     ImGui::LabelFormat("id", "{}", ordinal(compo.id.hsm_id));
                     break;
 
+                case component_type::simulation:
+                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.sim_id));
+                    break;
+
                 case component_type::none:
                     break;
                 }

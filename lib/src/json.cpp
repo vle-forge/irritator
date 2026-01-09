@@ -4025,13 +4025,17 @@ struct json_dearchiver::impl {
 
         warning("Simulation component fail to access project");
 
-        return false;
+        return true;
     }
 
     bool read_simulation_component(const rapidjson::Value& val,
                                    component&              compo) noexcept
     {
         auto_stack _(this, "component simulation");
+
+        if (not mod().sim_components.can_alloc(1) and
+            not mod().sim_components.grow<2, 1>())
+            return false;
 
         auto& sim       = mod().sim_components.alloc();
         compo.type      = component_type::simulation;

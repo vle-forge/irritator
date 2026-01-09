@@ -1694,6 +1694,9 @@ struct component_editor::impl {
 
         case component_type::hsm:
             break;
+
+        case component_type::simulation:
+            break;
         }
     }
 
@@ -1722,6 +1725,9 @@ struct component_editor::impl {
             break;
 
         case component_type::hsm:
+            break;
+
+        case component_type::simulation:
             break;
         }
     }
@@ -2147,6 +2153,14 @@ struct component_editor::impl {
                 }
                 break;
 
+            case component_type::simulation:
+                if (display_component_editor(
+                      app, app.sims, it->data.sim, it->id)) {
+                    app.sims.free(it->data.sim);
+                    to_del = true;
+                }
+                break;
+
             default:
                 to_del = true;
                 break;
@@ -2287,6 +2301,20 @@ void component_editor::request_to_open(const component_id id) noexcept
                 app.jn.push(log_level::error, log_not_enough_memory);
             break;
 
+        case component_type::simulation:
+            if (app.sims.can_alloc(1)) {
+                tabs.push_back(component_editor::tab{
+                  .id   = id,
+                  .type = component_type::simulation,
+                  .data{ .sim = app.sims.get_id(app.sims.alloc(
+                           id,
+                           compo.id.sim_id,
+                           app.mod.sim_components.get(compo.id.sim_id))) } });
+                m_request_to_open = id;
+            } else
+                app.jn.push(log_level::error, log_not_enough_memory);
+            break;
+
         case component_type::none:
             break;
         }
@@ -2312,7 +2340,16 @@ bool component_editor::is_component_open(const component_id id) const noexcept
 
 void component_editor::add_generic_component_data() noexcept
 {
-    auto& app      = container_of(this, &application::component_ed);
+    auto& app = container_of(this, &application::component_ed);
+
+    if (not app.mod.components.can_alloc(1) and
+        not app.mod.components.grow<2, 1>())
+        return;
+
+    if (not app.mod.generic_components.can_alloc(1) and
+        not app.mod.generic_components.grow<2, 1>())
+        return;
+
     auto& compo    = app.mod.alloc_generic_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
@@ -2323,7 +2360,16 @@ void component_editor::add_generic_component_data() noexcept
 
 void component_editor::add_grid_component_data() noexcept
 {
-    auto& app      = container_of(this, &application::component_ed);
+    auto& app = container_of(this, &application::component_ed);
+
+    if (not app.mod.components.can_alloc(1) and
+        not app.mod.components.grow<2, 1>())
+        return;
+
+    if (not app.mod.grid_components.can_alloc(1) and
+        not app.mod.grid_components.grow<2, 1>())
+        return;
+
     auto& compo    = app.mod.alloc_grid_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
@@ -2334,7 +2380,16 @@ void component_editor::add_grid_component_data() noexcept
 
 void component_editor::add_graph_component_data() noexcept
 {
-    auto& app      = container_of(this, &application::component_ed);
+    auto& app = container_of(this, &application::component_ed);
+
+    if (not app.mod.components.can_alloc(1) and
+        not app.mod.components.grow<2, 1>())
+        return;
+
+    if (not app.mod.graph_components.can_alloc(1) and
+        not app.mod.graph_components.grow<2, 1>())
+        return;
+
     auto& compo    = app.mod.alloc_graph_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
@@ -2345,8 +2400,37 @@ void component_editor::add_graph_component_data() noexcept
 
 void component_editor::add_hsm_component_data() noexcept
 {
-    auto& app      = container_of(this, &application::component_ed);
+    auto& app = container_of(this, &application::component_ed);
+
+    if (not app.mod.components.can_alloc(1) and
+        not app.mod.components.grow<2, 1>())
+        return;
+
+    if (not app.mod.hsm_components.can_alloc(1) and
+        not app.mod.hsm_components.grow<2, 1>())
+        return;
+
     auto& compo    = app.mod.alloc_hsm_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+
+    request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+}
+
+void component_editor::add_simulation_component_data() noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+
+    if (not app.mod.components.can_alloc(1) and
+        not app.mod.components.grow<2, 1>())
+        return;
+
+    if (not app.mod.sim_components.can_alloc(1) and
+        not app.mod.sim_components.grow<2, 1>())
+        return;
+
+    auto& compo    = app.mod.alloc_sim_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
     request_to_open(compo_id);

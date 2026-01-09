@@ -51,6 +51,9 @@ static void show_component_popup_menu(application&     app,
         if (ImGui::MenuItem("New HSM component"))
             app.component_ed.add_hsm_component_data();
 
+        if (ImGui::MenuItem("New simulation component"))
+            app.component_ed.add_simulation_component_data();
+
         ImGui::Separator();
 
         if (ImGui::MenuItem("Copy")) {
@@ -524,6 +527,10 @@ void library_window::show_menu() noexcept
 
             if (ImGui::MenuItem("hsm component"))
                 app.component_ed.add_hsm_component_data();
+
+            if (ImGui::MenuItem("simulation component"))
+                app.component_ed.add_simulation_component_data();
+
             ImGui::EndMenu();
         }
 

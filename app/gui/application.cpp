@@ -336,6 +336,7 @@ application::application(journal_handler& jn_) noexcept
   , graphs{ 16 }
   , generics{ 16 }
   , hsms{ 16 }
+  , sims{ 16 }
   , graph_eds{ 16 }
   , copy_obs{ 16 }
   , m_journal_timestep{ journal_handler::get_tick_count_in_milliseconds() }
