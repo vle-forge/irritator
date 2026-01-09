@@ -1551,11 +1551,13 @@ public:
     bool can_alloc_generic_component() const noexcept;
     bool can_alloc_graph_component() const noexcept;
     bool can_alloc_hsm_component() const noexcept;
+    bool can_alloc_sim_component() const noexcept;
 
     component& alloc_grid_component() noexcept;
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
     component& alloc_hsm_component() noexcept;
+    component& alloc_sim_component() noexcept;
 
     /// Checks if the child can be added to the parent to avoid recursive
     /// loop (ie. a component child which need the same component in
