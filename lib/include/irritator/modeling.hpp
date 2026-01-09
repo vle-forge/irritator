@@ -1700,6 +1700,9 @@ public:
       const external_source_reserve_definition& srcs_res =
         external_source_reserve_definition()) noexcept;
 
+    status load(modeling& mod) noexcept;
+    status save(modeling& mod) noexcept;
+
     struct required_data {
         unsigned tree_node_nb{ 1u };
         unsigned model_nb{ 0u };
@@ -1811,6 +1814,14 @@ public:
 
     file_observers file_obs;
 
+    /// Linear search a @c global_parameter_id where @c tree_node_id and @c
+    /// model_id equals parameters.
+    ///
+    /// @return The @c global_parameter_id identifier if it exsits, @c
+    /// undefined<global_parameter_id>() otherwise.
+    auto get_parameter(const tree_node_id tn_id, const model_id mdl_id) noexcept
+      -> global_parameter_id;
+
     id_data_array<void,
                   global_parameter_id,
                   allocator<new_delete_memory_resource>,
@@ -1855,9 +1866,12 @@ public:
       observation_dir; /**< The output directory used by all text observation
                           file. If undefined, the current repertory is used. */
 
-    registred_path_id reg  = registred_path_id{ 0 };
-    dir_path_id       dir  = dir_path_id{ 0 };
-    file_path_id      file = file_path_id{ 0 };
+    /// An identifier to the @c file_path. Assign this variable before using @c
+    /// load() or @c save() functions.
+    file_path_id file = file_path_id{ 0 };
+
+    registred_path_id reg = undefined<registred_path_id>();
+    dir_path_id       dir = undefined<dir_path_id>();
 
 private:
     component_id m_head    = undefined<component_id>();

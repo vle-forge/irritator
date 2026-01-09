@@ -539,6 +539,14 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    template<std::size_t Length>
+    bool copy_string_to(std::optional<small_string<Length>>& dst) noexcept
+    {
+        dst.emplace(temp_string);
+
+        return true;
+    }
+
     bool copy_bool_to(bool& dst) const noexcept
     {
         dst = temp_bool;
@@ -4046,13 +4054,17 @@ struct json_dearchiver::impl {
 
         warning("Simulation component fail to access project");
 
-        return false;
+        return true;
     }
 
     bool read_simulation_component(const rapidjson::Value& val,
                                    component&              compo) noexcept
     {
         auto_stack _(this, "component simulation");
+
+        if (not mod().sim_components.can_alloc(1) and
+            not mod().sim_components.grow<2, 1>())
+            return false;
 
         auto& sim       = mod().sim_components.alloc();
         compo.type      = component_type::simulation;
@@ -4353,23 +4365,42 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool global_parameter_init(const global_parameter_id id,
-                               const tree_node_id        tn_id,
-                               const model_id            mdl_id,
-                               const parameter&          p) const noexcept
+    bool global_parameter_init(const tree_node_id     tn_id,
+                               const model_id         mdl_id,
+                               const std::string_view name,
+                               const parameter&       p) const noexcept
     {
-        pj().parameters.get<tree_node_id>(id) = tn_id;
-        pj().parameters.get<model_id>(id)     = mdl_id;
-        pj().parameters.get<parameter>(id)    = p;
+        const auto search = pj().get_parameter(tn_id, mdl_id);
+
+        if (is_defined(search)) {
+            pj().parameters.get<parameter>(search) = p;
+            return true;
+        }
+
+        if (not pj().parameters.can_alloc(1) and
+            not pj().parameters.grow<2, 1>())
+            return false;
+
+        auto& names   = pj().parameters.get<name_str>();
+        auto& tn_ids  = pj().parameters.get<tree_node_id>();
+        auto& mdl_ids = pj().parameters.get<model_id>();
+        auto& params  = pj().parameters.get<parameter>();
+
+        const auto id  = pj().parameters.alloc_id();
+        const auto idx = get_index(id);
+        names[idx]     = name;
+        tn_ids[idx]    = tn_id;
+        mdl_ids[idx]   = mdl_id;
+        params[idx]    = p;
 
         return true;
     }
 
-    bool read_global_parameter(const rapidjson::Value&   val,
-                               const global_parameter_id id) noexcept
+    bool read_global_parameter(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, "project global parameter");
 
+        std::optional<name_str>     name_opt;
         std::optional<tree_node_id> tn_id_opt;
         std::optional<model_id>     mdl_id_opt;
         std::optional<parameter>    parameter_opt;
@@ -4381,8 +4412,7 @@ struct json_dearchiver::impl {
 
                      if ("name"sv == name)
                          return read_temp_string(value) &&
-                                copy_string_to(
-                                  pj().parameters.get<name_str>(id));
+                                copy_string_to(name_opt);
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
@@ -4400,11 +4430,12 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) and
+               optional_has_value(name_opt) and
                optional_has_value(tn_id_opt) and
                optional_has_value(mdl_id_opt) and
                optional_has_value(parameter_opt) and
                global_parameter_init(
-                 id, *tn_id_opt, *mdl_id_opt, *parameter_opt);
+                 *tn_id_opt, *mdl_id_opt, name_opt->sv(), *parameter_opt);
     }
 
     bool read_global_parameters(const rapidjson::Value& val) noexcept
@@ -4418,8 +4449,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     const auto id = pj().parameters.alloc_id();
-                     return read_global_parameter(value, id);
+                     return read_global_parameter(value);
                  });
     }
 

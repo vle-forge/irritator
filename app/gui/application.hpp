@@ -39,6 +39,7 @@ enum class grid_editor_data_id : u32;
 enum class graph_editor_data_id : u32;
 enum class generic_editor_data_id : u32;
 enum class hsm_editor_data_id : u32;
+enum class simulation_editor_data_id : u32;
 
 enum class graph_editor_id : u32;
 
@@ -597,6 +598,23 @@ private:
     void show_graph(application&     app,
                     component&       compo,
                     graph_component& data) noexcept;
+};
+
+class simulation_component_editor_data
+{
+public:
+    simulation_component_editor_data(const component_id            id,
+                                     const simulation_component_id sid,
+                                     simulation_component& /*sim*/) noexcept;
+
+    void show_selected_nodes(component_editor& /*ed*/) noexcept;
+    void show(component_editor& /*ed*/) noexcept;
+
+    component_id            m_id     = undefined<component_id>();
+    simulation_component_id m_sim_id = undefined<simulation_component_id>();
+    registred_path_id       m_reg    = undefined<registred_path_id>();
+    dir_path_id             m_dir    = undefined<dir_path_id>();
+    file_path_id            m_file   = undefined<file_path_id>();
 };
 
 class hsm_component_editor_data
@@ -1204,6 +1222,7 @@ public:
     void add_grid_component_data() noexcept;
     void add_graph_component_data() noexcept;
     void add_hsm_component_data() noexcept;
+    void add_simulation_component_data() noexcept;
 
     bool is_component_open(const component_id id) const noexcept;
 
@@ -1218,10 +1237,11 @@ public:
         component_type type;
 
         union {
-            grid_editor_data_id    grid;
-            graph_editor_data_id   graph;
-            generic_editor_data_id generic;
-            hsm_editor_data_id     hsm;
+            grid_editor_data_id       grid;
+            graph_editor_data_id      graph;
+            generic_editor_data_id    generic;
+            hsm_editor_data_id        hsm;
+            simulation_editor_data_id sim;
         } data;
     };
 
@@ -1291,7 +1311,7 @@ private:
     void show_dirpath_content(dir_path&) noexcept;
     void show_notsaved_content() noexcept;
     void show_file_component(const file_path&, const component&) noexcept;
-    void show_file_project(const file_path&) noexcept;
+    void show_file_project(file_path&) noexcept;
 };
 
 class settings_window
@@ -1399,6 +1419,7 @@ private:
         vector<std::pair<component_id, name_str>>      by_grids;
         vector<std::pair<component_id, name_str>>      by_graphs;
         vector<std::pair<component_id, name_str>>      by_hsms;
+        vector<std::pair<component_id, name_str>>      by_sims;
     };
 
     shared_buffer<data_type> data;
@@ -1523,6 +1544,8 @@ public:
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+    data_array<simulation_component_editor_data, simulation_editor_data_id>
+      sims;
 
     data_array<graph_editor, graph_editor_id> graph_eds;
 
@@ -1544,10 +1567,12 @@ public:
 
     notification_manager notifications;
 
-    /**
-     * Try to allocate a project and affect a new name to the newly allocated
-     * project_window.
-     */
+    /// Try to allocate a project and affect a new name to the newly allocated
+    /// project_window. If project allocation fails, a message is put in @c
+    /// journal_handler.
+    ///
+    /// @return A @c project_id identifier or std::nullopt if the allocation
+    /// fail.
     std::optional<project_id> alloc_project_window() noexcept;
 
     /**
@@ -1589,7 +1614,10 @@ public:
      */
     unordered_task_list& get_unordered_task_list() noexcept;
 
-    void start_load_project(const project_id pj_id) noexcept;
+    /// Allocate a new @c project_editor and read the file @c file_path_id.
+    void start_load_project(const file_path_id f_id) noexcept;
+
+    /// Save the project @c pj_id.
     void start_save_project(const project_id pj_id) noexcept;
     void start_save_component(const component_id id) noexcept;
     void start_init_source(const project_id  pj_id,
@@ -1714,6 +1742,8 @@ auto component_editor::try_to_get(const IdentifierType id) noexcept
         return app.generics.try_to_get(id);
     if constexpr (std::is_same_v<IdentifierType, hsm_editor_data_id>)
         return app.hsms.try_to_get(id);
+    if constexpr (std::is_same_v<IdentifierType, simulation_editor_data_id>)
+        return app.sims.try_to_get(id);
 }
 
 template<typename T>
@@ -1729,6 +1759,8 @@ auto component_editor::get_id(const T& elem) const noexcept
         return app.generics.get_id(elem);
     if constexpr (std::is_same_v<T, hsm_component_editor_data>)
         return app.hsms.get_id(elem);
+    if constexpr (std::is_same_v<T, simulation_component_editor_data>)
+        return app.sims.get_id(elem);
 }
 
 } // namespace irt

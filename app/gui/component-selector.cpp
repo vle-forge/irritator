@@ -153,7 +153,8 @@ static auto get_span(
   const vector<std::pair<component_id, name_str>>& by_generics,
   const vector<std::pair<component_id, name_str>>& by_grids,
   const vector<std::pair<component_id, name_str>>& by_graphs,
-  const vector<std::pair<component_id, name_str>>& by_hsms) noexcept
+  const vector<std::pair<component_id, name_str>>& by_hsms,
+  const vector<std::pair<component_id, name_str>>& by_sims) noexcept
   -> std::span<const std::pair<component_id, name_str>>
 {
     switch (type) {
@@ -171,6 +172,9 @@ static auto get_span(
 
     case component_type::hsm:
         return { by_hsms.data(), by_hsms.size() };
+
+    case component_type::simulation:
+        return { by_sims.data(), by_sims.size() };
     };
 
     unreachable();
@@ -216,7 +220,8 @@ component_selector::result_t component_selector::combobox(
                                         data.by_generics,
                                         data.by_grids,
                                         data.by_graphs,
-                                        data.by_hsms);
+                                        data.by_hsms,
+                                        data.by_sims);
 
             for (const auto& name : names) {
                 ImGui::PushID(&name);

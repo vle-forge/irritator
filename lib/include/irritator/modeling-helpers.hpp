@@ -160,18 +160,38 @@ inline std::optional<std::filesystem::path> make_file(
     return std::nullopt;
 }
 
-inline expected<file> open_file(const dir_path&  dir_p,
-                                const file_path& file_p,
+inline expected<file> open_file(const registred_path& reg_p,
+                                const dir_path&       dir_p,
+                                const file_path&      file_p,
                                 const open_mode mode = open_mode::read) noexcept
 {
     try {
-        std::filesystem::path p = dir_p.path.u8sv();
+        std::filesystem::path p = reg_p.path.u8sv();
+        p /= dir_p.path.u8sv();
         p /= file_p.path.u8sv();
 
         std::u8string u8str = p.u8string();
         const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
         return file::open(cstr, mode);
+    } catch (...) {
+        return new_error(file_errc::memory_error);
+    }
+}
+
+inline expected<file> open_file(const modeling&    mod,
+                                const file_path_id id,
+                                const open_mode mode = open_mode::read) noexcept
+{
+    try {
+        if (const auto filename = make_file(mod, id); filename.has_value()) {
+            const auto  u8str = filename->u8string();
+            const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+            return file::open(cstr, mode);
+        }
+
+        return new_error(file_errc::open_error);
     } catch (...) {
         return new_error(file_errc::memory_error);
     }

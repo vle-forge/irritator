@@ -21,6 +21,7 @@ set(gui_sources application.cpp application.hpp component-editor.cpp
     grid/simulation.cpp
     hsm/modeling.cpp
     hsm/simulation.cpp
+    simulation/modeling.cpp
 
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h

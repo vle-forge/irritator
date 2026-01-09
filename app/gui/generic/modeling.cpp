@@ -647,6 +647,9 @@ static void show_graph(component_editor&  ed,
 
                 case component_type::hsm:
                     break;
+
+                case component_type::simulation:
+                    break;
                 }
             }
         }

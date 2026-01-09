@@ -197,6 +197,8 @@ static void show_project_file_access(application&    app,
     auto&                        pj    = ed.pj;
     static constexpr const char* empty = "";
 
+    const auto* f = app.mod.file_paths.try_to_get(ed.pj.file);
+
     auto*       reg_dir     = app.mod.registred_paths.try_to_get(pj.reg);
     const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
 
@@ -297,7 +299,9 @@ static void show_project_file_access(application&    app,
 
             ImGui::BeginDisabled(!is_save_enabled);
             if (ImGui::Button("Save")) {
-                app.start_save_project(app.pjs.get_id(ed));
+                const auto pj_id = app.pjs.get_id(ed);
+                debug::ensure(app.pjs.try_to_get(pj_id));
+                app.start_save_project(pj_id);
             }
 
             ImGui::EndDisabled();

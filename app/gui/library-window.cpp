@@ -51,6 +51,9 @@ static void show_component_popup_menu(application&     app,
         if (ImGui::MenuItem("New HSM component"))
             app.component_ed.add_hsm_component_data();
 
+        if (ImGui::MenuItem("New simulation component"))
+            app.component_ed.add_simulation_component_data();
+
         ImGui::Separator();
 
         if (ImGui::MenuItem("Copy")) {
@@ -166,29 +169,43 @@ static void show_component_popup_menu(application&     app,
     }
 }
 
-void library_window::show_file_project(const file_path& file) noexcept
+static void show_project_popup_menu(application& app, file_path& file) noexcept
 {
-    auto& app = container_of(this, &application::library_wnd);
+    if (ImGui::BeginPopupContextItem()) {
+        if (ImGui::MenuItem("Open project"))
+            app.component_ed.add_generic_component_data();
 
-    if (file.status == file_path::state::unread) {
-        format(buffer(), "{} (unread project)", file.path.sv());
-    } else {
-        format(buffer(), "{} (read project)", file.path.sv());
-    }
+        ImGui::Separator();
 
-    if (ImGui::Selectable(
-          buffer().c_str(), false, ImGuiSelectableFlags_AllowDoubleClick)) {
-        if (ImGui::IsMouseDoubleClicked(0)) {
-            app.add_gui_task([&]() {
-                app.jn.push(log_level::notice,
-                            [&](auto& title, auto& /*msg*/) noexcept {
-                                title = "Missing load project file";
-                            });
+        if (ImGui::MenuItem("Delete project and file")) {
+            const auto id = app.mod.file_paths.get_id(file);
+
+            app.add_gui_task([&app, id]() {
+                if (auto* f = app.mod.file_paths.try_to_get(id))
+                    app.mod.remove_file(*f);
             });
         }
+
+        ImGui::EndPopup();
+    }
+}
+
+void library_window::show_file_project(file_path& file) noexcept
+
+{
+    format(buffer(), "{}", file.path.sv());
+
+    const auto* name = buffer().c_str();
+    auto&       app  = container_of(this, &application::library_wnd);
+
+    if (ImGui::Selectable(name, false, ImGuiSelectableFlags_AllowDoubleClick)) {
+        const auto file_id = app.mod.file_paths.get_id(file);
+
+        if (ImGui::IsMouseDoubleClicked(0))
+            app.start_load_project(file_id);
     }
 
-    // @TODO show_project_popup_menu(app, file);
+    show_project_popup_menu(app, file);
 }
 
 void library_window::show_file_component(const file_path& file,
@@ -524,6 +541,10 @@ void library_window::show_menu() noexcept
 
             if (ImGui::MenuItem("hsm component"))
                 app.component_ed.add_hsm_component_data();
+
+            if (ImGui::MenuItem("simulation component"))
+                app.component_ed.add_simulation_component_data();
+
             ImGui::EndMenu();
         }
 

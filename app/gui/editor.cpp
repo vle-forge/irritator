@@ -710,7 +710,7 @@ constexpr static inline const char* simulation_wrapper_tag_run_type_names[] = {
 
 template<typename ExternalSourceType>
 static bool show_parameter(simulation_wrapper_tag,
-                           application& app,
+                           application& /*app*/,
                            ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {

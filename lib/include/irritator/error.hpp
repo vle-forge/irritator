@@ -156,6 +156,8 @@ enum class project_errc : std::int16_t {
 
     empty_project,
 
+    file_access_error,
+
     import_error,
     component_cache_error,
     component_unknown,

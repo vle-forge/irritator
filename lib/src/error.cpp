@@ -25,6 +25,7 @@ void breakpoint() noexcept
 #else  /* !__i386__ && !__alpha__ */
     raise(SIGTRAP);
 #endif /* __i386__ */
+    \
 }
 
 } // namespace debug

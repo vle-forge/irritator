@@ -710,7 +710,6 @@ static bool show_project_parameters(application&    app,
             auto&       params  = ed.pj.parameters.get<parameter>();
 
             for (const auto id : ed.pj.parameters) {
-
                 const auto* mdl = ed.pj.sim.models.try_to_get(mdl_ids[id]);
                 if (not mdl)
                     continue;

@@ -1713,6 +1713,45 @@ project::project(const project_reserve_definition&         res,
   , observation_dir{ undefined<registred_path_id>() }
 {}
 
+status project::load(modeling& mod) noexcept
+{
+    if (const auto filename = make_file(mod, file); filename.has_value()) {
+        const auto  u8str = filename->u8string();
+        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+        if (auto file = file::open(cstr, open_mode::read); file.has_value()) {
+            json_dearchiver dearc;
+
+            return dearc(*this, mod, sim, cstr, *file);
+        } else
+            return file.error();
+    }
+
+    return new_error(project_errc::file_access_error);
+}
+
+status project::save(modeling& mod) noexcept
+{
+    if (const auto filename = make_file(mod, file); filename.has_value()) {
+        const auto  u8str = filename->u8string();
+        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+        if (auto file = file::open(cstr, open_mode::read); file.has_value()) {
+            json_archiver arc;
+
+            return arc(*this,
+                       mod,
+                       *file,
+                       json_archiver::print_option::indent_2_one_line_array
+
+            );
+        } else
+            return file.error();
+    }
+
+    return new_error(project_errc::file_access_error);
+}
+
 std::string_view project::get_observation_dir(
   const irt::modeling& mod) const noexcept
 {
@@ -2106,116 +2145,82 @@ auto project::get_model_path(const std::string_view id) const noexcept
              : std::nullopt;
 }
 
-static auto project_get_model_path(const project&         pj,
-                                   const tree_node&       head,
-                                   const std::string_view path) noexcept
-  -> std::optional<std::pair<tree_node_id, model_id>>
-{
-    if (auto mdl_id_opt = head.get_model_id(path); mdl_id_opt.has_value()) {
-        return std::make_pair(pj.tree_nodes.get_id(head), *mdl_id_opt);
-    }
-
-    return std::nullopt;
-}
-
-static auto project_get_model_path(const project&        pj,
-                                   const tree_node&      head,
-                                   const unique_id_path& path) noexcept
-  -> std::optional<std::pair<tree_node_id, model_id>>
-{
-    debug::ensure(path.ssize() > 2);
-    debug::ensure(path[0] == "root");
-
-    const auto* tn = &head;
-
-    for (int i = 1, e = path.ssize() - 1; i < e; ++i) {
-        if (auto tn_id_opt = tn->get_tree_node_id(path[i].sv());
-            tn_id_opt.has_value()) {
-            if (tn = pj.tree_nodes.try_to_get(*tn_id_opt); not tn)
-                return std::nullopt;
-        } else {
-            return std::nullopt;
-        }
-    }
-
-    if (auto mdl_id_opt = tn->get_model_id(path.back().sv());
-        mdl_id_opt.has_value()) {
-        return std::make_pair(pj.tree_nodes.get_id(*tn), *mdl_id_opt);
-    }
-
-    return std::nullopt;
-}
-
 auto project::get_model_path(const unique_id_path& path) const noexcept
   -> std::optional<std::pair<tree_node_id, model_id>>
 {
+    std::span<const name_str> stack{ path.data(), path.size() };
+
     if (const auto* head = tn_head(); head) {
-        switch (path.ssize()) {
-        case 0:
-        case 1:
-            return std::nullopt;
+        while (not stack.empty()) {
+            if (stack.size() == 1) {
+                const auto mdl = head->get_model_id(path[0].sv());
+                if (mdl.has_value()) {
+                    const auto tn_id  = tree_nodes.get_id(*head);
+                    const auto mdl_id = *mdl;
 
-        case 2:
-            return path[0] == "root"
-                     ? project_get_model_path(*this, *head, path[1].sv())
-                     : std::nullopt;
+                    return std::make_pair(tn_id, mdl_id);
+                }
 
-        default:
-            return path[0] == "root"
-                     ? project_get_model_path(*this, *head, path)
-                     : std::nullopt;
+                return std::nullopt;
+            }
+
+            const auto sub = head->get_tree_node_id(stack.front().sv());
+            if (sub.has_value()) {
+                head  = tree_nodes.try_to_get(*sub);
+                stack = stack.subspan(1);
+            } else {
+                return std::nullopt;
+            }
         }
-
-        unreachable();
     }
 
     return std::nullopt;
-}
-
-static auto project_get_tn_id(const project&        pj,
-                              const tree_node&      head,
-                              const unique_id_path& ids) noexcept
-  -> tree_node_id
-{
-    debug::ensure(ids.ssize() > 1);
-    debug::ensure(ids[0] == "root");
-
-    const auto* tn  = &head;
-    auto        ret = undefined<tree_node_id>();
-
-    for (int i = 1; i < ids.ssize(); ++i) {
-        if (auto tn_id_opt = tn->get_tree_node_id(ids[i].sv());
-            tn_id_opt.has_value()) {
-            if (tn = pj.tree_nodes.try_to_get(*tn_id_opt); not tn)
-                return undefined<tree_node_id>();
-
-            ret = *tn_id_opt;
-        } else {
-            return undefined<tree_node_id>();
-        }
-    }
-
-    return ret;
 }
 
 auto project::get_tn_id(const unique_id_path& path) const noexcept
   -> tree_node_id
 {
+    std::span<const name_str> stack{ path.data(), path.size() };
+
     if (const auto* head = tn_head(); head) {
         switch (path.ssize()) {
         case 0:
             return undefined<tree_node_id>();
 
         case 1:
-            return path[0] == "root" ? m_tn_head : undefined<tree_node_id>();
+            return m_tn_head;
 
         default:
-            return path[0] == "root" ? project_get_tn_id(*this, *head, path)
-                                     : undefined<tree_node_id>();
+            while (stack.size() > 1) {
+                const auto sub = head->get_tree_node_id(stack.front().sv());
+                if (sub.has_value()) {
+                    head  = tree_nodes.try_to_get(*sub);
+                    stack = stack.subspan(1);
+                } else {
+                    return undefined<tree_node_id>();
+                }
+            }
         }
     }
 
     return undefined<tree_node_id>();
+}
+
+auto project::get_parameter(const tree_node_id tn_id,
+                            const model_id     mdl_id) noexcept
+  -> global_parameter_id
+{
+    const auto& tn_ids  = parameters.get<tree_node_id>();
+    const auto& mdl_ids = parameters.get<model_id>();
+
+    for (const auto id : parameters) {
+        const auto idx = get_index(id);
+
+        if (tn_ids[idx] == tn_id and mdl_ids[idx] == mdl_id)
+            return id;
+    }
+
+    return undefined<global_parameter_id>();
 }
 
 auto project::head() const noexcept -> component_id { return m_head; }
