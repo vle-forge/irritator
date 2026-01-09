@@ -1384,7 +1384,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::simulation:
         if (auto* s = sim_components.try_to_get(src.id.sim_id)) {
             if (not sim_components.can_alloc())
-                return new_error(modeling_errc::hsm_children_container_full);
+                return new_error(modeling_errc::simulation_container_full);
 
             auto& d       = sim_components.alloc(*s);
             auto  d_id    = sim_components.get_id(d);

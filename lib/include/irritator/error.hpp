@@ -211,6 +211,8 @@ enum class modeling_errc : std::int16_t {
     hsm_connection_already_exist,
     hsm_children_container_full,
 
+    simulation_container_full,
+
     generic_input_connection_container_full,
     generic_output_connection_container_full,
     generic_input_connection_container_already_exist,
