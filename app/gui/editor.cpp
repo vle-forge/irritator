@@ -484,18 +484,42 @@ static bool show_parameter(time_func_tag,
 {
     static const char* items[] = { "time", "square", "sin" };
 
-    debug::ensure(std::cmp_less_equal(0, p.integers[0]) &&
-                  std::cmp_less(p.integers[0], 3));
+    p.integers[time_func_tag::i_type] =
+      std::clamp(p.integers[time_func_tag::i_type], i64{ 0 }, i64{ 2 });
 
-    bool is_changed = false;
-    auto value      = static_cast<int>(p.integers[0]);
+    p.reals[time_func_tag::offset] = std::clamp(
+      p.reals[time_func_tag::offset], 0.0, std::numeric_limits<real>::max());
+
+    p.reals[time_func_tag::timestep] =
+      std::clamp(p.reals[time_func_tag::timestep],
+                 std::numeric_limits<real>::min(),
+                 std::numeric_limits<real>::max());
+
+    auto is_changed = 0;
 
     ImGui::PushItemWidth(120.0f);
-    if (ImGui::Combo("function", &value, items, IM_ARRAYSIZE(items))) {
+    if (auto value = static_cast<int>(p.integers[time_func_tag::i_type]);
+        ImGui::Combo("function", &value, items, IM_ARRAYSIZE(items))) {
         p.integers[0] = value;
-        is_changed    = true;
+        ++is_changed;
     }
     ImGui::PopItemWidth();
+
+    if (auto offset = p.reals[time_func_tag::offset];
+        ImGui::InputReal("offset", &offset)) {
+        if (offset >= 0.0) {
+            p.reals[time_func_tag::offset] = offset;
+            ++is_changed;
+        }
+    }
+
+    if (auto timestep = p.reals[time_func_tag::timestep];
+        ImGui::InputReal("timestep", &timestep)) {
+        if (timestep > 0.0) {
+            p.reals[time_func_tag::timestep] = timestep;
+            ++is_changed;
+        }
+    }
 
     return is_changed;
 }
