@@ -341,7 +341,8 @@ struct component_editor::impl {
             if (ImGui::InputFilteredString("name", copy_name))
                 name = copy_name;
 
-            bin.file = show_data_file_input(app.mod, compo.dir, bin.file);
+            if (const auto* f = app.mod.file_paths.try_to_get(compo.file))
+                bin.file = show_data_file_input(app.mod, f->parent, bin.file);
             ImGui::TreePop();
         }
 
@@ -367,7 +368,8 @@ struct component_editor::impl {
             if (ImGui::InputFilteredString("name", copy_name))
                 name = copy_name;
 
-            text.file = show_data_file_input(app.mod, compo.dir, text.file);
+            if (const auto* f = app.mod.file_paths.try_to_get(compo.file))
+                text.file = show_data_file_input(app.mod, f->parent, text.file);
             ImGui::TreePop();
         }
 
@@ -468,7 +470,18 @@ struct component_editor::impl {
     {
         static constexpr const char* empty = "";
 
-        auto* reg_dir = app.mod.registred_paths.try_to_get(compo.reg_path);
+        auto& c_ed = app.component_ed;
+
+        if (auto* f = app.mod.file_paths.try_to_get(compo.file)) {
+            if (auto* d = app.mod.dir_paths.try_to_get(f->parent)) {
+                c_ed.dir = f->parent;
+
+                if (app.mod.registred_paths.try_to_get(d->parent))
+                    c_ed.reg = d->parent;
+            }
+        }
+
+        auto*       reg_dir     = app.mod.registred_paths.try_to_get(c_ed.reg);
         const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
 
         if (ImGui::BeginCombo("Path", reg_preview)) {
@@ -480,28 +493,28 @@ struct component_editor::impl {
                 if (ImGui::Selectable(list->path.c_str(),
                                       reg_dir == list,
                                       ImGuiSelectableFlags_None)) {
-                    compo.reg_path = app.mod.registred_paths.get_id(list);
-                    reg_dir        = list;
+                    c_ed.reg = app.mod.registred_paths.get_id(list);
+                    reg_dir  = list;
                 }
             }
             ImGui::EndCombo();
         }
 
         if (reg_dir) {
-            auto* dir         = app.mod.dir_paths.try_to_get(compo.dir);
+            auto* dir         = app.mod.dir_paths.try_to_get(c_ed.dir);
             auto* dir_preview = dir ? dir->path.c_str() : empty;
 
             if (ImGui::BeginCombo("Dir", dir_preview)) {
                 if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
-                    compo.dir = undefined<dir_path_id>();
-                    dir       = nullptr;
+                    c_ed.dir = undefined<dir_path_id>();
+                    dir      = nullptr;
                 }
 
                 dir_path* list = nullptr;
                 while (app.mod.dir_paths.next(list)) {
                     if (ImGui::Selectable(list->path.c_str(), dir == list)) {
-                        compo.dir = app.mod.dir_paths.get_id(list);
-                        dir       = list;
+                        c_ed.dir = app.mod.dir_paths.get_id(list);
+                        dir      = list;
                     }
                 }
                 ImGui::EndCombo();
@@ -528,8 +541,9 @@ struct component_editor::impl {
                         reg_dir->children.write(
                           [&](auto& vec) { vec.emplace_back(dir_id); });
 
-                        compo.reg_path = reg_id;
-                        compo.dir      = dir_id;
+                        c_ed.reg   = reg_id;
+                        c_ed.dir   = dir_id;
+                        compo.file = undefined<file_path_id>();
 
                         if (!app.mod.create_directories(new_dir)) {
                             app.jn.push(
@@ -2097,7 +2111,7 @@ struct component_editor::impl {
               ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
               ImGuiTableFlags_Reorderable;
 
-            if (compo->is_file_defined() and
+            if (is_defined(compo->file) and
                 ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
                 if constexpr (has_store_function<T>) {
                     element->store(ed);

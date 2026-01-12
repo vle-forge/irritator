@@ -148,9 +148,19 @@ void memory_window::show() noexcept
                     break;
                 }
 
-                ImGui::LabelFormat("Dir", "{}", ordinal(compo.dir));
+                if (const auto* f = app.mod.file_paths.try_to_get(compo.file)) {
+                    ImGui::LabelFormat("File", "{}", f->path.sv());
+                    if (const auto* d =
+                          app.mod.dir_paths.try_to_get(f->parent)) {
+                        ImGui::LabelFormat("Dir", "{}", d->path.sv());
+                        if (const auto* r =
+                              app.mod.registred_paths.try_to_get(d->parent)) {
+                            ImGui::LabelFormat("Reg", "{}", r->path.sv());
+                        }
+                    }
+                }
+
                 ImGui::LabelFormat("Description", "{}", ordinal(compo.desc));
-                ImGui::LabelFormat("File", "{}", ordinal(compo.file));
 
                 ImGui::TreePop();
             }

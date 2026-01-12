@@ -100,8 +100,6 @@ static void prepare_component_loading(
 
     mod.components.get<component_color>(compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& compo    = mod.components.get<component>(compo_id);
-    compo.reg_path = mod.registred_paths.get_id(reg_dir);
-    compo.dir      = mod.dir_paths.get_id(dir);
     compo.file     = mod.file_paths.get_id(file);
     file.component = compo_id;
     compo.type     = component_type::none;
@@ -477,58 +475,54 @@ static void prepare_component_loading(modeling& mod) noexcept
 
 status modeling::load_component(component& compo) noexcept
 {
-    auto* reg  = registred_paths.try_to_get(compo.reg_path);
-    auto* dir  = dir_paths.try_to_get(compo.dir);
-    auto* file = file_paths.try_to_get(compo.file);
-
-    if (!(reg && dir && file))
-        return new_error(modeling_errc::file_error);
 
     try {
-        std::filesystem::path p{ reg->path.sv() };
-        std::filesystem::path d_f{ dir->path.sv() };
-        d_f /= file->path.sv();
-        p /= d_f;
+        const auto filename = make_file(*this, compo.file);
+        if (not filename.has_value()) {
+            compo.state = component_status::unreadable;
+            return new_error(modeling_errc::file_error);
+        }
 
-        std::string str{ p.string() };
+        const auto  u8str = filename->u8string();
+        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        {
-            auto f = file::open(str.c_str(), open_mode::read);
-            if (!f) {
-                compo.state = component_status::unreadable;
-                return f.error();
-            }
-
+        if (auto f = file::open(cstr, open_mode::read); f) {
             json_dearchiver j;
-            if (not j(*this, compo, d_f.string(), *f)) {
+            if (not j(*this, compo, filename->string(), *f)) {
                 compo.state = component_status::unreadable;
                 return error_code(modeling_errc::component_load_error);
             }
 
-            compo.state = component_status::unmodified;
-        }
+            compo.state       = component_status::unmodified;
+            auto descfilename = *filename;
+            descfilename.replace_extension(".desc");
 
-        p.replace_extension(".desc");
-        str = p.string();
+            const auto u8str_desc = descfilename.u8string();
+            const auto cstr_desc =
+              reinterpret_cast<const char*>(u8str_desc.c_str());
 
-        if (file::exists(str.c_str())) {
-            if (auto f = file::open(str.c_str(), open_mode::read); f) {
-                if (not descriptions.exists(compo.desc))
-                    if (descriptions.can_alloc(1))
-                        compo.desc = descriptions.alloc_id();
-                descriptions.get<description_str>(compo.desc).clear();
-                descriptions.get<description_status>(compo.desc) =
-                  description_status::modified;
+            if (file::exists(cstr_desc)) {
+                if (auto f = file::open(cstr_desc, open_mode::read); f) {
+                    if (not descriptions.exists(compo.desc))
+                        if (descriptions.can_alloc(1))
+                            compo.desc = descriptions.alloc_id();
+                    descriptions.get<description_str>(compo.desc).clear();
+                    descriptions.get<description_status>(compo.desc) =
+                      description_status::modified;
 
-                if (descriptions.exists(compo.desc)) {
-                    auto& str = descriptions.get<0>(compo.desc);
+                    if (descriptions.exists(compo.desc)) {
+                        auto& str = descriptions.get<0>(compo.desc);
 
-                    if (not f->read(str.data(), str.capacity())) {
-                        descriptions.free(compo.desc);
-                        compo.desc = undefined<description_id>();
+                        if (not f->read(str.data(), str.capacity())) {
+                            descriptions.free(compo.desc);
+                            compo.desc = undefined<description_id>();
+                        }
                     }
                 }
             }
+        } else {
+            compo.state = component_status::unreadable;
+            return f.error();
         }
     } catch (const std::bad_alloc& /*e*/) {
         return new_error(modeling_errc::memory_error);
@@ -544,9 +538,14 @@ inline void debug_component(const modeling& mod, const component& c) noexcept
 {
     constexpr std::string_view empty_path = "empty";
 
-    auto* reg  = mod.registred_paths.try_to_get(c.reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(c.dir);
-    auto* file = mod.file_paths.try_to_get(c.file);
+    file_path*      file = mod.file_paths.try_to_get(c.file);
+    dir_path*       dir  = nullptr;
+    registred_path* reg  = nullptr;
+
+    if (file) {
+        if (dir = mod.dir_paths.try_to_get(file->parent); dir)
+            reg = mod.registred_paths.try_to_get(dir->parent);
+    }
 
     debug_log(
       "component id {} in registered path {} directory {} file {} status {}\n",
@@ -595,18 +594,6 @@ status modeling::fill_components() noexcept
     }
 
     auto& compos = components.get<component>();
-    for (auto id : components) {
-        auto& compo = compos[id];
-        debug_logi(2,
-                   "Component type {} id {} name {} location: {} {} {}\n",
-                   component_type_names[ordinal(compo.type)],
-                   ordinal(id),
-                   compo.name.sv(),
-                   ordinal(compo.reg_path),
-                   ordinal(compo.dir),
-                   ordinal(compo.file));
-    }
-
     while (have_unread_component) {
         have_unread_component = false;
 
@@ -1456,35 +1443,24 @@ void modeling::free(registred_path& reg_dir) noexcept
 
 status modeling::save(component& c) noexcept
 {
-    auto* reg  = registred_paths.try_to_get(c.reg_path);
-    auto* dir  = dir_paths.try_to_get(c.dir);
-    auto* file = file_paths.try_to_get(c.file);
+    const auto filenames = make_component_files(*this, c.file);
 
-    if (!(reg && dir && file))
+    if (not filenames.has_value())
         return new_error(modeling_errc::file_error);
 
-    {
-        std::filesystem::path p{ reg->path.sv() };
-        p /= dir->path.sv();
-        p /= file->path.sv();
-        p.replace_extension(".irt");
+    const auto cu8str = filenames->component.u8string();
+    const auto cstr   = reinterpret_cast<const char*>(cu8str.c_str());
+    auto       cfile  = file::open(cstr, open_mode::write);
+    if (not cfile.has_value())
+        return cfile.error();
 
-        auto jfile = file::open(p.string().c_str(), open_mode::write);
-        if (not jfile.has_value())
-            return jfile.error();
-
-        json_archiver j;
-        if (auto ret = j(*this, c, *jfile); ret.has_error())
-            return ret.error();
-    }
+    json_archiver j;
+    if (auto ret = j(*this, c, *cfile); ret.has_error())
+        return ret.error();
 
     if (descriptions.exists(c.desc)) {
-        std::filesystem::path p{ dir->path.c_str() };
-        p /= file->path.c_str();
-        p.replace_extension(".desc");
-        std::ofstream ofs{ p };
-
-        auto& str = descriptions.get<0>()[c.desc];
+        std::ofstream ofs{ filenames->description };
+        auto&         str = descriptions.get<0>()[c.desc];
         ofs.write(str.c_str(), str.size());
     }
 

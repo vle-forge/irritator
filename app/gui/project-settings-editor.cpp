@@ -194,13 +194,20 @@ static bool show_registred_obseravation_path(application&    app,
 static void show_project_file_access(application&    app,
                                      project_editor& ed) noexcept
 {
-    auto&                        pj    = ed.pj;
     static constexpr const char* empty = "";
 
-    const auto* f = app.mod.file_paths.try_to_get(ed.pj.file);
+    if (auto* f = app.mod.file_paths.try_to_get(ed.pj.file)) {
+        if (auto* d = app.mod.dir_paths.try_to_get(f->parent)) {
+            ed.dir = f->parent;
 
-    auto*       reg_dir     = app.mod.registred_paths.try_to_get(pj.reg);
+            if (app.mod.registred_paths.try_to_get(d->parent))
+                ed.reg = d->parent;
+        }
+    }
+
+    auto*       reg_dir     = app.mod.registred_paths.try_to_get(ed.reg);
     const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
+    auto&       pj          = ed.pj;
 
     if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
         registred_path* list = nullptr;
@@ -211,28 +218,32 @@ static void show_project_file_access(application&    app,
             if (ImGui::Selectable(list->path.c_str(),
                                   reg_dir == list,
                                   ImGuiSelectableFlags_None)) {
-                pj.reg  = app.mod.registred_paths.get_id(list);
-                reg_dir = list;
+                ed.reg     = app.mod.registred_paths.get_id(list);
+                ed.dir     = undefined<dir_path_id>();
+                ed.pj.file = undefined<file_path_id>();
+                reg_dir    = list;
             }
         }
         ImGui::EndCombo();
     }
 
     if (reg_dir) {
-        auto* dir         = app.mod.dir_paths.try_to_get(pj.dir);
+        auto* dir         = app.mod.dir_paths.try_to_get(ed.dir);
         auto* dir_preview = dir ? dir->path.c_str() : empty;
 
         if (ImGui::BeginCombo("Dir", dir_preview)) {
             if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
-                pj.dir = undefined<dir_path_id>();
-                dir    = nullptr;
+                ed.dir     = undefined<dir_path_id>();
+                ed.pj.file = undefined<file_path_id>();
+                dir        = nullptr;
             }
 
             dir_path* list = nullptr;
             while (app.mod.dir_paths.next(list)) {
                 if (ImGui::Selectable(list->path.c_str(), dir == list)) {
-                    pj.dir = app.mod.dir_paths.get_id(list);
-                    dir    = list;
+                    ed.dir     = app.mod.dir_paths.get_id(list);
+                    dir        = list;
+                    ed.pj.file = undefined<file_path_id>();
                 }
             }
             ImGui::EndCombo();
@@ -258,8 +269,9 @@ static void show_project_file_access(application&    app,
                     reg_dir->children.write(
                       [&](auto& vec) { vec.emplace_back(dir_id); });
 
-                    pj.reg = reg_id;
-                    pj.dir = dir_id;
+                    ed.reg     = reg_id;
+                    ed.dir     = dir_id;
+                    ed.pj.file = undefined<file_path_id>();
 
                     if (!app.mod.create_directories(new_dir)) {
                         app.jn.push(log_level::error,
@@ -274,12 +286,12 @@ static void show_project_file_access(application&    app,
         }
 
         if (dir) {
-            auto* file = app.mod.file_paths.try_to_get(pj.file);
-            if (!file) {
-                auto& f  = app.mod.file_paths.alloc();
-                auto  id = app.mod.file_paths.get_id(f);
-                f.parent = app.mod.dir_paths.get_id(*dir);
-                pj.file  = id;
+            auto* file = app.mod.file_paths.try_to_get(ed.pj.file);
+            if (not file) {
+                auto& f    = app.mod.file_paths.alloc();
+                auto  id   = app.mod.file_paths.get_id(f);
+                f.parent   = app.mod.dir_paths.get_id(*dir);
+                ed.pj.file = id;
 
                 dir->children.write([&](auto& vec) { vec.emplace_back(id); });
 

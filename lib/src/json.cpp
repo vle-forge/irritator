@@ -5704,21 +5704,18 @@ struct json_archiver::impl {
                                     const component& compo,
                                     Writer&          w) noexcept
     {
-        auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-        debug::ensure(reg);
-        debug::ensure(not reg->path.empty());
-        debug::ensure(not reg->name.empty());
+        if (auto* file = mod.file_paths.try_to_get(compo.file)) {
+            if (auto* dir = mod.dir_paths.try_to_get(file->parent)) {
+                if (auto* reg = mod.registred_paths.try_to_get(dir->parent)) {
+                    debug::ensure(not reg->path.empty());
+                    debug::ensure(not reg->name.empty());
+                    debug::ensure(not dir->path.empty());
+                    debug::ensure(not file->path.empty());
 
-        auto* dir = mod.dir_paths.try_to_get(compo.dir);
-        debug::ensure(dir);
-        debug::ensure(not dir->path.empty());
-
-        auto* file = mod.file_paths.try_to_get(compo.file);
-        debug::ensure(file);
-        debug::ensure(not file->path.empty());
-
-        if (reg and dir and file)
-            write_child_component_path(w, *reg, *dir, *file);
+                    write_child_component_path(w, *reg, *dir, *file);
+                }
+            }
+        }
     }
 
     template<typename Writer>
@@ -6784,24 +6781,24 @@ struct json_archiver::impl {
                            modeling&  mod,
                            component& compo) noexcept
     {
-        auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-        if (!reg)
-            return new_error(modeling_errc::recorded_directory_error);
-        if (reg->path.empty())
-            return new_error(modeling_errc::directory_error);
-        if (reg->name.empty())
+        auto* file = mod.file_paths.try_to_get(compo.file);
+        if (!file)
+            return new_error(modeling_errc::file_error);
+        if (file->path.empty())
             return new_error(modeling_errc::file_error);
 
-        auto* dir = mod.dir_paths.try_to_get(compo.dir);
+        auto* dir = mod.dir_paths.try_to_get(file->parent);
         if (!dir)
             return new_error(modeling_errc::directory_error);
         if (dir->path.empty())
             return new_error(modeling_errc::directory_error);
 
-        auto* file = mod.file_paths.try_to_get(compo.file);
-        if (!file)
-            return new_error(modeling_errc::file_error);
-        if (file->path.empty())
+        auto* reg = mod.registred_paths.try_to_get(dir->parent);
+        if (!reg)
+            return new_error(modeling_errc::recorded_directory_error);
+        if (reg->path.empty())
+            return new_error(modeling_errc::directory_error);
+        if (reg->name.empty())
             return new_error(modeling_errc::file_error);
 
         w.StartObject();
@@ -7042,17 +7039,17 @@ status json_archiver::operator()(project&     pj,
 
     debug::ensure(mod.components.get_id(*compo) == parent->id);
 
-    auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
-    if (!reg)
-        return new_error(modeling_errc::recorded_directory_error);
-
-    auto* dir = mod.dir_paths.try_to_get(compo->dir);
-    if (!dir)
-        return new_error(modeling_errc::directory_error);
-
     auto* file = mod.file_paths.try_to_get(compo->file);
     if (!file)
         return new_error(modeling_errc::file_error);
+
+    auto* dir = mod.dir_paths.try_to_get(file->parent);
+    if (!dir)
+        return new_error(modeling_errc::directory_error);
+
+    auto* reg = mod.registred_paths.try_to_get(dir->parent);
+    if (!reg)
+        return new_error(modeling_errc::recorded_directory_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     clear();

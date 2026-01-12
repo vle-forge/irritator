@@ -208,20 +208,22 @@ int main()
         irt::registred_path_str temp_path;
         expect(fatal(get_temp_registred_path(temp_path)));
 
-        auto& reg  = mod.alloc_registred("temp", 0);
+        auto& reg = mod.alloc_registred("temp", 0);
+        reg.path  = temp_path;
+
         auto& dir  = mod.alloc_dir(reg);
-        auto& file = mod.alloc_file(dir);
-        reg.path   = temp_path;
+        dir.parent = mod.registred_paths.get_id(reg);
         dir.path   = "test";
-        file.path  = "external-source.irt";
+
+        auto& file  = mod.alloc_file(dir);
+        file.parent = mod.dir_paths.get_id(dir);
+        file.path   = "external-source.irt";
 
         mod.create_directories(reg);
         mod.create_directories(dir);
         mod.remove_files(dir);
 
-        component.reg_path = mod.registred_paths.get_id(reg);
-        component.dir      = mod.dir_paths.get_id(dir);
-        component.file     = mod.file_paths.get_id(file);
+        component.file = mod.file_paths.get_id(file);
 
         expect(eq(mod.components.size(), 1u));
         expect(eq(mod.generic_components.size(), 1u));
@@ -712,22 +714,31 @@ int main()
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
 
-            auto& reg     = mod.alloc_registred("temp", 0);
-            auto& dir     = mod.alloc_dir(reg);
-            auto& file_c1 = mod.alloc_file(dir);
-            auto& file_c2 = mod.alloc_file(dir);
-            auto& file_c3 = mod.alloc_file(dir);
-            auto& file_cg = mod.alloc_file(dir);
-            reg.path      = temp_path;
-            dir.path      = "test";
+            auto& reg = mod.alloc_registred("temp", 0);
+            reg.path  = temp_path;
+
+            auto& dir  = mod.alloc_dir(reg);
+            dir.path   = "test";
+            dir.parent = mod.registred_paths.get_id(reg);
+
+            auto& file_c1  = mod.alloc_file(dir);
+            file_c1.path   = "c1.irt";
+            file_c1.parent = mod.dir_paths.get_id(dir);
+
+            auto& file_c2  = mod.alloc_file(dir);
+            file_c2.path   = "c2.irt";
+            file_c2.parent = mod.dir_paths.get_id(dir);
+
+            auto& file_c3  = mod.alloc_file(dir);
+            file_c3.path   = "c3.irt";
+            file_c3.parent = mod.dir_paths.get_id(dir);
+
+            auto& file_cg  = mod.alloc_file(dir);
+            file_cg.path   = "cg.irt";
+            file_cg.parent = mod.dir_paths.get_id(dir);
 
             mod.create_directories(reg);
             mod.create_directories(dir);
-
-            file_c1.path = "c1.irt";
-            file_c2.path = "c2.irt";
-            file_c3.path = "c3.irt";
-            file_cg.path = "cg.irt";
 
             const auto reg_id = mod.registred_paths.get_id(reg);
             const auto dir_id = mod.dir_paths.get_id(dir);
@@ -735,27 +746,16 @@ int main()
             expect(mod.registred_paths.try_to_get(reg_id) != nullptr);
             expect(mod.dir_paths.try_to_get(dir_id) != nullptr);
 
-            c1.reg_path = reg_id;
-            c1.dir      = dir_id;
-            c1.file     = mod.file_paths.get_id(file_c1);
-
-            c2.reg_path = reg_id;
-            c2.dir      = dir_id;
-            c2.file     = mod.file_paths.get_id(file_c2);
-
-            c3.reg_path = reg_id;
-            c3.dir      = dir_id;
-            c3.file     = mod.file_paths.get_id(file_c3);
-
-            cg.reg_path = reg_id;
-            cg.dir      = dir_id;
-            cg.file     = mod.file_paths.get_id(file_cg);
-
+            c1.file = mod.file_paths.get_id(file_c1);
             expect(!!mod.save(c1));
 
+            c2.file = mod.file_paths.get_id(file_c2);
             expect(!!mod.save(c2));
 
+            c3.file = mod.file_paths.get_id(file_c3);
             expect(!!mod.save(c3));
+
+            cg.file = mod.file_paths.get_id(file_cg);
             expect(!!mod.save(cg));
 
             expect(!!pj.set(mod, cg));
@@ -855,20 +855,20 @@ int main()
             auto& dir    = mod.alloc_dir(reg);
             auto  dir_id = mod.dir_paths.get_id(dir);
             dir.path     = "dir-temp";
+            dir.parent   = reg_id;
             mod.create_directories(dir);
 
             for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
                 auto& file     = mod.alloc_file(dir);
                 auto  file_id  = mod.file_paths.get_id(file);
                 file.component = irt::undefined<irt::component_id>();
+                file.parent    = dir_id;
                 irt::format(
                   file.path, "{}.irt", irt::internal_component_names[i]);
 
                 auto& c    = mod.alloc_generic_component();
                 auto& g    = mod.generic_components.get(c.id.generic_id);
                 auto  c_id = mod.components.get_id(c);
-                c.reg_path = reg_id;
-                c.dir      = dir_id;
                 c.file     = file_id;
 
                 expect(

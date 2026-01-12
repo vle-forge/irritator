@@ -1184,6 +1184,12 @@ struct project_editor {
 
     data_array<graph_editor, graph_editor_id> graph_eds;
     vector<visualisation_editor>              visualisation_eds;
+
+    /// @c reg is used to edit the @c project @c file_path_id.
+    registred_path_id reg = undefined<registred_path_id>();
+
+    /// @c dir is used to edit the @c project @c file_path_id.
+    dir_path_id dir = undefined<dir_path_id>();
 };
 
 inline bool project_editor::can_edit() const noexcept
@@ -1257,6 +1263,12 @@ public:
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
+
+    /// @c reg is used to edit the @c component @c file_path_id.
+    registred_path_id reg = undefined<registred_path_id>();
+
+    /// @c dir is used to edit the @c component @c file_path_id.
+    dir_path_id dir = undefined<dir_path_id>();
 };
 
 class library_window

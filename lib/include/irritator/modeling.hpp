@@ -951,23 +951,9 @@ struct component {
      */
     port_id get_or_add_y(std::string_view str) noexcept;
 
-    description_id    desc     = description_id{ 0 };
-    registred_path_id reg_path = registred_path_id{ 0 };
-    dir_path_id       dir      = dir_path_id{ 0 };
-    file_path_id      file     = file_path_id{ 0 };
-    name_str          name;
-
-    /**
-      Checks if the component have registred_path, dir_path and file_path
-      defined. @attention This function does not check if the file can be
-      saved.
-
-      @return True paths attributes are defined.
-     */
-    constexpr bool is_file_defined() const noexcept
-    {
-        return is_defined(reg_path) and is_defined(dir) and is_defined(file);
-    }
+    description_id desc = undefined<description_id>();
+    file_path_id   file = undefined<file_path_id>();
+    name_str       name;
 
     union id {
         generic_component_id    generic_id;
@@ -1869,9 +1855,6 @@ public:
     /// An identifier to the @c file_path. Assign this variable before using @c
     /// load() or @c save() functions.
     file_path_id file = file_path_id{ 0 };
-
-    registred_path_id reg = undefined<registred_path_id>();
-    dir_path_id       dir = undefined<dir_path_id>();
 
 private:
     component_id m_head    = undefined<component_id>();

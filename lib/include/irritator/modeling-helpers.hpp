@@ -47,17 +47,19 @@ inline file_path_id get_file_from_component(const modeling&        mod,
 {
     auto ret = undefined<file_path_id>();
 
-    if (const auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
-        ret = dir->children.read(
-          [&](const auto& vec,
-              const auto /*version*/) noexcept -> file_path_id {
-              for (const auto f_id : vec)
-                  if (const auto* f = mod.file_paths.try_to_get(f_id); f)
-                      if (f->path.sv() == str)
-                          return f_id;
+    if (const auto* f = mod.file_paths.try_to_get(compo.file)) {
+        if (const auto* d = mod.dir_paths.try_to_get(f->parent)) {
+            ret = d->children.read(
+              [&](const auto& vec,
+                  const auto /*version*/) noexcept -> file_path_id {
+                  for (const auto f_id : vec)
+                      if (const auto* f = mod.file_paths.try_to_get(f_id); f)
+                          if (f->path.sv() == str)
+                              return f_id;
 
-              return undefined<file_path_id>();
-          });
+                  return undefined<file_path_id>();
+              });
+        }
     }
 
     return ret;
@@ -137,6 +139,44 @@ inline std::optional<std::filesystem::path> make_file(
     } catch (...) {
         return std::nullopt;
     }
+}
+
+struct component_filenames {
+    std::filesystem::path component;
+    std::filesystem::path description;
+};
+
+inline std::optional<component_filenames> make_component_files(
+  const registred_path& r,
+  const dir_path&       d,
+  const file_path&      f) noexcept
+{
+    try {
+        std::filesystem::path base(r.path.sv());
+        base /= d.path.sv();
+        base /= f.path.sv();
+        base.replace_extension(".irt");
+
+        std::filesystem::path desc(base);
+        desc.replace_extension(".desc");
+
+        return component_filenames(base, desc);
+    } catch (...) {
+    }
+
+    return std::nullopt;
+}
+
+inline std::optional<component_filenames> make_component_files(
+  const modeling&    mod,
+  const file_path_id f_id) noexcept
+{
+    if (const auto* file = mod.file_paths.try_to_get(f_id))
+        if (const auto* dir = mod.dir_paths.try_to_get(file->parent))
+            if (const auto* reg = mod.registred_paths.try_to_get(dir->parent))
+                return make_component_files(*reg, *dir, *file);
+
+    return std::nullopt;
 }
 
 inline std::optional<std::filesystem::path> make_file(

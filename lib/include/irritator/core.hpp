@@ -429,12 +429,10 @@ struct external_source_definition {
     };
 
     struct binary_source {
-        dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
     };
 
     struct text_source {
-        dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
     };
 

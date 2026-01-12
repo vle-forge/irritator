@@ -1552,26 +1552,13 @@ static std::optional<reg_dir_file> build_component_string(
   const modeling&    mod,
   const component_id id) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get<component>(id)) {
-        auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
-        if (not reg or reg->path.empty() or reg->name.empty()) {
-            return std::nullopt;
-        }
-
-        auto* dir = mod.dir_paths.try_to_get(compo->dir);
-        if (not dir or dir->path.empty()) {
-            return std::nullopt;
-        }
-
-        auto* file = mod.file_paths.try_to_get(compo->file);
-        if (not file or file->path.empty()) {
-            return std::nullopt;
-        }
-
-        return reg_dir_file{ .r = reg->name.sv(),
-                             .d = dir->path.sv(),
-                             .f = file->path.sv() };
-    }
+    if (const auto* compo = mod.components.try_to_get<component>(id))
+        if (const auto* f = mod.file_paths.try_to_get(compo->file))
+            if (const auto* d = mod.dir_paths.try_to_get(f->parent))
+                if (const auto* r = mod.registred_paths.try_to_get(d->parent))
+                    return reg_dir_file{ .r = r->name.sv(),
+                                         .d = d->path.sv(),
+                                         .f = f->path.sv() };
 
     return std::nullopt;
 }
