@@ -4871,12 +4871,6 @@ public:
 
         void clear() noexcept
         {
-            i1    = 0;
-            i2    = 0;
-            r1    = 0;
-            r2    = 0;
-            timer = time_domain<time>::infinity;
-
             ports.fill(0.0);
             values.reset();
 

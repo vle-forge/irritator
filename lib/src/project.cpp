@@ -421,59 +421,57 @@ static auto get_outcoming_connection(const modeling&  mod,
     return nb;
 }
 
-static auto make_tree_hsm_leaf(simulation_copy&   sc,
-                               generic_component& gen,
-                               const child_id     ch_id,
-                               const model_id     new_mdl_id,
-                               hsm_wrapper&       dyn) noexcept -> status
+static auto make_tree_hsm_leaf(const simulation_copy& sc,
+                               const parameter&       mod_parameter,
+                               parameter&             sim_parameter,
+                               hsm_wrapper&           dyn) noexcept -> status
 {
-    const auto child_index = get_index(ch_id);
-    const auto compo_id =
-      enum_cast<component_id>(gen.children_parameters[child_index].integers[0]);
+    const auto  id_param_0 = mod_parameter.integers[hsm_wrapper_tag::id];
+    const auto  compo_id   = enum_cast<component_id>(id_param_0);
+    const auto* compo      = sc.mod.components.try_to_get<component>(compo_id);
 
-    if (const auto* compo = sc.mod.components.try_to_get<component>(compo_id)) {
-        if (compo->type == component_type::hsm) {
-            const auto hsm_id = compo->id.hsm_id;
-            debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
-            const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
-            const auto  shsm_id = *shsm;
-            sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
-            dyn.id                                       = shsm_id;
-            debug::ensure(sc.pj.sim.hsms.try_to_get(shsm_id));
+    debug::ensure(compo and compo->type == component_type::hsm);
 
-            dyn.exec.i1 = static_cast<i32>(
-              gen.children_parameters[child_index].integers[1]);
-            dyn.exec.i2 = static_cast<i32>(
-              gen.children_parameters[child_index].integers[2]);
-            // @TODO missing external source in integers[3] and [4].
+    if (not(compo and compo->type == component_type::hsm))
+        return new_error(project_errc::component_unknown);
 
-            dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
-            dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
-            dyn.exec.timer = gen.children_parameters[child_index].reals[2];
+    const auto hsm_id = compo->id.hsm_id;
 
-            return success();
-        }
-    }
+    debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
+    const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
+    const auto  shsm_id = *shsm;
 
-    return new_error(project_errc::component_unknown);
+    debug::ensure(sc.pj.sim.hsms.try_to_get(shsm_id));
+    const auto shsm_ord = ordinal(shsm_id);
+
+    sim_parameter.integers[hsm_wrapper_tag::id] = shsm_ord;
+    dyn.id                                      = shsm_id;
+
+    return success();
 }
 
-static auto make_tree_constant_leaf(simulation_copy&   sc,
-                                    tree_node&         parent,
-                                    generic_component& gen,
-                                    const child_id     ch_id,
-                                    constant&          dyn) noexcept -> status
+static auto make_tree_constant_leaf(simulation_copy& sc,
+                                    tree_node&       parent,
+                                    const parameter& mod_parameter,
+                                    parameter&       sim_parameter,
+                                    constant&        dyn) noexcept -> status
 {
-    const auto child_index = get_index(ch_id);
+    const auto raw_type = mod_parameter.integers[constant_tag::i_type];
+    debug::ensure(0 <= raw_type and raw_type < constant::init_type_count);
 
-    switch (dyn.type) {
+    const auto type_64 =
+      0 <= raw_type and raw_type < constant::init_type_count ? raw_type : 0;
+
+    const auto type = enum_cast<constant::init_type>(type_64);
+
+    switch (type) {
     case constant::init_type::constant:
         break;
 
     case constant::init_type::incoming_component_all: {
         if (auto nb = get_incoming_connection(sc.mod, parent); nb.has_value()) {
-            gen.children_parameters[child_index].reals[0] = *nb;
-            dyn.value                                     = *nb;
+            sim_parameter.reals[constant_tag::value] = *nb;
+            dyn.value                                = *nb;
         } else
             return nb.error();
     } break;
@@ -481,34 +479,38 @@ static auto make_tree_constant_leaf(simulation_copy&   sc,
     case constant::init_type::outcoming_component_all: {
         if (auto nb = get_outcoming_connection(sc.mod, parent);
             nb.has_value()) {
-            gen.children_parameters[child_index].reals[0] = *nb;
-            dyn.value                                     = *nb;
+            sim_parameter.reals[constant_tag::value] = *nb;
+            dyn.value                                = *nb;
         } else
             return nb.error();
     } break;
 
     case constant::init_type::incoming_component_n: {
-        const auto id = enum_cast<port_id>(dyn.port);
+        const auto port = mod_parameter.integers[constant_tag::i_port];
+        const auto id   = enum_cast<port_id>(port);
+
         if (not sc.mod.components.get<component>(parent.id).x.exists(id))
             return new_error(project_errc::component_port_x_unknown);
 
         if (auto nb = get_incoming_connection(sc.mod, parent, id);
             nb.has_value()) {
-            gen.children_parameters[child_index].reals[0] = *nb;
-            dyn.value                                     = *nb;
+            sim_parameter.reals[constant_tag::value] = *nb;
+            dyn.value                                = *nb;
         } else
             return nb.error();
     } break;
 
     case constant::init_type::outcoming_component_n: {
-        const auto id = enum_cast<port_id>(dyn.port);
+        const auto port = mod_parameter.integers[constant_tag::i_port];
+        const auto id   = enum_cast<port_id>(port);
+
         if (not sc.mod.components.get<component>(parent.id).y.exists(id))
             return new_error(project_errc::component_port_y_unknown);
 
         if (auto nb = get_outcoming_connection(sc.mod, parent, id);
             nb.has_value()) {
-            gen.children_parameters[child_index].reals[0] = *nb;
-            dyn.value                                     = *nb;
+            sim_parameter.reals[constant_tag::value] = *nb;
+            dyn.value                                = *nb;
         } else
             return nb.error();
     } break;
@@ -517,13 +519,13 @@ static auto make_tree_constant_leaf(simulation_copy&   sc,
     return success();
 }
 
-static auto make_tree_leaf(simulation_copy&          sc,
-                           tree_node&                parent,
-                           generic_component&        gen,
-                           const std::string_view    uid,
-                           dynamics_type             mdl_type,
-                           child_id                  ch_id,
-                           generic_component::child& ch) noexcept
+static auto make_tree_leaf(simulation_copy&                sc,
+                           tree_node&                      parent,
+                           const generic_component&        gen,
+                           const std::string_view          uid,
+                           dynamics_type                   mdl_type,
+                           child_id                        ch_id,
+                           const generic_component::child& ch) noexcept
   -> expected<model_id>
 {
     if (not sc.pj.sim.models.can_alloc()) {
@@ -568,15 +570,30 @@ static auto make_tree_leaf(simulation_copy&          sc,
               }
           }
 
-          sc.pj.sim.parameters[new_mdl_id].copy_to(new_mdl);
-
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-              irt_check(make_tree_hsm_leaf(sc, gen, ch_id, new_mdl_id, dyn));
+              // For hsm-wrapper, we need to update the hsm_id in simulation
+              // parameters which is different between modeling and simulation.
+
+              irt_check(make_tree_hsm_leaf(sc,
+                                           gen.children_parameters[ch_id],
+                                           sc.pj.sim.parameters[new_mdl_id],
+                                           dyn));
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {
-              irt_check(make_tree_constant_leaf(sc, parent, gen, ch_id, dyn));
+              // For constant, we need to update the real simulation parameter
+              // that are different between modeling and simulation about input
+              // connection.
+
+              irt_check(
+                make_tree_constant_leaf(sc,
+                                        parent,
+                                        gen.children_parameters[ch_id],
+                                        sc.pj.sim.parameters[new_mdl_id],
+                                        dyn));
           }
+
+          sc.pj.sim.parameters[new_mdl_id].copy_to(new_mdl);
 
           return success();
       }));
