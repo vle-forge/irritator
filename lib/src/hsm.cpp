@@ -920,8 +920,6 @@ void hierarchical_state_machine::condition_action::clear() noexcept
 status hierarchical_state_machine::start(execution&       exec,
                                          external_source& srcs) noexcept
 {
-    exec.timer = time_domain<time>::infinity;
-
     if (states.empty() or top_state == invalid_state_id)
         return new_error(simulation_errc::hsm_top_state_error);
 

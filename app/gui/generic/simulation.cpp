@@ -639,7 +639,7 @@ static void show_dynamics_values(application&       app,
     ImGui::LabelFormat("i2", "{}", dyn.exec.i2);
     ImGui::LabelFormat("r1", "{}", dyn.exec.r1);
     ImGui::LabelFormat("r2", "{}", dyn.exec.r2);
-    ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
+    ImGui::LabelFormat("timer", "{}", dyn.exec.timer);
 }
 
 static constexpr auto is_in_node(
