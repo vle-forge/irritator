@@ -72,9 +72,36 @@ template<typename ExternalSourceType>
 static bool show_parameter(counter_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,
-                           parameter& /*p*/) noexcept
+                           parameter& p) noexcept
 {
-    return false;
+    const auto type_i = p.integers[counter_tag::i_obs_type];
+    const auto type =
+      0 <= type_i and type_i < std::ssize(counter::observation_type_names)
+        ? enum_cast<counter::observation_type>(type_i)
+        : counter::observation_type::event_number;
+
+    auto             idx = static_cast<int>(type);
+    small_string<64> combo_label(counter::observation_type_names[idx]);
+    auto             up = false;
+
+    if (ImGui::BeginCombo("obs. type", combo_label.c_str())) {
+        for (sz i = 0; i < std::size(counter::observation_type_names); ++i) {
+            const bool is_selected = (idx == static_cast<int>(i));
+
+            combo_label = counter::observation_type_names[i];
+            if (ImGui::Selectable(combo_label.c_str(), is_selected)) {
+                idx                                 = static_cast<int>(i);
+                p.integers[counter_tag::i_obs_type] = idx;
+                up                                  = true;
+            }
+
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    return up;
 }
 
 template<typename ExternalSourceType>

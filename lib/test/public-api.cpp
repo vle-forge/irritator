@@ -879,7 +879,7 @@ int main()
             expect(!!sim.run());
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(2)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(2)));
     };
 
     "cross_simulation"_test = [] {
@@ -905,7 +905,8 @@ int main()
             expect(sim.run().has_value());
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<decltype(cnt.number)>(1)));
+        expect(
+          eq(cnt.event_number, static_cast<decltype(cnt.event_number)>(1)));
     };
 
     "hsm_automata"_test = [] {
@@ -1051,7 +1052,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(1)));
     };
 
     "hsm_enter_exit_simulation"_test = [] {
@@ -1125,7 +1126,7 @@ int main()
 
         expect(eq(hsmw.exec.i1, 11));
 
-        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(1)));
     };
 
     "hsm_timer_simulation"_test = [] {
@@ -1182,7 +1183,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(1)));
     };
 
     "hsm_timer_stop_and_restart_simulation"_test = [] {
@@ -1243,7 +1244,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(1)));
     };
 
     "hsm_timer_stop_simulation"_test = [] {
@@ -1307,7 +1308,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(0)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(0)));
     };
 
     "generator_counter_simluation"_test = [] {
@@ -1350,7 +1351,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(9)));
+        expect(eq(cnt.event_number, static_cast<irt::i64>(9)));
     };
 
     "boolean_simulation"_test = [] {

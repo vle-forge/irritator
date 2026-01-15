@@ -3947,23 +3947,41 @@ using qss3_cos = abstract_cos<3>;
 struct counter {
     input_port x[1] = {};
 
-    i64  number     = 0;
-    real last_value = 0;
-    time sigma;
+    /// Enumeration mainly used in @c observation function to output the correct
+    /// number
+    enum class observation_type {
+        event_number, ///< addition of all received events
+        last_value,   ///< stores the last received value
+        sum_value     ///< addition of all received values
+    };
+
+    constexpr static inline std::string_view observation_type_names[] = {
+        "event-number",
+        "last-value",
+        "sum-values"
+    };
+
+    i64              event_number = 0;
+    real             last_value   = 0;
+    real             sum_values   = 0;
+    time             sigma;
+    observation_type type = observation_type::event_number;
 
     counter() noexcept = default;
 
     counter(const counter& other) noexcept
-      : number(other.number)
+      : event_number(other.event_number)
       , last_value(other.last_value)
+      , sum_values(other.sum_values)
       , sigma(other.sigma)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        number     = 0;
-        last_value = zero;
-        sigma      = time_domain<time>::infinity;
+        event_number = 0;
+        last_value   = zero;
+        sum_values   = zero;
+        sigma        = time_domain<time>::infinity;
 
         return success();
     }
@@ -3974,7 +3992,11 @@ struct counter {
                       time /*r*/) noexcept
     {
         if (const auto lst = get_message(sim, x[0]); not lst.empty()) {
-            number += numeric_cast<i64>(lst.size());
+            event_number += numeric_cast<i64>(lst.size());
+
+            for (const auto& msg : lst)
+                sum_values += msg[0];
+
             last_value = get_qss_message<1>(lst)[0];
         }
 
@@ -3983,7 +4005,11 @@ struct counter {
 
     observation_message observation(time t, time /*e*/) const noexcept
     {
-        return { t, static_cast<real>(number) };
+        return { t,
+                 type == observation_type::event_number
+                   ? static_cast<real>(event_number)
+                 : type == observation_type::last_value ? last_value
+                                                        : sum_values };
     }
 };
 

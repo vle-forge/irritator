@@ -356,8 +356,9 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const counter& dyn)
 {
-    ImGui::LabelFormat("number", "{}", dyn.number);
+    ImGui::LabelFormat("event-number", "{}", dyn.event_number);
     ImGui::LabelFormat("last-value", "{}", dyn.last_value);
+    ImGui::LabelFormat("sum-values", "{}", dyn.sum_values);
 }
 
 static void show_dynamics_values(application& /*app*/,

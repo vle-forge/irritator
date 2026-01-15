@@ -455,10 +455,10 @@ int main()
             expect(sim.run().has_value());
         } while (not sim.current_time_expired());
 
-        expect(ge(mdl_26.number, static_cast<irt::i64>(42))); // 39
+        expect(ge(mdl_26.event_number, static_cast<irt::i64>(42))); // 39
         expect(eq(mdl_26.last_value, 0));
 
-        expect(ge(mdl_27.number, static_cast<irt::i64>(40))); // 39
+        expect(ge(mdl_27.event_number, static_cast<irt::i64>(40))); // 39
         expect(eq(mdl_27.last_value, 1));
     };
 }

@@ -1067,7 +1067,7 @@ auto write_test_simulation(std::ostream&                       os,
     expect(eq(mdl_{}.last_value, {:g}));
 )",
                                      idx,
-                                     dyn.number,
+                                     dyn.event_number,
                                      idx,
                                      dyn.last_value);
                       }

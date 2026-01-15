@@ -62,7 +62,11 @@ struct qss_sin_tag {};
 struct qss_cos_tag {};
 struct qss_exp_tag {};
 struct qss_log_tag {};
-struct counter_tag {};
+
+struct counter_tag {
+    enum parameter_names : u8 { i_obs_type = 0 };
+};
+
 struct queue_tag {
     enum parameter_names : u8 { sigma = 0 };
 };

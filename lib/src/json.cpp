@@ -1104,13 +1104,34 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
+    bool copy_string_to(std::optional<counter::observation_type>& type) noexcept
+    {
+        for (sz i = 0; i < counter::observation_type_names->size(); ++i) {
+            if (temp_string == counter::observation_type_names[i]) {
+                type = enum_cast<counter::observation_type>(i);
+                return true;
+            }
+        }
+        return error("bad counter observation type {}", temp_string);
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
                        counter_tag,
-                       parameter& /*p*/) noexcept
+                       parameter& p) noexcept
     {
         auto_stack a(this, "dynamics counter");
 
-        return true;
+        std::optional<counter::observation_type> type;
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("observation-type"sv == name)
+                  return read_temp_string(value) && copy_string_to(type) &&
+                         copy(ordinal(*type),
+                              p.integers[counter_tag::i_obs_type]);
+
+              return error("unknown element");
+          });
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -4908,9 +4929,18 @@ struct json_archiver::impl {
                const counter_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
-               const parameter& /*p*/) noexcept
+               const parameter& p) noexcept
     {
+        const auto type_i = p.integers[counter_tag::i_obs_type];
+        const auto type =
+          0 <= type_i and type_i < std::ssize(counter::observation_type_names)
+            ? enum_cast<counter::observation_type>(type_i)
+            : counter::observation_type::event_number;
+        const auto sv = counter::observation_type_names[ordinal(type)];
+
         writer.StartObject();
+        writer.Key("observation-type");
+        writer.String(sv.data(), static_cast<rapidjson::SizeType>(sv.size()));
         writer.EndObject();
     }
 

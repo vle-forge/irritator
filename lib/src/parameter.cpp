@@ -95,11 +95,22 @@ static void model_init(const parameter& /*param*/,
                        abstract_exp<QssLevel>& /*dyn*/) noexcept
 {}
 
-static void model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept {}
+static void model_init(const parameter& param, counter& dyn) noexcept
+{
+    const auto type_i = param.integers[counter_tag::i_obs_type];
+    const auto type =
+      0 <= type_i and type_i < std::ssize(counter::observation_type_names)
+        ? enum_cast<counter::observation_type>(type_i)
+        : counter::observation_type::event_number;
 
-static void parameter_init(parameter& /*param*/,
-                           const counter& /*dyn*/) noexcept
-{}
+    dyn.type = type;
+}
+
+static void parameter_init(parameter& param, const counter& dyn) noexcept
+{
+    param.integers[counter_tag::i_obs_type] =
+      static_cast<i64>(ordinal(dyn.type));
+}
 
 static void model_init(const parameter& param, constant& dyn) noexcept
 {
