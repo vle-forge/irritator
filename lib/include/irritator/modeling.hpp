@@ -24,6 +24,7 @@ enum class port_id : u32;
 enum class input_connection_id : u32;
 enum class output_connection_id : u32;
 enum class component_id : u32;
+enum class project_id : u32;
 enum class hsm_component_id : u32;
 enum class generic_component_id : u32;
 enum class graph_component_id : u32;
@@ -1082,7 +1083,9 @@ struct file_path {
 
     file_path_str path; /**< stores the file name as utf8 string. */
     dir_path_id   parent{ 0 };
-    component_id  component{ 0 };
+
+    component_id component{ 0 };
+    project_id   pj_id{ 0 };
 
     file_type            type   = file_type::undefined_file;
     state                status = state::unread;

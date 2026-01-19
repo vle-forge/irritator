@@ -43,8 +43,6 @@ enum class simulation_editor_data_id : u32;
 
 enum class graph_editor_id : u32;
 
-enum class project_id : u32;
-
 enum class task_status : u8 { not_started, started, finished };
 enum class main_task : u8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
@@ -1044,6 +1042,8 @@ struct project_editor {
         request_to_close, /**< The window must be closed by the called. */
     };
 
+    void set_title_name(const std::string_view name) noexcept;
+
     /** Display the project window in a @c ImGui::Begin/End window.
      *
      * @return project_editor next status enumeration: keep the window open or
@@ -1181,6 +1181,8 @@ struct project_editor {
 
     data_array<graph_editor, graph_editor_id> graph_eds;
     vector<visualisation_editor>              visualisation_eds;
+
+    small_string<64> title;
 
     /// @c reg is used to edit the @c project @c file_path_id.
     registred_path_id reg = undefined<registred_path_id>();
@@ -1588,15 +1590,16 @@ public:
     /// Try to allocate a project and affect a new name to the newly allocated
     /// project_window. If project allocation fails, a message is put in @c
     /// journal_handler.
-    ///
-    /// @return A @c project_id identifier or std::nullopt if the allocation
-    /// fail.
-    std::optional<project_id> alloc_project_window() noexcept;
+    project_id alloc_project_window() noexcept;
 
-    /**
-     * Free the @a project according to the @a project_id and free all
-     * subobjects (@a registered_path etc.).
-     */
+    /// Open a project window according to the @a file_id.
+    project_id open_project_window(const file_path_id file_id) noexcept;
+
+    /// Close a project window according to the @a project_id but keep the
+    /// correspondiing @c project_editor::file @c file_path_id.
+    file_path_id close_project_window(const project_id project_id) noexcept;
+
+    /// Free the @a project according to the @a project_id
     void free_project_window(const project_id id) noexcept;
 
     bool          init() noexcept;
@@ -1633,7 +1636,7 @@ public:
     unordered_task_list& get_unordered_task_list() noexcept;
 
     /// Allocate a new @c project_editor and read the file @c file_path_id.
-    void start_load_project(const file_path_id f_id) noexcept;
+    void start_load_project(const project_id f_id) noexcept;
 
     /// Save the project @c pj_id.
     void start_save_project(const project_id pj_id) noexcept;

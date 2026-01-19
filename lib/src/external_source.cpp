@@ -214,7 +214,7 @@ bool binary_file_source::read(source& src, const int length) noexcept
     return ifs.read(reinterpret_cast<char*>(src.buffer.data()), length).good();
 }
 
-int binary_file_source::tellg() noexcept { return ifs.tellg(); }
+int binary_file_source::tellg() noexcept { return static_cast<int>(ifs.tellg()); }
 
 static status binary_file_source_fill_buffer(binary_file_source& ext,
                                              source&             src,

@@ -207,7 +207,6 @@ static void show_project_file_access(application&    app,
 
     auto*       reg_dir     = app.mod.registred_paths.try_to_get(ed.reg);
     const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
-    auto&       pj          = ed.pj;
 
     if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
         registred_path* list = nullptr;

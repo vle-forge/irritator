@@ -26,12 +26,19 @@ project_editor::project_editor(const std::string_view default_name) noexcept
   : graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
-    pj.name = default_name;
+    set_title_name(default_name);
+
     pj.grid_observers.reserve(8);
     pj.graph_observers.reserve(8);
     pj.variable_observers.reserve(8);
 
     output_context = ImPlot::CreateContext();
+}
+
+void project_editor::set_title_name(const std::string_view name) noexcept
+{
+    format(title, "{}##project", name);
+    pj.name = name;
 }
 
 project_editor::~project_editor() noexcept
@@ -1117,7 +1124,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     bool is_open = true;
-    if (not ImGui::Begin(pj.name.c_str(), &is_open)) {
+    if (not ImGui::Begin(title.c_str(), &is_open)) {
         ImGui::End();
         return is_open ? show_result_t::success
                        : show_result_t::request_to_close;

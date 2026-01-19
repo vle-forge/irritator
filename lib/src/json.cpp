@@ -6449,13 +6449,15 @@ struct json_archiver::impl {
         if (auto* dir = mod.dir_paths.try_to_get(sim.dir_id)) {
             const auto view = dir->path.sv();
             w.Key("directory");
-            w.String(view.data(), view.size());
+            w.String(view.data(),
+                     static_cast<rapidjson::SizeType>(view.size()));
         }
 
         if (auto* file = mod.file_paths.try_to_get(sim.file_id)) {
             const auto view = file->path.sv();
             w.Key("file");
-            w.String(view.data(), view.size());
+            w.String(view.data(),
+                     static_cast<rapidjson::SizeType>(view.size()));
         }
     }
 
