@@ -383,7 +383,7 @@ std::optional<project_id> application::alloc_project_window() noexcept
     }
 
     name_str temp;
-    format(temp, "project {}", pjs.next_key());
+    format(temp, "project-{}", pjs.next_key());
 
     auto& pj = pjs.alloc(temp.sv());
 
