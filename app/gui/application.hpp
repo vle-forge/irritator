@@ -1299,12 +1299,6 @@ public:
 
     bool is_open = true;
 
-    bool show_component = true;
-    bool show_project   = true;
-    bool show_txt       = true;
-    bool show_data      = true;
-    bool show_dot       = true;
-
 private:
     vector<tree_node*>               stack;
     std::unique_ptr<description_str> str_buffer;
@@ -1317,11 +1311,26 @@ private:
         return *(str_buffer.get());
     }
 
+    enum class file_type : u8 {
+        none,
+        component,
+        project,
+        txt,
+        data,
+        dot,
+    };
+
+    bitflags<file_type> flags = bitflags<file_type>(file_type::component,
+                                                    file_type::project,
+                                                    file_type::txt,
+                                                    file_type::data,
+                                                    file_type::dot);
+
     void show_menu() noexcept;
-    void show_treeview() noexcept;
-    void show_repertories_content() noexcept;
-    void show_dirpath_content(dir_path&) noexcept;
-    void show_notsaved_content() noexcept;
+    void show_file_treeview(const bitflags<file_type>) noexcept;
+    void show_repertories_content(const bitflags<file_type>) noexcept;
+    void show_dirpath_content(dir_path&, const bitflags<file_type>) noexcept;
+    void show_notsaved_content(const bitflags<file_type>) noexcept;
     void show_file_component(const file_path&, const component&) noexcept;
     void show_file_project(file_path&) noexcept;
 };
