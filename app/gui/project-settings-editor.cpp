@@ -332,8 +332,11 @@ static bool show_project_simulation_settings(application&    app,
     name_str name = ed.pj.name;
     if (ImGui::InputFilteredString(
           "Name", name, ImGuiInputTextFlags_EnterReturnsTrue)) {
-        if (not project_name_already_exists(app, app.pjs.get_id(ed), name.sv()))
-            ed.name = name;
+        if (not project_name_already_exists(
+              app, app.pjs.get_id(ed), name.sv())) {
+            ed.pj.name      = name;
+            ed.is_dock_init = false;
+        }
     }
 
     show_project_file_access(app, ed);
