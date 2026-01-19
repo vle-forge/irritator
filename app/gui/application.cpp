@@ -567,10 +567,14 @@ void application::show_dock() noexcept
             }
 
             pj->start_simulation_update_state(*this);
+            ImGui::PushID(pj);
+
             if (pj->show(*this) ==
                 project_editor::show_result_t::request_to_close) {
                 to_del = pj;
             }
+
+            ImGui::PopID();
         }
 
         if (to_del)
@@ -588,7 +592,7 @@ void application::show_dock() noexcept
 
             small_string<64> name;
             format(
-              name, "{}-graph-{}", pj->name.sv(), get_index(v.graph_ed_id));
+              name, "{}-graph-{}", pj->pj.name.sv(), get_index(v.graph_ed_id));
 
             if (ge->show(name.c_str(), *this, *pj, *tn, *go) ==
                 graph_editor::show_result_type::request_to_close) {

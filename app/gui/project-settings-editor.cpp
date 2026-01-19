@@ -119,7 +119,7 @@ static constexpr bool project_name_already_exists(
     for (const auto& pj : app.pjs) {
         const auto pj_id = app.pjs.get_id(pj);
 
-        if (pj_id != exclude and pj.name == name)
+        if (pj_id != exclude and pj.pj.name == name)
             return true;
     }
 
@@ -329,7 +329,7 @@ static bool show_project_simulation_settings(application&    app,
     auto end    = ed.pj.sim.limits.end();
     auto is_inf = std::isinf(end);
 
-    name_str name = ed.name;
+    name_str name = ed.pj.name;
     if (ImGui::InputFilteredString(
           "Name", name, ImGuiInputTextFlags_EnterReturnsTrue)) {
         if (not project_name_already_exists(app, app.pjs.get_id(ed), name.sv()))

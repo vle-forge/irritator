@@ -1110,8 +1110,6 @@ struct project_editor {
     /// The index of the current selected
     int current_snap = -1;
 
-    name_str name;
-
     real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;
 

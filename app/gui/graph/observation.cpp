@@ -786,7 +786,7 @@ void graph_editor::show(application&    app,
                         tree_node&      tn) noexcept
 {
     const auto name = format_n<64>(
-      "{}##{}", ed.name.sv(), get_index(ed.pj.tree_nodes.get_id(tn)));
+      "{}##{}", ed.pj.name.sv(), get_index(ed.pj.tree_nodes.get_id(tn)));
 
     if (not ImGui::BeginChild(name.c_str())) {
         ImGui::EndChild();
@@ -850,7 +850,7 @@ void graph_editor::show(application&    app,
                         graph_observer& obs) noexcept
 {
     const auto name = format_n<64>(
-      "{}##{}", ed.name.sv(), get_index(ed.pj.graph_observers.get_id(obs)));
+      "{}##{}", ed.pj.name.sv(), get_index(ed.pj.graph_observers.get_id(obs)));
 
     if (not ImGui::BeginChild(name.c_str())) {
         ImGui::EndChild();

@@ -23,10 +23,10 @@
 namespace irt {
 
 project_editor::project_editor(const std::string_view default_name) noexcept
-  : name{ default_name }
-  , graph_eds{ 16 }
+  : graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
+    pj.name = default_name;
     pj.grid_observers.reserve(8);
     pj.graph_observers.reserve(8);
     pj.variable_observers.reserve(8);
@@ -1117,7 +1117,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     bool is_open = true;
-    if (not ImGui::Begin(name.c_str(), &is_open)) {
+    if (not ImGui::Begin(pj.name.c_str(), &is_open)) {
         ImGui::End();
         return is_open ? show_result_t::success
                        : show_result_t::request_to_close;

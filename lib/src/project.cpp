@@ -1970,7 +1970,6 @@ status project::rebuild(modeling& mod) noexcept
 
 void project::clear() noexcept
 {
-    name.clear();
     sim.clear();
 
     tree_nodes.clear();

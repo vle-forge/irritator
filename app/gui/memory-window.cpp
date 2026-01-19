@@ -77,7 +77,7 @@ void memory_window::show() noexcept
             const auto idx = get_index(id);
 
             ImGui::PushID(idx);
-            if (ImGui::TreeNode(p.name.c_str())) {
+            if (ImGui::TreeNode(p.pj.name.c_str())) {
                 ImGui::LabelFormat("models", "{}", p.pj.sim.models.size());
                 ImGui::LabelFormat("hsms", "{}", p.pj.sim.hsms.size());
                 ImGui::LabelFormat(
