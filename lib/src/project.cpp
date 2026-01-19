@@ -1736,7 +1736,7 @@ status project::save(modeling& mod) noexcept
         const auto  u8str = filename->u8string();
         const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        if (auto file = file::open(cstr, open_mode::read); file.has_value()) {
+        if (auto file = file::open(cstr, open_mode::write); file.has_value()) {
             json_archiver arc;
 
             return arc(*this,
