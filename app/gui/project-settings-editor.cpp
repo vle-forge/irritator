@@ -289,11 +289,14 @@ static void show_project_file_access(application&    app,
             auto* file = app.mod.file_paths.try_to_get(ed.pj.file);
             if (not file) {
                 auto& f    = app.mod.file_paths.alloc();
-                auto  id   = app.mod.file_paths.get_id(f);
-                f.parent   = app.mod.dir_paths.get_id(*dir);
-                ed.pj.file = id;
+                ed.pj.file = app.mod.file_paths.get_id(f);
 
-                dir->children.write([&](auto& vec) { vec.emplace_back(id); });
+                f.path   = ed.pj.name.sv();
+                f.parent = app.mod.dir_paths.get_id(*dir);
+                f.type   = file_path::file_type::project_file;
+
+                dir->children.write(
+                  [id = ed.pj.file](auto& vec) { vec.emplace_back(id); });
 
                 file = &f;
             }

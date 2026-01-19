@@ -1152,8 +1152,7 @@ struct project_editor {
 
     circular_buffer<command, 256> commands;
 
-    registred_path_id project_file = undefined<registred_path_id>();
-    project           pj;
+    project pj;
 
     //! Select a @c tree_node node in the modeling tree node. The existence of
     //! the underlying component is tested before assignment.

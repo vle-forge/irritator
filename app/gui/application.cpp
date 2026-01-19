@@ -393,8 +393,8 @@ std::optional<project_id> application::alloc_project_window() noexcept
 void application::free_project_window(const project_id id) noexcept
 {
     if (auto* pj = pjs.try_to_get(id))
-        if (is_defined(pj->project_file))
-            mod.registred_paths.free(pj->project_file);
+        if (is_defined(pj->pj.file))
+            mod.file_paths.free(pj->pj.file);
 
     pjs.free(id);
 }

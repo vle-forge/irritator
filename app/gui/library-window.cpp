@@ -183,6 +183,14 @@ static void show_project_popup_menu(application& app, file_path& file) noexcept
             app.add_gui_task([&app, id]() {
                 if (auto* f = app.mod.file_paths.try_to_get(id))
                     app.mod.remove_file(*f);
+
+                auto pj_id = undefined<project_id>();
+                for (const auto& pj : app.pjs)
+                    if (pj.pj.file == id)
+                        pj_id = app.pjs.get_id(pj);
+
+                if (is_defined(pj_id))
+                    app.free_project_window(pj_id);
             });
         }
 
