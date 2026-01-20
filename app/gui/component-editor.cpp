@@ -2096,8 +2096,6 @@ struct component_editor::impl {
         auto& ed             = app.component_ed;
         auto  tab_item_flags = ImGuiTabItemFlags_None;
 
-        format(ed.buffer(), "{}##{}", compo->name.c_str(), get_index(tab.id));
-
         if (ed.need_to_open(tab.id)) {
             tab_item_flags = ImGuiTabItemFlags_SetSelected;
             ed.clear_request_to_open();
@@ -2109,7 +2107,8 @@ struct component_editor::impl {
         }
 
         bool is_open = true;
-        if (not ImGui::Begin(ed.buffer().c_str(), &is_open)) {
+        if (not ImGui::Begin(ed.make_title(compo->name.sv(), tab.id),
+                             &is_open)) {
             ImGui::End();
             return is_open ? show_result_t::success
                            : show_result_t::request_to_close;
@@ -2201,6 +2200,15 @@ component_editor::component_editor() noexcept
   : tabs(32, reserve_tag)
 {}
 
+auto component_editor::make_title(const std::string_view name,
+                                  const component_id compo_id) noexcept -> const
+  char*
+{
+    format(buffer(), "{}##{}=compo", name, get_index(compo_id));
+
+    return buffer().c_str();
+}
+
 void component_editor::display() noexcept
 {
     if (not tabs.empty()) {
@@ -2255,9 +2263,10 @@ auto log_not_enough_memory = [](auto& title, auto& msg) noexcept {
 
 void component_editor::request_to_open(const component_id id) noexcept
 {
+    auto& app   = container_of(this, &application::component_ed);
+    auto& compo = app.mod.components.get<component>(id);
+
     if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
-        auto& app   = container_of(this, &application::component_ed);
-        auto& compo = app.mod.components.get<component>(id);
 
         switch (compo.type) {
         case component_type::generic:
@@ -2332,7 +2341,7 @@ void component_editor::request_to_open(const component_id id) noexcept
             break;
         }
     } else {
-        m_request_to_open = id;
+        ImGui::SetWindowFocus(make_title(compo.name.sv(), id));
     }
 }
 

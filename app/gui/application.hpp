@@ -1262,6 +1262,12 @@ public:
         return *(str_buffer.get());
     }
 
+    /// Build a title for component @c compo_id. This function use the @c
+    /// buffer() function and underlying @c str_buffer. Do not use this function
+    /// in thread or task.
+    auto make_title(const std::string_view name,
+                    const component_id     compo_id) noexcept -> const char*;
+
     struct impl;
 
     enum { tabitem_open_save, tabitem_open_in_out };
