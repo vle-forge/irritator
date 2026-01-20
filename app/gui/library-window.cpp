@@ -169,11 +169,6 @@ static void show_component_popup_menu(application&     app,
     }
 }
 
-static void show_project_popup_menu(application&    app,
-                                    file_path&      file,
-                                    project_editor* pj) noexcept
-{}
-
 void library_window::show_file_project(file_path& file) noexcept
 {
     format(buffer(), "{}", file.path.sv());
