@@ -183,7 +183,7 @@ void library_window::show_file_project(file_path& file) noexcept
     const auto  file_id = app.mod.file_paths.get_id(file);
     auto*       pj      = app.pjs.try_to_get(file.pj_id);
 
-    if (ImGui::Selectable(name, false)) {
+    if (ImGui::Selectable(name, pj != nullptr, false)) {
         if (pj) {
             ImGui::SetWindowFocus(pj->title.c_str());
         } else {
@@ -364,7 +364,7 @@ void library_window::show_notsaved_content(
 
             if (not file) {
                 ImGui::PushID(std::addressof(pj));
-                if (ImGui::Selectable(pj.pj.name.c_str(), false)) {
+                if (ImGui::Selectable(pj.pj.name.c_str(), true)) {
                     ImGui::SetWindowFocus(pj.title.c_str());
                 }
 
