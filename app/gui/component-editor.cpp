@@ -1914,15 +1914,13 @@ struct component_editor::impl {
     }
 
     template<typename ComponentEditor>
-    static void display_component_editor_subtable(
-      application&     app,
-      ComponentEditor& element,
-      component&       compo,
-      ImGuiTableFlags  flags) noexcept
+    static void display_component_editor_subtable(application&     app,
+                                                  ComponentEditor& element,
+                                                  component& compo) noexcept
     {
         auto& ed = app.component_ed;
 
-        if (ImGui::BeginTable("##ed", 2, flags)) {
+        if (ImGui::BeginTable("##ed", 2)) {
             ImGui::TableSetupColumn(
               "Component settings", ImGuiTableColumnFlags_WidthStretch, 0.2f);
             ImGui::TableSetupColumn(
@@ -2081,50 +2079,56 @@ struct component_editor::impl {
     }
 
     template<typename T, typename ID>
-    static bool display_component_editor(application&       app,
-                                         data_array<T, ID>& data,
-                                         const ID           id,
-                                         const component_id compo_id) noexcept
+    static auto display_component_editor(application&           app,
+                                         data_array<T, ID>&     data,
+                                         const ID               id,
+                                         component_editor::tab& tab) noexcept
+      -> component_editor::show_result_t
     {
-        auto* compo = app.mod.components.try_to_get<component>(compo_id);
+        auto* compo = app.mod.components.try_to_get<component>(tab.id);
         if (not compo)
-            return true;
+            return component_editor::show_result_t::request_to_close;
 
         auto* element = data.try_to_get(id);
         if (not element)
-            return true;
+            return component_editor::show_result_t::request_to_close;
 
-        auto& ed = app.component_ed;
+        auto& ed             = app.component_ed;
+        auto  tab_item_flags = ImGuiTabItemFlags_None;
 
-        auto tab_item_flags = ImGuiTabItemFlags_None;
-        format(ed.title, "{}##{}", compo->name.c_str(), get_index(compo_id));
+        format(ed.buffer(), "{}##{}", compo->name.c_str(), get_index(tab.id));
 
-        if (ed.need_to_open(compo_id)) {
+        if (ed.need_to_open(tab.id)) {
             tab_item_flags = ImGuiTabItemFlags_SetSelected;
             ed.clear_request_to_open();
         }
 
-        auto open = true;
-        if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
-            constexpr auto flags =
-              ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-              ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-              ImGuiTableFlags_Reorderable;
-
-            if (is_defined(compo->file) and
-                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
-                if constexpr (has_store_function<T>) {
-                    element->store(ed);
-                }
-                app.start_save_component(compo_id);
-            }
-
-            display_component_editor_subtable(app, *element, *compo, flags);
-
-            ImGui::EndTabItem();
+        if (not tab.is_dock_init) {
+            ImGui::SetNextWindowDockID(app.get_main_dock_id());
+            tab.is_dock_init = true;
         }
 
-        return (open == false);
+        bool is_open = true;
+        if (not ImGui::Begin(ed.buffer().c_str(), &is_open)) {
+            ImGui::End();
+            return is_open ? show_result_t::success
+                           : show_result_t::request_to_close;
+        }
+
+        if (is_defined(compo->file) and
+            ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+            if constexpr (has_store_function<T>) {
+                element->store(ed);
+            }
+            app.start_save_component(tab.id);
+        }
+
+        display_component_editor_subtable(app, *element, *compo);
+
+        ImGui::End();
+
+        return is_open ? show_result_t::success
+                       : show_result_t::request_to_close;
     }
 
     static void display_tabs(application& app) noexcept
@@ -2137,7 +2141,8 @@ struct component_editor::impl {
             switch (it->type) {
             case component_type::generic:
                 if (display_component_editor(
-                      app, app.generics, it->data.generic, it->id)) {
+                      app, app.generics, it->data.generic, *it) ==
+                    component_editor::show_result_t::request_to_close) {
                     app.generics.free(it->data.generic);
                     to_del = true;
                 }
@@ -2145,7 +2150,8 @@ struct component_editor::impl {
 
             case component_type::grid:
                 if (display_component_editor(
-                      app, app.grids, it->data.grid, it->id)) {
+                      app, app.grids, it->data.grid, *it) ==
+                    component_editor::show_result_t::request_to_close) {
                     app.grids.free(it->data.grid);
                     to_del = true;
                 }
@@ -2153,7 +2159,8 @@ struct component_editor::impl {
 
             case component_type::graph:
                 if (display_component_editor(
-                      app, app.graphs, it->data.graph, it->id)) {
+                      app, app.graphs, it->data.graph, *it) ==
+                    component_editor::show_result_t::request_to_close) {
                     app.graphs.free(it->data.graph);
                     to_del = true;
                 }
@@ -2161,7 +2168,8 @@ struct component_editor::impl {
 
             case component_type::hsm:
                 if (display_component_editor(
-                      app, app.hsms, it->data.hsm, it->id)) {
+                      app, app.hsms, it->data.hsm, *it) ==
+                    component_editor::show_result_t::request_to_close) {
                     app.hsms.free(it->data.hsm);
                     to_del = true;
                 }
@@ -2169,7 +2177,8 @@ struct component_editor::impl {
 
             case component_type::simulation:
                 if (display_component_editor(
-                      app, app.sims, it->data.sim, it->id)) {
+                      app, app.sims, it->data.sim, *it) ==
+                    component_editor::show_result_t::request_to_close) {
                     app.sims.free(it->data.sim);
                     to_del = true;
                 }
@@ -2194,20 +2203,10 @@ component_editor::component_editor() noexcept
 
 void component_editor::display() noexcept
 {
-    if (!ImGui::Begin(component_editor::name, &is_open)) {
-        ImGui::End();
-        return;
-    }
-
     if (not tabs.empty()) {
-        if (ImGui::BeginTabBar("Editors")) {
-            auto& app = container_of(this, &application::component_ed);
-            component_editor::impl::display_tabs(app);
-            ImGui::EndTabBar();
-        }
+        auto& app = container_of(this, &application::component_ed);
+        component_editor::impl::display_tabs(app);
     }
-
-    ImGui::End();
 }
 
 static auto find_in_tabs(const vector<component_editor::tab>& v,

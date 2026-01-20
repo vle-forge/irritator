@@ -1206,22 +1206,22 @@ class component_editor
 public:
     constexpr static inline const char* name = "Component editor";
 
+    enum class show_result_t {
+        success,          ///< Nothing to do.
+        request_to_close, ///< The window must be closed by the called.
+    };
+
     component_editor() noexcept;
 
-    /** Draw the editor into a ImGui::Begin/ImGui::End window. */
+    /// Draw openend component into ImGui windows
     void display() noexcept;
 
     void request_to_open(const component_id id) noexcept;
     bool need_to_open(const component_id id) const noexcept;
     void clear_request_to_open() noexcept;
 
-    /** Force to close the opened component @c id. */
+    /// Force to close the opened component @c id.
     void close(const component_id id) noexcept;
-
-    small_string<31> title;
-    small_string<31> component_name;
-
-    bool is_open = true;
 
     void add_generic_component_data() noexcept;
     void add_grid_component_data() noexcept;
@@ -1241,6 +1241,8 @@ public:
         component_id   id;
         component_type type;
 
+        bool is_dock_init = false;
+
         union {
             grid_editor_data_id       grid;
             graph_editor_data_id      graph;
@@ -1249,6 +1251,16 @@ public:
             simulation_editor_data_id sim;
         } data;
     };
+
+    std::unique_ptr<description_str> str_buffer;
+
+    description_str& buffer() noexcept
+    {
+        if (not str_buffer.get())
+            str_buffer = std::make_unique<description_str>();
+
+        return *(str_buffer.get());
+    }
 
     struct impl;
 

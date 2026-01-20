@@ -530,8 +530,6 @@ auto application::show_menu() noexcept -> show_result_t
         }
 
         if (ImGui::BeginMenu("View")) {
-            ImGui::MenuItem(
-              "Show modeling editor", nullptr, &component_ed.is_open);
             ImGui::MenuItem("Show output editor", nullptr, &output_ed.is_open);
 
             ImGui::MenuItem(
@@ -594,8 +592,7 @@ void application::show_dock() noexcept
         ImGui::DockBuilderFinish(main_dock_id);
     }
 
-    if (component_ed.is_open)
-        component_ed.display();
+    component_ed.display();
 
     {
         project_editor* pj       = nullptr;
