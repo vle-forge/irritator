@@ -171,10 +171,8 @@ static void show_component_popup_menu(application&     app,
 
 void library_window::show_file_project(file_path& file) noexcept
 {
-    format(buffer(), "{}", file.path.sv());
-
     auto&       app     = container_of(this, &application::library_wnd);
-    const auto* name    = buffer().c_str();
+    const auto* name    = file.path.c_str();
     const auto  file_id = app.mod.file_paths.get_id(file);
     auto*       pj      = app.pjs.try_to_get(file.pj_id);
 
@@ -265,14 +263,15 @@ void library_window::show_file_component(const file_path& file,
         }
     }
 
-    format(buffer(), "{} ({})", c.name.sv(), file.path.sv());
     ImGui::SameLine();
     if (state == component_status::unreadable) {
-        ImGui::TextDisabled("%s", buffer().c_str());
+        ImGui::TextDisabled("%s (unreadable)", file.path.c_str());
     } else {
-        if (ImGui::Selectable(buffer().c_str(),
-                              selected,
-                              ImGuiSelectableFlags_AllowDoubleClick)) {
+        small_string<127> name;
+        format(name, "{} ({})", c.name.sv(), file.path.sv());
+
+        if (ImGui::Selectable(
+              name.c_str(), selected, ImGuiSelectableFlags_AllowDoubleClick)) {
             if (ImGui::IsMouseDoubleClicked(0))
                 app.library_wnd.try_set_component_as_project(app, id);
             else

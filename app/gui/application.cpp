@@ -519,13 +519,9 @@ auto application::show_menu() noexcept -> show_result_t
     show_result_t ret = show_result_t::success;
 
     if (ImGui::BeginMainMenuBar()) {
-        if (ImGui::BeginMenu("File")) {
-            if (ImGui::MenuItem("New project"))
-                alloc_project_window();
-
+        if (ImGui::BeginMenu("Irritator")) {
             if (ImGui::MenuItem("Quit"))
                 ret = show_result_t::request_to_close;
-
             ImGui::EndMenu();
         }
 

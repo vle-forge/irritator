@@ -15,6 +15,15 @@
 
 namespace irt {
 
+template<size_t N>
+static const char* make_title(small_string<N>&       out,
+                              const std::string_view name,
+                              const component_id     compo_id) noexcept
+{
+    format(out, "{}##{}=compo", name, get_index(compo_id));
+    return out.c_str();
+}
+
 template<typename T, typename Identifier>
 constexpr T* find(data_array<T, Identifier>& data,
                   vector<Identifier>&        container,
@@ -2106,8 +2115,10 @@ struct component_editor::impl {
             tab.is_dock_init = true;
         }
 
-        bool is_open = true;
-        if (not ImGui::Begin(ed.make_title(compo->name.sv(), tab.id),
+        bool              is_open = true;
+        small_string<127> title;
+
+        if (not ImGui::Begin(make_title(title, compo->name.sv(), tab.id),
                              &is_open)) {
             ImGui::End();
             return is_open ? show_result_t::success
@@ -2200,15 +2211,6 @@ component_editor::component_editor() noexcept
   : tabs(32, reserve_tag)
 {}
 
-auto component_editor::make_title(const std::string_view name,
-                                  const component_id compo_id) noexcept -> const
-  char*
-{
-    format(buffer(), "{}##{}=compo", name, get_index(compo_id));
-
-    return buffer().c_str();
-}
-
 void component_editor::display() noexcept
 {
     if (not tabs.empty()) {
@@ -2267,7 +2269,6 @@ void component_editor::request_to_open(const component_id id) noexcept
     auto& compo = app.mod.components.get<component>(id);
 
     if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
-
         switch (compo.type) {
         case component_type::generic:
             if (app.generics.can_alloc(1)) {
@@ -2341,7 +2342,8 @@ void component_editor::request_to_open(const component_id id) noexcept
             break;
         }
     } else {
-        ImGui::SetWindowFocus(make_title(compo.name.sv(), id));
+        small_string<127> title;
+        ImGui::SetWindowFocus(make_title(title, compo.name.sv(), id));
     }
 }
 

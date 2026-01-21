@@ -1252,22 +1252,6 @@ public:
         } data;
     };
 
-    std::unique_ptr<description_str> str_buffer;
-
-    description_str& buffer() noexcept
-    {
-        if (not str_buffer.get())
-            str_buffer = std::make_unique<description_str>();
-
-        return *(str_buffer.get());
-    }
-
-    /// Build a title for component @c compo_id. This function use the @c
-    /// buffer() function and underlying @c str_buffer. Do not use this function
-    /// in thread or task.
-    auto make_title(const std::string_view name,
-                    const component_id     compo_id) noexcept -> const char*;
-
     struct impl;
 
     enum { tabitem_open_save, tabitem_open_in_out };
@@ -1317,16 +1301,7 @@ public:
     bool is_open = true;
 
 private:
-    vector<tree_node*>               stack;
-    std::unique_ptr<description_str> str_buffer;
-
-    description_str& buffer() noexcept
-    {
-        if (not str_buffer.get())
-            str_buffer = std::make_unique<description_str>();
-
-        return *(str_buffer.get());
-    }
+    vector<tree_node*> stack;
 
     enum class file_type : u8 {
         none,
