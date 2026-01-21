@@ -77,101 +77,6 @@ void project_editor::select(application& app, tree_node_id id) noexcept
     }
 }
 
-static void show_simulation_action_buttons(application&    app,
-                                           project_editor& ed,
-                                           bool            can_be_initialized,
-                                           bool            can_be_started,
-                                           bool            can_be_paused,
-                                           bool            can_be_restarted,
-                                           bool can_be_stopped) noexcept
-{
-    const auto item_x         = ImGui::GetStyle().ItemSpacing.x;
-    const auto region_x       = ImGui::GetContentRegionAvail().x;
-    const auto button_x       = (region_x - item_x) / 9.f;
-    const auto small_button_x = (region_x - (button_x * 8.f) - item_x) / 3.f;
-    const auto button         = ImVec2{ button_x, 0.f };
-    const auto small_button   = ImVec2{ small_button_x, 0.f };
-
-    auto open = false;
-
-    ImGui::SameLine();
-
-    ImGui::BeginDisabled(can_be_initialized);
-    open = ImGui::Button("Import", button);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Destroy all simulations and observations data and "
-                          "reimport the components.");
-    if (open)
-        ed.start_simulation_copy_modeling(app);
-    ImGui::SameLine();
-
-    open = ImGui::Button("init", button);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Initialize simulation models and data.");
-    if (open)
-        ed.start_simulation_init(app);
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(can_be_started);
-    if (ImGui::Button("start", button))
-        ed.start_simulation_start(app);
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    ImGui::BeginDisabled(can_be_paused);
-    if (ImGui::Button("pause", button)) {
-        ed.force_pause = true;
-    }
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-
-    ImGui::BeginDisabled(can_be_restarted);
-    if (ImGui::Button("continue", button)) {
-        ed.simulation_state = simulation_status::run_requiring;
-        ed.force_pause      = false;
-        ed.start_simulation_start(app);
-    }
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-
-    ImGui::BeginDisabled(can_be_stopped);
-    if (ImGui::Button("stop", button)) {
-        ed.force_stop = true;
-    }
-    ImGui::EndDisabled();
-
-    const bool history_mode = (ed.store_all_changes || ed.allow_user_changes) &&
-                              (can_be_started || can_be_restarted);
-
-    ImGui::BeginDisabled(!history_mode);
-
-    if (ed.store_all_changes) {
-        ImGui::SameLine();
-        if (ImGui::Button("step-by-step", small_button))
-            ed.start_simulation_step_by_step(app);
-    }
-
-    ImGui::SameLine();
-
-    const auto have_snaphot = ed.store_all_changes and not ed.snaps.empty();
-
-    ImGui::BeginDisabled(not have_snaphot);
-    if (ImGui::Button("<", small_button))
-        ed.start_simulation_back(app);
-    ImGui::EndDisabled();
-    ImGui::SameLine();
-
-    ImGui::BeginDisabled(not have_snaphot);
-    if (ImGui::Button(">", small_button))
-        ed.start_simulation_advance(app);
-    ImGui::EndDisabled();
-
-    ImGui::EndDisabled();
-}
-
 static bool select_variable_observer(project&              pj,
                                      variable_observer_id& current) noexcept
 {
@@ -1130,29 +1035,6 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                        : show_result_t::request_to_close;
     }
 
-    const bool can_be_initialized = !any_equal(simulation_state,
-                                               simulation_status::not_started,
-                                               simulation_status::finished,
-                                               simulation_status::initialized,
-                                               simulation_status::not_started);
-
-    const bool can_be_started =
-      !any_equal(simulation_state, simulation_status::initialized);
-
-    const bool can_be_paused = !any_equal(simulation_state,
-                                          simulation_status::running,
-                                          simulation_status::run_requiring,
-                                          simulation_status::paused);
-
-    const bool can_be_restarted =
-      !any_equal(simulation_state, simulation_status::pause_forced);
-
-    const bool can_be_stopped = !any_equal(simulation_state,
-                                           simulation_status::running,
-                                           simulation_status::run_requiring,
-                                           simulation_status::paused,
-                                           simulation_status::pause_forced);
-
     if (ImGui::BeginTable("##ed", 2, ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn(
           "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
@@ -1167,14 +1049,6 @@ auto project_editor::show(application& app) noexcept -> show_result_t
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##ed-sim", ImGui::GetContentRegionAvail())) {
-            show_simulation_action_buttons(app,
-                                           *this,
-                                           can_be_initialized,
-                                           can_be_started,
-                                           can_be_paused,
-                                           can_be_restarted,
-                                           can_be_stopped);
-
             auto* selected = pj.node(m_selected_tree_node);
 
             if (ImGui::BeginTabBar("##SimulationTabBar")) {
