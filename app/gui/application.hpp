@@ -116,6 +116,9 @@ auto get_component_color(const application& app, const component_id id) noexcept
 auto get_component_u32color(const application& app,
                             const component_id id) noexcept -> ImU32;
 
+/// Get access to the font icons ttf
+std::pair<const void*, int> get_font_icons() noexcept;
+
 enum class file_path_selector_option : u8 {
     none,
     force_dot_extension,
@@ -1526,6 +1529,8 @@ private:
     task_manager task_mgr;
 
 public:
+    ImFont* icons = nullptr;
+
     config_manager   config;
     modeling         mod;
     journal_handler& jn;

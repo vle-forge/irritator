@@ -323,6 +323,21 @@ static void show_project_file_access(application&    app,
     }
 }
 
+static bool EnhancedButton(const application& app,
+                           const char*        label,
+                           const ImVec2       button_size,
+                           const char*        msg) noexcept
+{
+    ImGui::PushFont(app.icons);
+    const auto click = ImGui::Button(label, button_size);
+    ImGui::PopFont();
+
+    if (msg and ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("%s", msg);
+
+    return click;
+}
+
 static void show_simulation_action_buttons(application&    app,
                                            project_editor& ed) noexcept
 {
@@ -332,8 +347,6 @@ static void show_simulation_action_buttons(application&    app,
     const auto small_button_x = (region_x - 2.f * item_x) / 3.f;
     const auto button         = ImVec2{ button_x, 0.f };
     const auto small_button   = ImVec2{ small_button_x, 0.f };
-
-    auto open = false;
 
     const bool can_be_initialized = !any_equal(ed.simulation_state,
                                                simulation_status::not_started,
@@ -359,30 +372,30 @@ static void show_simulation_action_buttons(application&    app,
                                            simulation_status::pause_forced);
 
     ImGui::BeginDisabled(can_be_initialized);
-    open = ImGui::Button("init", button);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Initialize simulation models and data.");
-    if (open)
+    if (EnhancedButton(
+          app, "\ue0c8", button, "Initialize simulation models and data."))
         ed.start_simulation_init(app);
     ImGui::EndDisabled();
 
     ImGui::SameLine();
+
     ImGui::BeginDisabled(can_be_started);
-    if (ImGui::Button("start", button))
+    if (EnhancedButton(app, "\ue0a9", button, "Start and run the simulation"))
         ed.start_simulation_start(app);
     ImGui::EndDisabled();
 
     ImGui::SameLine();
+
     ImGui::BeginDisabled(can_be_paused);
-    if (ImGui::Button("pause", button)) {
+    if (EnhancedButton(app, "\ue09e", button, "Pause the simulation"))
         ed.force_pause = true;
-    }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_restarted);
-    if (ImGui::Button("continue", button)) {
+    if (EnhancedButton(
+          app, "\ue030", button, "Restart the simulation after pause")) {
         ed.simulation_state = simulation_status::run_requiring;
         ed.force_pause      = false;
         ed.start_simulation_start(app);
@@ -392,16 +405,20 @@ static void show_simulation_action_buttons(application&    app,
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_stopped);
-    if (ImGui::Button("stop", button)) {
+    if (EnhancedButton(
+          app,
+          "\ue0cb",
+          button,
+          "Stop the simulation (can not be restart at the same state"))
         ed.force_stop = true;
-    }
     ImGui::EndDisabled();
 
     const bool history_mode = (ed.store_all_changes || ed.allow_user_changes) &&
                               (can_be_started || can_be_restarted);
 
     if (history_mode) {
-        if (ImGui::Button("step-by-step", small_button))
+        if (EnhancedButton(
+              app, "\ue0c6", small_button, "Advance simulation step by step"))
             ed.start_simulation_step_by_step(app);
 
         ImGui::SameLine();
@@ -409,13 +426,16 @@ static void show_simulation_action_buttons(application&    app,
         const auto have_snaphot = ed.store_all_changes and not ed.snaps.empty();
 
         ImGui::BeginDisabled(not have_snaphot);
-        if (ImGui::Button("<", small_button))
+        if (EnhancedButton(
+              app, "\ue0b3", small_button, "Rewind into simulation states"))
             ed.start_simulation_back(app);
         ImGui::EndDisabled();
+
         ImGui::SameLine();
 
         ImGui::BeginDisabled(not have_snaphot);
-        if (ImGui::Button(">", small_button))
+        if (EnhancedButton(
+              app, "\ue05c", small_button, "Forward into simulation states"))
             ed.start_simulation_advance(app);
         ImGui::EndDisabled();
     }

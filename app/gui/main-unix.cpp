@@ -90,12 +90,12 @@ auto GetSystemFontFile() noexcept -> std::optional<std::filesystem::path>
 
     if (auto ret = GetSystemFontFilePath("Roboto", config.get());
         ret.has_value()) {
-        return ret.value();
+        return ret;
     }
 
     if (auto ret = GetSystemFontFilePath("DejaVu Sans", config.get());
         ret.has_value()) {
-        return ret.value();
+        return ret;
     }
 
     return std::nullopt;
@@ -240,26 +240,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     const auto init_filename_u8str = init_filename.u8string();
     io.IniFilename = reinterpret_cast<const char*>(init_filename_u8str.c_str());
 
-#ifdef IRRITATOR_USE_TTF
-    io.Fonts->AddFontDefault();
-    ImFont* ttf = nullptr;
-
-    if (auto sans_serif_font = GetSystemFontFile(); sans_serif_font) {
-        const auto u8str   = sans_serif_font.value().u8string();
-        const auto c_u8str = u8str.c_str();
-        const auto c_str   = reinterpret_cast<const char*>(c_u8str);
-
-        ImFontConfig baseConfig;
-        baseConfig.SizePixels  = 15.0f;
-        baseConfig.PixelSnapH  = true;
-        baseConfig.OversampleH = 2;
-        baseConfig.OversampleV = 2;
-
-        ttf = io.Fonts->AddFontFromFileTTF(
-          c_str, baseConfig.SizePixels, &baseConfig);
-    }
-#endif
-
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     // ImGui::StyleColorsLight();
@@ -325,31 +305,49 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf");
     // IM_ASSERT(font != nullptr);
 
-    // Our state
-    bool   show_demo_window    = false;
-    bool   show_another_window = false;
-    ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImFontConfig font_cfg;
+    font_cfg.MergeMode  = false;
+    font_cfg.SizePixels = 15.0f;
+
+#if defined(IRRITATOR_USE_TTF)
+    if (auto sans_serif_font = GetSystemFontFile(); sans_serif_font) {
+        const auto u8str   = sans_serif_font.value().u8string();
+        const auto c_u8str = u8str.c_str();
+        const auto c_str   = reinterpret_cast<const char*>(c_u8str);
+
+        io.Fonts->AddFontFromFileTTF(c_str, 0.f, &font_cfg);
+    } else {
+        io.Fonts->AddFontDefault(&font_cfg);
+    }
+#else
+    io.Fonts->AddFontDefault();
+#endif
 
     irt::journal_handler jn(256);
     if (irt::application app(jn); app.init()) {
-#ifdef IRRITATOR_USE_TTF
-        if (ttf)
-            ImGui::GetIO().FontDefault = ttf;
-#endif
+        const auto icons_fonts = irt::get_font_icons();
+
+        app.icons = io.Fonts->AddFontFromMemoryCompressedTTF(
+          icons_fonts.first, icons_fonts.second, 0.f, &font_cfg);
+
+        // Our state
+        bool   show_demo_window    = false;
+        bool   show_another_window = false;
+        ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
         // Main loop
         while (!glfwWindowShouldClose(window)) {
             // Poll and handle events (inputs, window resize, etc.)
             // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard
             // flags to tell if dear imgui wants to use your inputs.
-            // - When io.WantCaptureMouse is true, do not dispatch mouse input
-            // data to your main application, or clear/overwrite your copy of
-            // the mouse data.
-            // - When io.WantCaptureKeyboard is true, do not dispatch keyboard
-            // input data to your main application, or clear/overwrite your copy
-            // of the keyboard data. Generally you may always pass all inputs to
-            // dear imgui, and hide them from your application based on those
-            // two flags.
+            // - When io.WantCaptureMouse is true, do not dispatch mouse
+            // input data to your main application, or clear/overwrite your
+            // copy of the mouse data.
+            // - When io.WantCaptureKeyboard is true, do not dispatch
+            // keyboard input data to your main application, or
+            // clear/overwrite your copy of the keyboard data. Generally you
+            // may always pass all inputs to dear imgui, and hide them from
+            // your application based on those two flags.
             glfwPollEvents();
             if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0) {
                 ImGui_ImplGlfw_Sleep(10);
@@ -362,8 +360,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             ImGui::NewFrame();
 
             // 1. Show the big demo window (Most of the sample code is in
-            // ImGui::ShowDemoWindow()! You can browse its code to learn more
-            // about Dear ImGui!).
+            // ImGui::ShowDemoWindow()! You can browse its code to learn
+            // more about Dear ImGui!).
             if (show_demo_window)
                 ImGui::ShowDemoWindow(&show_demo_window);
 
@@ -371,10 +369,10 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             if (show_another_window) {
                 ImGui::Begin(
                   "Another Window",
-                  &show_another_window); // Pass a pointer to our bool variable
-                                         // (the window will have a closing
-                                         // button that will clear the bool when
-                                         // clicked)
+                  &show_another_window); // Pass a pointer to our bool
+                                         // variable (the window will have a
+                                         // closing button that will clear
+                                         // the bool when clicked)
                 ImGui::Text("Hello from another window!");
                 if (ImGui::Button("Close Me"))
                     show_another_window = false;
@@ -397,8 +395,9 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
             // Update and Render additional Platform Windows
-            // (Platform functions may change the current OpenGL context, so we
-            // save/restore it to make it easier to paste this code elsewhere.
+            // (Platform functions may change the current OpenGL context, so
+            // we save/restore it to make it easier to paste this code
+            // elsewhere.
             //  For this specific demo app we could also call
             //  glfwMakeContextCurrent(window) directly)
             if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
