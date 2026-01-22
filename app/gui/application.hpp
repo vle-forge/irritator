@@ -339,7 +339,7 @@ public:
 
     void show() noexcept;
 
-    bool is_open = true;
+    bool is_open = false;
 
     void save_obs(const project_id                pj_id,
                   const variable_observer_id      vobs,
@@ -1667,6 +1667,7 @@ private:
     registred_path_id selected_reg_path    = undefined<registred_path_id>();
     bool              show_select_reg_path = false;
 
+    bool show_welcome_wnd = true;
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
 

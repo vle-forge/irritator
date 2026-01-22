@@ -526,6 +526,8 @@ auto application::show_menu() noexcept -> show_result_t
         }
 
         if (ImGui::BeginMenu("View")) {
+            ImGui::MenuItem("Show Welcome window", nullptr, &show_welcome_wnd);
+
             ImGui::MenuItem("Show output editor", nullptr, &output_ed.is_open);
 
             ImGui::MenuItem(
@@ -586,6 +588,24 @@ void application::show_dock() noexcept
         ImGui::DockBuilderDockWindow(window_logger::name, bottom_dock_id);
 
         ImGui::DockBuilderFinish(main_dock_id);
+    }
+
+    if (show_welcome_wnd) {
+        ImGui::SetNextWindowDockID(get_main_dock_id());
+
+        if (not ImGui::Begin("Welcome", &show_welcome_wnd)) {
+            ImGui::End();
+        } else {
+            ImGui::SetCursorPos(
+              ImGui::GetCursorPos() +
+              (ImGui::GetContentRegionAvail() - ImVec2(50.f, 15.f)) * 0.5f);
+            ImGui::TextFormat("Welcome to Irritator {}.{}.{}",
+                              VERSION_MAJOR,
+                              VERSION_MINOR,
+                              VERSION_PATCH);
+
+            ImGui::End();
+        }
     }
 
     component_ed.display();
