@@ -2102,11 +2102,9 @@ struct component_editor::impl {
         if (not element)
             return component_editor::show_result_t::request_to_close;
 
-        auto& ed             = app.component_ed;
-        auto  tab_item_flags = ImGuiTabItemFlags_None;
+        auto& ed = app.component_ed;
 
         if (ed.need_to_open(tab.id)) {
-            tab_item_flags = ImGuiTabItemFlags_SetSelected;
             ed.clear_request_to_open();
         }
 

@@ -277,7 +277,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     ImGui_ImplGlfw_InstallEmscriptenCallbacks(window, "#canvas");
 #endif
     ImGui_ImplOpenGL3_Init(glsl_version);
-    ImNodes::CreateContext();
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can
@@ -323,6 +322,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     io.Fonts->AddFontDefault();
 #endif
 
+    ImNodes::CreateContext();
     irt::journal_handler jn(256);
     if (irt::application app(jn); app.init()) {
         const auto icons_fonts = irt::get_font_icons();
@@ -412,7 +412,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     }
 
     ImNodes::DestroyContext();
-
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

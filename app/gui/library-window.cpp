@@ -171,10 +171,9 @@ static void show_component_popup_menu(application&     app,
 
 void library_window::show_file_project(file_path& file) noexcept
 {
-    auto&       app     = container_of(this, &application::library_wnd);
-    const auto* name    = file.path.c_str();
-    const auto  file_id = app.mod.file_paths.get_id(file);
-    auto*       pj      = app.pjs.try_to_get(file.pj_id);
+    auto&       app  = container_of(this, &application::library_wnd);
+    const auto* name = file.path.c_str();
+    auto*       pj   = app.pjs.try_to_get(file.pj_id);
 
     if (ImGui::Selectable(name, pj != nullptr, false)) {
         if (pj) {
@@ -229,7 +228,6 @@ void library_window::show_file_project(file_path& file) noexcept
         ImGui::Separator();
 
         if (ImGui::MenuItem("Delete file")) {
-            const auto id = app.mod.file_paths.get_id(file);
             if (auto* pj = app.pjs.try_to_get(file.pj_id))
                 app.close_project_window(app.pjs.get_id(*pj));
 
@@ -487,11 +485,10 @@ void library_window::try_set_component_as_project(
   const component_id compo_id) noexcept
 {
     const auto pj_id = app.alloc_project_window();
-    if (auto* pj = app.pjs.try_to_get(pj_id)) {
+    if (app.pjs.try_to_get(pj_id)) {
         app.add_gui_task([&app, compo_id, pj_id]() noexcept {
             auto& pj = app.pjs.get(pj_id);
-            if (auto* c = app.mod.components.try_to_get<component>(compo_id);
-                c) {
+            if (auto* c = app.mod.components.try_to_get<component>(compo_id)) {
                 if (not pj.pj.set(app.mod, *c)) {
                     app.jn.push(log_level::error, [](auto& title, auto& msg) {
                         title = "Project failure",
@@ -544,6 +541,7 @@ static auto is_component_used_in_components(const application& app,
             }
             break;
 
+        case component_type::simulation:
         case component_type::hsm:
         case component_type::none:
             break;

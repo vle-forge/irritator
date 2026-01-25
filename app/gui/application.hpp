@@ -1431,11 +1431,15 @@ private:
     struct data_type {
         vector<std::pair<component_id, name_str>>      by_names;
         vector<std::pair<component_id, file_path_str>> by_files;
-        vector<std::pair<component_id, name_str>>      by_generics;
-        vector<std::pair<component_id, name_str>>      by_grids;
-        vector<std::pair<component_id, name_str>>      by_graphs;
-        vector<std::pair<component_id, name_str>>      by_hsms;
-        vector<std::pair<component_id, name_str>>      by_sims;
+
+        vector<std::pair<component_id, name_str>> by_generics;
+        vector<std::pair<component_id, name_str>> by_grids;
+        vector<std::pair<component_id, name_str>> by_graphs;
+        vector<std::pair<component_id, name_str>> by_hsms;
+        vector<std::pair<component_id, name_str>> by_sims;
+
+        void clear() noexcept;
+        void update(const modeling& mod) noexcept;
     };
 
     shared_buffer<data_type> data;

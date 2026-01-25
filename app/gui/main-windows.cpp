@@ -311,7 +311,7 @@ int main(int, char**)
     // io.ConfigViewportsNoAutoMerge = true;
     // io.ConfigViewportsNoTaskBarIcon = true;
 
-    const auto init_filename = irt::get_imgui_filename();
+    const auto init_filename       = irt::get_imgui_filename();
     const auto init_filename_u8str = init_filename.u8string();
     io.IniFilename = reinterpret_cast<const char*>(init_filename_u8str.c_str());
 
@@ -420,6 +420,7 @@ int main(int, char**)
     io.Fonts->AddFontDefault();
 #endif
 
+    ImNodes::CreateContext();
     irt::journal_handler jn(256);
     if (irt::application app(jn); app.init()) {
         const auto icons_fonts = irt::get_font_icons();
@@ -431,8 +432,6 @@ int main(int, char**)
         bool   show_demo_window    = false;
         bool   show_another_window = false;
         ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-        ImNodes::CreateContext();
 
         // Main loop
         bool done = false;
@@ -593,8 +592,6 @@ int main(int, char**)
             g_fenceLastSignaledValue = fenceValue;
             frameCtx->FenceValue     = fenceValue;
         }
-    } else {
-        ImNodes::DestroyContext();
     }
 
     if (io.IniFilename) {
@@ -606,6 +603,7 @@ int main(int, char**)
     WaitForLastSubmittedFrame();
 
     // Cleanup
+    ImNodes::DestroyContext();
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

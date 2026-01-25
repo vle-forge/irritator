@@ -160,7 +160,7 @@ inline std::optional<component_filenames> make_component_files(
         std::filesystem::path desc(base);
         desc.replace_extension(".desc");
 
-        return component_filenames(base, desc);
+        return component_filenames{ .component = base, .description = desc };
     } catch (...) {
     }
 
@@ -662,6 +662,10 @@ void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
     case component_type::hsm:
         if_data_exists_do(
           mod.hsm_components, compo.id.hsm_id, std::forward<Function>(f));
+        break;
+    case component_type::simulation:
+        if_data_exists_do(
+          mod.sim_components, compo.id.sim_id, std::forward<Function>(f));
         break;
     }
 }

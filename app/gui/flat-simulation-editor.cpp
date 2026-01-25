@@ -853,6 +853,7 @@ static void compute_rect(auto&            data,
             compute_automatic_layout(pj, tn, *g, data);
         break;
 
+    case irt::component_type::simulation:
     case component_type::hsm:
     case component_type::none:
         break;

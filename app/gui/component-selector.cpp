@@ -12,14 +12,7 @@
 
 namespace irt {
 
-static void update_lists(
-  const modeling&                                 mod,
-  vector<std::pair<component_id, name_str>>&      by_names,
-  vector<std::pair<component_id, file_path_str>>& by_files,
-  vector<std::pair<component_id, name_str>>&      by_generics,
-  vector<std::pair<component_id, name_str>>&      by_grids,
-  vector<std::pair<component_id, name_str>>&      by_graphs,
-  vector<std::pair<component_id, name_str>>&      by_hsms) noexcept
+void component_selector::data_type::clear() noexcept
 {
     by_names.clear();
     by_files.clear();
@@ -27,6 +20,12 @@ static void update_lists(
     by_grids.clear();
     by_graphs.clear();
     by_hsms.clear();
+    by_sims.clear();
+}
+
+void component_selector::data_type::update(const modeling& mod) noexcept
+{
+    clear();
 
     for_each_component(mod,
                        mod.component_repertories,
@@ -63,6 +62,10 @@ static void update_lists(
                                by_hsms.emplace_back(id, compo.name.sv());
                                break;
 
+                           case component_type::simulation:
+                               by_sims.emplace_back(id, compo.name.sv());
+                               break;
+
                            case component_type::none:
                                break;
                            }
@@ -78,16 +81,11 @@ static void update_lists(
 
 void component_selector::update() noexcept
 {
-    data.write([&](auto& data) {
-        const auto& app = container_of(this, &application::component_sel);
+    data.write([&](auto& vecs) noexcept {
+        const auto& mod = container_of(this, &application::component_sel).mod;
 
-        update_lists(app.mod,
-                     data.by_names,
-                     data.by_files,
-                     data.by_generics,
-                     data.by_grids,
-                     data.by_graphs,
-                     data.by_hsms);
+        vecs.clear();
+        vecs.update(mod);
     });
 }
 
