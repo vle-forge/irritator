@@ -13,7 +13,6 @@
 #include <irritator/modeling.hpp>
 
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>

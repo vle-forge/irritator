@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
@@ -21,8 +22,13 @@ static void save_simulation_graph(const simulation&      sim,
     try {
         std::filesystem::path path(absolute_path);
         path /= "simulation-graph.dot";
-        if (std::ofstream ofs(path); ofs.is_open())
-            write_dot_graph_simulation(ofs, sim);
+
+        using flags = bitflags<buffered_file_mode>;
+
+        if (auto f =
+              open_buffered_file(path, flags{ buffered_file_mode::write });
+            f.has_value())
+            write_dot_graph_simulation(f.value().get(), sim);
     } catch (...) {
     }
 }

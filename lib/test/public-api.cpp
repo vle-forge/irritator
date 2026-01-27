@@ -1515,9 +1515,12 @@ int main()
     };
 
     "external_source"_test = [] {
-        std::error_code   ec;
-        std::stringstream ofs_b;
-        std::stringstream ofs_t;
+        std::error_code ec;
+
+        auto ofs_b = irt::open_tmp_file();
+        auto ofs_t = irt::open_tmp_file();
+        expect(ofs_b.has_value());
+        expect(ofs_t.has_value());
 
         std::default_random_engine gen(1234);
         std::poisson_distribution  dist(4.0);

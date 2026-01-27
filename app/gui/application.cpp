@@ -271,14 +271,14 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 
         app.add_gui_task([&]() {
             const auto ret = write_test_simulation(
-              std::cout,
+              stdout,
               ed.pj.name.sv(),
               ed.pj.sim,
               ed.pj.sim.limits.begin(),
               ed.pj.sim.limits.end(),
               enum_cast<write_test_simulation_options>(options));
 
-            std::cout.flush();
+            std::fflush(stdout);
 
             switch (ret) {
             case write_test_simulation_result::success:

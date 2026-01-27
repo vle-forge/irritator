@@ -58,9 +58,9 @@ std::optional<std::pair<int, int>> get_row_column(
     return std::nullopt;
 }
 
-static void build_grid_observer(grid_observer& grid_obs,
-                                project&       pj,
-                                modeling& /*mod*/,
+static void build_grid_observer(grid_observer&  grid_obs,
+                                project&        pj,
+                                modeling&       mod,
                                 simulation&     sim,
                                 tree_node&      grid_parent,
                                 grid_component& grid_compo) noexcept
@@ -92,8 +92,13 @@ static void build_grid_observer(grid_observer& grid_obs,
                     grid_obs.observers[index] =
                       init_or_reuse_observer(sim, *mdl, w.first, w.second);
                 } else {
-                    debug::log("unique_id {} is not found",
-                               child->unique_id.sv());
+                    mod.journal.push(log_level::warning,
+                                     [&](auto& t, auto& m) noexcept {
+                                         t = "Grid observer error";
+                                         format(m,
+                                                "unique_id {} is not found",
+                                                child->unique_id.sv());
+                                     });
                 }
             }
         }

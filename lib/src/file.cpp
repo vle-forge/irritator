@@ -82,6 +82,20 @@ expected<buffered_file> open_buffered_file(
 #endif
 }
 
+expected<buffered_file> open_tmp_file() noexcept
+{
+#if defined(_WIN32)
+    std::FILE* tmpf = nullptr;
+    if (auto err = tmpfile_s(&tmpf); err == 0)
+        return *tmpf;
+#else
+    if (auto tmpf = std::tmpfile())
+        return buffered_file{ tmpf };
+#endif
+
+    return new_error(file_errc::open_error);
+}
+
 template<typename File>
 bool read_from_file(File& f, i8& value) noexcept
 {

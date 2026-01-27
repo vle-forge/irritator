@@ -12,12 +12,12 @@
 
 namespace irt {
 
-/** Determine the file access of the buffered_buffer.
- *
- * - read, Open a file for reading, read from start.
- * - write, Create a file for writing, destroy contents.
- * - append, Append to a file, write to end.
- */
+/// Determine the file access of the buffered_buffer.
+///
+/// - read, Open a file for reading, read from start.
+/// - write, Create a file for writing, destroy contents.
+/// - append, Append to a file, write to end.
+///
 enum class buffered_file_mode : u8 {
     text_or_binary, //!< Binary or text file mode.
     read,           //!< Open a file for reading, read from start.
@@ -27,33 +27,39 @@ enum class buffered_file_mode : u8 {
 
 namespace details {
 
-/** A wrapper to reduce the size of the buffered_file pointer. */
+/// A wrapper to reduce the size of the buffered_file pointer.
 struct buffered_file_deleter {
     void operator()(std::FILE* fd) const noexcept { std::fclose(fd); }
 };
 
 } // namespace details
 
-/**
- * @brief A typedef to manage automatically an @a std::FILE pointer.
- */
+/// @brief A typedef to manage automatically an @a std::FILE pointer.
 using buffered_file =
   std::unique_ptr<std::FILE, details::buffered_file_deleter>;
 
-/**
- * Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
- * function neither returns a nullptr. If an error occured, the unexpected value
- * stores an @a error_code.
- *
- * This function uses the buffered standard API @c std::fopen/std::fclose to
- * read/write in a text/binary format.
- *
- * This function uses a specific Win32 code to convert path in Win32 code
- * page @a _wfopen_s.
- */
+/// Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
+/// function neither returns a nullptr. If an error occured, the unexpected
+/// value stores an @a error_code.
+///
+/// This function uses the buffered standard API @c std::fopen/std::fclose to
+/// read/write in a text/binary format.
+///
+/// This function uses a specific Win32 code to convert path in Win32 code
+/// page @a _wfopen_s.
+///
 expected<buffered_file> open_buffered_file(
   const std::filesystem::path&       path,
   const bitflags<buffered_file_mode> mode) noexcept;
+
+/// Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
+/// function neither returns a nullptr. If an error occured, the unexpected
+/// value stores an @a error_code.
+///
+/// This function returns a temporary file automatically removes when file is
+/// close.
+///
+expected<buffered_file> open_tmp_file() noexcept;
 
 enum class seek_origin : u8 { current, end, set };
 

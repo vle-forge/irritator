@@ -11,6 +11,7 @@
 namespace irt {
 
 static void build_graph(graph_observer&  graph_obs,
+                        modeling&        mod,
                         project&         pj,
                         simulation&      sim,
                         tree_node&       graph_parent,
@@ -50,8 +51,13 @@ static void build_graph(graph_observer&  graph_obs,
 
                     graph_obs.observers[index] = obs_id;
                 } else {
-                    debug::log("unique_id {} is not found",
-                               child->unique_id.sv());
+                    mod.journal.push(log_level::warning,
+                                     [&](auto& t, auto& m) noexcept {
+                                         t = "Graph observer error";
+                                         format(m,
+                                                "unique_id {} is not found",
+                                                child->unique_id.sv());
+                                     });
                 }
             }
         }
@@ -77,7 +83,7 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
                       observers.data(), len, undefined<observer_id>());
                     v.resize(len, zero);
 
-                    build_graph(*this, pj, sim, *tn, *graph);
+                    build_graph(*this, mod, pj, sim, *tn, *graph);
                 }
             }
         }
