@@ -714,7 +714,8 @@ bool binary_archiver::report_error(error_code ec_) const noexcept
 bool binary_archiver::simulation_save(simulation& sim, file& f) noexcept
 {
     debug::ensure(f.is_open());
-    debug::ensure(any_equal(f.get_mode(), open_mode::write, open_mode::append));
+    debug::ensure(f.get_mode()[file_open_options::write]);
+    debug::ensure(not f.get_mode()[file_open_options::text]);
 
     binary_archiver::impl impl(*this);
 
@@ -731,7 +732,8 @@ bool binary_archiver::simulation_save(simulation& sim, memory& m) noexcept
 bool binary_archiver::simulation_load(simulation& sim, file& f) noexcept
 {
     debug::ensure(f.is_open());
-    debug::ensure(any_equal(f.get_mode(), open_mode::write, open_mode::append));
+    debug::ensure(f.get_mode()[file_open_options::read]);
+    debug::ensure(not f.get_mode()[file_open_options::text]);
 
     binary_archiver::impl impl(*this);
 

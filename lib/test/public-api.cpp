@@ -21,6 +21,27 @@
 
 #include <boost/ut.hpp>
 
+static irt::vector<char> read_entire_file(std::FILE* f) noexcept
+{
+    using namespace boost::ut;
+
+    expect(f != nullptr) << fatal;
+
+    expect(0 == std::fseek(f, 0, SEEK_END)) << fatal;
+
+    const auto size = std::ftell(f);
+    expect(size >= 0) << fatal;
+    expect(0 == std::fseek(f, 0, SEEK_SET)) << fatal;
+
+    irt::vector<char> buffer(size);
+
+    const auto read_size =
+      std::fread(buffer.data(), 1, static_cast<size_t>(size), f);
+    expect(static_cast<std::size_t>(read_size) == buffer.size()) << fatal;
+
+    return buffer;
+}
+
 struct file_output {
     using value_type = irt::observation;
 
@@ -1515,28 +1536,39 @@ int main()
     };
 
     "external_source"_test = [] {
-        std::error_code   ec;
-        std::stringstream ofs_b;
-        std::stringstream ofs_t;
+        std::error_code ec;
+
+        auto ofs_b = irt::file::open_tmp();
+        auto ofs_t = irt::file::open_tmp();
+        expect(ofs_b.has_value());
+        expect(ofs_t.has_value());
 
         std::default_random_engine gen(1234);
         std::poisson_distribution  dist(4.0);
 
-        irt::generate_random_file(
-          ofs_b, gen, dist, 1024, irt::random_file_type::binary);
+        irt::generate_random_file(ofs_b.value().to_file(),
+                                  gen,
+                                  dist,
+                                  1024,
+                                  irt::random_file_type::binary);
 
-        auto str_b = ofs_b.str();
-        expect(str_b.size() == static_cast<size_t>(1024) * 8);
+        auto str_b = read_entire_file(ofs_b.value().to_file());
+        expect(str_b.size() ==
+               static_cast<size_t>(1024) *
+                 sizeof(std::poisson_distribution<>::result_type));
 
-        irt::generate_random_file(
-          ofs_t, gen, dist, 1024, irt::random_file_type::text);
+        irt::generate_random_file(ofs_t.value().to_file(),
+                                  gen,
+                                  dist,
+                                  1024,
+                                  irt::random_file_type::text);
 
-        auto str_t = ofs_b.str();
+        auto str_t = read_entire_file(ofs_t.value().to_file());
         expect(str_t.size() > static_cast<size_t>(1024) * 2);
     };
 
     "binary-memory-io"_test = [] {
-        auto f = irt::memory::make(256, irt::open_mode::write);
+        auto f = irt::memory::make(256);
 
         expect(f.has_value()) << fatal;
         expect(eq(f->data.ssize(), 256));

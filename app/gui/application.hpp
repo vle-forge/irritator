@@ -1170,7 +1170,7 @@ struct project_editor {
 
     /// For each simulation, and according to the @a save_simulation_raw_data,
     /// an output stream to store all model state during simulation.
-    buffered_file raw_ofs;
+    file raw_ofs;
 
     /** A local @c graph_editor to display the simulation graph component editor
      * (without observation). */
@@ -1653,9 +1653,6 @@ public:
     void start_file_remove(const registred_path_id r,
                            const dir_path_id       d,
                            const file_path_id      f) noexcept;
-
-    std::optional<file> try_open_file(const char* filename,
-                                      open_mode   mode) noexcept;
 
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
 

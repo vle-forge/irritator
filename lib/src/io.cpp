@@ -5,7 +5,6 @@
 #include <irritator/io.hpp>
 
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 
 using namespace std::string_view_literals;
 
@@ -256,17 +255,16 @@ auto get_distribution_type(std::string_view name) noexcept
     return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
 }
 
-void write_dot_graph_simulation(std::ostream&     os,
-                                const simulation& sim) noexcept
+void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
 {
-    os << "digraph simulation {\n";
+    fmt::print(os, "digraph simulation {{\n");
 
     for (const auto& mdl : sim.models) {
         const auto id  = sim.models.get_id(mdl);
         const auto idx = get_index(id);
         const auto dyn = dynamics_type_names[ordinal(mdl.type)];
 
-        os << ' ' << idx << " [dynamics=" << dyn << "];\n";
+        fmt::print(os, " {} [dynamics={}];\n", idx, dyn);
     }
 
     for (const auto& mdl : sim.models) {
@@ -289,12 +287,14 @@ void write_dot_graph_simulation(std::ostream&     os,
                            ++it) {
                           if (const auto* dst =
                                 sim.models.try_to_get(it->model)) {
-                              os
-                                << " " << src_idx << ":" << port_out << " -> "
-                                << get_index(it->model) << ":"
-                                << get_input_port_names(
-                                     dst->type, dot_input_names)[it->port_index]
-                                << "\n";
+
+                              fmt::print(
+                                " {}:{} -> {}:{}\n",
+                                src_idx,
+                                port_out,
+                                get_index(it->model),
+                                get_input_port_names(
+                                  dst->type, dot_input_names)[it->port_index]);
                           }
                       }
 
@@ -311,12 +311,15 @@ void write_dot_graph_simulation(std::ostream&     os,
                                ++it) {
                               if (const auto* dst =
                                     sim.models.try_to_get(it->model)) {
-                                  os << " " << src_idx << ":" << port_out
-                                     << " -> " << get_index(it->model) << ":"
-                                     << get_input_port_names(
-                                          dst->type,
-                                          dot_input_names)[it->port_index]
-                                     << "\n";
+                                  fmt::print(
+                                    os,
+                                    " {}:{} -> {}:{}\n",
+                                    src_idx,
+                                    port_out,
+                                    get_index(it->model),
+                                    get_input_port_names(
+                                      dst->type,
+                                      dot_input_names)[it->port_index]);
                               }
                           }
                       }
@@ -328,7 +331,7 @@ void write_dot_graph_simulation(std::ostream&     os,
           os);
     }
 
-    os << "}\n";
+    fmt::print(os, "}}\n");
 }
 
 class parameter_to_string
@@ -383,7 +386,7 @@ private:
     std::array<std::string, 4> m_integers = {};
 };
 
-static void write_test_simulation_header(std::ostream&          os,
+static void write_test_simulation_header(std::FILE*             os,
                                          const std::string_view name,
                                          const simulation&      sim) noexcept
 {
@@ -400,7 +403,7 @@ static void write_test_simulation_header(std::ostream&          os,
                sim.hsms.ssize());
 }
 
-static void write_test_simulation_model(std::ostream&        os,
+static void write_test_simulation_model(std::FILE*           os,
                                         const simulation&    sim,
                                         const model&         mdl,
                                         const parameter&     param,
@@ -613,7 +616,7 @@ static void write_test_simulation_model(std::ostream&        os,
     }
 }
 
-static void write_test_simulation_models(std::ostream&     os,
+static void write_test_simulation_models(std::FILE*        os,
                                          const simulation& sim) noexcept
 {
     parameter_to_string params;
@@ -624,7 +627,7 @@ static void write_test_simulation_models(std::ostream&     os,
 }
 
 static void write_test_simulation_hsm_state(
-  std::ostream&                                   os,
+  std::FILE*                                      os,
   const sz                                        hsm_index,
   const std::string_view                          action_name,
   const hierarchical_state_machine::state_action& state,
@@ -668,7 +671,7 @@ static void write_test_simulation_hsm_state(
 }
 
 static void write_test_simulation_hsm_condition(
-  std::ostream&                                       os,
+  std::FILE*                                          os,
   const sz                                            hsm_index,
   const hierarchical_state_machine::condition_action& condition,
   sz                                                  state_index) noexcept
@@ -721,7 +724,7 @@ static void write_test_simulation_hsm_condition(
 }
 
 static void write_test_simulation_hsm_state(
-  std::ostream&                            os,
+  std::FILE*                               os,
   const sz                                 hsm_index,
   const hierarchical_state_machine::state& state,
   sz                                       state_index) noexcept
@@ -754,7 +757,7 @@ static void write_test_simulation_hsm_state(
       os, hsm_index, state.condition, state_index);
 }
 
-static void write_test_simulation_hsm(std::ostream&                     os,
+static void write_test_simulation_hsm(std::FILE*                        os,
                                       const hierarchical_state_machine& hsm,
                                       const hsm_id id) noexcept
 {
@@ -805,7 +808,7 @@ static void write_test_simulation_hsm(std::ostream&                     os,
 }
 
 static void write_test_simulation_constant_source(
-  std::ostream&            os,
+  std::FILE*               os,
   const constant_source&   src,
   const constant_source_id id) noexcept
 {
@@ -825,9 +828,10 @@ static void write_test_simulation_constant_source(
                src_index);
 
     for (auto i = 0u; i < src.length; ++i)
-        os << src.buffer[i] << ((i + 1 >= src.length) ? "} " : ", ");
+        fmt::print(
+          os, "{}{}", src.buffer[i], ((i + 1 >= src.length) ? "} " : ", "));
 
-    os << '\n';
+    fmt::print(os, "\n");
 }
 
 static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
@@ -845,7 +849,7 @@ static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
     return false;
 }
 
-static bool write_constant_sources(std::ostream&     os,
+static bool write_constant_sources(std::FILE*        os,
                                    const simulation& sim) noexcept
 {
     table<constant_source_id, u64> sim_to_cpp(sim.srcs.constant_sources.size(),
@@ -923,7 +927,7 @@ static bool write_constant_sources(std::ostream&     os,
     return true;
 }
 
-static bool write_test_simulation_hsm(std::ostream&     os,
+static bool write_test_simulation_hsm(std::FILE*        os,
                                       const simulation& sim) noexcept
 {
     table<hsm_id, u64> sim_to_cpp(sim.hsms.size(), reserve_tag);
@@ -958,7 +962,7 @@ static bool write_test_simulation_hsm(std::ostream&     os,
     return true;
 }
 
-static void write_test_simulation_connections(std::ostream&     os,
+static void write_test_simulation_connections(std::FILE*        os,
                                               const simulation& sim) noexcept
 {
     for (const auto& mdl : sim.models) {
@@ -1017,9 +1021,9 @@ static void write_test_simulation_connections(std::ostream&     os,
     }
 }
 
-static void write_test_simulation_loop(std::ostream& os,
-                                       const time    begin,
-                                       const time    end) noexcept
+static void write_test_simulation_loop(std::FILE* os,
+                                       const time begin,
+                                       const time end) noexcept
 {
     fmt::print(os,
                R"(
@@ -1036,7 +1040,7 @@ static void write_test_simulation_loop(std::ostream& os,
                end);
 }
 
-auto write_test_simulation(std::ostream&                       os,
+auto write_test_simulation(std::FILE*                          os,
                            const std::string_view              name,
                            const simulation&                   sim,
                            const time                          begin,
@@ -1084,8 +1088,8 @@ auto write_test_simulation(std::ostream&                       os,
 
     fmt::print(os, "}};\n");
 
-    return os.good() ? write_test_simulation_result::success
-                     : write_test_simulation_result::output_error;
+    return std::ferror(os) ? write_test_simulation_result::success
+                           : write_test_simulation_result::output_error;
 }
 
 } // namespace irt

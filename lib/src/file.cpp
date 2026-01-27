@@ -33,53 +33,113 @@
 
 namespace irt {
 
-inline static std::FILE* to_handle(void* f) noexcept
+#if defined(_WIN32)
+constexpr wchar_t char_empty               = L'\0';
+constexpr wchar_t char_file_open_options[] = L"rwa+bx";
+#else
+constexpr char char_empty               = '\0';
+constexpr char char_file_open_options[] = "rwa+bx";
+#endif
+
+#if defined(_WIN32)
+static auto build_wchar_from_utf8(const char8_t* u8_str) noexcept
+  -> vector<wchar_t>
 {
-    return reinterpret_cast<std::FILE*>(f);
+    const auto* c_str = reinterpret_cast<const char*>(u8_str);
+
+    const auto len = ::MultiByteToWideChar(CP_UTF8, 0, c_str, -1, nullptr, 0);
+
+    vector<wchar_t> buf(len);
+    ::MultiByteToWideChar(CP_UTF8, 0, c_str, -1, buf.data(), len);
+
+    return buf;
 }
 
-expected<buffered_file> open_buffered_file(
-  const std::filesystem::path&       path,
-  const bitflags<buffered_file_mode> mode) noexcept
+static auto open_file(const wchar_t* filename, const wchar_t* mode)
+  -> std::FILE*
+{
+    std::FILE* fp = nullptr;
+
+    if (::_wfopen_s(&fp, filename, mode) == 0) {
+        return fp;
+    } else {
+        return nullptr;
+    }
+}
+#else
+static auto open_file(const char* filename, const char* mode) -> std::FILE*
+{
+    return std::fopen(filename, mode);
+}
+#endif
+
+template<typename CharType>
+static constexpr auto get_mode_impl(const file_mode c) noexcept
+  -> std::array<CharType, 8>
+{
+    std::array<CharType, 8> vec;
+    vec.fill(char_empty);
+
+    int vec_pos = 0;
+
+    const int option_pos = c[file_open_options::read]    ? 0
+                           : c[file_open_options::write] ? 1
+                                                         : 2;
+
+    vec[vec_pos++] = char_file_open_options[option_pos];
+
+    if (c[file_open_options::extended])
+        vec[vec_pos++] = char_file_open_options[3];
+    if (not c[file_open_options::text])
+        vec[vec_pos++] = char_file_open_options[4];
+    if (c[file_open_options::fail_if_exist] and c[file_open_options::write])
+        vec[vec_pos++] = char_file_open_options[5];
+
+    return vec;
+}
+
+static auto convert_path(const char8_t* filename) noexcept
 {
 #if defined(_WIN32)
-    try {
-        const auto m  = mode[buffered_file_mode::text_or_binary]
-                          ? mode[buffered_file_mode::read]    ? L"rb"
-                            : mode[buffered_file_mode::write] ? L"wb"
-                                                              : L"ab"
-                        : mode[buffered_file_mode::read]  ? L"r"
-                        : mode[buffered_file_mode::write] ? L"w"
-                                                          : L"a";
-        std::FILE* fp = nullptr;
-
-        if (::_wfopen_s(&fp, path.c_str(), m) == 0) {
-            return buffered_file(fp);
-        } else {
-            return new_error(file_errc::open_error);
-        }
-    } catch (...) {
-        return new_error(file_errc::memory_error);
-    }
+    return build_wchar_from_utf8(filename);
 #else
-    try {
-        const auto m = mode[buffered_file_mode::text_or_binary]
-                         ? mode[buffered_file_mode::read]    ? "rb"
-                           : mode[buffered_file_mode::write] ? "wb"
-                                                             : "ab"
-                       : mode[buffered_file_mode::read]  ? "r"
-                       : mode[buffered_file_mode::write] ? "w"
-                                                         : "a";
-
-        if (auto* fp = std::fopen(path.c_str(), m); fp) {
-            return buffered_file(fp);
-        } else {
-            return new_error(file_errc::open_error);
-        }
-    } catch (...) {
-        return new_error(file_errc::memory_error);
-    }
+    return reinterpret_cast<const char*>(filename);
 #endif
+}
+
+static auto get_pointer(const auto filename) noexcept
+{
+#if defined(_WIN32)
+    return filename.data();
+#else
+    return filename;
+#endif
+}
+
+static constexpr auto get_mode(const file_mode c) noexcept
+{
+#if defined(_WIN32)
+    return get_mode_impl<wchar_t>(c);
+#else
+    return get_mode_impl<char>(c);
+#endif
+}
+
+expected<file> file::open_tmp() noexcept
+{
+    const auto m = file_mode(file_open_options::write,
+                             file_open_options::extended);
+
+#if defined(_WIN32)
+    std::FILE* tmpf = nullptr;
+    if (auto err = tmpfile_s(&tmpf); err == 0 and tmpf != nullptr)
+        return file{ tmpf, m };
+#else
+    if (auto tmpf = std::tmpfile())
+        return file{ tmpf, m };
+#endif
+
+    return new_error(file_errc::open_error);
 }
 
 template<typename File>
@@ -109,6 +169,77 @@ bool read_from_file(File& f, i16& value) noexcept
     }
 
     return true;
+}
+
+irt::vector<char> file::read_entire_file() noexcept
+{
+    debug::ensure(is_open());
+    debug::ensure(mode[file_open_options::read] or
+                  mode[file_open_options::extended]);
+
+    vector<char> buffer;
+
+    if (is_open() and
+        (mode[file_open_options::read] or mode[file_open_options::extended])) {
+
+        const auto end = std::fseek(to_file(), 0, SEEK_END);
+        if (end >= 0) {
+            const auto size = std::ftell(to_file());
+            if (size >= 0) {
+                const auto beg = std::fseek(to_file(), 0, SEEK_SET);
+                if (beg == 0) {
+                    buffer.resize(size, '\0');
+
+                    const auto read_size = std::fread(
+                      buffer.data(), 1, static_cast<size_t>(size), to_file());
+
+                    // @TODO We must handle reading error
+                    if (std::cmp_equal(read_size, buffer.size()))
+                        buffer.clear();
+                }
+            }
+        }
+    }
+
+    return buffer;
+}
+
+std::span<char> file::read_entire_file(std::span<char> buffer) noexcept
+{
+    debug::ensure(is_open());
+    debug::ensure(mode[file_open_options::read] or
+                  mode[file_open_options::extended]);
+
+    if (is_open() and
+        (mode[file_open_options::read] or mode[file_open_options::extended])) {
+
+        const auto end = std::fseek(to_file(), 0, SEEK_END);
+        if (end >= 0) {
+            const auto size = std::ftell(to_file());
+            if (size >= 0) {
+                const auto beg = std::fseek(to_file(), 0, SEEK_SET);
+                if (beg == 0) {
+                    const auto real_size =
+                      std::cmp_less(size, buffer.size())
+                        ? static_cast<std::size_t>(size)
+                      : std::cmp_greater(size, buffer.size())
+                        ? buffer.size()
+                        : static_cast<std::size_t>(size);
+
+                    std::fill_n(buffer.data(), real_size, '\0');
+
+                    const auto read_size =
+                      std::fread(buffer.data(), 1, real_size, to_file());
+
+                    buffer[read_size] = '\0';
+
+                    return buffer.subspan(0, read_size);
+                }
+            }
+        }
+    }
+
+    return std::span<char>();
 }
 
 template<typename File>
@@ -362,42 +493,76 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-bool file::exists(const char* filename) noexcept
+inline expected<file> file::open(const char8_t*  filename,
+                                 const file_mode mode) noexcept
 {
-#if defined(_WIN32)
-    const auto filname_sz =
-      ::MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0);
-    vector<wchar_t> buf;
-    buf.resize(filname_sz);
-    ::MultiByteToWideChar(
-      CP_UTF8, 0, filename, -1, (wchar_t*)&buf[0], filname_sz);
+    debug::ensure(filename != nullptr);
 
-    return ::GetFileAttributesW((const wchar_t*)&buf[0]) !=
-           INVALID_FILE_ATTRIBUTES;
-#else
-    struct ::stat buffer;
-    return ::stat(filename, &buffer) == 0;
-#endif
+    if (not filename)
+        return new_error(file_errc::empty);
+
+    try {
+        const auto m = ::irt::get_mode(mode);
+        const auto c = ::irt::convert_path(filename);
+        const auto v = ::irt::get_pointer(c);
+
+        if (auto f = ::irt::open_file(v, m.data()))
+            return file{ f, mode };
+        else
+            return new_error(file_errc::open_error);
+    } catch (...) {
+        return new_error(file_errc::memory_error);
+    }
 }
 
-file::file(void* handle, const open_mode m) noexcept
+expected<file> file::open(const std::filesystem::path& path,
+                          const file_mode              mode) noexcept
+{
+    try {
+        const auto m = ::irt::get_mode(mode);
+        const auto v = path.c_str();
+
+        if (auto f = ::irt::open_file(v, m.data()))
+            return file{ f, mode };
+        else
+            return new_error(file_errc::open_error);
+    } catch (...) {
+        return new_error(file_errc::memory_error);
+    }
+}
+
+expected<memory> memory::make(const i64 length) noexcept
+{
+    debug::ensure(1 <= length and length <= INT32_MAX);
+
+    if (not(1 <= length and length <= INT32_MAX))
+        return new_error(file_errc::memory_error);
+
+    memory mem(length);
+    if (not std::cmp_equal(mem.data.size(), length))
+        return new_error(file_errc::memory_error);
+
+    return mem;
+}
+
+file::file(void* handle, const file_mode m) noexcept
   : file_handle(handle)
   , mode(m)
 {}
 
 file::file(file&& other) noexcept
   : file_handle(std::exchange(other.file_handle, nullptr))
-  , mode(std::exchange(other.mode, open_mode::read))
+  , mode(other.mode)
 {}
 
 file& file::operator=(file&& other) noexcept
 {
     if (this != &other) {
         if (file_handle)
-            std::fclose(to_handle(file_handle));
+            std::fclose(to_file());
 
         file_handle = std::exchange(other.file_handle, nullptr);
-        mode        = std::exchange(other.mode, open_mode::read);
+        mode        = other.mode;
     }
 
     return *this;
@@ -406,29 +571,29 @@ file& file::operator=(file&& other) noexcept
 file::~file() noexcept
 {
     if (file_handle)
-        std::fclose(to_handle(file_handle));
+        std::fclose(to_file());
 }
 
 void file::close() noexcept
 {
     if (file_handle) {
-        std::fclose(to_handle(file_handle));
+        std::fclose(to_file());
         file_handle = nullptr;
     }
 }
 
 bool file::is_open() const noexcept { return file_handle != nullptr; }
-bool file::is_eof() const noexcept { return std::feof(to_handle(file_handle)); }
+bool file::is_eof() const noexcept { return std::feof(to_file()); }
 
 i64 file::length() const noexcept
 {
     debug::ensure(file_handle);
 
-    const auto prev = std::ftell(to_handle(file_handle));
-    std::fseek(to_handle(file_handle), 0, SEEK_END);
+    const auto prev = std::ftell(to_file());
+    std::fseek(to_file(), 0, SEEK_END);
 
-    const auto size = std::ftell(to_handle(file_handle));
-    std::fseek(to_handle(file_handle), prev, SEEK_SET);
+    const auto size = std::ftell(to_file());
+    std::fseek(to_file(), prev, SEEK_SET);
 
     return size;
 }
@@ -437,14 +602,14 @@ i64 file::tell() const noexcept
 {
     debug::ensure(file_handle);
 
-    return std::ftell(to_handle(file_handle));
+    return std::ftell(to_file());
 }
 
 void file::flush() const noexcept
 {
     debug::ensure(file_handle);
 
-    std::fflush(to_handle(file_handle));
+    std::fflush(to_file());
 }
 
 i64 file::seek(i64 offset, seek_origin origin) noexcept
@@ -456,14 +621,14 @@ i64 file::seek(i64 offset, seek_origin origin) noexcept
                              : origin == seek_origin::end   ? SEEK_END
                                                             : SEEK_CUR;
 
-    return std::fseek(to_handle(file_handle), offset_good, origin_good);
+    return std::fseek(to_file(), offset_good, origin_good);
 }
 
 void file::rewind() noexcept
 {
     debug::ensure(file_handle);
 
-    std::rewind(to_handle(file_handle));
+    std::rewind(to_file());
 }
 
 bool file::read(bool& value) noexcept
@@ -564,7 +729,7 @@ bool file::read(void* buffer, i64 length) noexcept
         return false;
 
     const auto len  = static_cast<size_t>(length);
-    const auto read = std::fread(buffer, len, 1, to_handle(file_handle));
+    const auto read = std::fread(buffer, len, 1, to_file());
 
     if (read != 1)
         return false;
@@ -582,7 +747,7 @@ bool file::write(const void* buffer, i64 length) noexcept
         return false;
 
     const auto len     = static_cast<size_t>(length);
-    const auto written = std::fwrite(buffer, len, 1, to_handle(file_handle));
+    const auto written = std::fwrite(buffer, len, 1, to_file());
 
     if (written != 1)
         return false;
@@ -590,7 +755,16 @@ bool file::write(const void* buffer, i64 length) noexcept
     return true;
 }
 
-memory::memory(const i64 length, const open_mode /*mode*/) noexcept
+void* file::get_handle() const noexcept { return file_handle; }
+
+std::FILE* file::to_file() const noexcept
+{
+    return reinterpret_cast<std::FILE*>(file_handle);
+}
+
+file_mode file::get_mode() const noexcept { return mode; }
+
+memory::memory(const i64 length) noexcept
   : data(static_cast<i32>(length), static_cast<i32>(length))
   , pos(0)
 {}

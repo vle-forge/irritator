@@ -319,12 +319,14 @@ public:
     irt::expected<void> prepare_and_run() noexcept
     {
         fmt::print("Run simulation for file {}\n", front);
-        const std::string str{ front };
+
+        const std::filesystem::path str{ front };
         load_next_token();
 
-        if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
+        if (auto file = irt::file::open(
+              str, irt::file_mode(irt::file_open_options::read));
             file.has_value()) {
-            if (json(pj, mod, pj.sim, str, *file)) {
+            if (json(pj, mod, pj.sim, str.string(), *file)) {
                 run();
             } else {
                 return irt::new_error(irt::json_errc::invalid_project_format);

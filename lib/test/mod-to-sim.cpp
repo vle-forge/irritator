@@ -91,7 +91,7 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
     std::error_code ec;
 
     try {
-        auto p = std::filesystem::current_path(ec) / "reg-temp";
+        auto p = std::filesystem::temp_directory_path(ec) / "reg-temp";
         str    = p.string();
         return true;
     } catch (...) {

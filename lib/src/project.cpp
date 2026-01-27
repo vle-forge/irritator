@@ -1716,13 +1716,16 @@ project::project(const project_reserve_definition&         res,
 status project::load(modeling& mod) noexcept
 {
     if (const auto filename = make_file(mod, file); filename.has_value()) {
-        const auto  u8str = filename->u8string();
-        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+        auto file = file::open(*filename, file_mode{ file_open_options::read });
 
-        if (auto file = file::open(cstr, open_mode::read); file.has_value()) {
+        if (file.has_value()) {
+            const auto u8str = filename->u8string();
+            const auto view  = std::string_view(
+              reinterpret_cast<const char*>(u8str.data()), u8str.size());
+
             json_dearchiver dearc;
 
-            return dearc(*this, mod, sim, cstr, *file);
+            return dearc(*this, mod, sim, view, *file);
         } else
             return file.error();
     }
@@ -1733,10 +1736,10 @@ status project::load(modeling& mod) noexcept
 status project::save(modeling& mod) noexcept
 {
     if (const auto filename = make_file(mod, file); filename.has_value()) {
-        const auto  u8str = filename->u8string();
-        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+        auto file =
+          file::open(*filename, file_mode{ file_open_options::write });
 
-        if (auto file = file::open(cstr, open_mode::write); file.has_value()) {
+        if (file.has_value()) {
             json_archiver arc;
 
             return arc(*this,

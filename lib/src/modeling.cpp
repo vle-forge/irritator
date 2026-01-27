@@ -483,26 +483,26 @@ status modeling::load_component(component& compo) noexcept
             return new_error(modeling_errc::file_error);
         }
 
-        const auto  u8str = filename->u8string();
-        const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+        auto f = file::open(*filename, file_mode{ file_open_options::read });
 
-        if (auto f = file::open(cstr, open_mode::read); f) {
+        if (f.has_value()) {
             json_dearchiver j;
             if (not j(*this, compo, filename->string(), *f)) {
                 compo.state = component_status::unreadable;
                 return error_code(modeling_errc::component_load_error);
             }
 
-            compo.state       = component_status::unmodified;
+            compo.state = component_status::unmodified;
+
             auto descfilename = *filename;
             descfilename.replace_extension(".desc");
+            auto ec = std::error_code{};
 
-            const auto u8str_desc = descfilename.u8string();
-            const auto cstr_desc =
-              reinterpret_cast<const char*>(u8str_desc.c_str());
+            if (std::filesystem::exists(descfilename, ec) and not ec) {
+                auto d = file::open(descfilename,
+                                    file_mode{ file_open_options::read });
 
-            if (file::exists(cstr_desc)) {
-                if (auto f = file::open(cstr_desc, open_mode::read); f) {
+                if (d.has_value()) {
                     if (not descriptions.exists(compo.desc))
                         if (descriptions.can_alloc(1))
                             compo.desc = descriptions.alloc_id();
@@ -512,11 +512,10 @@ status modeling::load_component(component& compo) noexcept
 
                     if (descriptions.exists(compo.desc)) {
                         auto& str = descriptions.get<0>(compo.desc);
+                        auto view = std::span<char>(str.data(), str.capacity());
 
-                        if (not f->read(str.data(), str.capacity())) {
-                            descriptions.free(compo.desc);
-                            compo.desc = undefined<description_id>();
-                        }
+                        const auto newview = d->read_entire_file(view);
+                        str.resize(newview.size());
                     }
                 }
             }
@@ -547,13 +546,13 @@ inline void debug_component(const modeling& mod, const component& c) noexcept
             reg = mod.registred_paths.try_to_get(dir->parent);
     }
 
-    debug_log(
-      "component id {} in registered path {} directory {} file {} status {}\n",
-      c.name.sv(),
-      reg ? reg->path.sv() : empty_path,
-      dir ? dir->path.sv() : empty_path,
-      file ? file->path.sv() : empty_path,
-      component_status_string[ordinal(c.state)]);
+    debug_log("component id {} in registered path {} directory {} file {} "
+              "status {}\n",
+              c.name.sv(),
+              reg ? reg->path.sv() : empty_path,
+              dir ? dir->path.sv() : empty_path,
+              file ? file->path.sv() : empty_path,
+              component_status_string[ordinal(c.state)]);
 }
 
 //! Use @c debug_log to display component data into debug console.
@@ -574,22 +573,24 @@ status modeling::fill_components() noexcept
     debug_log("{} graphs to load\n", graphs.size());
     for (auto& g : graphs) {
         const auto file_id = g.file;
-        auto       file    = make_file(*this, file_id);
-        if (auto ret = irt::parse_dot_file(*this, *file); ret.has_value()) {
-            g      = std::move(*ret);
-            g.file = file_id;
-        } else {
-            journal.push(
-              log_level::warning,
-              [&](auto& t, auto& m, const auto& f) noexcept {
-                  t = "Modeling initialization error";
-                  format(m,
-                         "Fail to read dot graph `{}' ({}:{})",
-                         reinterpret_cast<const char*>(f.c_str()),
-                         ordinal(ret.error().cat()),
-                         ret.error().value());
-              },
-              *file);
+
+        if (auto file = make_file(*this, file_id); file.has_value()) {
+            if (auto ret = irt::parse_dot_file(*this, *file); ret.has_value()) {
+                g      = std::move(*ret);
+                g.file = file_id;
+            } else {
+                journal.push(
+                  log_level::warning,
+                  [&](auto& t, auto& m, const auto& f) noexcept {
+                      t = "Modeling initialization error";
+                      format(m,
+                             "Fail to read dot graph `{}' ({}:{})",
+                             reinterpret_cast<const char*>(f.c_str()),
+                             ordinal(ret.error().cat()),
+                             ret.error().value());
+                  },
+                  *file);
+            }
         }
     }
 
@@ -1448,10 +1449,9 @@ status modeling::save(component& c) noexcept
     if (not filenames.has_value())
         return new_error(modeling_errc::file_error);
 
-    const auto cu8str = filenames->component.u8string();
-    const auto cstr   = reinterpret_cast<const char*>(cu8str.c_str());
-    auto       cfile  = file::open(cstr, open_mode::write);
-    if (not cfile.has_value())
+    auto cfile =
+      file::open(filenames->component, file_mode{ file_open_options::write });
+    if (cfile.has_error()) [[unlikely]]
         return cfile.error();
 
     json_archiver j;
@@ -1459,9 +1459,14 @@ status modeling::save(component& c) noexcept
         return ret.error();
 
     if (descriptions.exists(c.desc)) {
-        std::ofstream ofs{ filenames->description };
-        auto&         str = descriptions.get<0>()[c.desc];
-        ofs.write(str.c_str(), str.size());
+        auto dfile = file::open(filenames->description,
+                                file_mode{ file_open_options::write });
+
+        if (dfile.has_value()) [[likely]] {
+            auto& str = descriptions.get<0>()[c.desc];
+
+            dfile->write(str.sv());
+        }
     }
 
     c.state = component_status::unmodified;

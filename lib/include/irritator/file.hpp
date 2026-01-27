@@ -8,84 +8,82 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <filesystem>
+
 #include <cstdio>
 
 namespace irt {
 
-/** Determine the file access of the buffered_buffer.
- *
- * - read, Open a file for reading, read from start.
- * - write, Create a file for writing, destroy contents.
- * - append, Append to a file, write to end.
- */
-enum class buffered_file_mode : u8 {
-    text_or_binary, //!< Binary or text file mode.
-    read,           //!< Open a file for reading, read from start.
-    write,          //!< Create a file for writing, destroy contents.
-    append,         //!< Append to a file, write to end.
+enum class file_open_options : u8 {
+    read,     ///< Opens a file for reading only.
+    write,    ///< Creates or opens a file for writing only.
+    append,   ///< Moves the file pointer to the end of the file before every
+              ///< write operation.
+    extended, ///< @c read @c write or @c append are for both reading and
+              ///< writing
+    text,     ///< Opens the file in text mode (binary default).
+    fail_if_exist ///< Fails the @c write or @c operation if the file already
+                  ///< exists.
 };
 
-namespace details {
-
-/** A wrapper to reduce the size of the buffered_file pointer. */
-struct buffered_file_deleter {
-    void operator()(std::FILE* fd) const noexcept { std::fclose(fd); }
-};
-
-} // namespace details
-
-/**
- * @brief A typedef to manage automatically an @a std::FILE pointer.
- */
-using buffered_file =
-  std::unique_ptr<std::FILE, details::buffered_file_deleter>;
-
-/**
- * Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
- * function neither returns a nullptr. If an error occured, the unexpected value
- * stores an @a error_code.
- *
- * This function uses the buffered standard API @c std::fopen/std::fclose to
- * read/write in a text/binary format.
- *
- * This function uses a specific Win32 code to convert path in Win32 code
- * page @a _wfopen_s.
- */
-expected<buffered_file> open_buffered_file(
-  const std::filesystem::path&       path,
-  const bitflags<buffered_file_mode> mode) noexcept;
+using file_mode = bitflags<file_open_options>;
 
 enum class seek_origin : u8 { current, end, set };
-
-enum class open_mode : u8 { read, write, append };
 
 class file
 {
 public:
     /**
-     * @brief Try to open a file.
-     *
-     * @example
-     * auto file =  file::open(filename, file::mode::read);
-     * if (file) {
-     *   int x, y, z;
-     *   return file->read(x) && file->read(y) && file->read(z);
-     * }
-     * @endexample
-     *
-     * @param  filename File name in utf-8.
-     * @return @c file if success @c error_code otherwise.
-     */
-    static expected<file> open(const char*     filename,
-                               const open_mode mode) noexcept;
+       @brief Try to open a file.
 
-    static bool exists(const char* filename) noexcept;
+       @example
+       const auto char8_t* filename = u8"data.bin";
+       auto file =  file::open(filename, file::mode::read);
+       if (file) {
+         int x, y, z;
+         return file->read(x) && file->read(y) && file->read(z);
+       }
+       @endexample
+
+       @param  filename File name in utf-8.
+       @return @c file if success @c error_code otherwise.
+     */
+    static expected<file> open(const char8_t*  filename,
+                               const file_mode mode) noexcept;
+
+    /**
+       @brief Try to open a file.
+
+       @example
+       auto path = std::filesystem::u8path(filename);
+       auto file =  file::open(path, file::mode::read);
+       if (file) {
+         int x, y, z;
+         return file->read(x) && file->read(y) && file->read(z);
+       }
+       @endexample
+
+       @param  filename File name in utf-8.
+       @return @c file if success @c error_code otherwise.
+     */
+    static expected<file> open(const std::filesystem::path& path,
+                               const file_mode              mode) noexcept;
+
+    /**
+       Try to create a temporary @a file. This function neither returns a
+       nullptr. If an error occured, the unexpected value stores an @a
+       error_code.
+       On Win32, the file is build in the root temporary directory.
+     */
+    static expected<file> open_tmp() noexcept;
 
     file() noexcept = default;
+
     ~file() noexcept;
 
     file(const file& other) noexcept            = delete;
     file& operator=(const file& other) noexcept = delete;
+
     file(file&& other) noexcept;
     file& operator=(file&& other) noexcept;
 
@@ -124,6 +122,21 @@ public:
         return true;
     }
 
+    /** Read the entire file and returns a buffer with the read data.
+     *  @return If the function fail, the @c vector<char> is empty. */
+    irt::vector<char> read_entire_file() noexcept;
+
+    /**
+     *  Try to read the entire file from the beggining and fill the @c buffer.
+     *
+     *  @return Returns a @c span of the really read buffer. The returned buffer
+     * can be:
+     * - lower than @c buffer is the file length is lower the buffer.
+     * - equal to @c buffer is the file length is greater or equal to the
+     * buffer.
+     */
+    std::span<char> read_entire_file(std::span<char> buffer) noexcept;
+
     bool write(const bool value) noexcept;
     bool write(const u8 value) noexcept;
     bool write(const u16 value) noexcept;
@@ -144,6 +157,18 @@ public:
         return write(ordinal(value));
     }
 
+    template<typename T>
+        requires(std::is_arithmetic_v<T>)
+    bool write(const std::span<T> buffer) noexcept
+    {
+        return write(buffer.data(), static_cast<i64>(buffer.size()));
+    }
+
+    bool write(const std::string_view buffer) noexcept
+    {
+        return write(buffer.data(), static_cast<i64>(buffer.size()));
+    }
+
     //! Low level read function.
     //! @param buffer A pointer to buffer (must be not null)
     //! @param length The length of the buffer to read (must be greater than
@@ -152,21 +177,24 @@ public:
     bool read(void* buffer, i64 length) noexcept;
 
     //! Low level write function.
-    //! @param  buffer A pointer to buffer (must be not null) with at least @c
+    //! @param  buffer A pointer to buffer (must be not null) with at least
+    //! @c
     //!     length bytes available.
-    //! @param  length The length of the buffer to read (must be greater than
+    //! @param  length The length of the buffer to read (must be greater
+    //! than
     //!     0).
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
 
-    void*     get_handle() const noexcept;
-    open_mode get_mode() const noexcept;
+    std::FILE* to_file() const noexcept;
+    void*      get_handle() const noexcept;
+    file_mode  get_mode() const noexcept;
 
 private:
-    file(void* handle, const open_mode mode) noexcept;
+    file(void* handle, const file_mode mode) noexcept;
 
     void*     file_handle = nullptr;
-    open_mode mode        = open_mode::read;
+    file_mode mode;
 };
 
 class memory
@@ -174,8 +202,7 @@ class memory
 public:
     ~memory() noexcept = default;
 
-    static expected<memory> make(const i64       length,
-                                 const open_mode mode) noexcept;
+    static expected<memory> make(const i64 length) noexcept;
 
     memory(const memory& other) noexcept            = delete;
     memory& operator=(const memory& other) noexcept = delete;
@@ -242,9 +269,11 @@ public:
     bool read(void* buffer, i64 length) noexcept;
 
     //! Low level write function.
-    //! @param  buffer A pointer to buffer (must be not null) with at least @c
+    //! @param  buffer A pointer to buffer (must be not null) with at least
+    //! @c
     //!     length bytes available.
-    //! @param  length The length of the buffer to read (must be greater than
+    //! @param  length The length of the buffer to read (must be greater
+    //! than
     //!     0).
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
@@ -253,45 +282,8 @@ public:
     i64        pos = 0;
 
 private:
-    memory(const i64 length, const open_mode mode) noexcept;
+    memory(const i64 length) noexcept;
 };
-
-inline void*     file::get_handle() const noexcept { return file_handle; }
-inline open_mode file::get_mode() const noexcept { return mode; }
-
-inline expected<file> file::open(const char*     filename,
-                                 const open_mode mode) noexcept
-{
-    debug::ensure(filename != nullptr);
-
-    if (not filename)
-        return file{};
-
-    auto* ptr = fopen(filename,
-                      mode == open_mode::read    ? "rb"
-                      : mode == open_mode::write ? "wb"
-                                                 : "ab");
-
-    if (not ptr)
-        return new_error(file_errc::open_error);
-
-    return file(ptr, mode);
-}
-
-inline expected<memory> memory::make(const i64       length,
-                                     const open_mode mode) noexcept
-{
-    debug::ensure(1 <= length and length <= INT32_MAX);
-
-    if (not(1 <= length and length <= INT32_MAX))
-        return new_error(file_errc::memory_error);
-
-    memory mem(length, mode);
-    if (not std::cmp_equal(mem.data.size(), length))
-        return new_error(file_errc::memory_error);
-
-    return mem;
-}
 
 } // irt
 

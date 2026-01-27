@@ -2,16 +2,15 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <charconv>
+#include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/global.hpp>
 
+#include <charconv>
 #include <istream>
-#include <mutex>
 #include <streambuf>
 
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 
 namespace irt {
 
@@ -82,46 +81,55 @@ static void do_build_default(variables& v) noexcept
 
 static std::error_code do_write(const variables& vars,
                                 const int        theme,
-                                std::ostream&    os) noexcept
+                                std::FILE*       file) noexcept
 {
-    if (os << "[paths]\n") {
-        for (const auto id : vars.rec_paths.ids) {
-            const auto idx = get_index(id);
+    fmt::print(file, "[paths]\n");
 
-            if (vars.rec_paths.names[idx].empty() or
-                vars.rec_paths.paths[idx].empty())
-                continue;
+    for (const auto id : vars.rec_paths.ids) {
+        const auto idx = get_index(id);
 
-            os << vars.rec_paths.names[idx].sv() << ' '
-               << vars.rec_paths.priorities[idx] << ' '
-               << vars.rec_paths.paths[idx].sv() << '\n';
-        }
+        if (vars.rec_paths.names[idx].empty() or
+            vars.rec_paths.paths[idx].empty())
+            continue;
 
-        if (os << "[themes]\n") {
-            os << "selected=" << themes[theme] << '\n';
-        }
+        fmt::print(file,
+                   "{} {} {}\n",
+                   vars.rec_paths.names[idx].sv(),
+                   vars.rec_paths.priorities[idx],
+                   vars.rec_paths.paths[idx].sv());
     }
 
-    if (os.bad())
-        return std::make_error_code(std::errc(std::errc::io_error));
+    fmt::print(file, "[themes]\n");
+    fmt::print(file, "selected={}\n", themes[theme]);
 
-    return std::error_code();
+    return std::ferror(file)
+             ? std::make_error_code(std::errc(std::errc::io_error))
+             : std::error_code();
 }
 
-static std::error_code do_save(const char*      filename,
+static std::error_code do_save(std::FILE*       file,
                                const variables& vars,
                                const int        theme) noexcept
 {
-    auto file = std::ofstream{ filename };
-    if (!file.is_open())
-        return std::make_error_code(
-          std::errc(std::errc::no_such_file_or_directory));
+    fatal::ensure(file);
 
-    file << "# irritator 0.x\n";
-    if (file.bad())
+    fmt::print(file, "# irritator 0.x\n");
+    if (std::ferror(file))
         return std::make_error_code(std::errc(std::errc::io_error));
 
     return do_write(vars, theme, file);
+}
+
+static std::error_code do_save(const std::filesystem::path& filename,
+                               const variables&             vars,
+                               const int                    theme) noexcept
+{
+    auto file = file::open(filename, file_mode(file_open_options::write));
+    if (file.has_error()) [[unlikely]]
+        return std::make_error_code(
+          std::errc(std::errc::no_such_file_or_directory));
+
+    return do_save(file->to_file(), vars, theme);
 }
 
 enum : u8 { section_colors, section_paths, section_COUNT };
@@ -368,25 +376,40 @@ static std::error_code do_parse(variables&       v,
     return std::error_code();
 }
 
-static std::error_code do_load(const char* filename,
-                               variables&  vars,
-                               int&        theme) noexcept
+static std::error_code do_load(std::FILE* file,
+                               variables& vars,
+                               int&       theme) noexcept
 {
-    auto file = std::ifstream{ filename };
-    if (not file.is_open())
+    std::fseek(file, 0u, SEEK_END);
+    auto size = std::ftell(file);
+
+    if (size == -1)
+        return std::make_error_code(std::errc(std::errc::io_error));
+    else if (size == 0)
+        return std::error_code{};
+
+    std::fseek(file, 0u, SEEK_SET);
+
+    vector<char> buffer(size, '\0');
+
+    const auto read = std::fread(buffer.data(), 1u, size, file);
+    if (std::cmp_not_equal(read, size))
+        return std::make_error_code(std::errc(std::errc::io_error));
+
+    return do_parse(
+      vars, theme, std::string_view{ buffer.data(), buffer.size() });
+}
+
+static std::error_code do_load(const std::filesystem::path& filename,
+                               variables&                   vars,
+                               int&                         theme) noexcept
+{
+    auto file = file::open(filename, file_mode{ file_open_options::read });
+    if (file.has_error()) [[unlikely]]
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    auto latest =
-      std::string{ (std::istreambuf_iterator<std::string::value_type>(file)),
-                   std::istreambuf_iterator<std::string::value_type>() };
-
-    if (latest.empty() or file.bad())
-        return std::make_error_code(std::errc(std::errc::io_error));
-
-    file.close();
-
-    return do_parse(vars, theme, latest);
+    return do_load(file->to_file(), vars, theme);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -549,7 +572,7 @@ config_manager::config_manager(const std::string& config_path) noexcept
 {
     m_vars.write([&](auto& buffer) noexcept {
         do_build_default(buffer);
-        if (do_load(config_path.c_str(), buffer, theme)) {
+        if (do_load(config_path, buffer, theme)) {
             if (not save()) {
                 std::fprintf(stderr,
                              "Fail to store configuration in %s\n",
@@ -566,7 +589,7 @@ std::error_code config_manager::save() const noexcept
     m_vars.read(
       [&](const auto& buffer, const auto version, auto& ret) noexcept {
           if (version != m_version)
-              ret = do_save(m_path.c_str(), buffer, theme);
+              ret = do_save(m_path, buffer, theme);
       },
       ret);
 

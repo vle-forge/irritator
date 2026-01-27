@@ -122,29 +122,36 @@ enum class random_file_type : u8 {
 };
 
 template<typename RandomGenerator, typename Distribution>
-inline int generate_random_file(std::ostream&          os,
+inline int generate_random_file(std::FILE*             os,
                                 RandomGenerator&       gen,
                                 Distribution&          dist,
                                 const std::size_t      size,
                                 const random_file_type type) noexcept
 {
+    using result_type = typename Distribution::result_type;
+
     switch (type) {
     case random_file_type::text: {
-        if (!os)
+        if (not os)
             return -1;
 
-        for (std::size_t sz = 0; sz < size; ++sz)
-            if (!(os << dist(gen) << '\n'))
-                return -2;
+        if constexpr (std::is_integral_v<result_type>) {
+            for (std::size_t sz = 0; sz < size; ++sz)
+                std::fprintf(os, "%d\n", dist(gen));
+        } else if constexpr (std::is_floating_point_v<result_type>) {
+            for (std::size_t sz = 0; sz < size; ++sz)
+                std::fprintf(os, "%.10f\n", dist(gen));
+        }
     } break;
 
     case random_file_type::binary: {
-        if (!os)
+        if (not os)
             return -1;
 
         for (std::size_t sz = 0; sz < size; ++sz) {
-            const double value = dist(gen);
-            os.write(reinterpret_cast<const char*>(&value), sizeof(value));
+            const auto value = dist(gen);
+            std::fwrite(
+              reinterpret_cast<const char*>(&value), 1, sizeof(value), os);
         }
     } break;
     }
@@ -740,8 +747,7 @@ constexpr std::span<const std::string_view> get_input_port_names(
 ///
 /// The directed graph writes nodes only with integer index (not string) and the
 /// edges by theirs names.
-void write_dot_graph_simulation(std::ostream&     os,
-                                const simulation& sim) noexcept;
+void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept;
 
 enum class write_test_simulation_options : u8 {
     none,        //!< Write only the structure of the simulation.
@@ -768,7 +774,7 @@ enum class write_test_simulation_result : u8 {
 /// @param begin
 /// @param end
 /// @param opts
-auto write_test_simulation(std::ostream&                       os,
+auto write_test_simulation(std::FILE*                          os,
                            const std::string_view              name,
                            const simulation&                   sim,
                            const time                          begin,

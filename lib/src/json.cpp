@@ -13,7 +13,6 @@
 #include <irritator/modeling.hpp>
 
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
@@ -4836,9 +4835,11 @@ struct json_dearchiver::impl {
 static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
 {
     debug::ensure(f.is_open());
-    debug::ensure(f.get_mode() == open_mode::read);
+    debug::ensure(f.get_mode()[file_open_options::read] or
+                  f.get_mode()[file_open_options::extended]);
 
-    if (not f.is_open() or f.get_mode() != open_mode::read)
+    if (not(f.is_open() and (f.get_mode()[file_open_options::read] or
+                             f.get_mode()[file_open_options::extended])))
         return error_code(file_errc::open_error);
 
     const auto len = f.length();
@@ -6855,7 +6856,8 @@ status json_dearchiver::operator()(modeling&        mod,
                                    file&            io) noexcept
 {
     debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::read);
+    debug::ensure(io.get_mode()[file_open_options::read] or
+                  io.get_mode()[file_open_options::extended]);
     clear();
 
     rapidjson::Document doc;
@@ -6877,7 +6879,8 @@ status json_dearchiver::operator()(project&         pj,
                                    file&            io) noexcept
 {
     debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::read);
+    debug::ensure(io.get_mode()[file_open_options::read] or
+                  io.get_mode()[file_open_options::extended]);
     clear();
 
     rapidjson::Document doc;
@@ -6927,9 +6930,11 @@ status json_archiver::operator()(modeling&                   mod,
     clear();
 
     debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::write);
+    debug::ensure(io.get_mode()[file_open_options::write] or
+                  io.get_mode()[file_open_options::extended]);
 
-    if (not(io.is_open() and io.get_mode() == open_mode::write))
+    if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
+                              io.get_mode()[file_open_options::extended])))
         return new_error(file_errc::open_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
@@ -7028,9 +7033,11 @@ status json_archiver::operator()(project&     pj,
     clear();
 
     debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::write);
+    debug::ensure(io.get_mode()[file_open_options::write] or
+                  io.get_mode()[file_open_options::extended]);
 
-    if (not(io.is_open() and io.get_mode() == open_mode::write))
+    if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
+                              io.get_mode()[file_open_options::extended])))
         return new_error(file_errc::open_error);
 
     auto* compo  = mod.components.try_to_get<component>(pj.head());

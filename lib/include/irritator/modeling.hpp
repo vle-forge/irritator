@@ -1617,7 +1617,7 @@ public:
     enum class type : u8 { variables, grid, graph };
 
     id_array<file_observer_id> ids;
-    vector<buffered_file>      files;
+    vector<file>               files;
     vector<id_type>            subids;
     vector<type>               types;
     vector<bool>               enables;

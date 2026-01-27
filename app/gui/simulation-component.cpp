@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
@@ -21,13 +22,15 @@ static void save_simulation_graph(const simulation&      sim,
     try {
         std::filesystem::path path(absolute_path);
         path /= "simulation-graph.dot";
-        if (std::ofstream ofs(path); ofs.is_open())
-            write_dot_graph_simulation(ofs, sim);
+
+        auto f = file::open(path, file_mode{ file_open_options::write });
+        if (f.has_value())
+            write_dot_graph_simulation(f->to_file(), sim);
     } catch (...) {
     }
 }
 
-static expected<buffered_file> save_simulation_raw_data(
+static expected<file> save_simulation_raw_data(
   const std::string_view absolute_path,
   const bool             is_binary) noexcept
 {
@@ -35,11 +38,11 @@ static expected<buffered_file> save_simulation_raw_data(
         std::filesystem::path path(absolute_path);
         path /= "simulation-raw.txt";
 
-        bitflags<buffered_file_mode> options(buffered_file_mode::write);
-        if (is_binary)
-            options.set(buffered_file_mode::text_or_binary);
+        const auto mode = is_binary ? file_mode{ file_open_options::write }
+                                    : file_mode{ file_open_options::write,
+                                                 file_open_options::text };
 
-        return open_buffered_file(path, options);
+        return file::open(path, mode);
     } catch (...) {
         return new_error(fs_errc::user_directory_access_fail);
     }
@@ -184,27 +187,27 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 
 static void finalize_raw_obs(project_editor& ed) noexcept
 {
-    debug::ensure(ed.raw_ofs);
-    debug::ensure(std::ferror(ed.raw_ofs.get()) == 0);
+    debug::ensure(ed.raw_ofs.is_open());
+    debug::ensure(std::ferror(ed.raw_ofs.to_file()) == 0);
 
     if (ed.save_simulation_raw_data == project_editor::raw_data_type::binary) {
         for (const auto& mdl : ed.pj.sim.models) {
             dispatch(
               mdl,
               []<typename Dynamics>(const Dynamics& dyn,
-                                    auto&           ofs,
+                                    auto*           ofs,
                                     const auto      index,
                                     const auto      t,
                                     const auto      tl) noexcept {
                   if constexpr (has_observation_function<Dynamics>) {
                       const auto obs = dyn.observation(t, t - tl);
 
-                      std::fwrite(&t, sizeof(t), 1, ofs.get());
-                      std::fwrite(&index, sizeof(index), 1, ofs.get());
-                      std::fwrite(obs.data(), obs.size(), 1, ofs.get());
+                      std::fwrite(&t, sizeof(t), 1, ofs);
+                      std::fwrite(&index, sizeof(index), 1, ofs);
+                      std::fwrite(obs.data(), obs.size(), 1, ofs);
                   }
               },
-              ed.raw_ofs,
+              ed.raw_ofs.to_file(),
               get_index(ed.pj.sim.get_id(mdl)),
               ed.pj.sim.current_time(),
               mdl.tl);
@@ -214,14 +217,14 @@ static void finalize_raw_obs(project_editor& ed) noexcept
             dispatch(
               mdl,
               []<typename Dynamics>(const Dynamics& dyn,
-                                    auto&           ofs,
+                                    auto*           ofs,
                                     const auto      index,
                                     const auto      t,
                                     const auto      tl) noexcept {
                   if constexpr (has_observation_function<Dynamics>) {
                       const auto obs = dyn.observation(t, t - tl);
 
-                      fmt::print(ofs.get(),
+                      fmt::print(ofs,
                                  "{};{};{};{};{};{};{}\n",
                                  t,
                                  index,
@@ -232,23 +235,23 @@ static void finalize_raw_obs(project_editor& ed) noexcept
                                  obs[4]);
                   }
               },
-              ed.raw_ofs,
+              ed.raw_ofs.to_file(),
               get_index(ed.pj.sim.get_id(mdl)),
               ed.pj.sim.current_time(),
               mdl.tl);
         }
     }
 
-    ed.raw_ofs.reset();
+    ed.raw_ofs.close();
 }
 
 static bool run_raw_obs(application& app, project_editor& ed) noexcept
 {
-    debug::ensure(ed.raw_ofs);
-    debug::ensure(std::ferror(ed.raw_ofs.get()) == 0);
+    debug::ensure(ed.raw_ofs.is_open());
+    debug::ensure(std::ferror(ed.raw_ofs.to_file()) == 0);
 
     const auto ret = ed.pj.sim.run_with_cb(
-      [](const auto& sim, const auto mdls, auto& ofs, auto type) noexcept {
+      [](const auto& sim, const auto mdls, auto* ofs, auto type) noexcept {
           if (type == project_editor::raw_data_type::binary) {
               for (const auto mdl_id : mdls) {
                   if (const auto* mdl = sim.models.try_to_get(mdl_id)) {
@@ -262,11 +265,9 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
                             if constexpr (has_observation_function<Dynamics>) {
                                 const auto obs = dyn.observation(t, t - tl);
 
-                                std::fwrite(&t, sizeof(t), 1, ofs.get());
-                                std::fwrite(
-                                  &index, sizeof(index), 1, ofs.get());
-                                std::fwrite(
-                                  obs.data(), obs.size(), 1, ofs.get());
+                                std::fwrite(&t, sizeof(t), 1, ofs);
+                                std::fwrite(&index, sizeof(index), 1, ofs);
+                                std::fwrite(obs.data(), obs.size(), 1, ofs);
                             }
                         },
                         ofs,
@@ -288,7 +289,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
                             if constexpr (has_observation_function<Dynamics>) {
                                 const auto obs = dyn.observation(t, t - tl);
 
-                                fmt::print(ofs.get(),
+                                fmt::print(ofs,
                                            "{};{};{};{};{};{};{}\n",
                                            t,
                                            index,
@@ -307,7 +308,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
               }
           }
       },
-      ed.raw_ofs,
+      ed.raw_ofs.to_file(),
       ed.save_simulation_raw_data);
 
     if (ret.has_error()) {
@@ -322,13 +323,13 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
         });
     }
 
-    if (std::ferror(ed.raw_ofs.get())) {
+    if (std::ferror(ed.raw_ofs.to_file())) {
         app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
             t = "Simulation debug task run error";
             format(msg, "Fail to write raw data to file");
         });
         ed.save_simulation_raw_data = project_editor::raw_data_type::none;
-        ed.raw_ofs.reset();
+        ed.raw_ofs.close();
     }
 
     return ret.has_value();

@@ -271,14 +271,14 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 
         app.add_gui_task([&]() {
             const auto ret = write_test_simulation(
-              std::cout,
+              stdout,
               ed.pj.name.sv(),
               ed.pj.sim,
               ed.pj.sim.limits.begin(),
               ed.pj.sim.limits.end(),
               enum_cast<write_test_simulation_options>(options));
 
-            std::cout.flush();
+            std::fflush(stdout);
 
             switch (ret) {
             case write_test_simulation_result::success:
@@ -878,25 +878,6 @@ bool show_select_model_box(const char*     button_label,
     }
 
     return ret;
-}
-
-std::optional<file> application::try_open_file(const char* filename,
-                                               open_mode   mode) noexcept
-{
-    debug::ensure(filename);
-
-    if (not filename)
-        return std::nullopt;
-
-    if (auto f = file::open(filename, mode); not f) {
-        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "File open error";
-            format(msg, "Open file {}", filename);
-        });
-
-        return std::nullopt;
-    } else
-        return std::make_optional(std::move(*f));
 }
 
 void application::start_load_project(const project_id pj_id) noexcept

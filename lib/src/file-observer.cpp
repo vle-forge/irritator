@@ -10,16 +10,16 @@
 
 namespace irt {
 
-static expected<buffered_file> open_buffered_file(
-  const std::string_view   output_dir,
-  const std::integral auto idx,
-  const std::string_view   name) noexcept
+static expected<file> open_buffered_file(const std::string_view   output_dir,
+                                         const std::integral auto idx,
+                                         const std::string_view   name) noexcept
 {
     try {
         auto ec = std::error_code{};
 
         auto p = output_dir.empty() ? std::filesystem::current_path(ec)
                                     : std::filesystem::path{ output_dir };
+
         if (not std::filesystem::exists(p, ec))
             return new_error(file_errc::open_error);
 
@@ -28,8 +28,7 @@ static expected<buffered_file> open_buffered_file(
                                 : fmt::format("{}-{}.csv", idx, name);
         p /= filename;
 
-        return open_buffered_file(
-          p, bitflags<buffered_file_mode>(buffered_file_mode::write));
+        return file::open(p, file_mode{ file_open_options::write });
     } catch (...) {
         return new_error(file_errc::memory_error);
     }
@@ -152,7 +151,7 @@ void file_observers::grow() noexcept
 void file_observers::clear() noexcept
 {
     for (const auto id : ids)
-        files[id].reset();
+        files[id].close();
 
     ids.clear();
 }
@@ -176,7 +175,7 @@ void file_observers::initialize(const simulation&      sim,
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
                     files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].get());
+                    do_initialize(*v, files[idx].to_file());
                 }
             }
             break;
@@ -186,7 +185,7 @@ void file_observers::initialize(const simulation&      sim,
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
                     files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].get());
+                    do_initialize(*v, files[idx].to_file());
                 }
             }
             break;
@@ -196,7 +195,7 @@ void file_observers::initialize(const simulation&      sim,
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
                     files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].get());
+                    do_initialize(*v, files[idx].to_file());
                 }
             }
             break;
@@ -219,19 +218,19 @@ void file_observers::update(const simulation& sim, const project& pj) noexcept
         case type::variables:
             if (auto* vars = pj.variable_observers.try_to_get(subids[idx].var);
                 vars)
-                do_update(sim, *vars, files[idx].get());
+                do_update(sim, *vars, files[idx].to_file());
             break;
 
         case type::grid:
             if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid);
                 vars)
-                do_update(sim, *vars, files[idx].get());
+                do_update(sim, *vars, files[idx].to_file());
             break;
 
         case type::graph:
             if (auto* vars = pj.graph_observers.try_to_get(subids[idx].graph);
                 vars)
-                do_update(sim, *vars, files[idx].get());
+                do_update(sim, *vars, files[idx].to_file());
             break;
         }
     }
@@ -243,7 +242,7 @@ void file_observers::finalize() noexcept
         const auto idx = get_index(id);
 
         if (enables[idx])
-            files[idx].reset();
+            files[idx].close();
     }
 }
 
