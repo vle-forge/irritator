@@ -14,23 +14,17 @@
 
 namespace irt {
 
-enum class file_options : u8 {
-    read_only,  ///< Opens a file for reading only.
-    write_only, ///< Opens a file for writing only.
-    read_write, ///< Opens a file for both reading and writing
-    append,     ///< Moves the file pointer to the end of the file before every
-                ///< write operation.
-    create,     ///< Creates a file and opens it for writing
-    trunc,      ///< Opens a file and truncates it to zero length
-    binary      ///< Opens the file in binary mode.
+enum class file_open_options : u8 {
+    read,     ///< Opens a file for reading only.
+    write,    ///< Creates or opens a file for writing only.
+    append,   ///< Moves the file pointer to the end of the file before every
+              ///< write operation.
+    extended, ///< @c read @c write or @c append are for both reading and
+              ///< writing
+    binary,   ///< Opens the file in binary mode.
+    fail_if_exist ///< Fails the @c write or @c operation if the file already
+                  ///< exists.
 };
-
-constexpr struct r_tag_t {
-    r_tag
-};
-;
-
-using file_flags = bitflags<file_options>;
 
 namespace details {
 
@@ -55,8 +49,8 @@ using buffered_file =
 /// This function uses a specific Win32 code to convert path in Win32 code
 /// page @a _wfopen_s.
 expected<buffered_file> open_buffered_file(
-  const std::filesystem::path& path,
-  const bitflags<file_options> mode) noexcept;
+  const std::filesystem::path&      path,
+  const bitflags<file_open_options> mode) noexcept;
 
 /// Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
 /// function neither returns a nullptr. If an error occured, the unexpected
@@ -87,8 +81,8 @@ public:
     ///
     /// @param  filename File name in utf-8.
     /// @return @c file if success @c error_code otherwise.
-    static expected<file> open(const char8_t*               filename,
-                               const bitflags<file_options> mode) noexcept;
+    static expected<file> open(const char8_t*                    filename,
+                               const bitflags<file_open_options> mode) noexcept;
 
     /// @brief Try to open a file.
     ///
@@ -103,8 +97,8 @@ public:
     ///
     /// @param  filename File name in utf-8.
     /// @return @c file if success @c error_code otherwise.
-    static expected<file> open(const std::filesystem::path& path,
-                               const bitflags<file_options> mode) noexcept;
+    static expected<file> open(const std::filesystem::path&      path,
+                               const bitflags<file_open_options> mode) noexcept;
 
     static bool exists(const char8_t* filename) noexcept;
 
@@ -188,14 +182,14 @@ public:
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
 
-    void*                  get_handle() const noexcept;
-    bitflags<file_options> get_mode() const noexcept;
+    void*                       get_handle() const noexcept;
+    bitflags<file_open_options> get_mode() const noexcept;
 
 private:
-    file(void* handle, const bitflags<file_options> mode) noexcept;
+    file(void* handle, const bitflags<file_open_options> mode) noexcept;
 
-    void*                  file_handle = nullptr;
-    bitflags<file_options> mode;
+    void*                       file_handle = nullptr;
+    bitflags<file_open_options> mode;
 };
 
 class memory
@@ -203,8 +197,9 @@ class memory
 public:
     ~memory() noexcept = default;
 
-    static expected<memory> make(const i64                    length,
-                                 const bitflags<file_options> mode) noexcept;
+    static expected<memory> make(
+      const i64                         length,
+      const bitflags<file_open_options> mode) noexcept;
 
     memory(const memory& other) noexcept            = delete;
     memory& operator=(const memory& other) noexcept = delete;
@@ -284,11 +279,14 @@ public:
     i64        pos = 0;
 
 private:
-    memory(const i64 length, const bitflags<file_options> mode) noexcept;
+    memory(const i64 length, const bitflags<file_open_options> mode) noexcept;
 };
 
 inline void* file::get_handle() const noexcept { return file_handle; }
-inline bitflags<file_options> file::get_mode() const noexcept { return mode; }
+inline bitflags<file_open_options> file::get_mode() const noexcept
+{
+    return mode;
+}
 
 } // irt
 
