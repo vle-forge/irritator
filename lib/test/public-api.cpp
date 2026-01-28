@@ -21,6 +21,27 @@
 
 #include <boost/ut.hpp>
 
+static irt::vector<char> read_entire_file(std::FILE* f) noexcept
+{
+    using namespace boost::ut;
+
+    expect(f != nullptr) << fatal;
+
+    expect(0 == std::fseek(f, 0, SEEK_END)) << fatal;
+
+    const auto size = std::ftell(f);
+    expect(size >= 0) << fatal;
+    expect(0 == std::fseek(f, 0, SEEK_SET)) << fatal;
+
+    irt::vector<char> buffer(size);
+
+    const auto read_size =
+      std::fread(buffer.data(), 1, static_cast<size_t>(size), f);
+    expect(static_cast<std::size_t>(read_size) == buffer.size()) << fatal;
+
+    return buffer;
+}
+
 struct file_output {
     using value_type = irt::observation;
 
@@ -1526,15 +1547,15 @@ int main()
         std::poisson_distribution  dist(4.0);
 
         irt::generate_random_file(
-          ofs_b, gen, dist, 1024, irt::random_file_type::binary);
+          ofs_b.value().get(), gen, dist, 1024, irt::random_file_type::binary);
 
-        auto str_b = ofs_b.str();
+        auto str_b = read_entire_file(ofs_b.value().get());
         expect(str_b.size() == static_cast<size_t>(1024) * 8);
 
         irt::generate_random_file(
-          ofs_t, gen, dist, 1024, irt::random_file_type::text);
+          ofs_t.value().get(), gen, dist, 1024, irt::random_file_type::text);
 
-        auto str_t = ofs_b.str();
+        auto str_t = read_entire_file(ofs_b.value().get());
         expect(str_t.size() > static_cast<size_t>(1024) * 2);
     };
 

@@ -1459,9 +1459,14 @@ status modeling::save(component& c) noexcept
         return ret.error();
 
     if (descriptions.exists(c.desc)) {
-        std::ofstream ofs{ filenames->description };
-        auto&         str = descriptions.get<0>()[c.desc];
-        ofs.write(str.c_str(), str.size());
+        if (auto file = open_buffered_file(
+              filenames->description,
+              bitflags<buffered_file_mode>{ buffered_file_mode::write });
+            file.has_value()) {
+            auto& str = descriptions.get<0>()[c.desc];
+
+            std::fwrite(str.data(), 1, str.size(), file.value().get());
+        }
     }
 
     c.state = component_status::unmodified;
