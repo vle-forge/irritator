@@ -262,21 +262,18 @@ void library_window::show_file_component(const file_path& file,
     }
 
     ImGui::SameLine();
-    if (state == component_status::unreadable) {
-        ImGui::TextDisabled("%s (unreadable)", file.path.c_str());
-    } else {
-        small_string<127> name;
-        format(name, "{} ({})", c.name.sv(), file.path.sv());
+    const auto name    = format_n<63>("{} ({})", c.name.sv(), file.path.sv());
+    const auto disable = state == component_status::unreadable;
+    const auto flags   = disable ? ImGuiSelectableFlags_Disabled
+                                 : ImGuiSelectableFlags_AllowDoubleClick;
 
-        if (ImGui::Selectable(
-              name.c_str(), selected, ImGuiSelectableFlags_AllowDoubleClick)) {
-            if (ImGui::IsMouseDoubleClicked(0))
-                app.library_wnd.try_set_component_as_project(app, id);
-            else
-                app.component_ed.request_to_open(id);
-        }
-        show_component_popup_menu(app, c);
+    if (ImGui::Selectable(name.c_str(), selected, flags)) {
+        if (ImGui::IsMouseDoubleClicked(0))
+            app.library_wnd.try_set_component_as_project(app, id);
+        else
+            app.component_ed.request_to_open(id);
     }
+    show_component_popup_menu(app, c);
     ImGui::PopID();
 
     ImGui::PushStyleColor(ImGuiCol_Text,
