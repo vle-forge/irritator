@@ -566,6 +566,7 @@ struct component_editor::impl {
                     auto  id    = app.mod.file_paths.get_id(f);
                     f.component = app.mod.components.get_id(compo);
                     f.parent    = app.mod.dir_paths.get_id(*dir);
+                    f.type      = file_path::file_type::irt_file;
                     compo.file  = id;
                     tab.file    = id;
 
@@ -612,11 +613,13 @@ struct component_editor::impl {
 
                 ImGui::BeginDisabled(!is_save_enabled);
                 if (ImGui::Button("Save")) {
-                    compo.file = tab.file;
+                    compo.file   = tab.file;
+                    file->parent = tab.dir;
 
                     if constexpr (has_store_function<ComponentEditor>) {
                         ed.store(app.component_ed);
                     }
+
                     app.start_save_component(app.mod.components.get_id(compo));
 
                     app.add_gui_task(
