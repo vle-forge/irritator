@@ -473,24 +473,14 @@ struct component_editor::impl {
     }
 
     template<typename ComponentEditor>
-    static void show_file_access(application&     app,
-                                 ComponentEditor& ed,
-                                 component&       compo) noexcept
+    static void show_file_access(application&           app,
+                                 ComponentEditor&       ed,
+                                 component&             compo,
+                                 component_editor::tab& tab) noexcept
     {
         static constexpr const char* empty = "";
 
-        auto& c_ed = app.component_ed;
-
-        if (auto* f = app.mod.file_paths.try_to_get(compo.file)) {
-            if (auto* d = app.mod.dir_paths.try_to_get(f->parent)) {
-                c_ed.dir = f->parent;
-
-                if (app.mod.registred_paths.try_to_get(d->parent))
-                    c_ed.reg = d->parent;
-            }
-        }
-
-        auto*       reg_dir     = app.mod.registred_paths.try_to_get(c_ed.reg);
+        auto*       reg_dir     = app.mod.registred_paths.try_to_get(tab.reg);
         const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
 
         if (ImGui::BeginCombo("Path", reg_preview)) {
@@ -502,28 +492,31 @@ struct component_editor::impl {
                 if (ImGui::Selectable(list->path.c_str(),
                                       reg_dir == list,
                                       ImGuiSelectableFlags_None)) {
-                    c_ed.reg = app.mod.registred_paths.get_id(list);
-                    reg_dir  = list;
+                    tab.reg = app.mod.registred_paths.get_id(list);
+                    reg_dir = list;
                 }
             }
             ImGui::EndCombo();
         }
 
         if (reg_dir) {
-            auto* dir         = app.mod.dir_paths.try_to_get(c_ed.dir);
+            auto* dir         = app.mod.dir_paths.try_to_get(tab.dir);
             auto* dir_preview = dir ? dir->path.c_str() : empty;
 
             if (ImGui::BeginCombo("Dir", dir_preview)) {
                 if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
-                    c_ed.dir = undefined<dir_path_id>();
-                    dir      = nullptr;
+                    tab.dir = undefined<dir_path_id>();
+                    dir     = nullptr;
                 }
 
                 dir_path* list = nullptr;
                 while (app.mod.dir_paths.next(list)) {
-                    if (ImGui::Selectable(list->path.c_str(), dir == list)) {
-                        c_ed.dir = app.mod.dir_paths.get_id(list);
-                        dir      = list;
+                    if (list->parent == tab.reg) {
+                        if (ImGui::Selectable(list->path.c_str(),
+                                              dir == list)) {
+                            tab.dir = app.mod.dir_paths.get_id(list);
+                            dir     = list;
+                        }
                     }
                 }
                 ImGui::EndCombo();
@@ -539,7 +532,7 @@ struct component_editor::impl {
                             app.mod.dir_paths, vec, dir_name.sv());
                       });
 
-                    if (exists) {
+                    if (not exists) {
                         auto& new_dir = app.mod.dir_paths.alloc();
                         auto  dir_id  = app.mod.dir_paths.get_id(new_dir);
                         auto  reg_id = app.mod.registred_paths.get_id(*reg_dir);
@@ -550,9 +543,8 @@ struct component_editor::impl {
                         reg_dir->children.write(
                           [&](auto& vec) { vec.emplace_back(dir_id); });
 
-                        c_ed.reg   = reg_id;
-                        c_ed.dir   = dir_id;
-                        compo.file = undefined<file_path_id>();
+                        tab.dir  = dir_id;
+                        tab.file = undefined<file_path_id>();
 
                         if (!app.mod.create_directories(new_dir)) {
                             app.jn.push(
@@ -568,13 +560,14 @@ struct component_editor::impl {
             }
 
             if (dir) {
-                auto* file = app.mod.file_paths.try_to_get(compo.file);
+                auto* file = app.mod.file_paths.try_to_get(tab.file);
                 if (!file) {
                     auto& f     = app.mod.file_paths.alloc();
                     auto  id    = app.mod.file_paths.get_id(f);
                     f.component = app.mod.components.get_id(compo);
                     f.parent    = app.mod.dir_paths.get_id(*dir);
                     compo.file  = id;
+                    tab.file    = id;
 
                     dir->children.write(
                       [&](auto& vec) { vec.emplace_back(id); });
@@ -619,6 +612,8 @@ struct component_editor::impl {
 
                 ImGui::BeginDisabled(!is_save_enabled);
                 if (ImGui::Button("Save")) {
+                    compo.file = tab.file;
+
                     if constexpr (has_store_function<ComponentEditor>) {
                         ed.store(app.component_ed);
                     }
@@ -1923,9 +1918,11 @@ struct component_editor::impl {
     }
 
     template<typename ComponentEditor>
-    static void display_component_editor_subtable(application&     app,
-                                                  ComponentEditor& element,
-                                                  component& compo) noexcept
+    static void display_component_editor_subtable(
+      application&           app,
+      ComponentEditor&       element,
+      component&             compo,
+      component_editor::tab& tab) noexcept
     {
         auto& ed = app.component_ed;
 
@@ -1946,7 +1943,7 @@ struct component_editor::impl {
 
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Save")) {
-                    show_file_access(app, element, compo);
+                    show_file_access(app, element, compo, tab);
                     ImGui::EndMenu();
                 }
 
@@ -2131,7 +2128,7 @@ struct component_editor::impl {
             app.start_save_component(tab.id);
         }
 
-        display_component_editor_subtable(app, *element, *compo);
+        display_component_editor_subtable(app, *element, *compo, tab);
 
         ImGui::End();
 
@@ -2267,18 +2264,29 @@ void component_editor::request_to_open(const component_id id) noexcept
     auto& compo = app.mod.components.get<component>(id);
 
     if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
+        const auto  file_id = compo.file;
+        const auto* file    = app.mod.file_paths.try_to_get(file_id);
+        const auto  dir_id  = file ? file->parent : undefined<dir_path_id>();
+        const auto* dir     = app.mod.dir_paths.try_to_get(dir_id);
+        const auto  reg_id = dir ? dir->parent : undefined<registred_path_id>();
+        const auto* reg    = app.mod.registred_paths.try_to_get(reg_id);
+
         switch (compo.type) {
         case component_type::generic:
             if (app.generics.can_alloc(1)) {
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::generic,
-                  .data{ .generic = app.generics.get_id(
-                           app.generics.alloc(id,
-                                              compo,
-                                              compo.id.generic_id,
-                                              app.mod.generic_components.get(
-                                                compo.id.generic_id))) } });
+                  .reg  = reg_id,
+                  .dir  = dir_id,
+                  .file = file_id,
+                  .data{
+                    .generic = app.generics.get_id(app.generics.alloc(
+                      id,
+                      compo,
+                      compo.id.generic_id,
+                      app.mod.generic_components.get(compo.id.generic_id))) },
+                });
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
@@ -2289,6 +2297,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::grid,
+                  .reg  = reg_id,
+                  .dir  = dir_id,
+                  .file = file_id,
                   .data{ .grid = app.grids.get_id(
                            app.grids.alloc(id, compo.id.grid_id)) } });
                 m_request_to_open = id;
@@ -2301,6 +2312,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::graph,
+                  .reg  = reg_id,
+                  .dir  = dir_id,
+                  .file = file_id,
                   .data{ .graph = app.graphs.get_id(
                            app.graphs.alloc(id, compo.id.graph_id)) } });
                 m_request_to_open = id;
@@ -2313,6 +2327,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::hsm,
+                  .reg  = reg_id,
+                  .dir  = dir_id,
+                  .file = file_id,
                   .data{ .hsm = app.hsms.get_id(app.hsms.alloc(
                            id,
                            compo.id.hsm_id,
@@ -2327,6 +2344,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::simulation,
+                  .reg  = reg_id,
+                  .dir  = dir_id,
+                  .file = file_id,
                   .data{ .sim = app.sims.get_id(app.sims.alloc(
                            id,
                            compo.id.sim_id,

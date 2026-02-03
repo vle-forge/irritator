@@ -1244,6 +1244,15 @@ public:
         component_id   id;
         component_type type;
 
+        /// @c reg is used to edit the @c component @c file_path_id.
+        registred_path_id reg = undefined<registred_path_id>();
+
+        /// @c dir is used to edit the @c component @c file_path_id.
+        dir_path_id dir = undefined<dir_path_id>();
+
+        /// @c file is used to edit the @c component @c file_path_id.
+        file_path_id file = undefined<file_path_id>();
+
         bool is_dock_init = false;
 
         union {
@@ -1267,12 +1276,6 @@ public:
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
-
-    /// @c reg is used to edit the @c component @c file_path_id.
-    registred_path_id reg = undefined<registred_path_id>();
-
-    /// @c dir is used to edit the @c component @c file_path_id.
-    dir_path_id dir = undefined<dir_path_id>();
 };
 
 class library_window
