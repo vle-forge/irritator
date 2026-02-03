@@ -1175,7 +1175,6 @@ struct json_dearchiver::impl {
 
     bool copy_source_to_parameter(i64& param) noexcept
     {
-
         external_source_definition::id id;
 
         return cache_srcs_mapping_get(temp_u64, id) and
@@ -2621,8 +2620,7 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      return read_source(value, compo);
-                 }) and
-               cache_srcs_mapping_sort();
+                 });
     }
 
     bool search_file_from_dir_component(const component& compo,
@@ -2639,19 +2637,21 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "cache srcs mapping add");
 
-        if (not self.srcs_mapping.data.can_alloc(1) and
-            not self.srcs_mapping.data.grow<2, 1>())
-            return error("can not allocate more sources");
+        if (const auto* ptr = self.srcs_mapping.get(id_in_file)) {
+            if (*ptr != id) {
+                warning(
+                  "Multiples external sources definition with same identifier");
+                return false;
+            }
 
-        self.srcs_mapping.data.emplace_back(id_in_file, id);
-        return true;
-    }
+            return true;
+        }
 
-    bool cache_srcs_mapping_sort() noexcept
-    {
-        auto_stack s(this, "cache srcs mapping sort");
+        if (not(self.srcs_mapping.data.can_alloc(1) or
+                self.srcs_mapping.data.grow<2, 1>()))
+            return error("Failed to allocate more external sources");
 
-        self.srcs_mapping.sort();
+        self.srcs_mapping.set(id_in_file, id);
         return true;
     }
 
@@ -2662,10 +2662,11 @@ struct json_dearchiver::impl {
 
         if (const auto* ptr = self.srcs_mapping.get(id_in_file)) {
             id = *ptr;
-            return true;
+        } else {
+            warning("unknown source (id: {})", id_in_file);
         }
 
-        return error("unknown source (id: {})", id_in_file);
+        return true;
     }
 
     bool read_binary_source(const rapidjson::Value&                     value,
