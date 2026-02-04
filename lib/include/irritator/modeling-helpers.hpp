@@ -106,6 +106,21 @@ constexpr bool has_extension(
     return false;
 }
 
+/// Checks if the file path string has an extension equals to any one of
+/// irritator files (.irt, .pirt, .data, etc.).
+constexpr bool has_irritator_extension(const std::string_view filename) noexcept
+{
+    if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
+        const auto ext = filename.substr(dot);
+
+        for (const auto& valid_extension : file_path::file_type_names)
+            if (valid_extension == ext)
+                return true;
+    }
+
+    return false;
+}
+
 /// Checks if the file path string has a valid filename and has the
 /// corresponding @c type extension.
 constexpr bool is_valid_filename(

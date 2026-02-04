@@ -1472,16 +1472,23 @@ public:
         /// Update the @c dir_path::children vector according to the filesystem.
         void refresh(const dir_path_id id) noexcept;
 
-        /// Search a existing filename in the @c dir_path::children
-        file_path_id find(const dir_path_id      id,
-                          const std::string_view filename) const noexcept;
+        /// Search a existing filename in the @c dir_path::children and with the
+        /// type @c type. Use @c undefined_file to select any file with the
+        /// corresponding @c filename.
+        file_path_id find_file_in_directory(
+          const dir_path_id          id,
+          const std::string_view     filename,
+          const file_path::file_type type =
+            file_path::file_type::undefined_file) const noexcept;
 
-        /// Search a directory name in the @c registred_path lists
-        dir_path_id find(const std::string_view name) const noexcept;
+        /// Search a directory name in the children directories of the @c
+        /// registred_path lists.
+        dir_path_id find_directory(const std::string_view name) const noexcept;
 
         /// Search a directory name in the @c registred_path_id
-        dir_path_id find(const registred_path_id id,
-                         std::string_view        name) const noexcept;
+        dir_path_id find_directory_in_registry(
+          const registred_path_id id,
+          std::string_view        name) const noexcept;
 
         registred_path_id find_registred_path_by_name(
           const std::string_view name) const noexcept;
@@ -1502,22 +1509,20 @@ public:
         bool exists(const registred_path_id dir) const noexcept;
         bool exists(const dir_path_id dir) const noexcept;
         bool create_directories(const registred_path_id id) const noexcept;
-        bool create_directories(const dir_path_id id) noexcept;
-        void remove_files(const dir_path& dir) noexcept;
+        bool create_directories(const dir_path_id id) const noexcept;
 
-        void remove_file(registred_path& reg,
-                         dir_path&       dir,
-                         file_path&      file) noexcept;
-        void remove_file(const file_path& file) noexcept;
+        /// Removes any files in the file system.
+        void remove_files(const dir_path_id id) noexcept;
 
-        void move_file(registred_path& reg,
-                       dir_path&       from,
-                       dir_path&       to,
-                       file_path&      file) noexcept;
+        /// Removes @c file_id from the file system.
+        void remove_file(const file_path_id file) noexcept;
 
-        void free(file_path& file) noexcept;
-        void free(dir_path& dir) noexcept;
-        void free(registred_path& dir) noexcept;
+        /// Move a file from a file system to another.
+        void move_file(const dir_path_id to, const file_path_id file) noexcept;
+
+        void free(const file_path_id file) noexcept;
+        void free(const dir_path_id dir) noexcept;
+        void free(const registred_path_id dir) noexcept;
     };
 
     shared_buffer<file_access> files;

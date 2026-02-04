@@ -1764,35 +1764,32 @@ struct json_dearchiver::impl {
                                         const file_path_str&      file,
                                         component_id&             c_id)
     {
-        registred_path* reg_ptr = search_reg(reg.sv());
-        dir_path_id     dir_id{};
-        file_path_id    file_id{};
+        const auto mod_id = mod().files.read(
+          [&](const auto& fs, const auto /*vers*/) noexcept -> component_id {
+              const auto reg_id = fs.find_registry_by_name(reg.sv());
+              const auto dir_id =
+                is_defined(reg_id)
+                  ? fs.find_directory_in_registry(reg_id, dir.sv())
+                  : fs.find_directory(dir.sv());
+              const auto file_id = fs.find_file_in_directory(dir_id, file.sv());
 
-        if (reg_ptr)
-            dir_id = search_dir_in_reg(*reg_ptr, dir.sv());
+              if (const auto* f = fs.file_paths.try_to_get(file_id); f)
+                  return f->component;
 
-        if (is_undefined(dir_id))
-            dir_id = search_dir(dir.sv());
+              return undefined<component_id>();
+          });
 
-        if (is_defined(dir_id))
-            file_id = search_file(mod().dir_paths.get(dir_id), file.sv());
+        if (auto* c = mod().components.try_to_get<component>(mod_id)) {
+            c_id = mod_id;
 
-        if (is_defined(file_id)) {
-            auto& f = mod().file_paths.get(file_id);
-            c_id    = f.component;
+            if (c->state == component_status::unmodified)
+                return true;
 
-            debug::ensure(mod().components.exists(c_id));
-
-            if (auto* c = mod().components.try_to_get<component>(c_id); c) {
-                if (c->state == component_status::unmodified)
-                    return true;
-
-                if (auto ret = mod().load_component(*c); ret)
-                    return true;
-            }
+            if (auto ret = mod().load_component(*c); ret)
+                return true;
         }
 
-        return false;
+        return error("component not found");
     }
 
     bool try_read_child_hsm_sim_component(const rapidjson::Value& val,
@@ -2088,188 +2085,6 @@ struct json_dearchiver::impl {
         return read_child_model_dynamics(val, compo, gen, c);
     }
 
-    auto search_reg(std::string_view name) const noexcept -> registred_path*
-    {
-        registred_path* reg = nullptr;
-        while (mod().registred_paths.next(reg))
-            if (name == reg->name.sv())
-                return reg;
-
-        return nullptr;
-    }
-
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path_id
-    {
-        return reg.children.read(
-          [&](const auto& vec, const auto /*version*/) -> dir_path_id {
-              for (const auto dir_id : vec) {
-                  if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
-                      if (name == dir->path.sv())
-                          return dir_id;
-                  }
-              }
-
-              return undefined<dir_path_id>();
-          });
-    }
-
-    bool search_dir(std::string_view name, dir_path_id& out) noexcept
-    {
-        auto_stack s(this, "search directory");
-
-        for (auto reg_id : mod().component_repertories) {
-            if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
-                const auto dir_id = search_dir_in_reg(*reg, name);
-
-                if (dir_id != undefined<dir_path_id>()) {
-                    out = dir_id;
-                    return true;
-                }
-            }
-        }
-
-        return error("directory not found");
-    }
-
-    bool search_file(dir_path_id      id,
-                     std::string_view file_name,
-                     file_path_id&    out) noexcept
-    {
-        auto_stack s(this, "search file in directory");
-
-        if (auto* dir = mod().dir_paths.try_to_get(id); dir) {
-            const auto id = dir->children.read(
-              [&](const auto& vec,
-                  const auto /*version*/) noexcept -> file_path_id {
-                  for (const auto file_id : vec)
-                      if (auto* f = mod().file_paths.try_to_get(file_id); f)
-                          if (f->path.sv() == file_name)
-                              return file_id;
-
-                  return undefined<file_path_id>();
-              });
-
-            if (id != undefined<file_path_id>()) {
-                out = id;
-                return true;
-            }
-        }
-
-        return error("file not found");
-    }
-
-    /**
-     * Search a directory named @a dir_name from the recorded path @a reg.
-     * @param reg The recorded path used to search the @a dir_name.
-     * @param dir_name The directory name to search.
-     */
-    auto search_dir(const registred_path&  reg,
-                    const std::string_view dir_name) const noexcept
-      -> dir_path_id
-    {
-        return reg.children.read(
-          [&](const auto& vec, const auto /*version*/) noexcept -> dir_path_id {
-              for (const auto dir_id : vec)
-                  if (auto* dir = mod().dir_paths.try_to_get(dir_id))
-                      if (dir->path.sv() == dir_name)
-                          return dir_id;
-
-              return undefined<dir_path_id>();
-          });
-    }
-
-    /**
-     * Search a directory named @a dir_name into the recorded path @a
-     * reg_path if it exists.
-     * @param reg_path The recorded path to search.
-     * @param dir_name The directory name to search.
-     */
-    auto search_dir(const std::string_view reg_path,
-                    const std::string_view dir_name) const noexcept
-      -> dir_path_id
-    {
-        for (auto reg_id : mod().component_repertories) {
-            if (auto* reg = mod().registred_paths.try_to_get(reg_id);
-                reg and reg->name.sv() == reg_path) {
-                return search_dir(*reg, dir_name);
-            }
-        }
-
-        return undefined<dir_path_id>();
-    }
-
-    /**
-     * Search a directory named @a dir_name into recorded path using the @a
-     * recorded paths in @a modeling.
-     * @param dir_name The directory name to search.
-     */
-    auto search_dir(const std::string_view dir_name) const noexcept
-      -> dir_path_id
-    {
-        for (auto reg_id : mod().component_repertories) {
-            if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
-
-                const auto search_result = reg->children.read(
-                  [&](const auto& vec,
-                      const auto /*vers*/) noexcept -> dir_path_id {
-                      for (auto dir_id : vec) {
-                          if (auto* dir = mod().dir_paths.try_to_get(dir_id);
-                              dir) {
-                              if (dir->path.sv() == dir_name)
-                                  return dir_id;
-                          }
-                      }
-
-                      return undefined<dir_path_id>();
-                  });
-
-                if (is_defined(search_result))
-                    return search_result;
-            }
-        }
-
-        return undefined<dir_path_id>();
-    }
-
-    /**
-     * Search a directory named @a dir_name into the recorded path @a
-     * reg_path if it exists.
-     * @param reg_path The recorded path to search.
-     * @param dir_name The directory name to search.
-     * @param [out] out Output parameter to store directory identifier
-     * found.
-     * @return true if a directory is found, false otherwise.
-     */
-    auto search_dir(const std::string_view reg_path,
-                    const std::string_view dir_name,
-                    dir_path_id&           out) noexcept -> bool
-    {
-        if (reg_path.empty())
-            return search_dir(dir_name, out);
-
-        if (auto dir = search_dir(reg_path, dir_name); is_defined(dir)) {
-            out = dir;
-            return true;
-        }
-
-        return false;
-    }
-
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path_id
-    {
-        return dir.children.read(
-          [&](const auto& vec, const auto /*vers*/) noexcept -> file_path_id {
-              for (auto file_id : vec)
-                  if (auto* file = mod().file_paths.try_to_get(file_id); file)
-                      if (file->path.sv() == name)
-                          return file_id;
-
-              return undefined<file_path_id>();
-          });
-    }
-
     auto search_component(std::string_view name) const noexcept
       -> const component*
     {
@@ -2279,42 +2094,6 @@ struct json_dearchiver::impl {
                 return std::addressof(compo_vec[id]);
 
         return nullptr;
-    }
-
-    bool modeling_copy_component_id(const small_string<31>&   reg,
-                                    const directory_path_str& dir,
-                                    const file_path_str&      file,
-                                    component_id&             c_id)
-    {
-        registred_path* reg_ptr = search_reg(reg.sv());
-        dir_path_id     dir_id{};
-        file_path_id    file_id{};
-
-        if (reg_ptr)
-            dir_id = search_dir_in_reg(*reg_ptr, dir.sv());
-
-        if (is_undefined(dir_id))
-            dir_id = search_dir(dir.sv());
-
-        if (is_defined(dir_id))
-            file_id = search_file(mod().dir_paths.get(dir_id), file.sv());
-
-        if (is_defined(file_id)) {
-            auto& f = mod().file_paths.get(file_id);
-            c_id    = f.component;
-
-            debug::ensure(mod().components.exists(c_id));
-
-            if (auto* c = mod().components.try_to_get<component>(c_id); c) {
-                if (c->state == component_status::unmodified)
-                    return true;
-
-                if (auto ret = mod().load_component(*c); ret)
-                    return true;
-            }
-        }
-
-        return error("fail to found component");
     }
 
     bool read_child_simple_or_grid_component(const rapidjson::Value& val,
@@ -2343,7 +2122,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               modeling_copy_component_id(reg_name, dir_path, file_path, c_id);
+               try_modeling_copy_component_id(
+                 reg_name, dir_path, file_path, c_id);
     }
 
     bool dispatch_child_component_type(const rapidjson::Value& val,
@@ -3452,26 +3232,35 @@ struct json_dearchiver::impl {
         directory_path_str dir_path;
         file_path_str      file_path;
 
-        return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("path"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(reg_path);
+        const auto read = for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("path"sv == name)
+                  return read_temp_string(value) && copy_string_to(reg_path);
 
-                     if ("dir"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(dir_path);
+              if ("dir"sv == name)
+                  return read_temp_string(value) && copy_string_to(dir_path);
 
-                     if ("file"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(file_path);
+              if ("file"sv == name)
+                  return read_temp_string(value) && copy_string_to(file_path);
 
-                     return true;
-                 }) &&
-               search_dir(reg_path.sv(), dir_path.sv(), graph.param.dot.dir) &&
-               search_file(
-                 graph.param.dot.dir, file_path.sv(), graph.param.dot.file);
+              return true;
+          });
+
+        if (read) {
+            mod().read([&](const auto& fs, const auto /*vers*/) {
+                const auto r_id = fs.find_registry_by_name(reg_path.sv());
+                const auto dir_id =
+                  fs.fs.find_directory_in_registry(r_id, dir_path.sv());
+                const auto file_id =
+                  fs.fs.find_file_in_directory(dir_id, file_path.sv());
+
+                search_dir(reg_path.sv(), dir_path.sv(), graph.param.dot.dir) &&
+                  search_file(
+                    graph.param.dot.dir, file_path.sv(), graph.param.dot.file);
+
+            });
+        }
+
     }
 
     bool read_scale_free_graph_param(const rapidjson::Value& val,
