@@ -59,7 +59,8 @@ static status simulation_init_observation(modeling& mod, project& pj) noexcept
     for (auto& v_obs : pj.variable_observers)
         irt_check(v_obs.init(pj, pj.sim));
 
-    pj.file_obs.initialize(pj.sim, pj, pj.get_observation_dir(mod));
+    if (const auto path = pj.get_observation_dir(mod); path.has_value())
+        pj.file_obs.initialize(pj.sim, pj, path->string());
 
     return success();
 }
@@ -168,19 +169,26 @@ static void simulation_init(application& app, project_editor& ed) noexcept
     }
 
     if (ed.save_simulation_raw_data != project_editor::raw_data_type::none)
-        save_simulation_graph(ed.pj.sim, ed.pj.get_observation_dir(app.mod));
+        if (const auto path = ed.pj.get_observation_dir(app.mod);
+            path.has_value())
+            save_simulation_graph(ed.pj.sim, path->string());
 
     if (ed.save_simulation_raw_data != project_editor::raw_data_type::none) {
-        auto ret = save_simulation_raw_data(
-          ed.pj.get_observation_dir(app.mod),
-          ed.save_simulation_raw_data == project_editor::raw_data_type::binary);
+        if (const auto path = ed.pj.get_observation_dir(app.mod);
+            path.has_value()) {
+            auto ret =
+              save_simulation_raw_data(path->string(),
+                                       ed.save_simulation_raw_data ==
+                                         project_editor::raw_data_type::binary);
 
-        if (ret.has_value())
-            ed.raw_ofs = std::move(ret.value());
-        else {
-            ed.simulation_state = simulation_status::not_started;
-            make_init_error_msg(app, "Fail to open raw data file");
-            ed.save_simulation_raw_data = project_editor::raw_data_type::none;
+            if (ret.has_value())
+                ed.raw_ofs = std::move(ret.value());
+            else {
+                ed.simulation_state = simulation_status::not_started;
+                make_init_error_msg(app, "Fail to open raw data file");
+                ed.save_simulation_raw_data =
+                  project_editor::raw_data_type::none;
+            }
         }
     }
 }

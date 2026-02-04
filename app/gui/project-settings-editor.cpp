@@ -129,59 +129,62 @@ static constexpr bool project_name_already_exists(
 static bool show_registred_obseravation_path(application&    app,
                                              project_editor& ed) noexcept
 {
-    static bool show_registred_path = false;
+    static auto show_registred_path = false;
     const auto  old_observation_dir = ed.pj.observation_dir;
 
-    const auto* reg_dir =
-      app.mod.registred_paths.try_to_get(ed.pj.observation_dir);
-    const auto preview = reg_dir ? reg_dir->name.c_str() : "-";
+    app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        const auto* reg_dir =
+          fs.registred_paths.try_to_get(ed.pj.observation_dir);
+        const auto preview = reg_dir ? reg_dir->name.c_str() : "-";
 
-    if (ImGui::BeginCombo("Path##Obs", preview)) {
-        if (ImGui::Selectable("-", reg_dir == nullptr)) {
-            ed.pj.observation_dir = undefined<registred_path_id>();
-        }
-
-        for (const auto& r : app.mod.registred_paths) {
-            const auto r_id = app.mod.registred_paths.get_id(r);
-            ImGui::PushID(static_cast<int>(ordinal(r_id)));
-            if (ImGui::Selectable(r.name.c_str(),
-                                  ed.pj.observation_dir == r_id)) {
-                ed.pj.observation_dir = r_id;
+        if (ImGui::BeginCombo("Path##Obs", preview)) {
+            if (ImGui::Selectable("-", reg_dir == nullptr)) {
+                ed.pj.observation_dir = undefined<registred_path_id>();
             }
-            ImGui::PopID();
-        }
-        ImGui::EndCombo();
-    }
 
-    ImGui::SameLine();
-    if (const auto* rr =
-          app.mod.registred_paths.try_to_get(ed.pj.observation_dir)) {
-        HelpMarker(rr->path.c_str());
-    } else {
-        if (ImGui::Button("+"))
-            show_registred_path = true;
-    }
+            for (const auto& r : fs.registred_paths) {
+                const auto r_id = fs.registred_paths.get_id(r);
+                ImGui::PushID(static_cast<int>(ordinal(r_id)));
+                if (ImGui::Selectable(r.name.c_str(),
+                                      ed.pj.observation_dir == r_id)) {
+                    ed.pj.observation_dir = r_id;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+
+        ImGui::SameLine();
+        if (const auto* rr =
+              fs.registred_paths.try_to_get(ed.pj.observation_dir)) {
+            HelpMarker(rr->path.c_str());
+        } else {
+            if (ImGui::Button("+"))
+                show_registred_path = true;
+        }
+    });
 
     if (show_registred_path) {
         ImGui::OpenPopup("Select new output path");
         if (app.f_dialog.show_select_directory("Select new output path")) {
             if (app.f_dialog.state == file_dialog::status::ok) {
-                if (app.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.mod.registred_paths.alloc();
-                    ed.pj.observation_dir =
-                      app.mod.registred_paths.get_id(path);
-                    path.path = reinterpret_cast<const char*>(
-                      app.f_dialog.result.u8string().c_str());
-                    path.name =
-                      app.f_dialog.result.has_stem()
-                        ? reinterpret_cast<const char*>(
-                            app.f_dialog.result.stem().u8string().c_str())
-                        : reinterpret_cast<const char*>(
-                            app.f_dialog.result.parent_path()
-                              .stem()
-                              .u8string()
-                              .c_str());
-                }
+                app.mod.files.write([&](auto& fs) {
+                    if (fs.registred_paths.can_alloc(1)) {
+                        auto& path            = fs.registred_paths.alloc();
+                        ed.pj.observation_dir = fs.registred_paths.get_id(path);
+                        path.path             = reinterpret_cast<const char*>(
+                          app.f_dialog.result.u8string().c_str());
+                        path.name =
+                          app.f_dialog.result.has_stem()
+                            ? reinterpret_cast<const char*>(
+                                app.f_dialog.result.stem().u8string().c_str())
+                            : reinterpret_cast<const char*>(
+                                app.f_dialog.result.parent_path()
+                                  .stem()
+                                  .u8string()
+                                  .c_str());
+                    }
+                });
             }
             show_registred_path = false;
             app.f_dialog.clear();
@@ -196,83 +199,100 @@ static void show_project_file_access(application&    app,
 {
     static constexpr const char* empty = "";
 
-    if (auto* f = app.mod.file_paths.try_to_get(ed.pj.file)) {
-        if (auto* d = app.mod.dir_paths.try_to_get(f->parent)) {
-            ed.dir = f->parent;
+    app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        if (auto* f = fs.file_paths.try_to_get(ed.pj.file)) {
+            if (auto* d = fs.dir_paths.try_to_get(f->parent)) {
+                ed.dir = f->parent;
 
-            if (app.mod.registred_paths.try_to_get(d->parent))
-                ed.reg = d->parent;
-        }
-    }
-
-    auto*       reg_dir     = app.mod.registred_paths.try_to_get(ed.reg);
-    const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
-
-    if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
-        registred_path* list = nullptr;
-        while (app.mod.registred_paths.next(list)) {
-            if (list->status == registred_path::state::error)
-                continue;
-
-            if (ImGui::Selectable(list->path.c_str(),
-                                  reg_dir == list,
-                                  ImGuiSelectableFlags_None)) {
-                ed.reg     = app.mod.registred_paths.get_id(list);
-                ed.dir     = undefined<dir_path_id>();
-                ed.pj.file = undefined<file_path_id>();
-                reg_dir    = list;
+                if (fs.registred_paths.try_to_get(d->parent))
+                    ed.reg = d->parent;
             }
         }
-        ImGui::EndCombo();
-    }
+    });
 
-    if (reg_dir) {
-        auto* dir         = app.mod.dir_paths.try_to_get(ed.dir);
-        auto* dir_preview = dir ? dir->path.c_str() : empty;
+    const registred_path* reg_dir = nullptr;
+    const dir_path*       dir     = nullptr;
 
-        if (ImGui::BeginCombo("Dir", dir_preview)) {
-            if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
-                ed.dir     = undefined<dir_path_id>();
-                ed.pj.file = undefined<file_path_id>();
-                dir        = nullptr;
-            }
+    app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        reg_dir                 = fs.registred_paths.try_to_get(ed.reg);
+        const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
 
-            dir_path* list = nullptr;
-            while (app.mod.dir_paths.next(list)) {
-                if (ImGui::Selectable(list->path.c_str(), dir == list)) {
-                    ed.dir     = app.mod.dir_paths.get_id(list);
-                    dir        = list;
+        if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
+            const registred_path* list = nullptr;
+            while (fs.registred_paths.next(list)) {
+                if (list->status == registred_path::state::error)
+                    continue;
+
+                if (ImGui::Selectable(list->path.c_str(),
+                                      reg_dir == list,
+                                      ImGuiSelectableFlags_None)) {
+                    ed.reg     = fs.registred_paths.get_id(list);
+                    ed.dir     = undefined<dir_path_id>();
                     ed.pj.file = undefined<file_path_id>();
+                    reg_dir    = list;
                 }
             }
             ImGui::EndCombo();
         }
 
-        if (dir == nullptr) {
-            directory_path_str dir_name;
+        if (reg_dir) {
+            dir                     = fs.dir_paths.try_to_get(ed.dir);
+            const auto* dir_preview = dir ? dir->path.c_str() : empty;
 
-            if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-                const auto exists = reg_dir->children.read(
-                  [&](const auto& vec, const auto /*ver*/) {
-                      return path_exist(app.mod.dir_paths, vec, dir_name.sv());
-                  });
+            if (ImGui::BeginCombo("Dir", dir_preview)) {
+                if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
+                    ed.dir     = undefined<dir_path_id>();
+                    ed.pj.file = undefined<file_path_id>();
+                    dir        = nullptr;
+                }
 
-                if (exists) {
-                    auto& new_dir  = app.mod.dir_paths.alloc();
-                    auto  dir_id   = app.mod.dir_paths.get_id(new_dir);
-                    auto  reg_id   = app.mod.registred_paths.get_id(*reg_dir);
+                const dir_path* list = nullptr;
+                while (fs.dir_paths.next(list)) {
+                    if (ImGui::Selectable(list->path.c_str(), dir == list)) {
+                        ed.dir     = fs.dir_paths.get_id(list);
+                        dir        = list;
+                        ed.pj.file = undefined<file_path_id>();
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        }
+    });
+
+    if (dir == nullptr) {
+        directory_path_str dir_name;
+
+        if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
+            const auto already_exist =
+              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                  return std::ranges::any_of(
+                    reg_dir->children, [&](const auto d_id) {
+                        if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
+                            if (dir->path.sv() == dir_name.sv())
+                                return true;
+                        }
+
+                        return false;
+                    });
+              });
+
+            if (not already_exist) {
+                app.mod.files.write([&](auto& fs) {
+                    auto& new_dir  = fs.dir_paths.alloc();
+                    auto  dir_id   = fs.dir_paths.get_id(new_dir);
+                    auto  reg_id   = fs.registred_paths.get_id(*reg_dir);
                     new_dir.parent = reg_id;
                     new_dir.path   = dir_name;
                     new_dir.status = dir_path::state::unread;
 
-                    reg_dir->children.write(
-                      [&](auto& vec) { vec.emplace_back(dir_id); });
+                    fs.registred_paths.try_to_get(reg_id)
+                      ->children.emplace_back(dir_id);
 
                     ed.reg     = reg_id;
                     ed.dir     = dir_id;
                     ed.pj.file = undefined<file_path_id>();
 
-                    if (!app.mod.create_directories(new_dir)) {
+                    if (!fs.create_directories(dir_id)) {
                         app.jn.push(log_level::error,
                                     [&](auto& title, auto& /*msg*/) noexcept {
                                         format(title,
@@ -280,46 +300,63 @@ static void show_project_file_access(application&    app,
                                                new_dir.path.sv());
                                     });
                     }
-                }
+
+                    dir = &new_dir;
+                });
+            } else {
+                app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                    dir = fs.dir_paths.try_to_get(ed.dir);
+                });
             }
         }
+    }
 
-        if (dir) {
-            auto* file = app.mod.file_paths.try_to_get(ed.pj.file);
-            if (not file) {
-                auto& f    = app.mod.file_paths.alloc();
-                ed.pj.file = app.mod.file_paths.get_id(f);
+    if (dir != nullptr) {
+        const file_path* file = nullptr;
+
+        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            file = fs.file_paths.try_to_get(ed.pj.file);
+        });
+
+        if (not file) {
+            app.mod.files.write([&](auto& fs) {
+                auto& f    = fs.file_paths.alloc();
+                ed.pj.file = fs.file_paths.get_id(f);
 
                 f.path   = ed.pj.name.sv();
-                f.parent = app.mod.dir_paths.get_id(*dir);
+                f.parent = fs.dir_paths.get_id(*dir);
                 f.type   = file_path::file_type::project_file;
 
-                dir->children.write(
-                  [id = ed.pj.file](auto& vec) { vec.emplace_back(id); });
+                fs.dir_paths.get(f.parent).children.emplace_back(ed.pj.file);
 
                 file = &f;
-            }
-
-            if (ImGui::InputFilteredString("File##text", file->path)) {
-                if (not has_extension(file->path.sv(),
-                                      file_path::file_type::project_file)) {
-                    add_extension(file->path,
-                                  file_path::file_type::project_file);
-                }
-            }
-
-            const auto is_save_enabled = is_valid_filename(
-              file->path.sv(), file_path::file_type::project_file);
-
-            ImGui::BeginDisabled(!is_save_enabled);
-            if (ImGui::Button("Save")) {
-                const auto pj_id = app.pjs.get_id(ed);
-                debug::ensure(app.pjs.try_to_get(pj_id));
-                app.start_save_project(pj_id);
-            }
-
-            ImGui::EndDisabled();
+            });
         }
+
+        file_path_str tmp_path        = file->path.sv();
+        const auto    is_save_enabled = is_valid_filename(
+          file->path.sv(), file_path::file_type::project_file);
+
+        if (ImGui::InputFilteredString("File##text", tmp_path)) {
+            if (not has_extension(file->path.sv(),
+                                  file_path::file_type::project_file)) {
+                add_extension(tmp_path, file_path::file_type::project_file);
+
+                app.mod.files.write([&](auto& fs) {
+                    auto& f = fs.file_paths.get(ed.pj.file);
+                    f.path  = tmp_path.sv();
+                });
+            }
+        }
+
+        ImGui::BeginDisabled(!is_save_enabled);
+        if (ImGui::Button("Save")) {
+            const auto pj_id = app.pjs.get_id(ed);
+            debug::ensure(app.pjs.try_to_get(pj_id));
+            app.start_save_project(pj_id);
+        }
+
+        ImGui::EndDisabled();
     }
 }
 

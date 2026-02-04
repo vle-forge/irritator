@@ -45,24 +45,19 @@ inline file_path_id get_file_from_component(const modeling&        mod,
                                             const component&       compo,
                                             const std::string_view str) noexcept
 {
-    auto ret = undefined<file_path_id>();
-
-    if (const auto* f = mod.file_paths.try_to_get(compo.file)) {
-        if (const auto* d = mod.dir_paths.try_to_get(f->parent)) {
-            ret = d->children.read(
-              [&](const auto& vec,
-                  const auto /*version*/) noexcept -> file_path_id {
-                  for (const auto f_id : vec)
-                      if (const auto* f = mod.file_paths.try_to_get(f_id); f)
-                          if (f->path.sv() == str)
-                              return f_id;
-
-                  return undefined<file_path_id>();
-              });
+    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+        if (const auto* f = fs.file_paths.try_to_get(compo.file)) {
+            if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
+                for (const auto f_id : d->children) {
+                    if (const auto* f = fs.file_paths.try_to_get(f_id))
+                        if (f->path.sv() == str)
+                            return f_id;
+                }
+            }
         }
-    }
 
-    return ret;
+        return undefined<file_path_id>();
+    });
 }
 
 /// Check if a @c T with name @c name exists in the @c data_array @c data. Used
@@ -106,6 +101,21 @@ constexpr bool has_extension(
     if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
         const auto ext = filename.substr(dot);
         return ext == file_path::file_type_names[ordinal(type)];
+    }
+
+    return false;
+}
+
+/// Checks if the file path string has an extension equals to any one of
+/// irritator files (.irt, .pirt, .data, etc.).
+constexpr bool has_irritator_extension(const std::string_view filename) noexcept
+{
+    if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
+        const auto ext = filename.substr(dot);
+
+        for (const auto& valid_extension : file_path::file_type_names)
+            if (valid_extension == ext)
+                return true;
     }
 
     return false;
@@ -171,33 +181,46 @@ inline std::optional<component_filenames> make_component_files(
   const modeling&    mod,
   const file_path_id f_id) noexcept
 {
-    if (const auto* file = mod.file_paths.try_to_get(f_id))
-        if (const auto* dir = mod.dir_paths.try_to_get(file->parent))
-            if (const auto* reg = mod.registred_paths.try_to_get(dir->parent))
-                return make_component_files(*reg, *dir, *file);
+    return mod.files.read(
+      [&](const auto& fs,
+          const auto /*vers*/) noexcept -> std::optional<component_filenames> {
+          if (const auto* file = fs.file_paths.try_to_get(f_id))
+              if (const auto* dir = fs.dir_paths.try_to_get(file->parent))
+                  if (const auto* reg =
+                        fs.registred_paths.try_to_get(dir->parent))
+                      return make_component_files(*reg, *dir, *file);
 
-    return std::nullopt;
+          return std::nullopt;
+      });
 }
 
 inline std::optional<std::filesystem::path> make_file(
   const modeling&  mod,
   const file_path& f) noexcept
 {
-    if (auto* dir = mod.dir_paths.try_to_get(f.parent))
-        if (auto* reg = mod.registred_paths.try_to_get(dir->parent))
-            return make_file(*reg, *dir, f);
+    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept
+                            -> std::optional<std::filesystem::path> {
+        if (auto* dir = fs.dir_paths.try_to_get(f.parent))
+            if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
+                return make_file(*reg, *dir, f);
 
-    return std::nullopt;
+        return std::nullopt;
+    });
 }
 
 inline std::optional<std::filesystem::path> make_file(
   const modeling&    mod,
   const file_path_id f) noexcept
 {
-    if (auto* file = mod.file_paths.try_to_get(f))
-        return make_file(mod, *file);
+    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept
+                            -> std::optional<std::filesystem::path> {
+        if (auto* file = fs.file_paths.try_to_get(f))
+            if (auto* dir = fs.dir_paths.try_to_get(file->parent))
+                if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
+                    return make_file(*reg, *dir, *file);
 
-    return std::nullopt;
+        return std::nullopt;
+    });
 }
 
 inline expected<file> open_file(
@@ -249,119 +272,27 @@ inline bool component_is_grid_or_graph(const modeling&  mod,
 }
 
 template<typename Function>
-void for_each_component(const modeling&       mod,
-                        const registred_path& reg_path,
-                        const dir_path&       dir_path,
-                        Function&&            f) noexcept
+void for_each_component(const modeling& mod, Function&& f) noexcept
 {
-    dir_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-        for_specified_data(mod.file_paths, vec, [&](auto& file_path) noexcept {
-            if (auto* c =
-                  mod.components.try_to_get<component>(file_path.component))
-                std::invoke(
-                  std::forward<Function>(f), reg_path, dir_path, file_path, *c);
-        });
-    });
-}
-
-template<typename Function>
-void for_each_component(modeling&       mod,
-                        registred_path& reg_path,
-                        dir_path&       dir_path,
-                        Function&&      f) noexcept
-{
-    dir_path.children.write([&](auto& vec) noexcept {
-        for_specified_data(
-          mod.file_paths, vec, [&](const auto& file_path) noexcept {
-              if (auto* c =
-                    mod.components.try_to_get<component>(file_path.component))
-                  std::invoke(std::forward<Function>(f),
-                              reg_path,
-                              dir_path,
-                              file_path,
-                              *c);
-          });
-    });
-}
-
-template<typename Function>
-void for_each_component(modeling&  mod,
-                        dir_path&  dir_path,
-                        Function&& f) noexcept
-{
-    dir_path.children.write([&](auto& vec) noexcept {
-        for_specified_data(mod.file_paths, vec, [&](auto& file_path) noexcept {
-            if (auto* c =
-                  mod.components.try_to_get<component>(file_path.component)) {
-                std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
+    mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+        for (const auto reg_id : fs.component_repertories) {
+            if (const auto* reg = fs.registred_paths.try_to_get(reg_id)) {
+                for (const auto dir_id : reg->children) {
+                    if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
+                        for (const auto file_id : dir->children) {
+                            if (const auto* file =
+                                  fs.file_paths.try_to_get(file_id)) {
+                                if (const auto* compo =
+                                      mod.components.try_to_get<component>(
+                                        file->component))
+                                    f(*reg, *dir, *file, *compo);
+                            }
+                        }
+                    }
+                }
             }
-        });
+        }
     });
-}
-
-template<typename Function>
-void for_each_component(const modeling& mod,
-                        const dir_path& dir_path,
-                        Function&&      f) noexcept
-{
-    dir_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-        for_specified_data(
-          mod.file_paths, vec, [&](const auto& file_path) noexcept {
-              if (auto* c =
-                    mod.components.try_to_get<component>(file_path.component)) {
-                  std::invoke(
-                    std::forward<Function>(f), dir_path, file_path, *c);
-              }
-          });
-    });
-}
-
-template<typename Function>
-void for_each_component(modeling&       mod,
-                        registred_path& reg_path,
-                        Function&&      f) noexcept
-{
-    reg_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-        for_specified_data(mod.dir_paths, vec, [&](auto& dir_path) noexcept {
-            return for_each_component(
-              mod, reg_path, dir_path, std::forward<Function>(f));
-        });
-    });
-}
-
-template<typename Function>
-void for_each_component(const modeling&       mod,
-                        const registred_path& reg_path,
-                        Function&&            f) noexcept
-{
-    reg_path.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-        for_specified_data(
-          mod.dir_paths, vec, [&](const auto& dir_path) noexcept {
-              return for_each_component(
-                mod, reg_path, dir_path, std::forward<Function>(f));
-          });
-    });
-}
-
-template<typename Function>
-void for_each_component(modeling&                  mod,
-                        vector<registred_path_id>& dirs,
-                        Function&&                 f) noexcept
-{
-    for_specified_data(mod.registred_paths, dirs, [&](auto& reg_path) noexcept {
-        return for_each_component(mod, reg_path, std::forward<Function>(f));
-    });
-}
-
-template<typename Function>
-void for_each_component(const modeling&                  mod,
-                        const vector<registred_path_id>& dirs,
-                        Function&&                       f) noexcept
-{
-    for_specified_data(
-      mod.registred_paths, dirs, [&](const auto& reg_path) noexcept {
-          return for_each_component(mod, reg_path, std::forward<Function>(f));
-      });
 }
 
 /// \brief Call `f` function if `id` reference a generic component.

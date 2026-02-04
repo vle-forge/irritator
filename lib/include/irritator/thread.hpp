@@ -16,7 +16,7 @@
 
 namespace irt {
 
-using task = lambda_function<void(void), sizeof(void*) * 4>;
+using task = lambda_function<void(void), 128>;
 
 class ordered_task_list;
 class unordered_task_list;

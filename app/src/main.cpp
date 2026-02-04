@@ -214,7 +214,10 @@ public:
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
-        registred_path_add();
+        mod.files.write([&](auto& fs) noexcept {
+            registred_path_add(fs);
+            fs.browse_registreds(jn);
+        });
 
         if (auto ret = mod.fill_components(); ret.has_error()) {
             switch (ret.error().cat()) {
@@ -252,7 +255,9 @@ public:
             if (auto ret = o.init(pj, pj.sim); !!ret)
                 pj.file_obs.alloc(pj.variable_observers.get_id(o));
 
-        pj.file_obs.initialize(pj.sim, pj, pj.get_observation_dir(mod));
+        const auto path = pj.get_observation_dir(mod);
+        if (path.has_value())
+            pj.file_obs.initialize(pj.sim, pj, path->string());
     }
 
     void observation_update() noexcept
@@ -343,15 +348,16 @@ public:
      * @return 1 if the function succeded, 0 otherwise.
      */
     int registred_path_add(const std::filesystem::path& path,
-                           const std::string_view       name) noexcept
+                           const std::string_view       name,
+                           irt::modeling::file_access&  fs) noexcept
     {
         std::error_code ec;
         if (std::filesystem::exists(path, ec) and ec == std::errc{}) {
-            auto&      dir    = mod.registred_paths.alloc();
-            const auto dir_id = mod.registred_paths.get_id(dir);
+            auto&      dir    = fs.registred_paths.alloc();
+            const auto dir_id = fs.registred_paths.get_id(dir);
             dir.name          = name;
             dir.path          = path.string().c_str();
-            mod.component_repertories.emplace_back(dir_id);
+            fs.component_repertories.emplace_back(dir_id);
             return 1;
         }
 
@@ -365,16 +371,16 @@ public:
      * @return @c status_type::status_registred_path_empty if all path does not
      * exists.
      */
-    int registred_path_add() noexcept
+    int registred_path_add(irt::modeling::file_access& fs) noexcept
     {
         int i = 0;
 
         if (auto path = irt::get_system_component_dir(); path)
-            i += registred_path_add(*path, "System directory");
+            i += registred_path_add(*path, "System directory", fs);
         if (auto path = irt::get_system_prefix_component_dir(); path)
-            i += registred_path_add(*path, "System prefix directory");
+            i += registred_path_add(*path, "System prefix directory", fs);
         if (auto path = irt::get_default_user_component_dir(); path)
-            i += registred_path_add(*path, "User directory");
+            i += registred_path_add(*path, "User directory", fs);
 
         if (i == 0)
             warning<ec::registred_path_empty>();
@@ -512,11 +518,13 @@ public:
             auto o  = std::filesystem::path(front);
             auto ec = std::error_code();
             if (std::filesystem::exists(o, ec)) {
-                auto&      dir     = mod.registred_paths.alloc();
-                const auto dir_id  = mod.registred_paths.get_id(dir);
-                dir.name           = "output-directory";
-                dir.path           = o.string().c_str();
-                pj.observation_dir = dir_id;
+                mod.files.write([&](auto& fs) {
+                    auto&      dir     = fs.registred_paths.alloc();
+                    const auto dir_id  = fs.registred_paths.get_id(dir);
+                    dir.name           = "output-directory";
+                    dir.path           = o.string().c_str();
+                    pj.observation_dir = dir_id;
+                });
                 return true;
             }
         } catch (...) {

@@ -69,113 +69,123 @@ void settings_window::show() noexcept
         ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
 
-        registred_path* dir       = nullptr;
-        registred_path* to_delete = nullptr;
-        while (app.mod.registred_paths.next(dir)) {
-            if (to_delete) {
-                const auto id = app.mod.registred_paths.get_id(*to_delete);
-                app.mod.registred_paths.free(*to_delete);
-                to_delete = nullptr;
+        registred_path_id to_delete{ 0 };
+        registred_path_id to_refresh{ 0 };
 
-                i32 i = 0, e = app.mod.component_repertories.ssize();
-                for (; i != e; ++i) {
-                    if (app.mod.component_repertories[i] == id) {
-                        app.mod.component_repertories.swap_pop_back(i);
-                        break;
-                    }
+        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            const registred_path* dir = nullptr;
+
+            while (fs.registred_paths.next(dir)) {
+                const auto reg_id = fs.registred_paths.get_id(*dir);
+
+                // if (to_delete) {
+                //     const auto id =
+                //     app.mod.registred_paths.get_id(*to_delete);
+                //     app.mod.registred_paths.free(*to_delete);
+                //     to_delete = nullptr;
+
+                //     i32 i = 0, e = app.mod.component_repertories.ssize();
+                //     for (; i != e; ++i) {
+                //         if (app.mod.component_repertories[i] == id) {
+                //             app.mod.component_repertories.swap_pop_back(i);
+                //             break;
+                //         }
+                //     }
+                // }
+
+                ImGui::PushID(dir);
+                ImGui::TableNextRow();
+
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", dir->path.sv());
+
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", dir->name.sv());
+
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(60.f);
+                constexpr i8 p_min    = INT8_MIN;
+                constexpr i8 p_max    = INT8_MAX;
+                auto         priority = dir->priority;
+
+                if (ImGui::SliderScalar(
+                      "##input", ImGuiDataType_S8, &priority, &p_min, &p_max)) {
+                    app.add_gui_task([&app, priority, reg_id]() {
+                        app.mod.files.write([&](auto& fs) {
+                            if (auto* t = fs.registred_paths.try_to_get(reg_id))
+                                t->priority = priority;
+                        });
+                    });
                 }
-            }
+                ImGui::PopItemWidth();
 
-            ImGui::PushID(dir);
-            ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(60.f);
+                ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
+                ImGui::PopItemWidth();
 
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            changes += ImGui::InputSmallString(
-              "##path", dir->path, ImGuiInputTextFlags_ReadOnly);
-            ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(150.f);
-            changes += ImGui::InputSmallString("##name", dir->name);
-            ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(60.f);
-            constexpr i8 p_min = INT8_MIN;
-            constexpr i8 p_max = INT8_MAX;
-            changes += ImGui::SliderScalar(
-              "##input", ImGuiDataType_S8, &dir->priority, &p_min, &p_max);
-            ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(60.f);
-            ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
-            ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(60.f);
-            if (ImGui::Button("Refresh")) {
-                if (auto ret = app.mod.fill_components(*dir); not ret) {
-                    switch (ret.error().cat()) {
-                    case category::json:
-                        app.jn.push(
-                          log_level::error, [](auto& title, auto& msg) {
-                              title =
-                                "Refresh components from directory failed";
-                              msg = "Error in json component.";
-                          });
-                        break;
-
-                    case category::modeling:
-                        app.jn.push(
-                          log_level::error, [](auto& title, auto& msg) {
-                              title =
-                                "Refresh components from directory failed";
-                              msg = "Error in filesystem.";
-                          });
-                        break;
-
-                    default:
-                        app.jn.push(
-                          log_level::error, [](auto& title, auto& msg) {
-                              title =
-                                "Refresh components from directory failed";
-                              msg = "Unknown error.";
-                          });
-                    }
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(60.f);
+                if (ImGui::Button("Refresh")) {
+                    to_refresh = reg_id;
                 }
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(60.f);
+                if (dir->status != registred_path::state::lock)
+                    if (ImGui::Button("Delete"))
+                        to_delete = reg_id;
+                ImGui::PopItemWidth();
+
+                ImGui::PopID();
             }
-            ImGui::PopItemWidth();
+        });
 
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(60.f);
-            if (dir->status != registred_path::state::lock)
-                if (ImGui::Button("Delete"))
-                    to_delete = dir;
-            ImGui::PopItemWidth();
-
-            ImGui::PopID();
+        if (is_defined(to_delete)) {
+            app.add_gui_task([&app, to_delete]() {
+                app.mod.files.write([&](auto& fs) {
+                    if (auto* reg = fs.registred_paths.try_to_get(to_delete))
+                        fs.registred_paths.free(to_delete);
+                });
+            });
         }
 
-        if (to_delete) {
-            changes++;
-            app.mod.free(*to_delete);
+        if (is_defined(to_refresh)) {
+            app.add_gui_task([&app, to_refresh]() {
+                app.mod.files.write([&](auto& fs) {
+                    const auto newfiles =
+                      fs.browse_registred(app.jn, to_refresh);
+                    if (newfiles > 0) {
+                        app.mod.fill_components();
+
+                        app.jn.push(log_level::info,
+                                    [newfiles](auto& title, auto& msg) {
+                                        title = "Refresh components";
+                                        format(msg, "{} files added", newfiles);
+                                    });
+                    }
+                });
+            });
         }
 
         ImGui::EndTable();
+    }
 
-        if (app.mod.registred_paths.can_alloc(1) &&
-            ImGui::Button("Add directory")) {
-            auto& ndir    = app.mod.registred_paths.alloc();
-            auto  id      = app.mod.registred_paths.get_id(ndir);
-            ndir.status   = registred_path::state::unread;
-            ndir.path     = "";
-            ndir.priority = 127;
-            app.request_open_directory_dlg(id);
-            app.mod.component_repertories.emplace_back(id);
-            changes++;
-        }
+    if (ImGui::Button("Add directory")) {
+        app.add_gui_task([&app]() {
+            app.mod.files.write([&](auto& fs) {
+                if (fs.registred_paths.can_alloc(1)) {
+                    auto& ndir    = fs.registred_paths.alloc();
+                    auto  id      = fs.registred_paths.get_id(ndir);
+                    ndir.status   = registred_path::state::unread;
+                    ndir.path     = "";
+                    ndir.priority = 127;
+                    app.request_open_directory_dlg(id);
+                    fs.component_repertories.emplace_back(id);
+                }
+            });
+        });
     }
 
     ImGui::Separator();

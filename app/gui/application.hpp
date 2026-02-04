@@ -62,6 +62,183 @@ enum class simulation_status : u8 {
 
 enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 
+/// @class request_buffer
+///
+/// @brief A thread-safe asynchronous mailbox with a built-in anti-spam
+/// mechanism.
+///
+/// esigned for a "Request-Fulfill" pattern between a high-frequency
+/// GUI thread and asynchronous worker threads. It prevents "Request Storms" by
+/// ensuring only one computation task is active at any given time.
+///
+/// @tparam T The type of data being transferred. Supports complex types
+/// (strings, vectors).
+///
+/// @code
+/// void update_gui() {
+///     // 1. We are trying to retrieve data that has just finished
+///     if (auto result = my_buffer.try_take())
+///         this->data = *result; // update the gui
+///
+///     // 2. If the data is still missing AND no task is in progress
+///     if (not this->has_data() && my_buffer.should_request()) {
+///         // This line will only be executed ONCE until fulfill() is called.
+///         add_gui_task([]() {
+///             auto data = expensive_calculation();
+///             my_buffer.fulfill(std::move(data));
+///         });
+///     }
+/// }
+/// @endcode
+template<typename T>
+class request_buffer
+{
+public:
+    enum class state : u8 { idle, pending, ready };
+
+    request_buffer() noexcept = default;
+
+    request_buffer(const request_buffer&)            = delete;
+    request_buffer& operator=(const request_buffer&) = delete;
+
+    /// Checks if a new request should be sent.
+    /// @return true if state was Idle (now pending), false if a task is already
+    /// running.
+    bool should_request() noexcept
+    {
+        state expected = state::idle;
+        return m_state.compare_exchange_strong(
+          expected, state::pending, std::memory_order_acq_rel);
+    }
+
+    /// Delivers the result from the worker thread.
+    void fulfill(T&& data) noexcept
+    {
+        {
+            std::lock_guard lock(m_mutex);
+            m_value.emplace(std::forward<T>(data));
+        }
+        m_state.store(state::ready, std::memory_order_release);
+    }
+
+    /// Attempts to consume the result in the GUI thread.
+    /// @return std::optional containing the data if ready, otherwise
+    /// std::nullopt.
+    std::optional<T> try_take() noexcept
+    {
+        if (m_state.load(std::memory_order_acquire) == state::ready) {
+            std::unique_lock lock(m_mutex, std::try_to_lock);
+            if (lock.owns_lock()) {
+                std::optional<T> out = std::move(m_value);
+                m_value.reset();
+                m_state.store(state::idle, std::memory_order_release);
+                return out;
+            }
+        }
+        return std::nullopt;
+    }
+
+    /// Resets the buffer to idle. Use this if a task fails or times out.
+    void cancel() noexcept
+    {
+        std::lock_guard lock(m_mutex);
+        m_value.reset();
+        m_state.store(state::idle, std::memory_order_release);
+    }
+
+private:
+    std::atomic<state> m_state{ state::idle };
+    mutable std::mutex m_mutex;
+    std::optional<T>   m_value;
+};
+
+/// @class atomic_request_buffer
+///
+/// @brief An ultra-fast, lock-free asynchronous mailbox for small data types.
+///
+/// @details Optimized version using purely atomic operations. Ideal for IDs,
+/// Enums, or small numeric results. T must be Trivially Copyable.
+///
+/// @code
+/// void on_render_frame() {
+///     // 1. try to read
+///     if (auto score = score_buffer.try_take()) {
+///         this->current_score = *score;
+///     }
+///
+///     // 2. If we need information and haven't already started the task
+///     if (needs_update && score_buffer.should_request()) {
+///         std::thread([&](){
+///             int res = compute_heavy_score();
+///             score_buffer.fulfill(res);
+///         }).detach();
+///     }
+/// }
+/// @endcode
+template<typename T>
+class atomic_request_buffer
+{
+    static_assert(std::is_trivially_copyable_v<T>,
+                  "T must be trivially copyable for atomic_request_buffer");
+
+public:
+    enum class state : u8 { idle, pending, ready };
+
+    atomic_request_buffer() noexcept = default;
+
+    atomic_request_buffer(const atomic_request_buffer&)            = delete;
+    atomic_request_buffer& operator=(const atomic_request_buffer&) = delete;
+
+    atomic_request_buffer(atomic_request_buffer&& other) noexcept
+    {
+        m_state.store(other.m_state.load(std::memory_order_acquire));
+        m_value.store(other.m_value.load(std::memory_order_relaxed));
+        other.m_state.store(state::idle, std::memory_order_release);
+    }
+
+    atomic_request_buffer& operator=(atomic_request_buffer&& other) noexcept
+    {
+        if (this != &other) {
+            m_state.store(other.m_state.load(std::memory_order_acquire));
+            m_value.store(other.m_value.load(std::memory_order_relaxed));
+            other.m_state.store(state::idle, std::memory_order_release);
+        }
+        return *this;
+    }
+
+    bool should_request() noexcept
+    {
+        state expected = state::idle;
+        return m_state.compare_exchange_strong(
+          expected, state::pending, std::memory_order_acq_rel);
+    }
+
+    void fulfill(T data) noexcept
+    {
+        m_value.store(data, std::memory_order_relaxed);
+        m_state.store(state::ready, std::memory_order_release);
+    }
+
+    std::optional<T> try_take() noexcept
+    {
+        if (m_state.load(std::memory_order_acquire) == state::ready) {
+            T result = m_value.load(std::memory_order_relaxed);
+            m_state.store(state::idle, std::memory_order_release);
+            return result;
+        }
+        return std::nullopt;
+    }
+
+    void cancel() noexcept
+    {
+        m_state.store(state::idle, std::memory_order_release);
+    }
+
+private:
+    std::atomic<state> m_state{ state::idle };
+    std::atomic<T>     m_value{ T{} };
+};
+
 /**
  * @brief  Display ComboBox to select a file from a directory.
  *
@@ -1241,6 +1418,8 @@ public:
     auto get_id(const T& elem) const noexcept;
 
     struct tab {
+        tab() noexcept = default;
+
         component_id   id;
         component_type type;
 
@@ -1254,6 +1433,9 @@ public:
         file_path_id file = undefined<file_path_id>();
 
         bool is_dock_init = false;
+
+        atomic_request_buffer<dir_path_id>  new_dir;
+        atomic_request_buffer<file_path_id> new_file;
 
         union {
             grid_editor_data_id       grid;
@@ -1290,7 +1472,7 @@ public:
     void try_set_component_as_project(application&       app,
                                       const component_id id) noexcept;
 
-    enum class is_component_deletable_t {
+    enum class is_component_deletable_t : u8 {
         deletable,
         used_by_component,
         used_by_project
@@ -1325,12 +1507,20 @@ private:
                                                     file_type::dot);
 
     void show_menu() noexcept;
-    void show_file_treeview(const bitflags<file_type>) noexcept;
-    void show_repertories_content(const bitflags<file_type>) noexcept;
-    void show_dirpath_content(dir_path&, const bitflags<file_type>) noexcept;
-    void show_notsaved_content(const bitflags<file_type>) noexcept;
-    void show_file_component(const file_path&, const component&) noexcept;
-    void show_file_project(file_path&) noexcept;
+    void show_file_treeview(const modeling::file_access&,
+                            const bitflags<file_type>) noexcept;
+    void show_repertories_content(const modeling::file_access&,
+                                  const bitflags<file_type>) noexcept;
+    void show_dirpath_content(const modeling::file_access&,
+                              const dir_path&,
+                              const bitflags<file_type>) noexcept;
+    void show_notsaved_content(const modeling::file_access& fs,
+                               const bitflags<file_type>) noexcept;
+    void show_file_component(const modeling::file_access&,
+                             const file_path&,
+                             const component&) noexcept;
+    void show_file_project(const modeling::file_access&,
+                           const file_path_id) noexcept;
 };
 
 class settings_window
@@ -1592,9 +1782,9 @@ public:
 
     notification_manager notifications;
 
-    /// Try to allocate a project and affect a new name to the newly allocated
-    /// project_window. If project allocation fails, a message is put in @c
-    /// journal_handler.
+    /// Try to allocate a project and affect a new name to the newly
+    /// allocated project_window. If project allocation fails, a message is
+    /// put in @c journal_handler.
     project_id alloc_project_window() noexcept;
 
     /// Open a project window according to the @a file_id.
@@ -1612,7 +1802,8 @@ public:
 
     /**
      * Helpers function to add a @c simulation_task into an @c
-     * ordered_task_list. The task list used depends on the @c get_index or the
+     * ordered_task_list. The task list used depends on the @c get_index or
+     * the
      * @c project_id. Task is added at tail of the @c ring_buffer and ensure
      * linear operation.
      *
@@ -1624,8 +1815,9 @@ public:
     void add_simulation_task(const project_id id, Fn&& fn) noexcept;
 
     /**
-     * Helpers function to add a @c gui_task into the @c ordered_task_list gui.
-     * Task is added at tail of the @c ring_buffer and ensure linear operation.
+     * Helpers function to add a @c gui_task into the @c ordered_task_list
+     * gui. Task is added at tail of the @c ring_buffer and ensure linear
+     * operation.
      *
      * @param fn The function to run.
      */
@@ -1651,15 +1843,13 @@ public:
                            const source_type type) noexcept;
     void start_hsm_test_start() noexcept;
     void start_dir_path_refresh(const dir_path_id id) noexcept;
-    void start_dir_path_free(const dir_path_id id) noexcept;
-    void start_reg_path_free(const registred_path_id id) noexcept;
-    void start_file_remove(const registred_path_id r,
-                           const dir_path_id       d,
-                           const file_path_id      f) noexcept;
 
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
 
     void request_open_directory_dlg(const registred_path_id id) noexcept;
+
+    atomic_request_buffer<file_path_id> new_file;
+    atomic_request_buffer<dir_path_id>  new_dir;
 
 private:
     friend task_window;
@@ -1733,7 +1923,8 @@ void application::add_gui_task(Fn&& fn) noexcept
     task_mgr.ordered(ordinal(main_task::gui)).add(std::forward<Fn>(fn));
 }
 
-/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
+/* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ */
 
 inline bool project_editor::can_display_graph_editor() const noexcept
 {

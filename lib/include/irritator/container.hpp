@@ -4171,7 +4171,7 @@ template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
   const data_array& other) noexcept
 {
-    if (other.m_max_used > 0) {
+    if (other.m_capacity > 0) {
         m_items =
           reinterpret_cast<item*>(A::allocate(sizeof(item) * other.m_capacity));
         m_capacity = other.m_capacity;

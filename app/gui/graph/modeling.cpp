@@ -18,9 +18,10 @@
 
 namespace irt {
 
-static auto dir_path_combobox(const modeling& mod, dir_path_id& dir_id) -> bool
+static auto dir_path_combobox(const modeling::file_access& fs,
+                              dir_path_id&                 dir_id) -> bool
 {
-    const auto* dir         = mod.dir_paths.try_to_get(dir_id);
+    const auto* dir         = fs.dir_paths.try_to_get(dir_id);
     const auto* preview_dir = dir ? dir->path.c_str() : "-";
     const auto  old_dir_id  = dir_id;
 
@@ -30,8 +31,8 @@ static auto dir_path_combobox(const modeling& mod, dir_path_id& dir_id) -> bool
         }
 
         auto local_id = 0;
-        for (const auto& elem : mod.dir_paths) {
-            const auto elem_id = mod.dir_paths.get_id(elem);
+        for (const auto& elem : fs.dir_paths) {
+            const auto elem_id = fs.dir_paths.get_id(elem);
             ImGui::PushID(++local_id);
 
             if (ImGui::Selectable(elem.path.c_str(), dir_id == elem_id)) {
@@ -47,11 +48,11 @@ static auto dir_path_combobox(const modeling& mod, dir_path_id& dir_id) -> bool
     return dir_id != old_dir_id;
 }
 
-static auto dot_file_combobox(const modeling& mod,
-                              const dir_path& dir,
-                              file_path_id&   file_id) noexcept -> bool
+static auto dot_file_combobox(const modeling::file_access& fs,
+                              const dir_path&              dir,
+                              file_path_id& file_id) noexcept -> bool
 {
-    const auto* file         = mod.file_paths.try_to_get(file_id);
+    const auto* file         = fs.file_paths.try_to_get(file_id);
     const auto* preview_file = file ? file->path.c_str() : "-";
     const auto  old_file_id  = file_id;
 
@@ -61,22 +62,17 @@ static auto dot_file_combobox(const modeling& mod,
         }
 
         int local_id = 0;
+        for (const auto elem_id : dir.children) {
+            if (const auto* elem = fs.file_paths.try_to_get(elem_id);
+                elem and elem->type == file_path::file_type::dot_file) {
+                ImGui::PushID(++local_id);
 
-        dir.children.read(
-          [&](const auto& vec, const auto /*version*/) noexcept {
-              for (const auto elem_id : vec) {
-                  if (const auto* elem = mod.file_paths.try_to_get(elem_id);
-                      elem and elem->type == file_path::file_type::dot_file) {
-                      ImGui::PushID(++local_id);
+                if (ImGui::Selectable(elem->path.c_str(), file_id == elem_id))
+                    file_id = elem_id;
 
-                      if (ImGui::Selectable(elem->path.c_str(),
-                                            file_id == elem_id))
-                          file_id = elem_id;
-
-                      ImGui::PopID();
-                  }
-              }
-          });
+                ImGui::PopID();
+            }
+        }
 
         ImGui::EndCombo();
     }
@@ -91,11 +87,13 @@ static auto dot_combobox_selector(const modeling& mod,
     const auto old_dir_id  = dir_id;
     const auto old_file_id = file_id;
 
-    dir_path_combobox(mod, dir_id);
-    if (const auto* dir = mod.dir_paths.try_to_get(dir_id))
-        dot_file_combobox(mod, *dir, file_id);
+    return mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        dir_path_combobox(fs, dir_id);
+        if (const auto* dir = fs.dir_paths.try_to_get(dir_id))
+            dot_file_combobox(fs, *dir, file_id);
 
-    return not(old_dir_id == dir_id and old_file_id == file_id);
+        return not(old_dir_id == dir_id and old_file_id == file_id);
+    });
 }
 
 static void update_bound(graph_component& graph, std::integral auto i) noexcept
@@ -836,7 +834,11 @@ void graph_component_editor_data::graph_component_editor_data::show(
                         graph->g_type = graph_component::graph_type::dot_file;
                         graph->param  = { .dot = { .dir = dir, .file = file } };
                     } else {
-                        app.mod.file_paths.free(file);
+                        app.add_gui_task([&app, id = file]() {
+                            app.mod.files.write(
+                              [&](auto& fs) { fs.remove_file(id); });
+                        });
+
                         clear_file_access();
 
                         app.jn.push(
@@ -850,7 +852,11 @@ void graph_component_editor_data::graph_component_editor_data::show(
                           *f);
                     }
                 } else {
-                    app.mod.file_paths.free(file);
+                    app.add_gui_task([&app, id = file]() {
+                        app.mod.files.write(
+                          [&](auto& fs) { fs.remove_file(id); });
+                    });
+
                     clear_file_access();
                 }
                 show_save = false;
@@ -1024,9 +1030,16 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                           container_of(builder.ed, &application::component_ed);
                         auto& graph_compo =
                           app.mod.graph_components.get(builder.g_id);
-                        auto id =
-                          app.mod.search_graph_id(builder.graph_ed->pdf.dir,
-                                                  builder.graph_ed->pdf.file);
+                        auto id = app.mod.files.read(
+                          [&](const auto& fs,
+                              const auto /*vers*/) -> irt::graph_id {
+                              if (const auto* f = fs.file_paths.try_to_get(
+                                    builder.graph_ed->pdf.file)) {
+                                  return f->g_id;
+                              }
+
+                              return undefined<irt::graph_id>();
+                          });
 
                         if (const auto* g_glob =
                               app.mod.graphs.try_to_get(id)) {

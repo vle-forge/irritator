@@ -46,8 +46,8 @@ enum class graph_edge_id : irt::u32;
 using port_str           = small_string<7>;
 using description_str    = small_string<1022>;
 using registred_path_str = small_string<256 * 16 - 2>;
-using directory_path_str = small_string<512 - 2>;
-using file_path_str      = small_string<512 - 2>;
+using directory_path_str = small_string<64 - 1>;
+using file_path_str      = small_string<64 - 1>;
 using color              = u32;
 using component_color    = std::array<float, 4>;
 
@@ -1014,7 +1014,7 @@ struct registred_path {
     name_str           name; /**< Stores a user name, the same name as in the
                                 configuration file. */
 
-    shared_buffer<vector<dir_path_id>> children;
+    vector<dir_path_id> children;
 
     state               status = state::unread;
     bitflags<reg_flags> flags;
@@ -1040,19 +1040,17 @@ struct dir_path {
     directory_path_str path; /**< stores a directory name in utf8. */
     registred_path_id  parent{ 0 };
 
-    shared_buffer<vector<file_path_id>> children;
+    vector<file_path_id> children;
 
     state               status = state::unread;
     bitflags<dir_flags> flags;
 
-    /**
-     * Refresh the `children` vector with new file in the filesystem.
-     *
-     * Files that disappear from the filesystem are not remove from the
-     * vector but a flag is added in the `file_path` to indicate an absence
-     * of existence in the filesystem.
-     */
-    void refresh(modeling& mod) noexcept;
+    bool exist(const file_path_id id) const noexcept
+    {
+        return std::ranges::any_of(
+          children,
+          [id](const auto f_id) noexcept -> bool { return f_id == id; });
+    }
 };
 
 struct file_path {
@@ -1084,8 +1082,11 @@ struct file_path {
     file_path_str path; /**< stores the file name as utf8 string. */
     dir_path_id   parent{ 0 };
 
-    component_id component{ 0 };
-    project_id   pj_id{ 0 };
+    union {
+        component_id component{ 0 };
+        project_id   pj_id;
+        graph_id     g_id;
+    };
 
     file_type            type   = file_type::undefined_file;
     state                status = state::unread;
@@ -1441,14 +1442,101 @@ public:
                   allocator<new_delete_memory_resource>,
                   component,
                   component_color>
-                                                   components;
-    data_array<registred_path, registred_path_id>  registred_paths;
-    data_array<dir_path, dir_path_id>              dir_paths;
-    data_array<file_path, file_path_id>            file_paths;
+      components;
+
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
 
-    vector<registred_path_id> component_repertories;
+    struct file_access {
+        file_access() noexcept = default;
+
+        file_access(int r, int d, int f) noexcept
+          : registred_paths(r)
+          , dir_paths(d)
+          , file_paths(f)
+          , component_repertories(r, reserve_tag)
+        {}
+
+        data_array<registred_path, registred_path_id> registred_paths;
+        data_array<dir_path, dir_path_id>             dir_paths;
+        data_array<file_path, file_path_id>           file_paths;
+        vector<registred_path_id>                     component_repertories;
+
+        int browse_registred(journal_handler&        jn,
+                             const registred_path_id id) noexcept;
+        int browse_registreds(journal_handler& jn) noexcept;
+
+        /// Removes the :;c file_path from :c file_paths and remove the file
+        /// from the filesystem.
+        void remove(const file_path_id id) noexcept;
+
+        /// Update the @c dir_path::children vector according to the
+        /// filesystem.
+        void refresh(const dir_path_id id) noexcept;
+
+        /// Search a existing filename in the @c dir_path::children and with
+        /// the type @c type. Use @c undefined_file to select any file with
+        /// the corresponding @c filename.
+        file_path_id find_file_in_directory(
+          const dir_path_id          id,
+          const std::string_view     filename,
+          const file_path::file_type type =
+            file_path::file_type::undefined_file) const noexcept;
+
+        /// Search a directory name in the children directories of the @c
+        /// registred_path lists.
+        dir_path_id find_directory(const std::string_view name) const noexcept;
+
+        /// Search a directory name in the @c registred_path_id
+        dir_path_id find_directory_in_registry(
+          const registred_path_id id,
+          std::string_view        name) const noexcept;
+
+        registred_path_id find_registred_path_by_name(
+          const std::string_view name) const noexcept;
+
+        file_path_id alloc_file(
+          const dir_path_id          id,
+          const std::string_view     name = std::string_view(),
+          const file_path::file_type type =
+            file_path::file_type::undefined_file,
+          const component_id component = undefined<component_id>(),
+          const project_id   pj_id     = undefined<project_id>()) noexcept;
+
+        dir_path_id alloc_dir(
+          const registred_path_id id,
+          const std::string_view  path = std::string_view()) noexcept;
+
+        registred_path_id alloc_registred(const std::string_view name,
+                                          const int priority) noexcept;
+
+        bool exists(const registred_path_id dir) const noexcept;
+        bool exists(const dir_path_id dir) const noexcept;
+        bool create_directories(const registred_path_id id) const noexcept;
+        bool create_directories(const dir_path_id id) const noexcept;
+
+        /// Removes any files in the file system.
+        void remove_files(const dir_path_id id) noexcept;
+
+        /// Removes @c file_id from the file system.
+        void remove_file(const file_path_id file) noexcept;
+
+        /// Move a file from a file system to another.
+        void move_file(const dir_path_id to, const file_path_id file) noexcept;
+
+        void free(const file_path_id file) noexcept;
+        void free(const dir_path_id dir) noexcept;
+        void free(const registred_path_id dir) noexcept;
+
+        expected<std::filesystem::path> get_fs_path(
+          const file_path_id id) const noexcept;
+        expected<std::filesystem::path> get_fs_path(
+          const dir_path_id id) const noexcept;
+        expected<std::filesystem::path> get_fs_path(
+          const registred_path_id id) const noexcept;
+    };
+
+    shared_buffer<file_access> files;
 
     modeling_status state = modeling_status::unmodified;
 
@@ -1469,14 +1557,12 @@ public:
              const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
 
-    //! Reads the component @c compo and all dependencies recursively.
-    status load_component(component& compo) noexcept;
-
     //! Reads all registered paths and search component files.
     status fill_components() noexcept;
 
-    //! Adds a new path to read and search component files.
-    status fill_components(registred_path& path) noexcept;
+    //! Reads the component @c compo and all dependencies recursively.
+    status load_component(const std::filesystem::path& path,
+                          component&                   compo) noexcept;
 
     /** Search a component from three string.
      *
@@ -1485,14 +1571,6 @@ public:
     component_id search_component_by_name(std::string_view reg,
                                           std::string_view dir,
                                           std::string_view file) const noexcept;
-
-    /** Search a @a graph object into modeling.
-     * @param dir_id Directory identifier where the dot file exists.
-     * @param file_id File identifier of the dot file.
-     * @return The found @a graph_id in modeling.
-     */
-    auto search_graph_id(const dir_path_id  dir_id,
-                         const file_path_id file_id) const noexcept -> graph_id;
 
     /// Clear and free all dependencies of the component but let the
     /// component alive.
@@ -1506,35 +1584,6 @@ public:
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
     void free(hsm_component& c) noexcept;
-
-    bool can_alloc_file(i32 number = 1) const noexcept;
-    bool can_alloc_dir(i32 number = 1) const noexcept;
-    bool can_alloc_registred(i32 number = 1) const noexcept;
-
-    file_path&      alloc_file(dir_path& dir) noexcept;
-    dir_path&       alloc_dir(registred_path& reg) noexcept;
-    registred_path& alloc_registred(std::string_view name,
-                                    int              priority) noexcept;
-
-    bool exists(const registred_path& dir) noexcept;
-    bool exists(const dir_path& dir) noexcept;
-    bool create_directories(const registred_path& dir) noexcept;
-    bool create_directories(const dir_path& dir) noexcept;
-    void remove_files(const dir_path& dir) noexcept;
-
-    void remove_file(registred_path& reg,
-                     dir_path&       dir,
-                     file_path&      file) noexcept;
-    void remove_file(const file_path& file) noexcept;
-
-    void move_file(registred_path& reg,
-                   dir_path&       from,
-                   dir_path&       to,
-                   file_path&      file) noexcept;
-
-    void free(file_path& file) noexcept;
-    void free(dir_path& dir) noexcept;
-    void free(registred_path& dir) noexcept;
 
     bool can_alloc_grid_component() const noexcept;
     bool can_alloc_generic_component() const noexcept;
@@ -1842,21 +1891,21 @@ public:
     graph_observer& alloc_graph_observer() noexcept;
 
     /** Get the observation directory used by all text observation
-     * files. If the @c observation_dir is undefined this function returns an
-     * empty string.
+     * files. If the @c observation_dir is undefined this function returns
+     * an empty string.
      *
      * @param mod The modeling object to get the observation directory.
      * @return A string_view to the observation directory.
      */
-    std::string_view get_observation_dir(
+    std::optional<std::filesystem::path> get_observation_dir(
       const irt::modeling& mod) const noexcept;
 
-    registred_path_id
-      observation_dir; /**< The output directory used by all text observation
-                          file. If undefined, the current repertory is used. */
+    registred_path_id observation_dir; /**< The output directory used by all
+                                          text observation file. If undefined,
+                                          the current repertory is used. */
 
-    /// An identifier to the @c file_path. Assign this variable before using @c
-    /// load() or @c save() functions.
+    /// An identifier to the @c file_path. Assign this variable before using
+    /// @c load() or @c save() functions.
     file_path_id file = file_path_id{ 0 };
 
 private:

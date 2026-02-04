@@ -1571,8 +1571,6 @@ int main()
             explicit copyable(int x_) noexcept
               : x(x_)
             {}
-
-            copyable(const copyable&) = default;
         };
 
         static_assert(std::is_trivially_copyable_v<copyable> == true);

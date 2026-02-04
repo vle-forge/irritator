@@ -1755,11 +1755,17 @@ status project::save(modeling& mod) noexcept
     return new_error(project_errc::file_access_error);
 }
 
-std::string_view project::get_observation_dir(
+std::optional<std::filesystem::path> project::get_observation_dir(
   const irt::modeling& mod) const noexcept
 {
-    const auto* dir = mod.registred_paths.try_to_get(observation_dir);
-    return dir ? dir->path.sv() : std::string_view{};
+    return mod.files.read(
+      [&](const auto& fs,
+          const auto /*vers*/) -> std::optional<std::filesystem::path> {
+          if (const auto* dir = fs.registred_paths.try_to_get(observation_dir))
+              return std::filesystem::path{ dir->path.sv() };
+
+          return std::nullopt;
+      });
 }
 
 class treenode_require_computer
