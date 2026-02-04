@@ -1014,7 +1014,7 @@ struct registred_path {
     name_str           name; /**< Stores a user name, the same name as in the
                                 configuration file. */
 
-    shared_buffer<vector<dir_path_id>> children;
+    vector<dir_path_id> children;
 
     state               status = state::unread;
     bitflags<reg_flags> flags;
@@ -1040,19 +1040,17 @@ struct dir_path {
     directory_path_str path; /**< stores a directory name in utf8. */
     registred_path_id  parent{ 0 };
 
-    shared_buffer<vector<file_path_id>> children;
+    vector<file_path_id> children;
 
     state               status = state::unread;
     bitflags<dir_flags> flags;
 
-    /**
-     * Refresh the `children` vector with new file in the filesystem.
-     *
-     * Files that disappear from the filesystem are not remove from the
-     * vector but a flag is added in the `file_path` to indicate an absence
-     * of existence in the filesystem.
-     */
-    void refresh(modeling& mod) noexcept;
+    bool exist(const file_path_id id) const noexcept
+    {
+        return std::ranges::any_of(
+          children,
+          [id](const auto f_id) noexcept -> bool { return f_id == id; });
+    }
 };
 
 struct file_path {
@@ -1441,14 +1439,45 @@ public:
                   allocator<new_delete_memory_resource>,
                   component,
                   component_color>
-                                                   components;
-    data_array<registred_path, registred_path_id>  registred_paths;
-    data_array<dir_path, dir_path_id>              dir_paths;
-    data_array<file_path, file_path_id>            file_paths;
+      components;
+
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
 
-    vector<registred_path_id> component_repertories;
+    struct file_access {
+        file_access() noexcept = default;
+
+        file_access(int r, int d, int f) noexcept
+          : registred_paths(r)
+          , dir_paths(d)
+          , file_paths(f)
+          , component_repertories(r)
+        {}
+
+        data_array<registred_path, registred_path_id> registred_paths;
+        data_array<dir_path, dir_path_id>             dir_paths;
+        data_array<file_path, file_path_id>           file_paths;
+        vector<registred_path_id>                     component_repertories;
+
+        //! Reads all registered paths and search component files.
+        status fill_components() noexcept;
+
+        //! Adds a new path to read and search component files.
+        status fill_components(registred_path& path) noexcept;
+
+        /// Removes the :;c file_path from :c file_paths and remove the file
+        /// from the filesystem.
+        void remove(const file_path_id id) noexcept;
+
+        /// Update the @c dir_path::children vector according to the filesystem.
+        void refresh(const dir_path_id id) noexcept;
+
+        /// Search a existing filename in the @c dir_path::children
+        file_path_id find(const dir_path_id      id,
+                          const std::string_view filename) const noexcept;
+    };
+
+    shared_buffer<file_access> files;
 
     modeling_status state = modeling_status::unmodified;
 
@@ -1471,12 +1500,6 @@ public:
 
     //! Reads the component @c compo and all dependencies recursively.
     status load_component(component& compo) noexcept;
-
-    //! Reads all registered paths and search component files.
-    status fill_components() noexcept;
-
-    //! Adds a new path to read and search component files.
-    status fill_components(registred_path& path) noexcept;
 
     /** Search a component from three string.
      *
@@ -1848,7 +1871,7 @@ public:
      * @param mod The modeling object to get the observation directory.
      * @return A string_view to the observation directory.
      */
-    std::string_view get_observation_dir(
+    std::optional<std::filesystem::path> get_observation_dir(
       const irt::modeling& mod) const noexcept;
 
     registred_path_id

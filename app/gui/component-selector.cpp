@@ -28,7 +28,6 @@ void component_selector::data_type::update(const modeling& mod) noexcept
     clear();
 
     for_each_component(mod,
-                       mod.component_repertories,
                        [&](const auto& reg,
                            const auto& dir,
                            const auto& file,
@@ -43,7 +42,6 @@ void component_selector::data_type::update(const modeling& mod) noexcept
                                   dir.path.sv(),
                                   file.path.sv(),
                                   compo.name.sv());
-                           ;
 
                            switch (compo.type) {
                            case component_type::generic:

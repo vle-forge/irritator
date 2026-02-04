@@ -110,36 +110,34 @@ auto show_data_file_input(const modeling&    mod,
 {
     auto ret = undefined<file_path_id>();
 
-    if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
-        const auto preview = [](file_path* f) noexcept -> const char* {
-            return f ? f->path.c_str() : "-";
-        }(mod.file_paths.try_to_get(file_id));
-        ret = file_id;
+    mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        if (auto* dir = fs.dir_paths.try_to_get(dir_id)) {
+            const auto preview = [](file_path* f) noexcept -> const char* {
+                return f ? f->path.c_str() : "-";
+            }(fs.file_paths.try_to_get(file_id));
+            ret = file_id;
 
-        if (ImGui::BeginCombo("Select file", preview)) {
-            dir->children.read(
-              [&](const auto& vec, const auto /*version*/) noexcept {
-                  for (const auto f_id : vec) {
-                      if (const auto* file = mod.file_paths.try_to_get(f_id);
-                          file) {
-                          const auto str = file->path.sv();
-                          const auto dot = str.find_last_of(".");
-                          const auto ext = str.substr(dot);
+            if (ImGui::BeginCombo("Select file", preview)) {
+                for (const auto f_id : dir->children) {
+                    if (const auto* file = fs.file_paths.try_to_get(f_id)) {
+                        const auto str = file->path.sv();
+                        const auto dot = str.find_last_of(".");
+                        const auto ext = str.substr(dot);
 
-                          if (not(ext == ".irt" or ext == ".txt")) {
-                              if (ImGui::Selectable(file->path.c_str(),
-                                                    file_id == f_id)) {
-                                  ret = f_id;
-                              }
-                          }
-                      }
-                  }
-              });
-            ImGui::EndCombo();
+                        if (not(ext == ".irt" or ext == ".txt")) {
+                            if (ImGui::Selectable(file->path.c_str(),
+                                                  file_id == f_id)) {
+                                ret = f_id;
+                            }
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+        } else {
+            ImGui::TextFormatDisabled("This component is not saved");
         }
-    } else {
-        ImGui::TextFormatDisabled("This component is not saved");
-    }
+    });
 
     return ret;
 }

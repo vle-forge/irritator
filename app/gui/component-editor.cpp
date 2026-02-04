@@ -472,6 +472,43 @@ struct component_editor::impl {
         }
     }
 
+    auto select_registred_path(const modeling&         mod,
+                               const registred_path_id id) noexcept
+      -> std::pair<registred_path_id, bool>
+    {
+        return mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            static constexpr const char* empty = "";
+
+            const auto* r       = fs.registred_paths.try_to_get(id);
+            const auto* preview = r ? r->path.c_str() : empty;
+            auto        ret     = id;
+            auto        found   = false;
+
+            if (ImGui::BeginCombo("Path", _preview)) {
+                const registred_path* list = nullptr;
+                while (fs.registred_paths.next(list)) {
+                    if (list->status == registred_path::state::error)
+                        continue;
+
+                    if (ImGui::Selectable(list->path.c_str(),
+                                          r == list,
+                                          ImGuiSelectableFlags_None)) {
+                        ret   = fs.registred_paths.get_id(list);
+                        found = true;
+                    }
+                }
+                ImGui::EndCombo();
+            }
+
+            return std::make_pair(ret, found);
+        });
+    }
+
+    auto select_dir_path(modeling& mod,
+                         const registred_path_id r_id const dir_path_id
+                           d_id) noexcept -> std::pair<dir_path_id, bool>
+    {}
+
     template<typename ComponentEditor>
     static void show_file_access(application&           app,
                                  ComponentEditor&       ed,

@@ -36,11 +36,13 @@ void simulation_component_editor_data::show(component_editor& ed) noexcept
     }
 
     if (ImGui::CollapsingHeader("projects")) {
-        for (const auto& f : mod.file_paths) {
-            if (f.type == file_path::file_type::project_file) {
-                ImGui::TextFormat("project-file: {}", f.path.sv());
+        mod.files.read([](const auto& fs, const auto /*vers*/) {
+            for (const auto& f : fs.file_paths) {
+                if (f.type == file_path::file_type::project_file) {
+                    ImGui::TextFormat("project-file: {}", f.path.sv());
+                }
             }
-        }
+        });
     }
 }
 

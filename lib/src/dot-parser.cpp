@@ -1552,15 +1552,20 @@ static std::optional<reg_dir_file> build_component_string(
   const modeling&    mod,
   const component_id id) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get<component>(id))
-        if (const auto* f = mod.file_paths.try_to_get(compo->file))
-            if (const auto* d = mod.dir_paths.try_to_get(f->parent))
-                if (const auto* r = mod.registred_paths.try_to_get(d->parent))
+    const auto* compo = mod.components.try_to_get<component>(id);
+
+    return compo ? mod.files.read([&](const auto& fs, const auto /*vers*/)
+                                    -> std::optional<reg_dir_file> {
+        if (const auto* f = fs.file_paths.try_to_get(compo->file))
+            if (const auto* d = fs.dir_paths.try_to_get(f->parent))
+                if (const auto* r = fs.registred_paths.try_to_get(d->parent))
                     return reg_dir_file{ .r = r->name.sv(),
                                          .d = d->path.sv(),
                                          .f = f->path.sv() };
 
-    return std::nullopt;
+        return std::nullopt;
+    })
+                 : std::nullopt;
 }
 
 template<typename OutputIterator>

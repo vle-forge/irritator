@@ -27,18 +27,21 @@ void memory_window::show() noexcept
         ImGui::TextFormat("components: {} / {}",
                           app.mod.components.size(),
                           app.mod.components.capacity());
-        ImGui::TextFormat("registred_paths: {} / {} / {}",
-                          app.mod.registred_paths.size(),
-                          app.mod.registred_paths.max_used(),
-                          app.mod.registred_paths.capacity());
-        ImGui::TextFormat("dir_paths: {} / {} / {}",
-                          app.mod.dir_paths.size(),
-                          app.mod.dir_paths.max_used(),
-                          app.mod.dir_paths.capacity());
-        ImGui::TextFormat("file_paths: {} / {} / {}",
-                          app.mod.file_paths.size(),
-                          app.mod.file_paths.max_used(),
-                          app.mod.file_paths.capacity());
+
+        app.mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+            ImGui::TextFormat("registred_paths: {} / {} / {}",
+                              fs.registred_paths.size(),
+                              fs.registred_paths.max_used(),
+                              fs.registred_paths.capacity());
+            ImGui::TextFormat("dir_paths: {} / {} / {}",
+                              fs.dir_paths.size(),
+                              fs.dir_paths.max_used(),
+                              fs.dir_paths.capacity());
+            ImGui::TextFormat("file_paths: {} / {} / {}",
+                              fs.file_paths.size(),
+                              fs.file_paths.max_used(),
+                              fs.file_paths.capacity());
+        });
     }
 
     if (ImGui::CollapsingHeader("Graph")) {
@@ -148,17 +151,19 @@ void memory_window::show() noexcept
                     break;
                 }
 
-                if (const auto* f = app.mod.file_paths.try_to_get(compo.file)) {
-                    ImGui::LabelFormat("File", "{}", f->path.sv());
-                    if (const auto* d =
-                          app.mod.dir_paths.try_to_get(f->parent)) {
-                        ImGui::LabelFormat("Dir", "{}", d->path.sv());
-                        if (const auto* r =
-                              app.mod.registred_paths.try_to_get(d->parent)) {
-                            ImGui::LabelFormat("Reg", "{}", r->path.sv());
+                app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                    if (const auto* f = fs.file_paths.try_to_get(compo.file)) {
+                        ImGui::LabelFormat("File", "{}", f->path.sv());
+                        if (const auto* d =
+                              fs.dir_paths.try_to_get(f->parent)) {
+                            ImGui::LabelFormat("Dir", "{}", d->path.sv());
+                            if (const auto* r =
+                                  fs.registred_paths.try_to_get(d->parent)) {
+                                ImGui::LabelFormat("Reg", "{}", r->path.sv());
+                            }
                         }
                     }
-                }
+                });
 
                 ImGui::LabelFormat("Description", "{}", ordinal(compo.desc));
 
@@ -175,16 +180,19 @@ void memory_window::show() noexcept
                                     ImGuiTableColumnFlags_WidthStretch);
 
             ImGui::TableHeadersRow();
-            registred_path* dir = nullptr;
-            while (app.mod.registred_paths.next(dir)) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
 
-                ImGui::TextFormat(
-                  "{}", ordinal(app.mod.registred_paths.get_id(*dir)));
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(dir->path.c_str());
-            }
+            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                const registred_path* dir = nullptr;
+                while (fs.registred_paths.next(dir)) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+
+                    ImGui::TextFormat("{}",
+                                      ordinal(fs.registred_paths.get_id(*dir)));
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(dir->path.c_str());
+                }
+            });
 
             ImGui::EndTable();
         }
@@ -197,16 +205,17 @@ void memory_window::show() noexcept
                                     ImGuiTableColumnFlags_WidthStretch);
 
             ImGui::TableHeadersRow();
-            dir_path* dir = nullptr;
-            while (app.mod.dir_paths.next(dir)) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                const dir_path* dir = nullptr;
+                while (fs.dir_paths.next(dir)) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}",
-                                  ordinal(app.mod.dir_paths.get_id(*dir)));
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(dir->path.c_str());
-            }
+                    ImGui::TextFormat("{}", ordinal(fs.dir_paths.get_id(*dir)));
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(dir->path.c_str());
+                }
+            });
 
             ImGui::EndTable();
         }
@@ -219,16 +228,18 @@ void memory_window::show() noexcept
                                     ImGuiTableColumnFlags_WidthStretch);
 
             ImGui::TableHeadersRow();
-            file_path* file = nullptr;
-            while (app.mod.file_paths.next(file)) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                const file_path* file = nullptr;
+                while (fs.file_paths.next(file)) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                ImGui::TextFormat("{}",
-                                  ordinal(app.mod.file_paths.get_id(*file)));
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(file->path.c_str());
-            }
+                    ImGui::TextFormat("{}",
+                                      ordinal(fs.file_paths.get_id(*file)));
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(file->path.c_str());
+                }
+            });
 
             ImGui::EndTable();
         }

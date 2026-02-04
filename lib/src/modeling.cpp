@@ -27,65 +27,68 @@ modeling::modeling(journal_handler&                   jnl,
   , graph_components(res.graph_compos.value())
   , hsm_components(res.hsm_compos.value())
   , components(res.components.value())
-  , registred_paths(res.regs.value())
-  , dir_paths(res.dirs.value())
-  , file_paths(res.files.value())
   , hsms(res.hsm_compos.value())
   , graphs(res.graph_compos.value())
-  , component_repertories(res.regs.value(), reserve_tag)
+  , files(res.regs.value(), res.dirs.value(), res.files.value())
   , journal(jnl)
 {
-    if (descriptions.capacity() == 0 or generic_components.capacity() == 0 or
-        grid_components.capacity() == 0 or graph_components.capacity() == 0 or
-        hsm_components.capacity() == 0 or components.capacity() == 0 or
-        registred_paths.capacity() == 0 or dir_paths.capacity() == 0 or
-        file_paths.capacity() == 0 or hsms.capacity() == 0 or
-        graphs.capacity() == 0 or component_repertories.capacity() == 0)
-        journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
-            t = "Modeling initialization error";
-            format(m,
-                   "descriptions          {:>8} ({:>8})"
-                   "generic-components    {:>8} ({:>8})"
-                   "grid-components       {:>8} ({:>8})"
-                   "graph-components      {:>8} ({:>8})"
-                   "hsm-components        {:>8} ({:>8})"
-                   "components            {:>8} ({:>8})"
-                   "registred-paths       {:>8} ({:>8})"
-                   "dir-paths             {:>8} ({:>8})"
-                   "file-paths            {:>8} ({:>8})"
-                   "hsms                  {:>8} ({:>8})"
-                   "graphs                {:>8} ({:>8})"
-                   "component-repertories {:>8} ({:>8})",
-                   descriptions.capacity(),
-                   res.files.value(),
-                   generic_components.capacity(),
-                   res.generic_compos.value(),
-                   grid_components.capacity(),
-                   res.grid_compos.value(),
-                   graph_components.capacity(),
-                   res.graph_compos.value(),
-                   hsm_components.capacity(),
-                   res.hsm_compos.value(),
-                   components.capacity(),
-                   res.components.value(),
-                   registred_paths.capacity(),
-                   res.regs.value(),
-                   dir_paths.capacity(),
-                   res.dirs.value(),
-                   file_paths.capacity(),
-                   res.files.value(),
-                   hsms.capacity(),
-                   res.hsm_compos.value(),
-                   graphs.capacity(),
-                   res.graph_compos.value(),
-                   res.components.value(),
-                   component_repertories.capacity(),
-                   res.regs.value());
-        });
+    files.read([&](const auto& fs, const auto /*vers*/) {
+        if (descriptions.capacity() == 0 or
+            generic_components.capacity() == 0 or
+            grid_components.capacity() == 0 or
+            graph_components.capacity() == 0 or
+            hsm_components.capacity() == 0 or components.capacity() == 0 or
+            fs.registred_paths.capacity() == 0 or
+            fs.dir_paths.capacity() == 0 or fs.file_paths.capacity() == 0 or
+            hsms.capacity() == 0 or graphs.capacity() == 0 or
+            fs.component_repertories.capacity() == 0)
+            journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+                t = "Modeling initialization error";
+                format(m,
+                       "descriptions          {:>8} ({:>8})"
+                       "generic-components    {:>8} ({:>8})"
+                       "grid-components       {:>8} ({:>8})"
+                       "graph-components      {:>8} ({:>8})"
+                       "hsm-components        {:>8} ({:>8})"
+                       "components            {:>8} ({:>8})"
+                       "registred-paths       {:>8} ({:>8})"
+                       "dir-paths             {:>8} ({:>8})"
+                       "file-paths            {:>8} ({:>8})"
+                       "hsms                  {:>8} ({:>8})"
+                       "graphs                {:>8} ({:>8})"
+                       "component-repertories {:>8} ({:>8})",
+                       descriptions.capacity(),
+                       res.files.value(),
+                       generic_components.capacity(),
+                       res.generic_compos.value(),
+                       grid_components.capacity(),
+                       res.grid_compos.value(),
+                       graph_components.capacity(),
+                       res.graph_compos.value(),
+                       hsm_components.capacity(),
+                       res.hsm_compos.value(),
+                       components.capacity(),
+                       res.components.value(),
+                       fs.registred_paths.capacity(),
+                       res.regs.value(),
+                       fs.dir_paths.capacity(),
+                       res.dirs.value(),
+                       fs.file_paths.capacity(),
+                       res.files.value(),
+                       hsms.capacity(),
+                       res.hsm_compos.value(),
+                       graphs.capacity(),
+                       res.graph_compos.value(),
+                       res.components.value(),
+                       fs.component_repertories.capacity(),
+                       res.regs.value());
+            });
+    });
 }
 
 static void prepare_component_loading(
   modeling&                    mod,
+  modeling::file_access&       fs,
   registred_path&              reg_dir,
   dir_path&                    dir,
   file_path&                   file,
@@ -100,7 +103,7 @@ static void prepare_component_loading(
 
     mod.components.get<component_color>(compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& compo    = mod.components.get<component>(compo_id);
-    compo.file     = mod.file_paths.get_id(file);
+    compo.file     = fs.file_paths.get_id(file);
     file.component = compo_id;
     compo.type     = component_type::none;
     compo.state    = component_status::unread;
@@ -262,25 +265,27 @@ void dir_path::refresh(modeling& mod) noexcept
 }
 
 static file_path& add_to_dir(modeling&                  mod,
+                             modeling::file_access&     fs,
                              dir_path&                  dir,
                              const file_path::file_type type,
                              const std::u8string&       u8str) noexcept
 {
     auto* cstr    = reinterpret_cast<const char*>(u8str.c_str());
-    auto& file    = mod.file_paths.alloc();
-    auto  file_id = mod.file_paths.get_id(file);
+    auto& file    = fs.file_paths.alloc();
+    auto  file_id = fs.file_paths.get_id(file);
     file.path     = cstr;
-    file.parent   = mod.dir_paths.get_id(dir);
+    file.parent   = fs.dir_paths.get_id(dir);
     file.type     = type;
+    dir.children.emplace_back(file_id);
 
-    dir.children.write([&](auto& vec) noexcept { vec.emplace_back(file_id); });
     return file;
 }
 
-static void prepare_component_loading(modeling&             mod,
-                                      registred_path&       reg_dir,
-                                      dir_path&             dir,
-                                      std::filesystem::path path) noexcept
+static void prepare_component_loading(modeling&              mod,
+                                      modeling::file_access& fs,
+                                      registred_path&        reg_dir,
+                                      dir_path&              dir,
+                                      std::filesystem::path  path) noexcept
 {
     namespace fs = std::filesystem;
 
@@ -302,24 +307,24 @@ static void prepare_component_loading(modeling&             mod,
                 break;
             case file_path::file_type::irt_file:
                 debug_logi(6, "found irt file {}\n", it->path().string());
-                if (mod.file_paths.can_alloc() && mod.components.can_alloc(1)) {
+                if (fs.file_paths.can_alloc() && mod.components.can_alloc(1)) {
                     auto& file = add_to_dir(
                       mod, dir, type, it->path().filename().u8string());
 
                     prepare_component_loading(
-                      mod, reg_dir, dir, file, it->path());
+                      mod, fs, reg_dir, dir, file, it->path());
                 } else {
                     too_many_file = true;
                 }
                 break;
             case file_path::file_type::dot_file:
                 debug_logi(6, "found dot file {}\n", it->path().string());
-                if (mod.file_paths.can_alloc() and mod.graphs.can_alloc()) {
+                if (fs.file_paths.can_alloc() and mod.graphs.can_alloc()) {
                     auto& file = add_to_dir(
                       mod, dir, type, it->path().filename().u8string());
 
                     auto& g = mod.graphs.alloc();
-                    g.file  = mod.file_paths.get_id(file);
+                    g.file  = fs.file_paths.get_id(file);
                 } else {
                     too_many_file = true;
                 }
@@ -331,7 +336,7 @@ static void prepare_component_loading(modeling&             mod,
             case file_path::file_type::project_file:
                 debug_logi(
                   6, "found project irt file {}\n", it->path().string());
-                if (mod.file_paths.can_alloc() && mod.components.can_alloc(1)) {
+                if (fs.file_paths.can_alloc() && mod.components.can_alloc(1)) {
                     (void)add_to_dir(
                       mod, dir, type, it->path().filename().u8string());
                     // @TODO load project file?
@@ -361,6 +366,7 @@ static void prepare_component_loading(modeling&             mod,
 }
 
 static void prepare_component_loading(modeling&              mod,
+                                      modeling::file_access& fs,
                                       registred_path&        reg_dir,
                                       std::filesystem::path& path) noexcept
 {
@@ -377,26 +383,24 @@ static void prepare_component_loading(modeling&              mod,
             while (it != et) {
                 if (it->is_directory() and
                     not it->path().filename().string().starts_with('.')) {
-                    if (mod.dir_paths.can_alloc()) {
+                    if (fs.dir_paths.can_alloc()) {
                         auto u8str = it->path().filename().u8string();
                         auto cstr =
                           reinterpret_cast<const char*>(u8str.c_str());
-                        auto& dir    = mod.dir_paths.alloc();
-                        auto  dir_id = mod.dir_paths.get_id(dir);
+                        auto& dir    = fs.dir_paths.alloc();
+                        auto  dir_id = fs.dir_paths.get_id(dir);
                         dir.path     = cstr;
                         dir.status   = dir_path::state::unread;
-                        dir.parent   = mod.registred_paths.get_id(reg_dir);
+                        dir.parent   = fs.registred_paths.get_id(reg_dir);
 
                         debug_logi(4,
                                    "lookup in subdirectory {}\n",
                                    it->path().string());
 
-                        reg_dir.children.write([&](auto& vec) noexcept {
-                            vec.emplace_back(dir_id);
-                        });
+                        reg_dir.children.emplace_back(dir_id);
 
                         prepare_component_loading(
-                          mod, reg_dir, dir, it->path());
+                          mod, fs, reg_dir, dir, it->path());
                     } else {
                         too_many_directory = true;
                         break;
@@ -412,7 +416,7 @@ static void prepare_component_loading(modeling&              mod,
                       t = "Modeling initialization error";
                       format(m,
                              "Too many directory {} in paths {}\n",
-                             mod.dir_paths.size(),
+                             fs.dir_paths.size(),
                              reg_dir.path.sv());
                   });
             }
@@ -425,19 +429,20 @@ static void prepare_component_loading(modeling&              mod,
     }
 }
 
-static void prepare_component_loading(modeling&       mod,
-                                      registred_path& reg_dir) noexcept
+static void prepare_component_loading(modeling&              mod,
+                                      modeling::file_access& fs,
+                                      registred_path&        reg_dir) noexcept
 {
-    namespace fs = std::filesystem;
+    namespace stdfs = std::filesystem;
 
     try {
         debug_logi(2, "lookup in registered path {}\n", reg_dir.path.sv());
 
-        fs::path        p(reg_dir.path.c_str());
+        stdfs::path     p(reg_dir.path.c_str());
         std::error_code ec;
 
         if (std::filesystem::exists(p, ec)) {
-            prepare_component_loading(mod, reg_dir, p);
+            prepare_component_loading(mod, fs, reg_dir, p);
             reg_dir.status = registred_path::state::read;
         } else {
             debug_logi(4, "registered path does not exists");
@@ -458,24 +463,25 @@ static void prepare_component_loading(modeling&       mod,
 
 static void prepare_component_loading(modeling& mod) noexcept
 {
-    int i = 0;
-    while (i < mod.component_repertories.ssize()) {
-        const auto id      = mod.component_repertories[i];
-        auto*      reg_dir = mod.registred_paths.try_to_get(id);
+    mod.files.write([&](auto& fs) noexcept {
+        int i = 0;
+        while (i < fs.component_repertories.ssize()) {
+            const auto id      = fs.component_repertories[i];
+            auto*      reg_dir = fs.registred_paths.try_to_get(id);
 
-        if (reg_dir) {
-            prepare_component_loading(mod, *reg_dir);
-            ++i;
-        } else {
-            auto it = mod.component_repertories.begin() + i;
-            mod.component_repertories.erase(it);
+            if (reg_dir) {
+                prepare_component_loading(mod, fs, *reg_dir);
+                ++i;
+            } else {
+                auto it = fs.component_repertories.begin() + i;
+                fs.component_repertories.erase(it);
+            }
         }
-    }
+    });
 }
 
 status modeling::load_component(component& compo) noexcept
 {
-
     try {
         const auto filename = make_file(*this, compo.file);
         if (not filename.has_value()) {
@@ -565,7 +571,7 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
     }
 }
 
-status modeling::fill_components() noexcept
+status modeling::file_access::fill_components() noexcept
 {
     prepare_component_loading(*this);
     bool have_unread_component = components.size() > 0u;
@@ -644,7 +650,7 @@ status modeling::fill_components() noexcept
     return success();
 }
 
-status modeling::fill_components(registred_path& path) noexcept
+status modeling::file_access::fill_components(registred_path& path) noexcept
 {
     path.children.write([&](auto& vec) noexcept {
         for (auto dir_id : vec)
@@ -666,6 +672,79 @@ status modeling::fill_components(registred_path& path) noexcept
     });
 
     return success();
+}
+
+void modeling::file_access::remove(const file_path_id id) noexcept
+{
+    if (auto* f = file_paths.try_to_get(id)) {
+        if (auto* d = dir_paths.try_to_get(f->parent)) {
+            if (auto* r = registred_paths.try_to_get(d->parent)) {
+                if (const auto opt = make_file(*r, *d, *f); opt.has_value()) {
+                    std::error_code ec;
+                    std::filesystem::remove(*opt, ec);
+
+                    file_paths.free(*f);
+
+                    auto it = std::ranges::find(d->children, id);
+                    if (it != std::ranges::end(d->children))
+                        d->children.erase(it);
+                }
+            }
+        }
+    }
+}
+
+void modeling::file_access::refresh(const dir_path_id id) noexcept
+{
+    if (auto* d = dir_paths.try_to_get(id)) {
+        if (auto* r = registred_paths.try_to_get(d->parent)) {
+            try {
+                std::error_code            ec;
+                std::filesystem::path path dir{ reg->path.sv() };
+                dir /= path.sv();
+
+                if (std::filesystem::is_directory(dir, ec)) {
+                    auto it = fs::directory_iterator{ dir, ec };
+                    auto et = fs::directory_iterator{};
+
+                    while (it != et) {
+                        if (it->is_regular_file()) {
+                            const auto type = detect_file_type(it->path());
+                            if (type != file_path::file_type::undefined_file) {
+                                const auto f = find(id, it->path().string());
+                                if (is_defined(f))
+                                    d->children.emplace_back(f);
+                            }
+                        }
+
+                        it = it.increment(ec);
+                    }
+                } else {
+                    flags.set(dir_path::dir_flags::access_error);
+                }
+            } catch (const std::exception& /*e*/) {
+                flags.set(dir_path::dir_flags::access_error);
+            }
+        }
+    }
+}
+
+file_path_id modeling::file_access::find(
+  const dir_path_id      id,
+  const std::string_view filename) const noexcept
+{
+    auto ret = undefined<file_path_id>();
+
+    if (const auto* dir = dir_paths.try_to_get(id)) {
+        for (const auto f_id : dir->children) {
+            if (const auto* file = file_paths.try_to_get(f_id)) {
+                if (filenames == file->path.sv())
+                    return f_id;
+            }
+        }
+    }
+
+    return ret;
 }
 
 auto search_reg(const modeling& mod, std::string_view name) noexcept
