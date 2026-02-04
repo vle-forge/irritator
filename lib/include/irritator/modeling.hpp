@@ -1460,10 +1460,10 @@ public:
         vector<registred_path_id>                     component_repertories;
 
         //! Reads all registered paths and search component files.
-        status fill_components() noexcept;
+        status fill_components(modeling& mod) noexcept;
 
         //! Adds a new path to read and search component files.
-        status fill_components(registred_path& path) noexcept;
+        status fill_components(modeling& mod, registred_path& path) noexcept;
 
         /// Removes the :;c file_path from :c file_paths and remove the file
         /// from the filesystem.
@@ -1475,6 +1475,49 @@ public:
         /// Search a existing filename in the @c dir_path::children
         file_path_id find(const dir_path_id      id,
                           const std::string_view filename) const noexcept;
+
+        /// Search a directory name in the @c registred_path lists
+        dir_path_id find(const std::string_view name) const noexcept;
+
+        /// Search a directory name in the @c registred_path_id
+        dir_path_id find(const registred_path_id id,
+                         std::string_view        name) const noexcept;
+
+        registred_path_id find_registred_path_by_name(
+          const std::string_view name) const noexcept;
+
+        file_path_id alloc_file(
+          const dir_path_id          id,
+          const std::string_view     name = std::string_view(),
+          const file_path::file_type type =
+            file_path::file_type::undefined_file) noexcept;
+
+        dir_path_id alloc_dir(
+          const registred_path_id id,
+          const std::string_view  path = std::string_view()) noexcept;
+
+        registred_path_id alloc_registred(const std::string_view name,
+                                          const int priority) noexcept;
+
+        bool exists(const registred_path_id dir) const noexcept;
+        bool exists(const dir_path_id dir) const noexcept;
+        bool create_directories(const registred_path_id id) const noexcept;
+        bool create_directories(const dir_path_id id) noexcept;
+        void remove_files(const dir_path& dir) noexcept;
+
+        void remove_file(registred_path& reg,
+                         dir_path&       dir,
+                         file_path&      file) noexcept;
+        void remove_file(const file_path& file) noexcept;
+
+        void move_file(registred_path& reg,
+                       dir_path&       from,
+                       dir_path&       to,
+                       file_path&      file) noexcept;
+
+        void free(file_path& file) noexcept;
+        void free(dir_path& dir) noexcept;
+        void free(registred_path& dir) noexcept;
     };
 
     shared_buffer<file_access> files;
@@ -1529,35 +1572,6 @@ public:
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
     void free(hsm_component& c) noexcept;
-
-    bool can_alloc_file(i32 number = 1) const noexcept;
-    bool can_alloc_dir(i32 number = 1) const noexcept;
-    bool can_alloc_registred(i32 number = 1) const noexcept;
-
-    file_path&      alloc_file(dir_path& dir) noexcept;
-    dir_path&       alloc_dir(registred_path& reg) noexcept;
-    registred_path& alloc_registred(std::string_view name,
-                                    int              priority) noexcept;
-
-    bool exists(const registred_path& dir) noexcept;
-    bool exists(const dir_path& dir) noexcept;
-    bool create_directories(const registred_path& dir) noexcept;
-    bool create_directories(const dir_path& dir) noexcept;
-    void remove_files(const dir_path& dir) noexcept;
-
-    void remove_file(registred_path& reg,
-                     dir_path&       dir,
-                     file_path&      file) noexcept;
-    void remove_file(const file_path& file) noexcept;
-
-    void move_file(registred_path& reg,
-                   dir_path&       from,
-                   dir_path&       to,
-                   file_path&      file) noexcept;
-
-    void free(file_path& file) noexcept;
-    void free(dir_path& dir) noexcept;
-    void free(registred_path& dir) noexcept;
 
     bool can_alloc_grid_component() const noexcept;
     bool can_alloc_generic_component() const noexcept;

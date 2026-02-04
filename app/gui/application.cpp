@@ -1080,13 +1080,7 @@ void application::start_init_source(const project_id  pj_id,
 void application::start_dir_path_refresh(const dir_path_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
-        auto* dir = mod.dir_paths.try_to_get(id);
-
-        if (dir and dir->status != dir_path::state::lock) {
-            dir->status = dir_path::state::lock;
-            dir->refresh(mod);
-            dir->status = dir_path::state::read;
-        }
+        mod.files.write([&](auto& fs) { fs.refresh(id); });
     });
 }
 
