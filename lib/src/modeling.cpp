@@ -889,7 +889,7 @@ bool modeling::file_access::create_directories(
     return false;
 }
 
-void modeling::file_access::remove_files(const dir_path_id id) const noexcept
+void modeling::file_access::remove_files(const dir_path_id id) noexcept
 {
     if (auto* d = dir_paths.try_to_get(id)) {
         if (d->path.empty())
@@ -897,12 +897,12 @@ void modeling::file_access::remove_files(const dir_path_id id) const noexcept
 
         if (const auto* r = registred_paths.try_to_get(d->parent)) {
             try {
-                const auto dr =
-                  std::filesystem::path{ r->path.sv(), d->path.sv() };
+                std::filesystem::path p(r->path.sv());
+                p /= d->path.sv();
 
                 for (const auto f_id : d->children) {
                     if (auto* f = file_paths.try_to_get(f_id)) {
-                        const auto file = dr / f->path.sv();
+                        const auto file = p / f->path.sv();
 
                         std::error_code ec;
                         if (std::filesystem::exists(file, ec))
@@ -1286,8 +1286,10 @@ void modeling::free(component& compo) noexcept
     if (descriptions.exists(compo.desc))
         descriptions.free(compo.desc);
 
-    if (auto* path = file_paths.try_to_get(compo.file); path)
-        file_paths.free(*path);
+    files.write([&](auto& fs) noexcept {
+        if (auto* path = fs.file_paths.try_to_get(compo.file); path)
+            fs.file_paths.free(*path);
+    });
 
     components.free(components.get_id(compo));
 }

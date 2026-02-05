@@ -1525,6 +1525,52 @@ struct global_simulation_window {
     graph_observer_id graph_obs_id = undefined<graph_observer_id>();
 };
 
+template<typename T>
+class lock_buffer
+{
+public:
+    lock_buffer() noexcept = default;
+
+    template<typename... Args>
+    explicit lock_buffer(Args&&... args) noexcept
+      : m_value{ std::forward<Args>(args)... }
+    {}
+
+    lock_buffer(const lock_buffer&) noexcept            = delete;
+    lock_buffer& operator=(const lock_buffer&) noexcept = delete;
+    lock_buffer(lock_buffer&&) noexcept                 = delete;
+    lock_buffer& operator=(lock_buffer&&) noexcept      = delete;
+
+    void emplace(T&& value) noexcept
+    {
+        std::lock_guard lock(m_mutex);
+        m_value.emplace(std::move(value));
+    }
+
+    void emplace(const T& value) noexcept
+    {
+        std::lock_guard lock(m_mutex);
+        m_value.emplace(value);
+    }
+
+    std::optional<T> try_pop() noexcept
+    {
+        std::unique_lock lock(m_mutex, std::try_to_lock);
+
+        if (lock.owns_lock() and m_value.has_value()) {
+            std::optional<T> out = std::move(m_value);
+            m_value.reset();
+            return out;
+        }
+
+        return std::nullopt;
+    }
+
+private:
+    mutable spin_mutex m_mutex;
+    std::optional<T>   m_value;
+};
+
 class application
 {
 public:
@@ -1651,15 +1697,24 @@ public:
                            const source_type type) noexcept;
     void start_hsm_test_start() noexcept;
     void start_dir_path_refresh(const dir_path_id id) noexcept;
-    void start_dir_path_free(const dir_path_id id) noexcept;
-    void start_reg_path_free(const registred_path_id id) noexcept;
-    void start_file_remove(const registred_path_id r,
-                           const dir_path_id       d,
-                           const file_path_id      f) noexcept;
 
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
 
     void request_open_directory_dlg(const registred_path_id id) noexcept;
+
+    void add_new_file_task() noexcept;
+
+    void add_new_dir_task(
+      const registred_path_id reg_id,
+      const std::string_view  name = std::string_view()) noexcept;
+
+    /** Return the new allocated @c file_path_id and clear the @c
+     * application::new_file attribute. */
+    file_path_id try_get_new_file() noexcept;
+
+    /** Return the new allocated @c dir_path_id and clear the @c
+     * application::new_dir attribute. */
+    dir_path_id try_get_dir_path() noexcept;
 
 private:
     friend task_window;
@@ -1667,6 +1722,9 @@ private:
     unsigned int main_dock_id;
     unsigned int right_dock_id;
     unsigned int bottom_dock_id;
+
+    lock_buffer<file_path_id> new_file;
+    lock_buffer<dir_path_id>  new_dir;
 
     registred_path_id selected_reg_path    = undefined<registred_path_id>();
     bool              show_select_reg_path = false;

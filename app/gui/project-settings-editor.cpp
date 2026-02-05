@@ -292,7 +292,7 @@ static void show_project_file_access(application&    app,
                     ed.dir     = dir_id;
                     ed.pj.file = undefined<file_path_id>();
 
-                    if (!app.mod.create_directories(new_dir)) {
+                    if (!fs.create_directories(dir_id)) {
                         app.jn.push(log_level::error,
                                     [&](auto& title, auto& /*msg*/) noexcept {
                                         format(title,

@@ -208,22 +208,24 @@ int main()
         irt::registred_path_str temp_path;
         expect(fatal(get_temp_registred_path(temp_path)));
 
-        auto& reg = mod.alloc_registred("temp", 0);
-        reg.path  = temp_path;
+        mod.files.write([&](auto& fs) {
+            auto reg_id                         = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg_id).path = temp_path;
 
-        auto& dir  = mod.alloc_dir(reg);
-        dir.parent = mod.registred_paths.get_id(reg);
-        dir.path   = "test";
+            auto dir_id                     = fs.alloc_dir(reg_id);
+            fs.dir_paths.get(dir_id).parent = reg_id;
+            fs.dir_paths.get(dir_id).path   = "test";
 
-        auto& file  = mod.alloc_file(dir);
-        file.parent = mod.dir_paths.get_id(dir);
-        file.path   = "external-source.irt";
+            auto file_id                      = fs.alloc_file(dir_id);
+            fs.file_paths.get(file_id).parent = dir_id;
+            fs.file_paths.get(file_id).path   = "external-source.irt";
 
-        mod.create_directories(reg);
-        mod.create_directories(dir);
-        mod.remove_files(dir);
+            fs.create_directories(reg_id);
+            fs.create_directories(dir_id);
+            fs.remove_files(dir_id);
 
-        component.file = mod.file_paths.get_id(file);
+            component.file = file_id;
+        });
 
         expect(eq(mod.components.size(), 1u));
         expect(eq(mod.generic_components.size(), 1u));

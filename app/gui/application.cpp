@@ -714,27 +714,27 @@ auto application::show() noexcept -> show_result_t
     if (settings_wnd.is_open)
         settings_wnd.show();
 
-    if (show_select_reg_path) {
-        const char* title = "Select directory";
-        ImGui::OpenPopup(title);
-        if (f_dialog.show_select_directory(title)) {
-            if (f_dialog.state == file_dialog::status::ok) {
-                auto* dir_path =
-                  mod.registred_paths.try_to_get(selected_reg_path);
-                if (dir_path) {
-                    auto str = f_dialog.result.string();
-                    dir_path->path.assign(str);
-                }
+    // if (show_select_reg_path) {
+    //     const char* title = "Select directory";
+    //     ImGui::OpenPopup(title);
+    //     if (f_dialog.show_select_directory(title)) {
+    //         if (f_dialog.state == file_dialog::status::ok) {
+    //             auto* dir_path =
+    //               mod.registred_paths.try_to_get(selected_reg_path);
+    //             if (dir_path) {
+    //                 auto str = f_dialog.result.string();
+    //                 dir_path->path.assign(str);
+    //             }
 
-                show_select_reg_path = false;
-                selected_reg_path    = undefined<registred_path_id>();
-                f_dialog.result.clear();
-            }
+    //             show_select_reg_path = false;
+    //             selected_reg_path    = undefined<registred_path_id>();
+    //             f_dialog.result.clear();
+    //         }
 
-            f_dialog.clear();
-            show_select_reg_path = false;
-        }
-    }
+    //         f_dialog.clear();
+    //         show_select_reg_path = false;
+    //     }
+    // }
 
     notifications.show();
 
@@ -884,23 +884,26 @@ void application::start_load_project(const project_id pj_id) noexcept
 {
     add_gui_task([&, pj_id]() noexcept {
         auto* pj = pjs.try_to_get(pj_id);
-        if (not pj)
-            return;
-
-        auto* file = mod.file_paths.try_to_get(pj->pj.file);
-        if (not file)
+        if (not pj or is_undefined(pj->pj.file))
             return;
 
         if (auto ret = pj->pj.load(mod); ret.has_value()) {
             pj->disable_access = false;
 
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-                format(
-                  title, "Loading project file {} success", file->path.sv());
+                mod.files.read([&](const auto& fs, const auto /*vesr*/) {
+                    format(title,
+                           "Loading project file {} success",
+                           fs.file_paths.get(pj->pj.file).path.sv());
+                });
             });
         } else {
             jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                format(title, "Loading project file {} error", file->path.sv());
+                mod.files.read([&](const auto& fs, const auto /*vesr*/) {
+                    format(title,
+                           "Loading project file {} error",
+                           fs.file_paths.get(pj->pj.file).path.sv());
+                });
 
                 if (ret.error().cat() == category::project) {
                     if (static_cast<project_errc>(ret.error().value()) ==
@@ -950,16 +953,21 @@ void application::start_save_project(const project_id pj_id) noexcept
 
         if (auto ret = pj_ed->pj.save(mod); ret) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-                format(title,
-                       "Saving project file {} success",
-                       mod.file_paths.get(pj_ed->pj.file).path.sv());
+                mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                    format(title,
+                           "Saving project file {} success",
+                           fs.file_paths.get(pj_ed->pj.file).path.sv());
+                });
             });
         } else {
             jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                const auto* f    = mod.file_paths.try_to_get(pj_ed->pj.file);
-                const auto  name = f ? f->path.sv() : std::string_view{ "-" };
+                const small_string<127> name =
+                  mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                      const auto* f = fs.file_paths.try_to_get(pj_ed->pj.file);
+                      return f ? f->path.sv() : std::string_view{ "-" };
+                  });
 
-                format(title, "Saving project file {} error", name);
+                format(title, "Saving project file {} error", name.sv());
 
                 if (ret.error().cat() == category::project) {
                     if (static_cast<project_errc>(ret.error().value()) ==
@@ -1077,54 +1085,80 @@ void application::start_init_source(const project_id  pj_id,
     });
 }
 
+void application::add_new_file_task() noexcept
+{
+    add_gui_task([&]() {
+        const auto f_id = mod.files.write([&](auto& fs) {
+            auto&      f  = fs.file_paths.alloc();
+            const auto id = fs.file_paths.get_id(f);
+            return id;
+        });
+
+        new_file.emplace(f_id);
+    });
+}
+
+file_path_id application::try_get_new_file() noexcept
+{
+    if (const auto value = new_file.try_pop(); value.has_value())
+        return *value;
+
+    return undefined<file_path_id>();
+}
+
+void application::add_new_dir_task(const registred_path_id reg_id,
+                                   const std::string_view  name) noexcept
+{
+    directory_path_str dir_name(name);
+
+    add_gui_task([&, dir_name]() {
+        const auto dir_id = mod.files.write([&](auto& fs) {
+            if (not(fs.dir_paths.can_alloc(1) or
+                    fs.dir_paths.template grow<2, 1>()))
+                return undefined<dir_path_id>();
+
+            auto& r = fs.registred_paths.get(reg_id);
+            if (not(r.children.can_alloc(1) or
+                    r.children.template grow<2, 1>()))
+                return undefined<dir_path_id>();
+
+            auto& new_dir = fs.dir_paths.alloc();
+            auto  dir_id  = fs.dir_paths.get_id(new_dir);
+
+            new_dir.parent = reg_id;
+            new_dir.path   = dir_name;
+            new_dir.status = dir_path::state::unread;
+
+            r.children.emplace_back(dir_id);
+
+            if (not fs.create_directories(dir_id)) {
+                jn.push(log_level::error,
+                        [&](auto& title, auto& /*msg*/) noexcept {
+                            format(title,
+                                   "Fail to create directory {}",
+                                   new_dir.path.sv());
+                        });
+            }
+
+            return dir_id;
+        });
+
+        new_dir.emplace(dir_id);
+    });
+}
+
+dir_path_id application::try_get_dir_path() noexcept
+{
+    if (const auto value = new_dir.try_pop(); value.has_value())
+        return *value;
+
+    return undefined<dir_path_id>();
+}
+
 void application::start_dir_path_refresh(const dir_path_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         mod.files.write([&](auto& fs) { fs.refresh(id); });
-    });
-}
-
-void application::start_dir_path_free(const dir_path_id id) noexcept
-{
-    add_gui_task([&, id]() noexcept {
-        auto* dir = mod.dir_paths.try_to_get(id);
-
-        if (dir and dir->status != dir_path::state::lock) {
-            dir->status = dir_path::state::lock;
-            mod.dir_paths.free(*dir);
-        }
-    });
-}
-
-void application::start_reg_path_free(const registred_path_id id) noexcept
-{
-    add_gui_task([&, id]() noexcept {
-        auto* reg = mod.registred_paths.try_to_get(id);
-
-        if (reg and reg->status != registred_path::state::lock) {
-            reg->status = registred_path::state::lock;
-            mod.registred_paths.free(*reg);
-        }
-    });
-};
-
-void application::start_file_remove(const registred_path_id r,
-                                    const dir_path_id       d,
-                                    const file_path_id      f) noexcept
-{
-    add_gui_task([&, r, d, f]() noexcept {
-        auto* reg  = mod.registred_paths.try_to_get(r);
-        auto* dir  = mod.dir_paths.try_to_get(d);
-        auto* file = mod.file_paths.try_to_get(f);
-
-        if (reg and dir and file) {
-            mod.remove_file(*reg, *dir, *file);
-
-            jn.push(log_level::info, [&](auto& t, auto& m) {
-                t = "File manager";
-                format(m, "File `{}' was removed", file->path.sv());
-            });
-        }
     });
 }
 

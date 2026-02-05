@@ -217,7 +217,7 @@ public:
         mod.files.write([&](auto& fs) noexcept {
             registred_path_add(fs);
 
-            if (auto ret = fs.fill_components(); ret.has_error()) {
+            if (auto ret = fs.fill_components(mod); ret.has_error()) {
                 switch (ret.error().cat()) {
                 case irt::category::modeling:
                     warning<ec::modeling_init_error>(ret.error().value());
