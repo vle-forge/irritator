@@ -103,39 +103,43 @@ static void show_component_popup_menu(application&     app,
                         app.component_ed.close(app.mod.components.get_id(sel));
 
                         app.add_gui_task([&app, id = sel.file]() noexcept {
-                            if (const auto* f = fs.file_paths.try_to_get(id)) {
-                                const auto compo_id = f->component;
+                            app.mod.files.write([&](auto& fs) noexcept {
+                                if (const auto* f =
+                                      fs.file_paths.try_to_get(id)) {
+                                    const auto compo_id = f->component;
 
-                                if (app.mod.components.exists(compo_id)) {
-                                    const auto name =
-                                      app.mod.components
-                                        .get<component>(compo_id)
-                                        .name.sv();
+                                    if (app.mod.components.exists(compo_id)) {
+                                        const auto name =
+                                          app.mod.components
+                                            .get<component>(compo_id)
+                                            .name.sv();
 
-                                    app.jn.push(
-                                      log_level::notice,
-                                      [&](auto& title, auto& msg) noexcept {
-                                          title = "Remove component file";
-                                          format(msg,
-                                                 "File `{}' and component {} "
-                                                 "removed",
-                                                 f->path.sv(),
-                                                 name);
-                                      });
-                                } else {
-                                    app.jn.push(
-                                      log_level::notice,
-                                      [&](auto& title, auto& msg) noexcept {
-                                          title = "Remove component file";
-                                          format(msg,
-                                                 "File `{}' removed",
-                                                 f->path.sv());
-                                      });
+                                        app.jn.push(
+                                          log_level::notice,
+                                          [&](auto& title, auto& msg) noexcept {
+                                              title = "Remove component file";
+                                              format(
+                                                msg,
+                                                "File `{}' and component {} "
+                                                "removed",
+                                                f->path.sv(),
+                                                name);
+                                          });
+                                    } else {
+                                        app.jn.push(
+                                          log_level::notice,
+                                          [&](auto& title, auto& msg) noexcept {
+                                              title = "Remove component file";
+                                              format(msg,
+                                                     "File `{}' removed",
+                                                     f->path.sv());
+                                          });
+                                    }
+
+                                    fs.remove_file(id);
+                                    app.mod.components.free(compo_id);
                                 }
-
-                                fs.remove_file(id);
-                                app.mod.components.free(compo_id);
-                            }
+                            });
                         });
 
                         app.add_gui_task(
@@ -149,22 +153,25 @@ static void show_component_popup_menu(application&     app,
                         const auto compo_id = app.mod.components.get_id(sel);
                         app.component_ed.close(compo_id);
 
-                        app.add_gui_task(
-                          [&app, compo_id, id = sel.file]() noexcept {
-                              app.jn.push(
-                                log_level::notice,
-                                [&](auto& title, auto& /*msg*/) noexcept {
-                                    title = "Remove component";
-                                });
+                        app.add_gui_task([&app,
+                                          compo_id,
+                                          id = sel.file]() noexcept {
+                            app.jn.push(
+                              log_level::notice,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  title = "Remove component";
+                              });
 
-                              if (auto* f = app.mod.file_paths.try_to_get(id))
-                                  app.mod.remove_file(*f);
+                            app.mod.files.write([&](auto& fs) noexcept {
+                                if (auto* f = fs.file_paths.try_to_get(id))
+                                    fs.remove_file(id);
 
-                              if (auto* c =
-                                    app.mod.components.try_to_get<component>(
-                                      compo_id))
-                                  app.mod.free(*c);
-                          });
+                                if (auto* c =
+                                      app.mod.components.try_to_get<component>(
+                                        compo_id))
+                                    app.mod.free(*c);
+                            });
+                        });
 
                         app.add_gui_task(
                           [&app]() noexcept { app.component_sel.update(); });
@@ -187,73 +194,109 @@ static void show_component_popup_menu(application&     app,
     }
 }
 
-void library_window::show_file_project(file_path& file) noexcept
+void library_window::show_file_project(const file_path_id file_id) noexcept
 {
-    auto&       app  = container_of(this, &application::library_wnd);
-    const auto* name = file.path.c_str();
-    auto*       pj   = app.pjs.try_to_get(file.pj_id);
+    auto& app = container_of(this, &application::library_wnd);
 
-    if (ImGui::Selectable(name, pj != nullptr, false)) {
-        if (pj) {
-            ImGui::SetWindowFocus(pj->title.c_str());
-        } else {
-            const auto file_id = app.mod.file_paths.get_id(file);
-            const auto pj_id   = app.open_project_window(file_id);
-
-            if (auto* pj = app.pjs.try_to_get(pj_id)) {
-                pj->pj.file = file_id;
-                file.pj_id  = pj_id;
-
-                if (auto ret = pj->pj.load(app.mod); ret.has_error()) {
-                    app.jn.push(log_level::error, [](auto& title, auto& msg) {
-                        title = "Project failure", msg = "Fail to load project";
-                    });
-                } else {
-                    pj->disable_access = false;
-                }
-            }
+    app.mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+        if (auto* file = fs.file_paths.try_to_get(file_id)) {
+            show_file_project(file_id);
         }
-    }
 
-    if (ImGui::BeginPopupContextItem()) {
-        if (pj) {
-            if (ImGui::MenuItem("Close project")) {
-                const auto pj_id = app.pjs.get_id(*pj);
-                app.close_project_window(pj_id);
-            }
-        } else {
-            if (ImGui::MenuItem("Open project")) {
-                const auto file_id = app.mod.file_paths.get_id(file);
-                const auto pj_id   = app.open_project_window(file_id);
+        const auto* file = fs.file_paths.try_to_get(file_id);
+        const auto* name = file->path.c_str();
+        auto*       pj   = app.pjs.try_to_get(file->pj_id);
+
+        if (ImGui::Selectable(name, pj != nullptr, false)) {
+            if (pj) {
+                ImGui::SetWindowFocus(pj->title.c_str());
+            } else {
+                const auto pj_id = app.open_project_window(file_id);
 
                 if (auto* pj = app.pjs.try_to_get(pj_id)) {
-                    pj->pj.file = file_id;
-                    file.pj_id  = pj_id;
+                    app.add_gui_task([&app, pj_id, file_id]() noexcept {
+                        auto* pj = app.pjs.try_to_get(pj_id);
 
-                    if (auto ret = pj->pj.load(app.mod); ret.has_error()) {
-                        app.jn.push(log_level::error,
-                                    [](auto& title, auto& msg) {
-                                        title = "Project failure",
-                                        msg   = "Fail to load project";
-                                    });
-                    } else {
-                        pj->disable_access = false;
-                    }
+                        app.mod.files.write([&](auto& fs) noexcept {
+                            auto* file = fs.file_paths.try_to_get(file_id);
+                            if (file) {
+                                pj->pj.file = file_id;
+                                file->pj_id = pj_id;
+                            }
+                        });
+
+                        if (auto ret = pj->pj.load(app.mod); ret.has_error()) {
+                            app.jn.push(log_level::error,
+                                        [](auto& title, auto& msg) {
+                                            title = "Project failure",
+                                            msg   = "Fail to load project";
+                                        });
+                        } else {
+                            pj->disable_access = false;
+                        }
+                    });
                 }
             }
         }
 
-        ImGui::Separator();
+        if (ImGui::BeginPopupContextItem()) {
+            if (pj) {
+                if (ImGui::MenuItem("Close project")) {
+                    const auto pj_id = app.pjs.get_id(*pj);
+                    app.close_project_window(pj_id);
+                }
+            } else {
+                if (ImGui::MenuItem("Open project")) {
+                    const auto pj_id = app.open_project_window(file_id);
 
-        if (ImGui::MenuItem("Delete file")) {
-            if (auto* pj = app.pjs.try_to_get(file.pj_id))
-                app.close_project_window(app.pjs.get_id(*pj));
+                    if (auto* pj = app.pjs.try_to_get(pj_id)) {
+                        app.add_gui_task([&app, pj_id, file_id]() noexcept {
+                            app.mod.files.write([&](auto& fs) noexcept {
+                                auto* file  = fs.file_paths.try_to_get(file_id);
+                                pj->pj.file = file_id;
+                                file->pj_id = pj_id;
 
-            app.mod.remove_file(file);
+                                if (auto ret = pj->pj.load(app.mod);
+                                    ret.has_error()) {
+                                    app.jn.push(log_level::error,
+                                                [](auto& title, auto& msg) {
+                                                    title = "Project failure",
+                                                    msg =
+                                                      "Fail to load project";
+                                                });
+                                } else {
+                                    pj->disable_access = false;
+                                }
+                            });
+                        });
+                    }
+                }
+
+                ImGui::Separator();
+
+                if (ImGui::MenuItem("Delete file")) {
+                    app.mod.files.read(
+                      [&](const auto& fs, const auto /*vers*/) {
+                          if (auto* file = fs.file_paths.try_to_get(file_id)) {
+                              if (auto* pj = app.pjs.try_to_get(file->pj_id)) {
+                                  app.close_project_window(app.pjs.get_id(*pj));
+                              }
+
+                              app.add_gui_task([&app, &file_id]() noexcept {
+                                  app.mod.files.write([&](auto& fs) noexcept {
+                                      if (const auto file =
+                                            fs.file_paths.try_to_get(file_id))
+                                          fs.remove_file(file_id);
+                                  });
+                              });
+                          }
+                      });
+                }
+            }
+
+            ImGui::EndPopup();
         }
-
-        ImGui::EndPopup();
-    }
+    });
 }
 
 void library_window::show_file_component(const file_path& file,
@@ -337,7 +380,9 @@ void library_window::show_notsaved_content(
             auto& compo = compos[id];
 
             const auto is_not_saved =
-              not app.mod.file_paths.try_to_get(compo.file);
+              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                  return fs.file_paths.try_to_get(compo.file) == nullptr;
+              });
 
             if (is_not_saved) {
                 auto&      color    = colors[id];
@@ -367,10 +412,13 @@ void library_window::show_notsaved_content(
 
     if (flags[file_type::project]) {
         for (const auto& pj : app.pjs) {
-            const auto  pj_id = app.pjs.get_id(pj);
-            const auto* file  = app.mod.file_paths.try_to_get(pj.pj.file);
+            const auto pj_id = app.pjs.get_id(pj);
+            const auto have_file =
+              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                  return fs.file_paths.try_to_get(pj.pj.file) != nullptr;
+              });
 
-            if (not file) {
+            if (not have_file) {
                 ImGui::PushID(std::addressof(pj));
                 if (ImGui::Selectable(pj.pj.name.c_str(), true)) {
                     ImGui::SetWindowFocus(pj.title.c_str());
@@ -405,56 +453,53 @@ void library_window::show_dirpath_content(
                           "%.*s",
                           dir.path.ssize(),
                           dir.path.data())) {
-        dir.children.read([&](const auto& vec, const auto /*vers*/) noexcept {
-            std::ranges::for_each(vec, [&](const auto file_id) noexcept {
-                app.mod.files.read(
-                  [&](const auto& fs, const auto /*vers*/) noexcept {
-                      const auto* file = fs.file_paths.try_to_get(file_id);
-                      if (file == nullptr)
-                          return;
+        std::ranges::for_each(dir.children, [&](const auto file_id) noexcept {
+            app.mod.files.read([&](const auto& fs,
+                                   const auto /*vers*/) noexcept {
+                const auto* file = fs.file_paths.try_to_get(file_id);
+                if (file == nullptr)
+                    return;
 
-                      ImGui::PushID(file);
+                ImGui::PushID(file);
 
-                      switch (file->type) {
-                      case file_path::file_type::data_file:
-                          break;
+                switch (file->type) {
+                case file_path::file_type::data_file:
+                    break;
 
-                      case file_path::file_type::dot_file:
-                          break;
+                case file_path::file_type::dot_file:
+                    break;
 
-                      case file_path::file_type::irt_file: {
-                          if (flags[file_type::component]) {
-                              auto* compo =
-                                app.mod.components.try_to_get<component>(
-                                  file->component);
+                case file_path::file_type::irt_file: {
+                    if (flags[file_type::component]) {
+                        auto* compo = app.mod.components.try_to_get<component>(
+                          file->component);
 
-                              if (not compo)
-                                  return;
+                        if (not compo)
+                            return;
 
-                              show_file_component(*file, *compo);
-                          }
-                          break;
-                      }
+                        show_file_component(*file, *compo);
+                    }
+                    break;
+                }
 
-                      case file_path::file_type::txt_file:
-                          break;
+                case file_path::file_type::txt_file:
+                    break;
 
-                      case file_path::file_type::undefined_file:
-                          break;
+                case file_path::file_type::undefined_file:
+                    break;
 
-                      case file_path::file_type::project_file:
-                          if (flags[file_type::project]) {
-                              show_file_project(*file);
-                          }
-                          break;
-                      }
+                case file_path::file_type::project_file:
+                    if (flags[file_type::project]) {
+                        show_file_project(file_id);
+                    }
+                    break;
+                }
 
-                      ImGui::PopID();
-                  });
+                ImGui::PopID();
             });
-
-            ImGui::TreePop();
         });
+
+        ImGui::TreePop();
     }
 }
 

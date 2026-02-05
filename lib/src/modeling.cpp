@@ -710,6 +710,8 @@ auto modeling::search_graph_id(const dir_path_id  dir_id,
                     if (g.file == file_id)
                         return graphs.get_id(g);
             }
+
+        return undefined<graph_id>();
     });
 
     return undefined<graph_id>();

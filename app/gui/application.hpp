@@ -1330,7 +1330,7 @@ private:
     void show_dirpath_content(dir_path&, const bitflags<file_type>) noexcept;
     void show_notsaved_content(const bitflags<file_type>) noexcept;
     void show_file_component(const file_path&, const component&) noexcept;
-    void show_file_project(file_path&) noexcept;
+    void show_file_project(const file_path_id) noexcept;
 };
 
 class settings_window

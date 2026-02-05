@@ -3248,15 +3248,17 @@ struct json_dearchiver::impl {
 
         if (read) {
             mod().files.read([&](const auto& fs, const auto /*vers*/) {
-                const auto r_id = fs.find_registry_by_name(reg_path.sv());
+                const auto r_id = fs.find_registred_path_by_name(reg_path.sv());
                 const auto dir_id =
                   fs.find_directory_in_registry(r_id, dir_path.sv());
                 const auto file_id =
                   fs.find_file_in_directory(dir_id, file_path.sv());
 
-                search_dir(reg_path.sv(), dir_path.sv(), graph.param.dot.dir) &&
-                  search_file(
-                    graph.param.dot.dir, file_path.sv(), graph.param.dot.file);
+                if (fs.dir_paths.try_to_get(dir_id))
+                    graph.param.dot.dir = dir_id;
+
+                if (fs.file_paths.try_to_get(file_id))
+                    graph.param.dot.file = file_id;
             });
         }
     }
@@ -4096,7 +4098,7 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               modeling_copy_component_id(
+               try_modeling_copy_component_id(
                  reg_name, dir_path, file_path, c_id) &&
                project_set(c_id);
     }
