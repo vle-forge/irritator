@@ -240,31 +240,32 @@ int main()
         irt::registred_path_str temp_path;
         expect(fatal(get_temp_registred_path(temp_path)));
 
-        auto& reg = mod.alloc_registred("temp", 0);
-        reg.path  = temp_path;
+        mod.files.write([&](auto& fs) {
+            auto  reg_id = fs.alloc_registred("temp", 0);
+            auto& reg    = fs.registred_paths.get(reg_id);
+            reg.path     = temp_path;
 
-        expect(eq(mod.components.size(), 0u));
-        expect(eq(mod.generic_components.size(), 0u));
+            expect(eq(mod.components.size(), 0u));
+            expect(eq(mod.generic_components.size(), 0u));
 
-        expect(fatal(mod.fill_components().has_value()));
-        expect(ge(mod.components.size(), 1u));
-        expect(ge(mod.generic_components.size(), 1u));
+            expect(fatal(fs.fill_components(mod).has_value()));
+            expect(ge(mod.components.size(), 1u));
+            expect(ge(mod.generic_components.size(), 1u));
+        });
 
-        auto p_id = [&mod]() noexcept {
-            for (const auto& p : mod.dir_paths)
-                if (p.path == "test")
-                    return mod.dir_paths.get_id(p);
-            return irt::undefined<irt::dir_path_id>();
-        }();
+        const auto p_id =
+          mod.files.read([&](const irt::modeling::file_access& fs,
+                             const auto /*vers*/) noexcept {
+              return fs.find_directory("test"sv);
+          });
 
         expect(fatal(irt::is_defined(p_id)));
 
-        auto f_id = [&mod, p_id]() noexcept {
-            for (const auto& f : mod.file_paths)
-                if (f.parent == p_id and f.path == "external-source.irt")
-                    return mod.file_paths.get_id(f);
-            return irt::undefined<irt::file_path_id>();
-        }();
+        const auto f_id =
+          mod.files.read([&](const irt::modeling::file_access& fs,
+                             const auto /*vers*/) noexcept {
+              return fs.find_file_in_directory(p_id, "external-source.irt");
+          });
 
         expect(fatal(irt::is_defined(f_id)));
 

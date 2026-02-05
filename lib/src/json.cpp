@@ -3247,20 +3247,18 @@ struct json_dearchiver::impl {
           });
 
         if (read) {
-            mod().read([&](const auto& fs, const auto /*vers*/) {
+            mod().files.read([&](const auto& fs, const auto /*vers*/) {
                 const auto r_id = fs.find_registry_by_name(reg_path.sv());
                 const auto dir_id =
-                  fs.fs.find_directory_in_registry(r_id, dir_path.sv());
+                  fs.find_directory_in_registry(r_id, dir_path.sv());
                 const auto file_id =
-                  fs.fs.find_file_in_directory(dir_id, file_path.sv());
+                  fs.find_file_in_directory(dir_id, file_path.sv());
 
                 search_dir(reg_path.sv(), dir_path.sv(), graph.param.dot.dir) &&
                   search_file(
                     graph.param.dot.dir, file_path.sv(), graph.param.dot.file);
-
             });
         }
-
     }
 
     bool read_scale_free_graph_param(const rapidjson::Value& val,
@@ -3822,26 +3820,27 @@ struct json_dearchiver::impl {
                      std::string_view      dir,
                      std::string_view      file) noexcept
     {
-        registred_path* reg_ptr = search_reg(reg);
-        dir_path_id     dir_id{};
-        file_path_id    file_id{};
+        const auto success = mod().files.read(
+          [&](const modeling::file_access& fs, const auto /*vers*/) {
+              const auto r_id = fs.find_registred_path_by_name(reg);
+              const auto d_id = is_defined(r_id)
+                                  ? fs.find_directory_in_registry(r_id, dir)
+                                  : fs.find_directory(dir);
+              const auto f_id = is_defined(d_id)
+                                  ? fs.find_file_in_directory(d_id, file)
+                                  : undefined<file_path_id>();
 
-        if (reg_ptr)
-            dir_id = search_dir_in_reg(*reg_ptr, dir);
+              if (is_defined(f_id)) {
+                  sim.dir_id  = d_id;
+                  sim.file_id = f_id;
+                  return true;
+              }
 
-        if (is_undefined(dir_id))
-            dir_id = search_dir(dir);
+              return false;
+          });
 
-        if (is_defined(dir_id))
-            file_id = search_file(mod().dir_paths.get(dir_id), file);
-
-        if (is_defined(file_id)) {
-            sim.dir_id  = dir_id;
-            sim.file_id = file_id;
-            return true;
-        }
-
-        warning("Simulation component fail to access project");
+        if (not success)
+            warning("Simulation component fail to access project");
 
         return true;
     }
@@ -6837,18 +6836,6 @@ status json_archiver::operator()(project&     pj,
         return new_error(project_errc::empty_project);
 
     debug::ensure(mod.components.get_id(*compo) == parent->id);
-
-    auto* file = mod.file_paths.try_to_get(compo->file);
-    if (!file)
-        return new_error(modeling_errc::file_error);
-
-    auto* dir = mod.dir_paths.try_to_get(file->parent);
-    if (!dir)
-        return new_error(modeling_errc::directory_error);
-
-    auto* reg = mod.registred_paths.try_to_get(dir->parent);
-    if (!reg)
-        return new_error(modeling_errc::recorded_directory_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     clear();

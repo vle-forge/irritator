@@ -24,40 +24,36 @@ static const std::string_view extensions[] = { "", ".dot", ".irt" };
 
 static constexpr const char* empty = "-";
 
-static auto get_reg_preview(const application&      app,
+static auto get_reg_preview(const modeling::file_access& fs,
                             const registred_path_id id) noexcept -> const char*
 {
-    if (auto* reg = app.mod.registred_paths.try_to_get(id)) {
-        return reg->name.c_str();
-    } else {
-        return empty;
-    }
+    const auto* reg = fs.registred_paths.try_to_get(id);
+
+    return reg ? reg->name.c_str() : empty;
 }
 
-static auto get_dir_preview(const application& app,
-                            const dir_path_id  id) noexcept -> const char*
+static auto get_dir_preview(const modeling::file_access& fs,
+                            const dir_path_id id) noexcept -> const char*
 {
-    if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
-        return dir->path.c_str();
-    } else {
-        return empty;
-    }
+    const auto* dir = fs.dir_paths.try_to_get(id);
+
+    return dir ? dir->path.c_str() : empty;
 }
 
-static auto combobox_reg(application& app, registred_path_id& in_out) noexcept
-  -> bool
+static auto combobox_reg(const modeling::file_access& fs,
+                         registred_path_id&           in_out) noexcept -> bool
 {
-    const char* reg_preview = get_reg_preview(app, in_out);
+    const char* reg_preview = get_reg_preview(fs, in_out);
     auto        ret         = false;
 
     if (ImGui::BeginCombo("Path", reg_preview)) {
         int i = 0;
-        for (auto& reg : app.mod.registred_paths) {
+        for (const auto& reg : fs.registred_paths) {
             if (reg.status == registred_path::state::error)
                 continue;
 
             ImGui::PushID(i++);
-            const auto id = app.mod.registred_paths.get_id(reg);
+            const auto id = fs.registred_paths.get_id(reg);
             if (ImGui::Selectable(
                   reg.path.c_str(), in_out == id, ImGuiSelectableFlags_None)) {
                 in_out = id;
@@ -72,13 +68,12 @@ static auto combobox_reg(application& app, registred_path_id& in_out) noexcept
     return ret;
 }
 
-static auto combobox_dir(application&          app,
-                         const registred_path& reg,
-                         dir_path_id&          in_out) noexcept -> bool
+static auto combobox_dir(const modeling::file_access& fs,
+                         const registred_path&        reg,
+                         dir_path_id&                 in_out) noexcept -> bool
 {
-
     auto  ret         = false;
-    auto* dir_preview = get_dir_preview(app, in_out);
+    auto* dir_preview = get_dir_preview(fs, in_out);
 
     if (ImGui::BeginCombo("Dir", dir_preview)) {
         ImGui::PushID(0);
@@ -88,26 +83,19 @@ static auto combobox_dir(application&          app,
         }
         ImGui::PopID();
 
-        ret =
-          ret or
-          reg.children.read([&](const auto& vec,
-                                const auto /*version*/) noexcept -> bool {
-              auto has_changes = false;
-              for (const auto id : vec) {
-                  if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
-                      ImGui::PushID(get_index(id));
+        for (const auto id : reg.children) {
+            if (const auto* dir = fs.dir_paths.try_to_get(id)) {
+                ImGui::PushID(dir);
 
-                      if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
-                          in_out      = id;
-                          has_changes = true;
-                      }
+                if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
+                    in_out = id;
+                    ret    = true;
+                }
 
-                      ImGui::PopID();
-                  }
-              }
+                ImGui::PopID();
+            }
+        }
 
-              return has_changes;
-          });
         ImGui::EndCombo();
     }
 
