@@ -851,8 +851,7 @@ int main()
                 get_temp_registred_path(reg.path);
                 fs.create_directories(reg_id);
 
-                auto  dir_id = fs.alloc_dir(reg_id, "dir-temp");
-                auto& dir    = fs.dir_paths.get(dir_id);
+                auto dir_id = fs.alloc_dir(reg_id, "dir-temp");
                 fs.create_directories(dir_id);
 
                 for (int i = 0, e = irt::internal_component_count; i != e;

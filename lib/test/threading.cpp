@@ -800,6 +800,7 @@ int main()
             });
         }
 
+        stop = true;
         for (auto& t : threads) {
             t.join();
         }

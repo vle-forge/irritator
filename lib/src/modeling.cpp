@@ -758,7 +758,7 @@ file_path_id modeling::file_access::alloc_file(
             file.component = compo_id;
             file.pj_id     = project_id;
             file.parent    = id;
-            file.type      = file_path::file_type::undefined_file;
+            file.type      = type;
             d->children.push_back(fid);
             return fid;
         }

@@ -3226,7 +3226,7 @@ struct json_dearchiver::impl {
     bool read_dot_graph_param(const rapidjson::Value& val,
                               graph_component&        graph) noexcept
     {
-        auto_stack s(this, "read dot graph paramters");
+        auto_stack s(this, "read dot graph parameters");
 
         name_str           reg_path;
         directory_path_str dir_path;
@@ -3256,11 +3256,21 @@ struct json_dearchiver::impl {
 
                 if (fs.dir_paths.try_to_get(dir_id))
                     graph.param.dot.dir = dir_id;
+                else
+                    warning("graph-component: fail to found directory {}",
+                            dir_path.sv());
 
                 if (fs.file_paths.try_to_get(file_id))
                     graph.param.dot.file = file_id;
+                else
+                    warning("graph-component: fail to found file {}",
+                            file_path.sv());
             });
+
+            return true;
         }
+
+        return read;
     }
 
     bool read_scale_free_graph_param(const rapidjson::Value& val,
