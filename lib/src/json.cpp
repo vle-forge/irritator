@@ -1766,7 +1766,7 @@ struct json_dearchiver::impl {
     {
         const auto mod_id = mod().files.read(
           [&](const auto& fs, const auto /*vers*/) noexcept -> component_id {
-              const auto reg_id = fs.find_registry_by_name(reg.sv());
+              const auto reg_id = fs.find_registred_path_by_name(reg.sv());
               const auto dir_id =
                 is_defined(reg_id)
                   ? fs.find_directory_in_registry(reg_id, dir.sv())
@@ -5337,11 +5337,13 @@ struct json_archiver::impl {
       const external_source_definition::binary_source& bin,
       Writer&                                          w) noexcept
     {
-        if (const auto* f = mod.file_paths.try_to_get(bin.file)) {
-            w.Key("path");
-            w.String(f->path.data(),
-                     static_cast<rapidjson::SizeType>(f->path.size()));
-        }
+        mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            if (const auto* f = fs.file_paths.try_to_get(bin.file)) {
+                w.Key("path");
+                w.String(f->path.data(),
+                         static_cast<rapidjson::SizeType>(f->path.size()));
+            }
+        });
     }
 
     template<typename Writer>
@@ -5349,11 +5351,13 @@ struct json_archiver::impl {
                            const external_source_definition::text_source& txt,
                            Writer& w) noexcept
     {
-        if (const auto* f = mod.file_paths.try_to_get(txt.file)) {
-            w.Key("path");
-            w.String(f->path.data(),
-                     static_cast<rapidjson::SizeType>(f->path.size()));
-        }
+        mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            if (const auto* f = fs.file_paths.try_to_get(txt.file)) {
+                w.Key("path");
+                w.String(f->path.data(),
+                         static_cast<rapidjson::SizeType>(f->path.size()));
+            }
+        });
     }
 
     template<typename Writer>
@@ -5496,18 +5500,20 @@ struct json_archiver::impl {
                                     const component& compo,
                                     Writer&          w) noexcept
     {
-        if (auto* file = mod.file_paths.try_to_get(compo.file)) {
-            if (auto* dir = mod.dir_paths.try_to_get(file->parent)) {
-                if (auto* reg = mod.registred_paths.try_to_get(dir->parent)) {
-                    debug::ensure(not reg->path.empty());
-                    debug::ensure(not reg->name.empty());
-                    debug::ensure(not dir->path.empty());
-                    debug::ensure(not file->path.empty());
+        mod.files.read([&](const auto& fs, const auto /* vers */) {
+            if (auto* f = fs.file_paths.try_to_get(compo.file)) {
+                if (auto* d = fs.dir_paths.try_to_get(f->parent)) {
+                    if (auto* r = fs.registred_paths.try_to_get(d->parent)) {
+                        debug::ensure(not r->path.empty());
+                        debug::ensure(not r->name.empty());
+                        debug::ensure(not d->path.empty());
+                        debug::ensure(not f->path.empty());
 
-                    write_child_component_path(w, *reg, *dir, *file);
+                        write_child_component_path(w, *r, *d, *f);
+                    }
                 }
             }
-        }
+        });
     }
 
     template<typename Writer>
@@ -5987,42 +5993,45 @@ struct json_archiver::impl {
             auto&      p    = g.param.dot;
             dir_path*  dir  = nullptr;
             file_path* file = nullptr;
-            if (dir = mod.dir_paths.try_to_get(p.dir); dir) {
-                w.Key("dir");
-                w.String(dir->path.begin(), dir->path.size());
-            }
 
-            if (file = mod.file_paths.try_to_get(p.file); file) {
-                w.Key("file");
-                w.String(file->path.begin(), file->path.size());
-            }
-
-            if (dir and file) {
-                if (auto f = make_file(mod, *file); f.has_value()) {
-                    if (not write_dot_file(mod, g.g, *f)) {
-                        mod.journal.push(
-                          log_level::error,
-                          [](auto&       t,
-                             auto&       m,
-                             const auto& dir,
-                             const auto& file) noexcept {
-                              t = "Fail to write dot file";
-                              format(m,
-                                     "Fail to write {} in {}",
-                                     dir.path.c_str(),
-                                     file.path.c_str());
-                          },
-                          *dir,
-                          *file);
-                    }
+            mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                if (dir = fs.dir_paths.try_to_get(p.dir); dir) {
+                    w.Key("dir");
+                    w.String(dir->path.begin(), dir->path.size());
                 }
-            } else {
-                mod.journal.push(log_level::error,
-                                 [](auto& t, auto& m) noexcept {
-                                     t = "Fail to write dot file";
-                                     m = "File path is undefined";
-                                 });
-            }
+
+                if (file = fs.file_paths.try_to_get(p.file); file) {
+                    w.Key("file");
+                    w.String(file->path.begin(), file->path.size());
+                }
+
+                if (dir and file) {
+                    if (auto f = make_file(mod, *file); f.has_value()) {
+                        if (not write_dot_file(mod, g.g, *f)) {
+                            mod.journal.push(
+                              log_level::error,
+                              [](auto&       t,
+                                 auto&       m,
+                                 const auto& dir,
+                                 const auto& file) noexcept {
+                                  t = "Fail to write dot file";
+                                  format(m,
+                                         "Fail to write {} in {}",
+                                         dir.path.c_str(),
+                                         file.path.c_str());
+                              },
+                              *dir,
+                              *file);
+                        }
+                    }
+                } else {
+                    mod.journal.push(log_level::error,
+                                     [](auto& t, auto& m) noexcept {
+                                         t = "Fail to write dot file";
+                                         m = "File path is undefined";
+                                     });
+                }
+            });
             break;
         }
 
@@ -6238,19 +6247,21 @@ struct json_archiver::impl {
                                     const simulation_component& sim,
                                     Writer&                     w) noexcept
     {
-        if (auto* dir = mod.dir_paths.try_to_get(sim.dir_id)) {
-            const auto view = dir->path.sv();
-            w.Key("directory");
-            w.String(view.data(),
-                     static_cast<rapidjson::SizeType>(view.size()));
-        }
+        mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            if (auto* dir = fs.dir_paths.try_to_get(sim.dir_id)) {
+                const auto view = dir->path.sv();
+                w.Key("directory");
+                w.String(view.data(),
+                         static_cast<rapidjson::SizeType>(view.size()));
+            }
 
-        if (auto* file = mod.file_paths.try_to_get(sim.file_id)) {
-            const auto view = file->path.sv();
-            w.Key("file");
-            w.String(view.data(),
-                     static_cast<rapidjson::SizeType>(view.size()));
-        }
+            if (auto* file = fs.file_paths.try_to_get(sim.file_id)) {
+                const auto view = file->path.sv();
+                w.Key("file");
+                w.String(view.data(),
+                         static_cast<rapidjson::SizeType>(view.size()));
+            }
+        });
     }
 
     template<typename Writer>
@@ -6575,39 +6586,42 @@ struct json_archiver::impl {
                            modeling&  mod,
                            component& compo) noexcept
     {
-        auto* file = mod.file_paths.try_to_get(compo.file);
-        if (!file)
-            return new_error(modeling_errc::file_error);
-        if (file->path.empty())
-            return new_error(modeling_errc::file_error);
+        return mod.files.read(
+          [&](const auto& fs, const auto /*vers*/) -> status {
+              const auto* file = fs.file_paths.try_to_get(compo.file);
+              if (!file)
+                  return new_error(modeling_errc::file_error);
+              if (file->path.empty())
+                  return new_error(modeling_errc::file_error);
 
-        auto* dir = mod.dir_paths.try_to_get(file->parent);
-        if (!dir)
-            return new_error(modeling_errc::directory_error);
-        if (dir->path.empty())
-            return new_error(modeling_errc::directory_error);
+              const auto* dir = fs.dir_paths.try_to_get(file->parent);
+              if (!dir)
+                  return new_error(modeling_errc::directory_error);
+              if (dir->path.empty())
+                  return new_error(modeling_errc::directory_error);
 
-        auto* reg = mod.registred_paths.try_to_get(dir->parent);
-        if (!reg)
-            return new_error(modeling_errc::recorded_directory_error);
-        if (reg->path.empty())
-            return new_error(modeling_errc::directory_error);
-        if (reg->name.empty())
-            return new_error(modeling_errc::file_error);
+              const auto* reg = fs.registred_paths.try_to_get(dir->parent);
+              if (!reg)
+                  return new_error(modeling_errc::recorded_directory_error);
+              if (reg->path.empty())
+                  return new_error(modeling_errc::directory_error);
+              if (reg->name.empty())
+                  return new_error(modeling_errc::file_error);
 
-        w.StartObject();
+              w.StartObject();
 
-        w.Key("begin");
-        w.Double(pj.sim.limits.begin());
-        w.Key("end");
-        w.Double(pj.sim.limits.end());
+              w.Key("begin");
+              w.Double(pj.sim.limits.begin());
+              w.Key("end");
+              w.Double(pj.sim.limits.end());
 
-        do_project_save_component(w, compo, *reg, *dir, *file);
-        do_project_save_parameters(w, pj);
-        do_project_save_observations(w, pj);
-        w.EndObject();
+              do_project_save_component(w, compo, *reg, *dir, *file);
+              do_project_save_parameters(w, pj);
+              do_project_save_observations(w, pj);
+              w.EndObject();
 
-        return success();
+              return success();
+          });
     }
 };
 

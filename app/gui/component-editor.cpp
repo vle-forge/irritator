@@ -549,10 +549,12 @@ struct component_editor::impl {
         return dir_id;
     }
 
-    static auto create_dir_path(application&            app,
+    static auto create_dir_path(application&                        app,
+                                atomic_request_buffer<dir_path_id>& newdir,
                                 const registred_path_id r_id) noexcept -> void
     {
         small_string<63> new_dir_name;
+
         if (ImGui::InputFilteredString("New dir.##dir", new_dir_name)) {
             const auto dir_exist =
               app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
@@ -566,8 +568,36 @@ struct component_editor::impl {
                   return false;
               });
 
-            if (not dir_exist)
-                app.add_new_dir_task(r_id, new_dir_name.sv());
+            if (not dir_exist and newdir.should_request()) {
+                app.add_gui_task([&app, &r_id, &newdir, new_dir_name]() {
+                    const auto dir_id = app.mod.files.write([&](auto& fs) {
+                        const auto id = fs.alloc_dir(r_id, new_dir_name.sv());
+                        if (is_undefined(id)) {
+                            app.jn.push(
+                              log_level::error,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  format(title,
+                                         "Fail to create directory {}",
+                                         new_dir_name.sv());
+                              });
+                        } else {
+                            if (not fs.create_directories(id)) {
+                                app.jn.push(
+                                  log_level::error,
+                                  [&](auto& title, auto& /*msg*/) noexcept {
+                                      format(title,
+                                             "Fail to create directory {}",
+                                             new_dir_name.sv());
+                                  });
+                            }
+                        }
+
+                        return id;
+                    });
+
+                    newdir.fulfill(dir_id);
+                });
+            }
         }
     }
 
@@ -651,9 +681,15 @@ struct component_editor::impl {
 
         if (const auto dir = select_dir_path(app.mod, tab.reg, tab.dir);
             is_undefined(dir)) {
-            if (const auto new_dir_id = app.get_dir_path();
-                is_undefined(new_dir_id))
-                create_dir_path(app, tab.reg);
+            if (const auto newdir = tab.new_dir.try_take()) {
+                if (is_defined(*newdir)) {
+                    tab.dir = *newdir;
+                }
+            } else {
+                create_dir_path(app, tab.new_dir, tab.reg);
+            }
+        } else {
+            tab.dir = dir;
         }
 
         if (is_defined(tab.reg) and is_defined(tab.dir)) {
@@ -2347,19 +2383,17 @@ void component_editor::request_to_open(const component_id id) noexcept
         switch (compo.type) {
         case component_type::generic:
             if (app.generics.can_alloc(1)) {
-                tabs.push_back(component_editor::tab{
-                  .id   = id,
-                  .type = component_type::generic,
-                  .reg  = reg_id,
-                  .dir  = dir_id,
-                  .file = file_id,
-                  .data{
-                    .generic = app.generics.get_id(app.generics.alloc(
-                      id,
-                      compo,
-                      compo.id.generic_id,
-                      app.mod.generic_components.get(compo.id.generic_id))) },
-                });
+                auto& t           = tabs.emplace_back();
+                t.id              = id;
+                t.type            = component_type::generic;
+                t.reg             = reg_id;
+                t.dir             = dir_id;
+                t.file            = file_id;
+                t.data.generic    = app.generics.get_id(app.generics.alloc(
+                  id,
+                  compo,
+                  compo.id.generic_id,
+                  app.mod.generic_components.get(compo.id.generic_id)));
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
@@ -2367,14 +2401,14 @@ void component_editor::request_to_open(const component_id id) noexcept
 
         case component_type::grid:
             if (app.grids.can_alloc(1)) {
-                tabs.push_back(component_editor::tab{
-                  .id   = id,
-                  .type = component_type::grid,
-                  .reg  = reg_id,
-                  .dir  = dir_id,
-                  .file = file_id,
-                  .data{ .grid = app.grids.get_id(
-                           app.grids.alloc(id, compo.id.grid_id)) } });
+                auto& t = tabs.emplace_back();
+                t.id    = id;
+                t.type  = component_type::grid;
+                t.reg   = reg_id;
+                t.dir   = dir_id;
+                t.file  = file_id;
+                t.data.grid =
+                  app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
@@ -2382,14 +2416,11 @@ void component_editor::request_to_open(const component_id id) noexcept
 
         case component_type::graph:
             if (app.graphs.can_alloc(1)) {
-                tabs.push_back(component_editor::tab{
-                  .id   = id,
-                  .type = component_type::graph,
-                  .reg  = reg_id,
-                  .dir  = dir_id,
-                  .file = file_id,
-                  .data{ .graph = app.graphs.get_id(
-                           app.graphs.alloc(id, compo.id.graph_id)) } });
+                auto& t = tabs.emplace_back();
+                t.id = id, t.type = component_type::graph, t.reg = reg_id,
+                t.dir = dir_id, t.file = file_id,
+                t.data.graph =
+                  app.graphs.get_id(app.graphs.alloc(id, compo.id.graph_id));
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
@@ -2397,16 +2428,13 @@ void component_editor::request_to_open(const component_id id) noexcept
 
         case component_type::hsm:
             if (app.hsms.can_alloc(1)) {
-                tabs.push_back(component_editor::tab{
-                  .id   = id,
-                  .type = component_type::hsm,
-                  .reg  = reg_id,
-                  .dir  = dir_id,
-                  .file = file_id,
-                  .data{ .hsm = app.hsms.get_id(app.hsms.alloc(
-                           id,
-                           compo.id.hsm_id,
-                           app.mod.hsm_components.get(compo.id.hsm_id))) } });
+                auto& t = tabs.emplace_back();
+                t.id = id, t.type = component_type::hsm, t.reg = reg_id,
+                t.dir = dir_id, t.file = file_id,
+                t.data.hsm = app.hsms.get_id(
+                  app.hsms.alloc(id,
+                                 compo.id.hsm_id,
+                                 app.mod.hsm_components.get(compo.id.hsm_id)));
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
@@ -2414,16 +2442,16 @@ void component_editor::request_to_open(const component_id id) noexcept
 
         case component_type::simulation:
             if (app.sims.can_alloc(1)) {
-                tabs.push_back(component_editor::tab{
-                  .id   = id,
-                  .type = component_type::simulation,
-                  .reg  = reg_id,
-                  .dir  = dir_id,
-                  .file = file_id,
-                  .data{ .sim = app.sims.get_id(app.sims.alloc(
-                           id,
-                           compo.id.sim_id,
-                           app.mod.sim_components.get(compo.id.sim_id))) } });
+                auto& t    = tabs.emplace_back();
+                t.id       = id;
+                t.type     = component_type::simulation;
+                t.reg      = reg_id;
+                t.dir      = dir_id;
+                t.file     = file_id;
+                t.data.sim = app.sims.get_id(
+                  app.sims.alloc(id,
+                                 compo.id.sim_id,
+                                 app.mod.sim_components.get(compo.id.sim_id)));
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);

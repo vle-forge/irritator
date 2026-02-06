@@ -10,13 +10,10 @@
 #include <irritator/modeling.hpp>
 
 #include "application.hpp"
-#include "dialog.hpp"
 #include "internal.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
-
-#include <mutex>
 
 namespace irt {
 
@@ -41,24 +38,22 @@ static auto get_dir_preview(const modeling::file_access& fs,
 }
 
 static auto combobox_reg(const modeling::file_access& fs,
-                         registred_path_id&           in_out) noexcept -> bool
+                         const registred_path_id      reg_id) noexcept
+  -> registred_path_id
 {
-    const char* reg_preview = get_reg_preview(fs, in_out);
-    auto        ret         = false;
+    const char* preview = get_reg_preview(fs, reg_id);
+    auto        ret     = undefined<registred_path_id>();
 
-    if (ImGui::BeginCombo("Path", reg_preview)) {
-        int i = 0;
+    if (ImGui::BeginCombo("Path", preview)) {
         for (const auto& reg : fs.registred_paths) {
             if (reg.status == registred_path::state::error)
                 continue;
 
-            ImGui::PushID(i++);
+            ImGui::PushID(&reg);
             const auto id = fs.registred_paths.get_id(reg);
             if (ImGui::Selectable(
-                  reg.path.c_str(), in_out == id, ImGuiSelectableFlags_None)) {
-                in_out = id;
-                ret    = true;
-            }
+                  reg.path.c_str(), reg_id == id, ImGuiSelectableFlags_None))
+                ret = id;
             ImGui::PopID();
         }
 
@@ -70,28 +65,23 @@ static auto combobox_reg(const modeling::file_access& fs,
 
 static auto combobox_dir(const modeling::file_access& fs,
                          const registred_path&        reg,
-                         dir_path_id&                 in_out) noexcept -> bool
+                         const dir_path_id dir_id) noexcept -> dir_path_id
 {
-    auto  ret         = false;
-    auto* dir_preview = get_dir_preview(fs, in_out);
+    auto* dir_preview = get_dir_preview(fs, dir_id);
+    auto  ret         = undefined<dir_path_id>();
 
     if (ImGui::BeginCombo("Dir", dir_preview)) {
         ImGui::PushID(0);
-        if (ImGui::Selectable("##empty-dir", is_undefined(in_out))) {
-            in_out = undefined<dir_path_id>();
-            ret    = true;
+        if (ImGui::Selectable("##empty-dir", is_undefined(dir_id))) {
+            ret = undefined<dir_path_id>();
         }
         ImGui::PopID();
 
         for (const auto id : reg.children) {
             if (const auto* dir = fs.dir_paths.try_to_get(id)) {
                 ImGui::PushID(dir);
-
-                if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
-                    in_out = id;
-                    ret    = true;
-                }
-
+                if (ImGui::Selectable(dir->path.c_str(), dir_id == id))
+                    ret = id;
                 ImGui::PopID();
             }
         }
@@ -102,44 +92,44 @@ static auto combobox_dir(const modeling::file_access& fs,
     return ret;
 }
 
-static auto combobox_newdir(application&    app,
-                            registred_path& reg,
-                            dir_path_id&    in_out) noexcept -> bool
+static void alloc_dir_task(application&                        app,
+                           const registred_path_id             parent,
+                           const std::string_view              name,
+                           atomic_request_buffer<dir_path_id>& new_dir) noexcept
 {
-    auto ret = false;
+    app.add_gui_task([&app, &new_dir, parent, name]() {
+        app.mod.files.write([&](auto& fs) {
+            const auto newdir_id = fs.alloc_dir(parent, name);
+            fs.create_directories(newdir_id);
+            new_dir.fulfill(newdir_id);
+        });
+    });
+}
 
-    if (auto* dir = app.mod.dir_paths.try_to_get(in_out); not dir) {
-        directory_path_str dir_name;
+static void combobox_newdir(application&                        app,
+                            atomic_request_buffer<dir_path_id>& new_dir,
+                            const modeling::file_access&        fs,
+                            const registred_path_id             reg_id,
+                            dir_path_id&                        in_out) noexcept
+{
+    debug::ensure(fs.dir_paths.try_to_get(in_out) == nullptr);
 
-        if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-            if (reg.exists(app.mod.dir_paths, dir_name.sv())) {
-                auto& new_dir  = app.mod.dir_paths.alloc();
-                auto  dir_id   = app.mod.dir_paths.get_id(new_dir);
-                auto  reg_id   = app.mod.registred_paths.get_id(reg);
-                new_dir.parent = reg_id;
-                new_dir.path   = dir_name;
-                new_dir.status = dir_path::state::unread;
+    if (fs.dir_paths.try_to_get(in_out) == nullptr) {
+        if (const auto newdir_id = new_dir.try_take()) {
+            in_out = *newdir_id;
+        } else {
+            directory_path_str dir_name;
 
-                reg.children.write(
-                  [&](auto& vec) noexcept { vec.emplace_back(dir_id); });
-                ret = true;
-
-                if (not app.mod.create_directories(new_dir)) {
-                    app.jn.push(
-                      log_level::error, [&](auto& title, auto& msg) noexcept {
-                          format(
-                            title, "Fail to create directory ", dir_name.sv());
-                          format(msg,
-                                 "Error in recorded name `{}' path`{}'",
-                                 reg.name.sv(),
-                                 reg.path.sv());
-                      });
+            if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
+                if (fs.find_directory_in_registry(reg_id, dir_name.sv()) ==
+                    undefined<dir_path_id>()) {
+                    if (new_dir.should_request()) {
+                        alloc_dir_task(app, reg_id, dir_name.sv(), new_dir);
+                    }
                 }
             }
         }
     }
-
-    return ret;
 }
 
 static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
@@ -168,33 +158,68 @@ static void add_extension(file_path_str&   file,
     }
 }
 
-static auto combobox_file(application&              app,
-                          file_path_selector_option opt,
-                          dir_path&                 dir,
-                          file_path_id&             in_out) noexcept -> bool
+static void copy_file_task(application&       app,
+                           const file_path&   file,
+                           const file_path_id dst) noexcept
 {
-    auto* file = app.mod.file_paths.try_to_get(in_out);
+    app.add_gui_task([&app, file, dst]() noexcept {
+        app.mod.files.write([&](auto& fs) noexcept {
+            if (auto* file_dst = fs.file_paths.try_to_get(dst)) {
+                *file_dst = file;
+            }
+        });
+    });
+}
 
-    if (not file) {
-        auto& f     = app.mod.file_paths.alloc();
-        in_out      = app.mod.file_paths.get_id(f);
-        f.component = undefined<component_id>();
-        f.parent    = app.mod.dir_paths.get_id(dir);
-        f.type      = file_path::file_type::dot_file;
+static void alloc_file_task(
+  application&                         app,
+  const dir_path_id                    parent,
+  atomic_request_buffer<file_path_id>& new_file) noexcept
+{
+    app.add_gui_task([&app, &new_file, parent]() {
+        app.mod.files.write([&](auto& fs) {
+            const auto newfile_id = fs.alloc_file(parent, std::string_view());
 
-        dir.children.write(
-          [&](auto& vec) noexcept { vec.emplace_back(in_out); });
+            new_file.fulfill(newfile_id);
+        });
+    });
+}
 
-        file = &f;
+static auto combobox_file(application&                         app,
+                          atomic_request_buffer<file_path_id>& new_file,
+                          const modeling::file_access&         fs,
+                          const file_path_selector_option      opt,
+                          const dir_path_id                    parent,
+                          const file_path_id file_id) noexcept -> file_path_id
+{
+    auto ret = undefined<file_path_id>();
+
+    if (is_undefined(file_id)) {
+        if (const auto f = new_file.try_take()) {
+            ret = *f;
+        } else if (new_file.should_request()) {
+            app.add_gui_task([&app, &new_file, parent]() {
+                alloc_file_task(app, parent, new_file);
+            });
+        }
+    } else {
+        ret = file_id;
     }
 
-    if (ImGui::InputFilteredString("File##text", file->path)) {
-        if (not end_with(file->path.sv(), opt)) {
-            add_extension(file->path, extensions[ordinal(opt)]);
+    if (is_defined(ret)) {
+        auto&     file = fs.file_paths.get(ret);
+        file_path tmp(file);
+
+        if (ImGui::InputFilteredString("File##text", tmp.path)) {
+            if (not end_with(tmp.path.sv(), opt)) {
+                add_extension(tmp.path, extensions[ordinal(opt)]);
+                if (is_valid_dot_filename(tmp.path.sv()))
+                    copy_file_task(app, tmp, ret);
+            }
         }
     }
 
-    return is_valid_dot_filename(file->path.sv());
+    return ret;
 }
 
 auto get_component_color(const application& app, const component_id id) noexcept
@@ -217,21 +242,31 @@ auto file_path_selector(application&              app,
                         dir_path_id&              dir_id,
                         file_path_id&             file_id) noexcept -> bool
 {
-    auto ret = false;
-    combobox_reg(app, reg_id);
+    return app.mod.files.read(
+      [&](const auto& fs, const auto /*vers*/) noexcept {
+          auto ret = false;
 
-    if (auto* reg = app.mod.registred_paths.try_to_get(reg_id)) {
-        combobox_dir(app, *reg, dir_id);
+          const auto newreg_id = combobox_reg(fs, reg_id);
+          if (auto* reg = fs.registred_paths.try_to_get(newreg_id)) {
+              reg_id = newreg_id;
 
-        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id); not dir)
-            combobox_newdir(app, *reg, dir_id);
+              const auto newdir_id = combobox_dir(fs, *reg, dir_id);
+              if (auto* dir = fs.dir_paths.try_to_get(newdir_id)) {
+                  dir_id = newdir_id;
 
-        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id))
-            if (combobox_file(app, opt, *dir, file_id))
-                ret = true;
-    }
+                  const auto newfile_id =
+                    combobox_file(app, app.new_file, fs, opt, dir_id, file_id);
+                  if (auto* file = fs.file_paths.try_to_get(newfile_id)) {
+                      file_id = newfile_id;
+                      return true;
+                  }
+              } else {
+                  combobox_newdir(app, app.new_dir, fs, newreg_id, dir_id);
+              }
+          }
 
-    return ret;
+          return ret;
+      });
 }
 
 void simulation_to_cpp::show(const project_editor& ed) noexcept
@@ -380,26 +415,32 @@ project_id application::alloc_project_window() noexcept
 
 project_id application::open_project_window(const file_path_id file_id) noexcept
 {
-    auto* file = mod.file_paths.try_to_get(file_id);
-    debug::ensure(file);
-    debug::ensure(is_undefined(file->pj_id));
-
-    if (not file or is_defined(file->pj_id) or not pjs.can_alloc(1))
+    if (not pjs.can_alloc(1))
         return undefined<project_id>();
 
     const auto pj_id = alloc_project_window();
     if (is_undefined(pj_id))
         return undefined<project_id>();
 
-    auto& pj    = pjs.get(pj_id);
-    file->pj_id = pj_id;
+    return mod.files.write([&](auto& fs) {
+        auto* file = fs.file_paths.try_to_get(file_id);
 
-    const auto filename    = file->path.sv();
-    const auto without_ext = filename.substr(0, filename.find_last_of('.'));
+        debug::ensure(file);
+        debug::ensure(is_undefined(file->pj_id));
 
-    pj.set_title_name(without_ext);
+        if (not file or is_defined(file->pj_id))
+            return undefined<project_id>();
 
-    return pj_id;
+        auto& pj    = pjs.get(pj_id);
+        file->pj_id = pj_id;
+
+        const auto filename    = file->path.sv();
+        const auto without_ext = filename.substr(0, filename.find_last_of('.'));
+
+        pj.set_title_name(without_ext);
+
+        return pj_id;
+    });
 }
 
 file_path_id application::close_project_window(const project_id pj_id) noexcept
@@ -411,60 +452,77 @@ file_path_id application::close_project_window(const project_id pj_id) noexcept
         return undefined<file_path_id>();
 
     const auto file_id = pj->pj.file;
-    auto*      file    = mod.file_paths.try_to_get(file_id);
-    if (file)
-        file->pj_id = undefined<project_id>();
+
+    add_gui_task([&, file_id]() {
+        mod.files.write([&](auto& fs) {
+            if (auto* file = fs.file_paths.try_to_get(file_id))
+                file->pj_id = undefined<project_id>();
+
+            return file_id;
+        });
+    });
 
     pjs.free(pj_id);
 
     return file_id;
 }
 
-void application::free_project_window(const project_id id) noexcept
+void application::free_project_window(const project_id pj_id) noexcept
 {
-    const auto file_id = close_project_window(id);
-    if (is_defined(file_id))
-        mod.file_paths.free(file_id);
-}
+    const auto* pj = pjs.try_to_get(pj_id);
+    debug::ensure(pj);
 
-static void init_registred_path(application& app, config_manager& cfg) noexcept
-{
-    cfg.read_write(
-      [](auto& vars, auto& app) noexcept {
-          for (const auto id : vars.rec_paths.ids) {
-              const auto idx = get_index(id);
+    if (not pj)
+        return;
 
-              auto& new_dir    = app.mod.registred_paths.alloc();
-              auto  new_dir_id = app.mod.registred_paths.get_id(new_dir);
-              new_dir.name     = vars.rec_paths.names[idx].sv();
-              new_dir.path     = vars.rec_paths.paths[idx].sv();
-              new_dir.priority = vars.rec_paths.priorities[idx];
+    const auto file_id = pj->pj.file;
 
-              app.jn.push(log_level::info,
-                          [&new_dir](auto& title, auto& msg) noexcept {
-                              title = "New directory registred";
-                              format(msg,
-                                     "{} registred as path `{}' priority: {}",
-                                     new_dir.name.sv(),
-                                     new_dir.path.sv(),
-                                     new_dir.priority);
-                          });
+    add_gui_task([&, file_id]() {
+        mod.files.write([&](auto& fs) {
+            if (auto* file = fs.file_paths.try_to_get(file_id)) {
+                file->pj_id = undefined<project_id>();
+                fs.remove_file(file_id);
+            }
+        });
+    });
 
-              app.mod.component_repertories.emplace_back(new_dir_id);
-          }
-      },
-      app);
+    pjs.free(pj_id);
 }
 
 bool application::init() noexcept
 {
-    init_registred_path(*this, config);
+    config.read_write([this](auto& vars) noexcept {
+        mod.files.write([&](auto& fs) {
+            for (const auto id : vars.rec_paths.ids) {
+                const auto idx = get_index(id);
 
-    if (auto ret = mod.fill_components(); !ret)
-        jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
-            title = "Modeling initialization error";
-            msg   = "Fail to fill read component list";
+                auto& new_dir    = fs.registred_paths.alloc();
+                auto  new_dir_id = fs.registred_paths.get_id(new_dir);
+                new_dir.name     = vars.rec_paths.names[idx].sv();
+                new_dir.path     = vars.rec_paths.paths[idx].sv();
+                new_dir.priority = vars.rec_paths.priorities[idx];
+
+                jn.push(log_level::info,
+                        [&new_dir](auto& title, auto& msg) noexcept {
+                            title = "New directory registred";
+                            format(msg,
+                                   "{} registred as path `{}' priority: {}",
+                                   new_dir.name.sv(),
+                                   new_dir.path.sv(),
+                                   new_dir.priority);
+                        });
+
+                fs.component_repertories.emplace_back(new_dir_id);
+            }
+
+            if (auto ret = fs.fill_components(mod); !ret)
+                jn.push(log_level::warning,
+                        [&](auto& title, auto& msg) noexcept {
+                            title = "Modeling initialization error";
+                            msg   = "Fail to fill read component list";
+                        });
         });
+    });
 
     // Update the component selector in task.
     add_gui_task([&]() noexcept { this->component_sel.update(); });
@@ -1071,76 +1129,6 @@ void application::start_init_source(const project_id  pj_id,
             }
         }
     });
-}
-
-void application::add_new_file_task() noexcept
-{
-    add_gui_task([&]() {
-        const auto f_id = mod.files.write([&](auto& fs) {
-            auto&      f  = fs.file_paths.alloc();
-            const auto id = fs.file_paths.get_id(f);
-            return id;
-        });
-
-        new_file.emplace(f_id);
-    });
-}
-
-file_path_id application::try_get_new_file() noexcept
-{
-    if (const auto value = new_file.try_pop(); value.has_value())
-        return *value;
-
-    return undefined<file_path_id>();
-}
-
-void application::add_new_dir_task(const registred_path_id reg_id,
-                                   const std::string_view  name) noexcept
-{
-    directory_path_str dir_name(name);
-
-    add_gui_task([&, dir_name]() {
-        const auto dir_id = mod.files.write([&](auto& fs) {
-            if (not(fs.dir_paths.can_alloc(1) or
-                    fs.dir_paths.template grow<2, 1>()))
-                return undefined<dir_path_id>();
-
-            auto& r = fs.registred_paths.get(reg_id);
-            if (not(r.children.can_alloc(1) or
-                    r.children.template grow<2, 1>()))
-                return undefined<dir_path_id>();
-
-            auto& new_dir = fs.dir_paths.alloc();
-            auto  dir_id  = fs.dir_paths.get_id(new_dir);
-
-            new_dir.parent = reg_id;
-            new_dir.path   = dir_name;
-            new_dir.status = dir_path::state::unread;
-
-            r.children.emplace_back(dir_id);
-
-            if (not fs.create_directories(dir_id)) {
-                jn.push(log_level::error,
-                        [&](auto& title, auto& /*msg*/) noexcept {
-                            format(title,
-                                   "Fail to create directory {}",
-                                   new_dir.path.sv());
-                        });
-            }
-
-            return dir_id;
-        });
-
-        new_dir.emplace(dir_id);
-    });
-}
-
-dir_path_id application::try_get_dir_path() noexcept
-{
-    if (const auto value = new_dir.try_pop(); value.has_value())
-        return *value;
-
-    return undefined<dir_path_id>();
 }
 
 void application::start_dir_path_refresh(const dir_path_id id) noexcept

@@ -834,7 +834,11 @@ void graph_component_editor_data::graph_component_editor_data::show(
                         graph->g_type = graph_component::graph_type::dot_file;
                         graph->param  = { .dot = { .dir = dir, .file = file } };
                     } else {
-                        app.mod.file_paths.free(file);
+                        app.add_gui_task([&app, id = file]() {
+                            app.mod.files.write(
+                              [&](auto& fs) { fs.remove_file(id); });
+                        });
+
                         clear_file_access();
 
                         app.jn.push(
@@ -848,7 +852,11 @@ void graph_component_editor_data::graph_component_editor_data::show(
                           *f);
                     }
                 } else {
-                    app.mod.file_paths.free(file);
+                    app.add_gui_task([&app, id = file]() {
+                        app.mod.files.write(
+                          [&](auto& fs) { fs.remove_file(id); });
+                    });
+
                     clear_file_access();
                 }
                 show_save = false;

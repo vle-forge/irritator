@@ -155,7 +155,8 @@ void settings_window::show() noexcept
             app.add_gui_task([&app, to_refresh]() {
                 app.mod.files.write([&](auto& fs) {
                     if (auto* reg = fs.registred_paths.try_to_get(to_refresh)) {
-                        if (auto ret = fs.fill_components(*reg); not ret) {
+                        if (auto ret = fs.fill_components(app.mod, *reg);
+                            not ret) {
                             switch (ret.error().cat()) {
                             case category::json:
                                 app.jn.push(

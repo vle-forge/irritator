@@ -746,14 +746,17 @@ component_id modeling::search_component_by_name(
 file_path_id modeling::file_access::alloc_file(
   const dir_path_id          id,
   const std::string_view     name,
-  const file_path::file_type type) noexcept
+  const file_path::file_type type,
+  const component_id         compo_id,
+  const project_id           project_id) noexcept
 {
     if (auto* d = dir_paths.try_to_get(id)) {
         if (file_paths.can_alloc(1) or file_paths.grow<3, 2>()) {
             auto& file     = file_paths.alloc();
             auto  fid      = file_paths.get_id(file);
             file.path      = name;
-            file.component = undefined<component_id>();
+            file.component = compo_id;
+            file.pj_id     = project_id;
             file.parent    = id;
             file.type      = file_path::file_type::undefined_file;
             d->children.push_back(fid);

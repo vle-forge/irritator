@@ -1497,7 +1497,9 @@ public:
           const dir_path_id          id,
           const std::string_view     name = std::string_view(),
           const file_path::file_type type =
-            file_path::file_type::undefined_file) noexcept;
+            file_path::file_type::undefined_file,
+          const component_id component = undefined<component_id>(),
+          const project_id   pj_id     = undefined<project_id>()) noexcept;
 
         dir_path_id alloc_dir(
           const registred_path_id id,
