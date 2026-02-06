@@ -736,6 +736,11 @@ int main()
                 const auto file_c3_id = fs.alloc_file(dir_id, "c3.irt");
                 const auto file_cg_id = fs.alloc_file(dir_id, "cg.irt");
 
+                expect(fatal(fs.file_paths.try_to_get(file_c1_id) != nullptr));
+                expect(fatal(fs.file_paths.try_to_get(file_c2_id) != nullptr));
+                expect(fatal(fs.file_paths.try_to_get(file_c3_id) != nullptr));
+                expect(fatal(fs.file_paths.try_to_get(file_cg_id) != nullptr));
+
                 fs.create_directories(reg_id);
                 fs.create_directories(dir_id);
 

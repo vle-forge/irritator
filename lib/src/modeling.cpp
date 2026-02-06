@@ -372,23 +372,22 @@ static void prepare_component_loading(modeling&              mod,
     }
 }
 
-static void prepare_component_loading(modeling& mod) noexcept
+static void prepare_component_loading(modeling&              mod,
+                                      modeling::file_access& fs) noexcept
 {
-    mod.files.write([&](auto& fs) noexcept {
-        int i = 0;
-        while (i < fs.component_repertories.ssize()) {
-            const auto id      = fs.component_repertories[i];
-            auto*      reg_dir = fs.registred_paths.try_to_get(id);
+    int i = 0;
+    while (i < fs.component_repertories.ssize()) {
+        const auto id      = fs.component_repertories[i];
+        auto*      reg_dir = fs.registred_paths.try_to_get(id);
 
-            if (reg_dir) {
-                prepare_component_loading(mod, fs, *reg_dir);
-                ++i;
-            } else {
-                auto it = fs.component_repertories.begin() + i;
-                fs.component_repertories.erase(it);
-            }
+        if (reg_dir) {
+            prepare_component_loading(mod, fs, *reg_dir);
+            ++i;
+        } else {
+            auto it = fs.component_repertories.begin() + i;
+            fs.component_repertories.erase(it);
         }
-    });
+    }
 }
 
 status modeling::load_component(component& compo) noexcept
@@ -486,7 +485,7 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
 
 status modeling::file_access::fill_components(modeling& mod) noexcept
 {
-    prepare_component_loading(mod);
+    prepare_component_loading(mod, *this);
     bool have_unread_component = mod.components.size() > 0u;
 
     debug_log("{} graphs to load\n", mod.graphs.size());
@@ -779,6 +778,7 @@ dir_path_id modeling::file_access::alloc_dir(
             dir.parent   = id;
             dir.status   = dir_path::state::unread;
             r->children.push_back(dir_id);
+            return dir_id;
         }
     }
 
