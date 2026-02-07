@@ -390,27 +390,22 @@ static void prepare_component_loading(modeling&              mod,
     }
 }
 
-status modeling::load_component(component& compo) noexcept
+status modeling::load_component(const std::filesystem::path& filename,
+                                component&                   compo) noexcept
 {
     try {
-        const auto filename = make_file(*this, compo.file);
-        if (not filename.has_value()) {
-            compo.state = component_status::unreadable;
-            return new_error(modeling_errc::file_error);
-        }
-
-        auto f = file::open(*filename, file_mode{ file_open_options::read });
+        auto f = file::open(filename, file_mode{ file_open_options::read });
 
         if (f.has_value()) {
             json_dearchiver j;
-            if (not j(*this, compo, filename->string(), *f)) {
+            if (not j(*this, compo, filename.string(), *f)) {
                 compo.state = component_status::unreadable;
                 return error_code(modeling_errc::component_load_error);
             }
 
             compo.state = component_status::unmodified;
 
-            auto descfilename = *filename;
+            auto descfilename = filename;
             descfilename.replace_extension(".desc");
             auto ec = std::error_code{};
 
@@ -440,8 +435,10 @@ status modeling::load_component(component& compo) noexcept
             return f.error();
         }
     } catch (const std::bad_alloc& /*e*/) {
+        compo.state = component_status::unreadable;
         return new_error(modeling_errc::memory_error);
     } catch (...) {
+        compo.state = component_status::unreadable;
         return new_error(modeling_errc::memory_error);
     }
 
@@ -492,8 +489,8 @@ status modeling::file_access::fill_components(modeling& mod) noexcept
     for (auto& g : mod.graphs) {
         const auto file_id = g.file;
 
-        if (auto file = make_file(mod, file_id); file.has_value()) {
-            if (auto ret = irt::parse_dot_file(mod, *file); ret.has_value()) {
+        if (const auto file = get_fs_path(file_id)) {
+            if (auto ret = parse_dot_file(mod, *file); ret.has_value()) {
                 g      = std::move(*ret);
                 g.file = file_id;
             } else {
@@ -521,28 +518,31 @@ status modeling::file_access::fill_components(modeling& mod) noexcept
             if (compo.state == component_status::unmodified)
                 continue;
 
-            if (auto ret = mod.load_component(compo); !ret) {
-                if (compo.state == component_status::unread) {
-                    mod.journal.push(
-                      log_level::warning, [&](auto& t, auto& m) noexcept {
-                          t = "Modeling initialization error";
-                          format(
-                            m,
-                            "Need to read dependency for component {} ({})",
-                            compo.name.sv(),
-                            ordinal(id));
-                      });
+            if (const auto file = get_fs_path(compo.file)) {
+                if (auto ret = mod.load_component(*file, compo); !ret) {
+                    if (compo.state == component_status::unread) {
+                        mod.journal.push(
+                          log_level::warning, [&](auto& t, auto& m) noexcept {
+                              t = "Modeling initialization error";
+                              format(
+                                m,
+                                "Need to read dependency for component {} ({})",
+                                compo.name.sv(),
+                                ordinal(id));
+                          });
 
-                    have_unread_component = true;
-                }
+                        have_unread_component = true;
+                    }
 
-                if (compo.state == component_status::unreadable) {
-                    mod.journal.push(
-                      log_level::warning, [&](auto& t, auto& m) noexcept {
-                          t = "Modeling initialization error";
-                          format(
-                            m, "Fail to read component `{}'", compo.name.sv());
-                      });
+                    if (compo.state == component_status::unreadable) {
+                        mod.journal.push(
+                          log_level::warning, [&](auto& t, auto& m) noexcept {
+                              t = "Modeling initialization error";
+                              format(m,
+                                     "Fail to read component `{}'",
+                                     compo.name.sv());
+                          });
+                    }
                 }
             }
         }
@@ -1001,6 +1001,59 @@ void modeling::file_access::free(const registred_path_id reg_dir) noexcept
             free(d_id);
 
     registred_paths.free(reg_dir);
+}
+
+expected<std::filesystem::path> modeling::file_access::get_fs_path(
+  const file_path_id id) const noexcept
+{
+    try {
+        if (auto* file = file_paths.try_to_get(id)) {
+            if (auto* dir = dir_paths.try_to_get(file->parent)) {
+                if (auto* reg = registred_paths.try_to_get(dir->parent)) {
+                    std::filesystem::path p{ reg->path.sv() };
+                    p /= dir->path.sv();
+                    p /= file->path.sv();
+                    return p;
+                }
+                return new_error(modeling_errc::recorded_directory_error);
+            }
+            return new_error(modeling_errc::directory_error);
+        }
+        return new_error(modeling_errc::file_error);
+    } catch (...) {
+        return new_error(modeling_errc::file_error);
+    }
+}
+
+expected<std::filesystem::path> modeling::file_access::get_fs_path(
+  const dir_path_id id) const noexcept
+{
+    try {
+        if (auto* dir = dir_paths.try_to_get(id)) {
+            if (auto* reg = registred_paths.try_to_get(dir->parent)) {
+                std::filesystem::path p{ reg->path.sv() };
+                p /= dir->path.sv();
+                return p;
+            }
+            return new_error(modeling_errc::recorded_directory_error);
+        }
+        return new_error(modeling_errc::directory_error);
+    } catch (...) {
+        return new_error(modeling_errc::file_error);
+    }
+}
+
+expected<std::filesystem::path> modeling::file_access::get_fs_path(
+  const registred_path_id id) const noexcept
+{
+    try {
+        if (auto* reg = registred_paths.try_to_get(id)) {
+            return std::filesystem::path{ reg->path.sv() };
+        }
+        return new_error(modeling_errc::recorded_directory_error);
+    } catch (...) {
+        return new_error(modeling_errc::file_error);
+    }
 }
 
 bool modeling::can_alloc_grid_component() const noexcept

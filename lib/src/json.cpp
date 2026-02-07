@@ -1764,7 +1764,7 @@ struct json_dearchiver::impl {
                                         const file_path_str&      file,
                                         component_id&             c_id)
     {
-        const auto mod_id = mod().files.read(
+        const auto ret = mod().files.read(
           [&](const auto& fs, const auto /*vers*/) noexcept -> component_id {
               const auto reg_id = fs.find_registred_path_by_name(reg.sv());
               const auto dir_id =
@@ -1773,20 +1773,25 @@ struct json_dearchiver::impl {
                   : fs.find_directory(dir.sv());
               const auto file_id = fs.find_file_in_directory(dir_id, file.sv());
 
-              if (const auto* f = fs.file_paths.try_to_get(file_id); f)
-                  return f->component;
+              if (const auto* f = fs.file_paths.try_to_get(file_id)) {
+                  if (auto* c =
+                        mod().components.try_to_get<component>(f->component)) {
+
+                      if (c->state == component_status::unmodified)
+                          return f->component;
+
+                      if (const auto filepath = fs.get_fs_path(c->file))
+                          if (auto ret = mod().load_component(*filepath, *c))
+                              return f->component;
+                  }
+              }
 
               return undefined<component_id>();
           });
 
-        if (auto* c = mod().components.try_to_get<component>(mod_id)) {
-            c_id = mod_id;
-
-            if (c->state == component_status::unmodified)
-                return true;
-
-            if (auto ret = mod().load_component(*c); ret)
-                return true;
+        if (is_defined(ret)) {
+            c_id = ret;
+            return true;
         }
 
         return error("component not found");

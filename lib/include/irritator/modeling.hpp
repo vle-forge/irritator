@@ -1451,7 +1451,7 @@ public:
           : registred_paths(r)
           , dir_paths(d)
           , file_paths(f)
-          , component_repertories(r)
+          , component_repertories(r, reserve_tag)
         {}
 
         data_array<registred_path, registred_path_id> registred_paths;
@@ -1525,6 +1525,13 @@ public:
         void free(const file_path_id file) noexcept;
         void free(const dir_path_id dir) noexcept;
         void free(const registred_path_id dir) noexcept;
+
+        expected<std::filesystem::path> get_fs_path(
+          const file_path_id id) const noexcept;
+        expected<std::filesystem::path> get_fs_path(
+          const dir_path_id id) const noexcept;
+        expected<std::filesystem::path> get_fs_path(
+          const registred_path_id id) const noexcept;
     };
 
     shared_buffer<file_access> files;
@@ -1549,7 +1556,8 @@ public:
                modeling_reserve_definition()) noexcept;
 
     //! Reads the component @c compo and all dependencies recursively.
-    status load_component(component& compo) noexcept;
+    status load_component(const std::filesystem::path& path,
+                          component&                   compo) noexcept;
 
     /** Search a component from three string.
      *
