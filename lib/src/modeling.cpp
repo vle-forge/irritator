@@ -86,82 +86,6 @@ modeling::modeling(journal_handler&                   jnl,
     });
 }
 
-static void component_loading(modeling&                    mod,
-                              modeling::file_access&       fs,
-                              registred_path&              reg_dir,
-                              dir_path&                    dir,
-                              file_path&                   file,
-                              const std::filesystem::path& path) noexcept
-{
-    if (not mod.components.can_alloc(1) and mod.components.grow<3, 2>())
-        return;
-
-    auto compo_id = mod.components.alloc_id();
-
-    mod.components.get<component_color>(compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& compo    = mod.components.get<component>(compo_id);
-    compo.file     = fs.file_paths.get_id(file);
-    file.component = compo_id;
-    compo.type     = component_type::none;
-    compo.state    = component_status::unread;
-
-    try {
-        std::filesystem::path desc_file{ path };
-        desc_file.replace_extension(".desc");
-
-        std::error_code ec;
-        if (std::filesystem::exists(desc_file, ec)) {
-            debug_logi(6, "found description file {}\n", desc_file.string());
-            if (mod.descriptions.can_alloc(1)) {
-                compo.desc = mod.descriptions.alloc_id();
-                mod.descriptions.get<description_str>(compo.desc).clear();
-                mod.descriptions.get<description_status>(compo.desc) =
-                  description_status::unread;
-            } else {
-                mod.journal.push(
-                  log_level::error, [&](auto& t, auto& m) noexcept {
-                      t = "Modeling initialization error";
-                      format(m,
-                             "Fail to allocate more description ({})",
-                             mod.descriptions.size());
-                  });
-            }
-        }
-    } catch (const std::exception& /*e*/) {
-        mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
-            t = "Modeling initialization error";
-            format(m,
-                   "File system error in {} {} {}",
-                   reg_dir.path.sv(),
-                   dir.path.sv(),
-                   file.path.sv());
-        });
-    }
-}
-
-static auto detect_file_type(const std::filesystem::path& file) noexcept
-  -> file_path::file_type
-{
-    const auto ext = file.extension();
-
-    if (ext == ".irt")
-        return file_path::file_type::irt_file;
-
-    if (ext == ".dot")
-        return file_path::file_type::dot_file;
-
-    if (ext == ".txt")
-        return file_path::file_type::txt_file;
-
-    if (ext == ".data")
-        return file_path::file_type::data_file;
-
-    if (ext == ".pirt")
-        return file_path::file_type::project_file;
-
-    return file_path::file_type::undefined_file;
-}
-
 dir_path_id registred_path::search(
   const data_array<dir_path, dir_path_id>& data,
   const std::string_view                   dir_name) noexcept
@@ -179,106 +103,6 @@ bool registred_path::exists(const data_array<dir_path, dir_path_id>& data,
     return search(data, dir_name) != undefined<dir_path_id>();
 }
 
-// static file_path& add_to_dir(modeling::file_access&     fs,
-//                              dir_path&                  dir,
-//                              const file_path::file_type type,
-//                              const std::u8string&       u8str) noexcept
-// {
-//     auto* cstr    = reinterpret_cast<const char*>(u8str.c_str());
-//     auto& file    = fs.file_paths.alloc();
-//     auto  file_id = fs.file_paths.get_id(file);
-//     file.path     = cstr;
-//     file.parent   = fs.dir_paths.get_id(dir);
-//     file.type     = type;
-//     dir.children.emplace_back(file_id);
-
-//     return file;
-// }
-
-// static void prepare_component_loading(journal_handler&       jn,
-//                                       modeling::file_access& fs,
-//                                       registred_path&        reg_dir,
-//                                       dir_path&              dir,
-//                                       std::filesystem::path  path) noexcept
-// {
-//     try {
-//         std::error_code ec;
-
-//         auto it            = std::filesystem::directory_iterator{ path, ec };
-//         auto et            = std::filesystem::directory_iterator{};
-//         bool too_many_file = false;
-
-//         for (; it != et; it = it.increment(ec)) {
-//             if (not it->is_regular_file())
-//                 continue;
-
-//             const auto type = detect_file_type(it->path());
-
-//             switch (type) {
-//             case file_path::file_type::undefined_file:
-//                 break;
-//             case file_path::file_type::irt_file:
-//                 debug_logi(6, "found irt file {}\n", it->path().string());
-//                 if (fs.file_paths.can_alloc() && mod.components.can_alloc(1))
-//                 {
-//                     auto& file = add_to_dir(
-//                       fs, dir, type, it->path().filename().u8string());
-
-//                     prepare_component_loading(
-//                       mod, fs, reg_dir, dir, file, it->path());
-//                 } else {
-//                     too_many_file = true;
-//                 }
-//                 break;
-//             case file_path::file_type::dot_file:
-//                 debug_logi(6, "found dot file {}\n", it->path().string());
-//                 if (fs.file_paths.can_alloc() and mod.graphs.can_alloc()) {
-//                     auto& file = add_to_dir(
-//                       fs, dir, type, it->path().filename().u8string());
-
-//                     auto& g = mod.graphs.alloc();
-//                     g.file  = fs.file_paths.get_id(file);
-//                 } else {
-//                     too_many_file = true;
-//                 }
-//                 break;
-//             case file_path::file_type::txt_file:
-//                 break;
-//             case file_path::file_type::data_file:
-//                 break;
-//             case file_path::file_type::project_file:
-//                 debug_logi(
-//                   6, "found project irt file {}\n", it->path().string());
-//                 if (fs.file_paths.can_alloc() && mod.components.can_alloc(1))
-//                 {
-//                     (void)add_to_dir(
-//                       fs, dir, type, it->path().filename().u8string());
-//                     // @TODO load project file?
-//                 } else {
-//                     too_many_file = true;
-//                 }
-//                 break;
-//             }
-//         }
-
-//         if (too_many_file) {
-//             jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
-//                 t = "Modeling initialization error";
-//                 format(m,
-//                        "Too many file in application for registred path {} "
-//                        "directory {}",
-//                        reg_dir.path.sv(),
-//                        dir.path.sv());
-//             });
-//         }
-//     } catch (...) {
-//         jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
-//             t = "Modeling initialization error";
-//             format(m, "Fail to register path {}", reg_dir.path.sv());
-//         });
-//     }
-// }
-
 static status browse_directory(journal_handler&       jn,
                                modeling::file_access& fs,
                                registred_path&        reg_dir,
@@ -295,7 +119,7 @@ static status browse_directory(journal_handler&       jn,
             if (not it->is_regular_file())
                 continue;
 
-            const auto type = detect_file_type(it->path());
+            const auto type = get_extension(it->path().filename().string());
             if (type == file_path::file_type::undefined_file)
                 continue;
 
@@ -709,7 +533,8 @@ void modeling::file_access::refresh(const dir_path_id id) noexcept
 
                     while (it != et) {
                         if (it->is_regular_file()) {
-                            const auto type = detect_file_type(it->path());
+                            const auto type =
+                              get_extension(it->path().filename().string());
                             if (type != file_path::file_type::undefined_file) {
                                 const auto f = find_file_in_directory(
                                   id, it->path().string());

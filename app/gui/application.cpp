@@ -17,8 +17,6 @@
 
 namespace irt {
 
-static const std::string_view extensions[] = { "", ".dot", ".irt" };
-
 static constexpr const char* empty = "-";
 
 static auto get_reg_preview(const modeling::file_access& fs,
@@ -138,24 +136,12 @@ static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
     case file_path_selector_option::none:
         return true;
     case file_path_selector_option::force_irt_extension:
-        return v.ends_with(extensions[ordinal(opt)]);
+        return has_extension(v, file_path::file_type::irt_file);
     case file_path_selector_option::force_dot_extension:
-        return v.ends_with(extensions[ordinal(opt)]);
+        return has_extension(v, file_path::file_type::dot_file);
     }
 
     irt::unreachable();
-}
-
-static void add_extension(file_path_str&   file,
-                          std::string_view extension) noexcept
-{
-    const std::decay_t<decltype(file)> tmp(file);
-
-    if (auto dot = tmp.sv().find_last_of('.'); dot != std::string_view::npos) {
-        format(file, "{}{}", tmp.sv().substr(0, dot), extension);
-    } else {
-        format(file, "{}{}", tmp.sv(), extension);
-    }
 }
 
 static void copy_file_task(application&       app,
@@ -212,9 +198,17 @@ static auto combobox_file(application&                         app,
 
         if (ImGui::InputFilteredString("File##text", tmp.path)) {
             if (not end_with(tmp.path.sv(), opt)) {
-                add_extension(tmp.path, extensions[ordinal(opt)]);
-                if (is_valid_dot_filename(tmp.path.sv()))
-                    copy_file_task(app, tmp, ret);
+                if (opt == file_path_selector_option::force_irt_extension) {
+                    add_extension(tmp.path, file_path::file_type::irt_file);
+                    if (is_valid_dot_filename(tmp.path.sv()))
+                        copy_file_task(app, tmp, ret);
+                }
+
+                if (opt == file_path_selector_option::force_dot_extension) {
+                    add_extension(tmp.path, file_path::file_type::dot_file);
+                    if (is_valid_dot_filename(tmp.path.sv()))
+                        copy_file_task(app, tmp, ret);
+                }
             }
         }
     }

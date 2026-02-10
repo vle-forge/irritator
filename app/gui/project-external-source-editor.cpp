@@ -4,6 +4,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 
 #include "application.hpp"
 #include "dialog.hpp"
@@ -120,11 +121,10 @@ auto show_data_file_input(const modeling&    mod,
             if (ImGui::BeginCombo("Select file", preview)) {
                 for (const auto f_id : dir->children) {
                     if (const auto* file = fs.file_paths.try_to_get(f_id)) {
-                        const auto str = file->path.sv();
-                        const auto dot = str.find_last_of(".");
-                        const auto ext = str.substr(dot);
+                        const auto sv = file->path.sv();
 
-                        if (not(ext == ".irt" or ext == ".txt")) {
+                        if (has_extension(sv,
+                                          file_path::file_type::data_file)) {
                             if (ImGui::Selectable(file->path.c_str(),
                                                   file_id == f_id)) {
                                 ret = f_id;

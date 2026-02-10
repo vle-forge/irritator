@@ -106,6 +106,27 @@ constexpr bool has_extension(
     return false;
 }
 
+/// Detect the type of the file according to the file extension.
+///
+/// @param filename a string buffer where retrieve extension and compare with
+/// irritator known extension.
+/// @return The irritator file type known or @c file_type::undefined_file
+/// otherwise.
+///
+constexpr file_path::file_type get_extension(
+  const std::string_view filename) noexcept
+{
+    if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
+        const auto ext = filename.substr(dot);
+
+        for (sz i = 0; i < std::size(file_path::file_type_names); ++i)
+            if (file_path::file_type_names[i] == ext)
+                return enum_cast<file_path::file_type>(i);
+    }
+
+    return file_path::file_type::undefined_file;
+}
+
 /// Checks if the file path string has an extension equals to any one of
 /// irritator files (.irt, .pirt, .data, etc.).
 constexpr bool has_irritator_extension(const std::string_view filename) noexcept
