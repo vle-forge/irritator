@@ -1072,7 +1072,7 @@ struct file_path {
 
     enum class file_type : u8 {
         undefined_file,
-        irt_file,
+        component_file,
         dot_file,
         txt_file,
         data_file,

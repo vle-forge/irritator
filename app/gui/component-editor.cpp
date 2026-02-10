@@ -618,8 +618,8 @@ struct component_editor::impl {
 
               if (ImGui::InputFilteredString("File##text", copy.path)) {
                   if (not has_extension(copy.path.sv(),
-                                        file_path::file_type::irt_file))
-                      add_extension(copy.path, file_path::file_type::irt_file);
+                                        file_path::file_type::component_file))
+                      add_extension(copy.path, file_path::file_type::component_file);
 
                   app.add_gui_task([&, copy, f_id]() {
                       app.mod.files.write([&](auto& fs) {

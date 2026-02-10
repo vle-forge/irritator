@@ -442,7 +442,7 @@ void library_window::show_dirpath_content(
             case file_path::file_type::dot_file:
                 break;
 
-            case file_path::file_type::irt_file: {
+            case file_path::file_type::component_file: {
                 if (flags[file_type::component]) {
                     auto* compo =
                       app.mod.components.try_to_get<component>(file->component);

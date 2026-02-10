@@ -324,7 +324,7 @@ status modeling::fill_components() noexcept
               }
 
               for (const auto& f : fs.file_paths) {
-                  if (f.type == file_path::file_type::irt_file) {
+                  if (f.type == file_path::file_type::component_file) {
                       if (not components.exists(f.component)) {
                           const auto file_id  = fs.file_paths.get_id(f);
                           const auto compo_id = components.alloc_id();
@@ -350,7 +350,7 @@ status modeling::fill_components() noexcept
         for (const auto& m : file_id_to_compo_id) {
             if (auto* f = fs.file_paths.try_to_get(m.f_id)) {
                 switch (f->type) {
-                case file_path::file_type::irt_file:
+                case file_path::file_type::component_file:
                     f->component = m.to.component;
                     break;
 

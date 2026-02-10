@@ -136,7 +136,7 @@ static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
     case file_path_selector_option::none:
         return true;
     case file_path_selector_option::force_irt_extension:
-        return has_extension(v, file_path::file_type::irt_file);
+        return has_extension(v, file_path::file_type::component_file);
     case file_path_selector_option::force_dot_extension:
         return has_extension(v, file_path::file_type::dot_file);
     }
@@ -199,7 +199,7 @@ static auto combobox_file(application&                         app,
         if (ImGui::InputFilteredString("File##text", tmp.path)) {
             if (not end_with(tmp.path.sv(), opt)) {
                 if (opt == file_path_selector_option::force_irt_extension) {
-                    add_extension(tmp.path, file_path::file_type::irt_file);
+                    add_extension(tmp.path, file_path::file_type::component_file);
                     if (is_valid_dot_filename(tmp.path.sv()))
                         copy_file_task(app, tmp, ret);
                 }

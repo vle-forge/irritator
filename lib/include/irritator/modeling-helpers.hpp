@@ -78,7 +78,7 @@ constexpr bool path_exist(const data_array<T, Identifier>& data,
 /// Adds the extension to the file path string according to @c type extension.
 inline void add_extension(
   file_path_str&       file,
-  file_path::file_type type = file_path::file_type::irt_file) noexcept
+  file_path::file_type type = file_path::file_type::component_file) noexcept
 {
     const std::decay_t<decltype(file)> tmp(file);
 
@@ -96,7 +96,7 @@ inline void add_extension(
 /// Checks if the file path string has the corresponding @c type extension.
 constexpr bool has_extension(
   const std::string_view filename,
-  file_path::file_type   type = file_path::file_type::irt_file) noexcept
+  file_path::file_type   type = file_path::file_type::component_file) noexcept
 {
     if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
         const auto ext = filename.substr(dot);
@@ -146,7 +146,7 @@ constexpr bool has_irritator_extension(const std::string_view filename) noexcept
 /// corresponding @c type extension.
 constexpr bool is_valid_filename(
   const std::string_view filename,
-  file_path::file_type   type = file_path::file_type::irt_file) noexcept
+  file_path::file_type   type = file_path::file_type::component_file) noexcept
 {
     return not filename.empty() and filename[0] != '.' and
            filename[0] != '-' and all_char_valid(filename) and
