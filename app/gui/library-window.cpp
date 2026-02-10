@@ -428,7 +428,7 @@ void library_window::show_dirpath_content(
                           "%.*s",
                           dir.path.ssize(),
                           dir.path.data())) {
-        std::ranges::for_each(dir.children, [&](const auto file_id) noexcept {
+        for (const auto file_id : dir.children) {
             const auto* file = fs.file_paths.try_to_get(file_id);
             if (file == nullptr)
                 return;
@@ -442,18 +442,13 @@ void library_window::show_dirpath_content(
             case file_path::file_type::dot_file:
                 break;
 
-            case file_path::file_type::component_file: {
+            case file_path::file_type::component_file:
                 if (flags[file_type::component]) {
-                    auto* compo =
-                      app.mod.components.try_to_get<component>(file->component);
-
-                    if (not compo)
-                        return;
-
-                    show_file_component(fs, *file, *compo);
+                    if (auto* compo = app.mod.components.try_to_get<component>(
+                          file->component))
+                        show_file_component(fs, *file, *compo);
                 }
                 break;
-            }
 
             case file_path::file_type::txt_file:
                 break;
@@ -462,14 +457,13 @@ void library_window::show_dirpath_content(
                 break;
 
             case file_path::file_type::project_file:
-                if (flags[file_type::project]) {
+                if (flags[file_type::project])
                     show_file_project(fs, file_id);
-                }
                 break;
             }
 
             ImGui::PopID();
-        });
+        }
 
         ImGui::TreePop();
     }
@@ -497,15 +491,11 @@ void library_window::show_repertories_content(
         ImGui::PushID(reg_dir);
         if (ImGui::TreeNodeEx(select->c_str(),
                               ImGuiTreeNodeFlags_DefaultOpen)) {
-            std::ranges::for_each(
-              reg_dir->children, [&](const auto dir_id) noexcept {
-                  auto* dir = fs.dir_paths.try_to_get(dir_id);
-                  if (dir == nullptr or dir->status == dir_path::state::error)
-                      return false;
-
-                  show_dirpath_content(fs, *dir, flags);
-                  return false;
-              });
+            for (const auto dir_id : reg_dir->children) {
+                auto* dir = fs.dir_paths.try_to_get(dir_id);
+                if (dir and dir->status != dir_path::state::error)
+                    show_dirpath_content(fs, *dir, flags);
+            }
             ImGui::TreePop();
         }
         ImGui::PopID();

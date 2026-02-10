@@ -569,7 +569,7 @@ struct component_editor::impl {
               });
 
             if (not dir_exist and newdir.should_request()) {
-                app.add_gui_task([&app, &r_id, &newdir, new_dir_name]() {
+                app.add_gui_task([&app, r_id, &newdir, new_dir_name]() {
                     const auto dir_id = app.mod.files.write([&](auto& fs) {
                         const auto id = fs.alloc_dir(r_id, new_dir_name.sv());
                         if (is_undefined(id)) {
@@ -601,70 +601,93 @@ struct component_editor::impl {
         }
     }
 
-    static auto select_file_path(application&            app,
-                                 component&              compo,
-                                 const registred_path_id r_id,
-                                 const dir_path_id       d_id,
-                                 const file_path_id      f_id) noexcept -> bool
+    static auto select_file_path(application&                         app,
+                                 component&                           compo,
+                                 atomic_request_buffer<file_path_id>& newfile,
+                                 const registred_path_id              r_id,
+                                 const dir_path_id                    d_id,
+                                 const file_path_id f_id) noexcept
+      -> std::pair<file_path_id, bool>
     {
         debug::ensure(is_defined(r_id));
         debug::ensure(is_defined(d_id));
-        debug::ensure(is_defined(f_id));
 
-        const auto can_be_saved =
+        // If file_path_id is undefined, we need to spawn a new file_path in a
+        // gui task using atomic_request_buffer and leave while f_id is
+        // undefined.
+
+        if (is_undefined(f_id)) {
+            if (const auto file_id_opt = newfile.try_take()) {
+                debug::ensure(is_undefined(compo.file));
+                compo.file = *file_id_opt;
+                return std::make_pair(*file_id_opt, false);
+            } else {
+                if (newfile.should_request()) {
+                    app.add_gui_task([&app, &compo, d_id, &newfile]() {
+                        app.mod.files.write([&](auto& fs) {
+                            const auto file_id = fs.alloc_file(
+                              d_id,
+                              compo.name.sv(),
+                              file_path::file_type::component_file);
+
+                            newfile.fulfill(file_id);
+                        });
+                    });
+                }
+
+                return std::make_pair(undefined<file_path_id>(), false);
+            }
+        }
+
+        const auto valid =
           app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-              const auto& orig = fs.file_paths.get(f_id);
-              file_path   copy(orig);
+              auto&         file = fs.file_paths.get(f_id);
+              file_path_str tmp{ file.path };
 
-              if (ImGui::InputFilteredString("File##text", copy.path)) {
-                  if (not has_extension(copy.path.sv(),
+              if (ImGui::InputFilteredString("File##text", tmp)) {
+                  if (not has_extension(tmp.sv(),
                                         file_path::file_type::component_file))
-                      add_extension(copy.path, file_path::file_type::component_file);
+                      add_extension(tmp, file_path::file_type::component_file);
 
-                  app.add_gui_task([&, copy, f_id]() {
+                  app.add_gui_task([&app, f_id, tmp]() {
                       app.mod.files.write([&](auto& fs) {
-                          if (auto* file = fs.file_paths.try_to_get(f_id)) {
-                              file->path = copy.path;
+                          if (auto* f = fs.file_paths.try_to_get(f_id)) {
+                              f->path = tmp;
                           }
                       });
                   });
-              }
 
-              auto& file = fs.file_paths.get(f_id);
-              if (not app.mod.descriptions.exists(compo.desc)) {
-                  if (app.mod.descriptions.can_alloc(1) &&
-                      ImGui::Button("Add description")) {
-                      compo.desc = app.mod.descriptions.alloc_id();
-                      app.mod.descriptions.get<description_str>(compo.desc)
-                        .clear();
-                      app.mod.descriptions.get<description_status>(compo.desc) =
-                        description_status::modified;
-                  }
-              } else {
-                  constexpr ImGuiInputTextFlags flags =
-                    ImGuiInputTextFlags_AllowTabInput;
-                  auto& str = app.mod.descriptions.get<0>(compo.desc);
+                  if (not app.mod.descriptions.exists(compo.desc)) {
+                      if (app.mod.descriptions.can_alloc(1) &&
+                          ImGui::Button("Add description")) {
+                          compo.desc = app.mod.descriptions.alloc_id();
+                          app.mod.descriptions.get<description_str>(compo.desc)
+                            .clear();
+                          app.mod.descriptions.get<description_status>(
+                            compo.desc) = description_status::modified;
+                      }
+                  } else {
+                      constexpr ImGuiInputTextFlags flags =
+                        ImGuiInputTextFlags_AllowTabInput;
+                      auto& str = app.mod.descriptions.get<0>(compo.desc);
 
-                  ImGui::InputSmallStringMultiline(
-                    "##source",
-                    str,
-                    ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-                    flags);
+                      ImGui::InputSmallStringMultiline(
+                        "##source",
+                        str,
+                        ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+                        flags);
 
-                  if (ImGui::Button("Remove")) {
-                      app.mod.descriptions.free(compo.desc);
-                      compo.desc = undefined<description_id>();
+                      if (ImGui::Button("Remove")) {
+                          app.mod.descriptions.free(compo.desc);
+                          compo.desc = undefined<description_id>();
+                      }
                   }
               }
 
               return is_valid_irt_filename(file.path.sv());
           });
 
-        ImGui::BeginDisabled(not can_be_saved);
-        const auto ret = ImGui::Button("Save");
-        ImGui::EndDisabled();
-
-        return ret;
+        return std::make_pair(f_id, valid);
     }
 
     template<typename ComponentEditor>
@@ -679,48 +702,52 @@ struct component_editor::impl {
             tab.dir = undefined<dir_path_id>();
         }
 
-        if (const auto dir = select_dir_path(app.mod, tab.reg, tab.dir);
-            is_undefined(dir)) {
-            if (const auto newdir = tab.new_dir.try_take()) {
-                if (is_defined(*newdir)) {
+        if (is_defined(tab.reg)) {
+            const auto dir = select_dir_path(app.mod, tab.reg, tab.dir);
+
+            if (is_undefined(dir)) {
+                if (const auto newdir = tab.new_dir.try_take()) {
                     tab.dir = *newdir;
+                } else {
+                    create_dir_path(app, tab.new_dir, tab.reg);
                 }
             } else {
-                create_dir_path(app, tab.new_dir, tab.reg);
+                tab.dir = dir;
             }
-        } else {
-            tab.dir = dir;
         }
 
         if (is_defined(tab.reg) and is_defined(tab.dir)) {
-            if (is_undefined(compo.file)) {
-            } else {
-                if (select_file_path(app, compo, tab.reg, tab.dir, tab.file)) {
+            const auto [newf_id, valid] = select_file_path(
+              app, compo, tab.new_file, tab.reg, tab.dir, tab.file);
+
+            if (is_defined(newf_id)) {
+                if (tab.file != newf_id) {
                     const auto compo_id = app.mod.components.get_id(compo);
-                    const auto f_id     = tab.file;
+                    tab.file            = newf_id;
                     const auto d_id     = tab.dir;
 
-                    app.add_gui_task([&, f_id, d_id, compo_id]() {
+                    app.add_gui_task([&app, &ed, newf_id, d_id, compo_id]() {
                         app.mod.files.write([&](auto& fs) {
                             if (auto* compo =
                                   app.mod.components.try_to_get<component>(
                                     compo_id)) {
-                                compo->file                       = f_id;
-                                fs.file_paths.get(f_id).parent    = d_id;
-                                fs.file_paths.get(f_id).component = compo_id;
+                                compo->file                          = newf_id;
+                                fs.file_paths.get(newf_id).parent    = d_id;
+                                fs.file_paths.get(newf_id).component = compo_id;
                             }
                         });
-
-                        if constexpr (has_store_function<ComponentEditor>) {
-                            ed.store(app.component_ed);
-                        }
-
-                        app.start_save_component(
-                          app.mod.components.get_id(compo));
-
-                        app.add_gui_task(
-                          [&]() noexcept { app.component_sel.update(); });
                     });
+                }
+
+                if constexpr (has_store_function<ComponentEditor>) {
+                    ed.store(app.component_ed);
+                }
+
+                if (valid and ImGui::Button("Save")) {
+                    app.start_save_component(app.mod.components.get_id(compo));
+
+                    app.add_gui_task(
+                      [&]() noexcept { app.component_sel.update(); });
                 }
             }
         }
@@ -1304,7 +1331,6 @@ struct component_editor::impl {
                                generic_component& g,
                                application&       app)
     {
-
         auto&          child = g.children.get(selected);
         expected<void> ret;
 
@@ -2042,9 +2068,6 @@ struct component_editor::impl {
 
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Save")) {
-                    if (is_undefined(compo.file)) {
-                    }
-
                     show_file_access(app, element, compo, tab);
                     ImGui::EndMenu();
                 }
