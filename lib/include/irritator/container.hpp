@@ -2687,14 +2687,15 @@ public:
     constexpr small_string& operator=(const char* str) noexcept;
     constexpr small_string& operator=(const std::string_view str) noexcept;
 
+    constexpr void push_back(const char c) noexcept;
     constexpr void assign(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
-    void           resize(std::integral auto size) noexcept;
+    constexpr void resize(std::integral auto size) noexcept;
     constexpr bool empty() const noexcept;
 
-    constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
-    constexpr int      capacity() const noexcept;
+    constexpr size_type  size() const noexcept;
+    constexpr index_type ssize() const noexcept;
+    constexpr index_type capacity() const noexcept;
 
     constexpr reference       operator[](std::integral auto index) noexcept;
     constexpr const_reference operator[](
@@ -2712,23 +2713,47 @@ public:
     constexpr const_iterator end() const noexcept;
 
     constexpr auto operator<=>(const small_string& rhs) const noexcept;
-
-    constexpr bool operator==(const small_string<length>& rhs) const noexcept;
-    constexpr bool operator!=(const small_string<length>& rhs) const noexcept;
-    constexpr bool operator>(const small_string<length>& rhs) const noexcept;
-    constexpr bool operator>=(const small_string<length>& rhs) const noexcept;
-    constexpr bool operator<(const small_string<length>& rhs) const noexcept;
-    constexpr bool operator<=(const small_string<length>& rhs) const noexcept;
-
-    constexpr bool operator==(const std::string_view rhs) const noexcept;
-    constexpr bool operator!=(const std::string_view rhs) const noexcept;
-    constexpr bool operator>(const std::string_view rhs) const noexcept;
-    constexpr bool operator<(const std::string_view rhs) const noexcept;
-    constexpr bool operator==(const char* rhs) const noexcept;
-    constexpr bool operator!=(const char* rhs) const noexcept;
-    constexpr bool operator>(const char* rhs) const noexcept;
-    constexpr bool operator<(const char* rhs) const noexcept;
+    constexpr auto operator<=>(std::string_view rhs) const noexcept;
+    constexpr auto operator<=>(const char* rhs) const noexcept;
 };
+
+template<std::size_t length>
+constexpr auto operator<=>(std::string_view            lhs,
+                           const small_string<length>& rhs) noexcept;
+
+template<std::size_t length>
+constexpr auto operator<=>(const char*                 lhs,
+                           const small_string<length>& rhs) noexcept;
+
+template<std::size_t length>
+constexpr bool operator==(const small_string<length>&,
+                          const small_string<length>&) noexcept;
+
+template<std::size_t N>
+constexpr bool operator==(const small_string<N>& lhs,
+                          std::string_view       rhs) noexcept
+{
+    return lhs.sv() == rhs;
+}
+
+template<std::size_t N>
+constexpr bool operator==(std::string_view       lhs,
+                          const small_string<N>& rhs) noexcept
+{
+    return lhs == rhs.sv();
+}
+
+template<std::size_t N>
+constexpr bool operator==(const small_string<N>& lhs, const char* rhs) noexcept
+{
+    return lhs.sv() == std::string_view{ rhs ? rhs : "" };
+}
+
+template<std::size_t N>
+constexpr bool operator==(const char* lhs, const small_string<N>& rhs) noexcept
+{
+    return std::string_view{ lhs ? lhs : "" } == rhs.sv();
+}
 
 //! @brief A vector like class but without dynamic allocation.
 //! @tparam T Any type (trivial or not).
@@ -5972,7 +5997,7 @@ template<std::size_t length>
 inline constexpr small_string<length>::small_string(
   const small_string<length>& str) noexcept
 {
-    std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
+    std::copy_n(str.m_buffer, str.m_size, m_buffer);
     m_buffer[str.m_size] = '\0';
     m_size               = str.m_size;
 }
@@ -5981,7 +6006,7 @@ template<std::size_t length>
 inline constexpr small_string<length>::small_string(
   small_string<length>&& str) noexcept
 {
-    std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
+    std::copy_n(str.m_buffer, str.m_size, m_buffer);
     m_buffer[str.m_size] = '\0';
     m_size               = str.m_size;
     str.clear();
@@ -5992,7 +6017,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
   const small_string<length>& str) noexcept
 {
     if (&str != this) {
-        std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
         m_size               = str.m_size;
     }
@@ -6005,9 +6030,10 @@ inline constexpr small_string<length>& small_string<length>::operator=(
   small_string<length>&& str) noexcept
 {
     if (&str != this) {
-        std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
+        std::copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
         m_size               = str.m_size;
+        str.clear();
     }
 
     return *this;
@@ -6017,8 +6043,7 @@ template<std::size_t length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   const char* str) noexcept
 {
-    if (m_buffer != str)
-        assign(std::string_view{ str });
+    assign(str ? std::string_view{ str } : std::string_view{});
 
     return *this;
 }
@@ -6035,7 +6060,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
 template<std::size_t length>
 inline constexpr small_string<length>::small_string(const char* str) noexcept
 {
-    assign(std::string_view{ str });
+    assign(str ? std::string_view{ str } : std::string_view{});
 }
 
 template<std::size_t length>
@@ -6046,7 +6071,7 @@ inline constexpr small_string<length>::small_string(
 }
 
 template<std::size_t length>
-void small_string<length>::resize(std::integral auto size) noexcept
+constexpr void small_string<length>::resize(std::integral auto size) noexcept
 {
     if (size < 0) {
         m_size = 0;
@@ -6066,21 +6091,31 @@ inline constexpr bool small_string<length>::empty() const noexcept
 }
 
 template<std::size_t length>
-inline constexpr unsigned small_string<length>::size() const noexcept
+inline constexpr auto small_string<length>::size() const noexcept -> size_type
 {
     return m_size;
 }
 
 template<std::size_t length>
-inline constexpr int small_string<length>::ssize() const noexcept
+inline constexpr auto small_string<length>::ssize() const noexcept -> index_type
 {
     return m_size;
 }
 
 template<std::size_t length>
-inline constexpr int small_string<length>::capacity() const noexcept
+inline constexpr auto small_string<length>::capacity() const noexcept
+  -> index_type
 {
-    return length;
+    return length - 1;
+}
+
+template<std::size_t length>
+inline constexpr void small_string<length>::push_back(const char c) noexcept
+{
+    if (m_size < capacity()) {
+        m_buffer[m_size++] = c;
+        m_buffer[m_size]   = '\0';
+    }
 }
 
 template<std::size_t length>
@@ -6091,7 +6126,7 @@ inline constexpr void small_string<length>::assign(
                ? static_cast<size_type>(str.size())
                : static_cast<size_type>(length - 1);
 
-    std::uninitialized_copy_n(str.data(), m_size, &m_buffer[0]);
+    std::copy_n(str.data(), m_size, &m_buffer[0]);
     m_buffer[m_size] = '\0';
 }
 
@@ -6110,15 +6145,16 @@ inline constexpr std::u8string_view small_string<length>::u8sv() const noexcept
 template<std::size_t length>
 inline constexpr void small_string<length>::clear() noexcept
 {
-    std::fill_n(m_buffer, length, '\0');
-    m_size = 0;
+    m_buffer[0] = '\0';
+    m_size      = 0;
 }
 
 template<std::size_t length>
 inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](std::integral auto index) noexcept
 {
-    debug::ensure(std::cmp_less(index, length));
+    debug::ensure(index >= 0);
+    debug::ensure(std::cmp_less(index, m_size));
 
     return m_buffer[index];
 }
@@ -6127,6 +6163,7 @@ template<std::size_t length>
 inline constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](std::integral auto index) const noexcept
 {
+    debug::ensure(index >= 0);
     debug::ensure(std::cmp_less(index, m_size));
 
     return m_buffer[index];
@@ -6178,108 +6215,44 @@ small_string<length>::end() const noexcept
 }
 
 template<std::size_t length>
-inline constexpr auto small_string<length>::operator<=>(
+constexpr auto small_string<length>::operator<=>(
   const small_string& rhs) const noexcept
 {
     return sv() <=> rhs.sv();
 }
 
 template<std::size_t length>
-inline constexpr bool small_string<length>::operator==(
-  const small_string<length>& rhs) const noexcept
+constexpr auto small_string<length>::operator<=>(
+  std::string_view rhs) const noexcept
 {
-    return sv().compare(rhs.sv()) == 0;
+    return sv() <=> rhs;
 }
 
 template<std::size_t length>
-inline constexpr bool small_string<length>::operator!=(
-  const small_string<length>& rhs) const noexcept
+constexpr auto small_string<length>::operator<=>(const char* rhs) const noexcept
 {
-    return sv().compare(rhs.sv()) != 0;
+    return sv() <=> std::string_view{ rhs ? rhs : "" };
 }
 
 template<std::size_t length>
-inline constexpr bool small_string<length>::operator>(
-  const small_string<length>& rhs) const noexcept
+constexpr auto operator<=>(std::string_view            lhs,
+                           const small_string<length>& rhs) noexcept
 {
-    return sv().compare(rhs.sv()) > 0;
+    return lhs <=> rhs.sv();
 }
 
 template<std::size_t length>
-inline constexpr bool small_string<length>::operator>=(
-  const small_string<length>& rhs) const noexcept
+constexpr auto operator<=>(const char*                 lhs,
+                           const small_string<length>& rhs) noexcept
 {
-    return sv().compare(rhs.sv()) >= 0;
+    return std::string_view{ lhs ? lhs : "" } <=> rhs.sv();
 }
 
 template<std::size_t length>
-inline constexpr bool small_string<length>::operator<(
-  const small_string<length>& rhs) const noexcept
+constexpr bool operator==(const small_string<length>& lhs,
+                          const small_string<length>& rhs) noexcept
 {
-    return sv().compare(rhs.sv()) < 0;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator<=(
-  const small_string<length>& rhs) const noexcept
-{
-    return sv().compare(rhs.sv()) <= 0;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator==(
-  const std::string_view rhs) const noexcept
-{
-    return sv() == rhs;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator!=(
-  const std::string_view rhs) const noexcept
-{
-    return sv() != rhs;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator>(
-  const std::string_view rhs) const noexcept
-{
-    return sv() > rhs;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator<(
-  const std::string_view rhs) const noexcept
-{
-    return sv() < rhs;
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator==(
-  const char* rhs) const noexcept
-{
-    return sv() == std::string_view{ rhs };
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator!=(
-  const char* rhs) const noexcept
-{
-    return sv() != std::string_view{ rhs };
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator>(
-  const char* rhs) const noexcept
-{
-    return sv() > std::string_view{ rhs };
-}
-
-template<std::size_t length>
-inline constexpr bool small_string<length>::operator<(
-  const char* rhs) const noexcept
-{
-    return sv() < std::string_view{ rhs };
+    return lhs.sv() == rhs.sv();
 }
 
 ////////////////////////////////////////////////////////////////////////

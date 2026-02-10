@@ -60,28 +60,31 @@ constexpr void debug_logi([[maybe_unused]] int      indent,
 //! \param str Output buffer.
 //! \param fmt A format string for the fmtlib library.
 //! \param args Arguments for the fmtlib library.
-template<std::size_t N, typename S, typename... Args>
-constexpr void format(small_string<N>& str,
-                      const S&         fmt,
-                      Args&&... args) noexcept
+template<std::size_t N, typename... Args>
+inline void format(small_string<N>&            str,
+                   fmt::format_string<Args...> fmt_str,
+                   Args&&... args) noexcept
 {
-    auto ret = fmt::vformat_to_n(str.begin(),
-                                 static_cast<size_t>(N - 1),
-                                 fmt,
-                                 fmt::make_format_args(args...));
-    str.resize(ret.size);
+    auto result = fmt::vformat_to_n(str.data(),
+                                    static_cast<std::size_t>(str.capacity()),
+                                    fmt_str,
+                                    fmt::make_format_args(args...));
+
+    str.resize(static_cast<typename small_string<N>::index_type>(
+      std::min<std::size_t>(result.size, str.capacity())));
 }
 
-template<std::size_t N, typename S, typename... Args>
-constexpr small_string<N> format_n(const S& fmt, Args&&... args) noexcept
+template<std::size_t N, typename... Args>
+inline small_string<N> format_n(fmt::format_string<Args...> fmt_str,
+                                Args&&... args) noexcept
 {
     small_string<N> str;
 
-    const auto ret = fmt::vformat_to_n(str.begin(),
-                                       static_cast<size_t>(N - 1),
-                                       fmt,
-                                       fmt::make_format_args(args...));
-    str.resize(ret.size);
+    auto result = fmt::vformat_to_n(
+      str.data(), str.capacity(), fmt_str, fmt::make_format_args(args...));
+
+    str.resize(static_cast<typename small_string<N>::index_type>(
+      std::min<std::size_t>(result.size, str.capacity())));
 
     return str;
 }

@@ -76,7 +76,7 @@ constexpr bool path_exist(const data_array<T, Identifier>& data,
 }
 
 /// Adds the extension to the file path string according to @c type extension.
-constexpr void add_extension(
+inline void add_extension(
   file_path_str&       file,
   file_path::file_type type = file_path::file_type::irt_file) noexcept
 {

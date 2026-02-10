@@ -185,32 +185,55 @@ bool InputSmallStringMultiline(const char*                label,
 }
 
 template<typename... Args>
-void TextFormat(const char* fmt, const Args&... args) noexcept
+inline void TextFormat(fmt::format_string<Args...> fmt_str,
+                       Args&&... args) noexcept
 {
-    irt::small_string<256> buffer;
-    irt::format(buffer, fmt, args...);
+    thread_local ::irt::small_string<255> buffer;
+
+    auto result = fmt::vformat_to_n(buffer.data(),
+                                    static_cast<std::size_t>(buffer.capacity()),
+                                    fmt_str,
+                                    fmt::make_format_args(args...));
+
+    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
+      std::min<std::size_t>(result.size, buffer.capacity())));
+
     ImGui::TextUnformatted(buffer.c_str());
 }
 
 template<typename... Args>
-void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
+void TextFormatDisabled(fmt::format_string<Args...> fmt_str,
+                        const Args&... args) noexcept
 {
-    irt::small_string<256> buffer;
+    thread_local ::irt::small_string<255> buffer;
 
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
-    irt::format(buffer, fmt, args...);
+    auto result = fmt::vformat_to_n(buffer.data(),
+                                    static_cast<std::size_t>(buffer.capacity()),
+                                    fmt_str,
+                                    fmt::make_format_args(args...));
+
+    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
+      std::min<std::size_t>(result.size, buffer.capacity())));
+
     ImGui::TextUnformatted(buffer.c_str());
     ImGui::PopStyleColor();
 }
 
 template<typename... Args>
-void LabelFormat(const char* label,
-                 const char* fmt,
-                 const Args&... args) noexcept
+inline void LabelFormat(const char*                 label,
+                        fmt::format_string<Args...> fmt_str,
+                        Args&&... args) noexcept
 {
-    irt::small_string<256> buffer;
-    irt::format(buffer, fmt, args...);
+    thread_local ::irt::small_string<255> buffer;
+
+    auto result = fmt::vformat_to_n(buffer.data(),
+                                    static_cast<std::size_t>(buffer.capacity()),
+                                    fmt_str,
+                                    fmt::make_format_args(args...));
+
+    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
+      std::min<std::size_t>(result.size, buffer.capacity())));
+
     ImGui::LabelText(label, "%s", buffer.c_str());
 }
 
