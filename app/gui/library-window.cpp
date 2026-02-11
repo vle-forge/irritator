@@ -17,31 +17,13 @@ static void remove_component_and_file_task(application&       app,
     app.add_gui_task([&app, id]() noexcept {
         app.mod.files.write([&](auto& fs) noexcept {
             if (const auto* f = fs.file_paths.try_to_get(id)) {
-                const auto compo_id = f->component;
-
-                if (app.mod.components.exists(compo_id)) {
-                    const auto name =
-                      app.mod.components.get<component>(compo_id).name.sv();
-
-                    app.jn.push(log_level::notice,
-                                [&](auto& title, auto& msg) noexcept {
-                                    title = "Remove component file";
-                                    format(msg,
-                                           "File `{}' and component {} "
-                                           "removed",
-                                           f->path.sv(),
-                                           name);
-                                });
-                } else {
-                    app.jn.push(
-                      log_level::notice, [&](auto& title, auto& msg) noexcept {
-                          title = "Remove component file";
-                          format(msg, "File `{}' removed", f->path.sv());
-                      });
-                }
-
                 fs.remove_file(id);
-                app.mod.components.free(compo_id);
+
+                app.jn.push(log_level::notice,
+                            [&](auto& title, auto& msg) noexcept {
+                                title = "Remove component file";
+                                format(msg, "File `{}' removed", f->path.sv());
+                            });
             }
         });
     });
@@ -52,16 +34,6 @@ static void remove_component_and_file_task(application&       app,
 static void remove_component_task(application&       app,
                                   const component_id compo_id) noexcept
 {
-    app.add_gui_task([&app, compo_id]() noexcept {
-        app.jn.push(log_level::notice,
-                    [&](auto& title, auto& /*msg*/) noexcept {
-                        title = "Remove component";
-                    });
-
-        if (auto* c = app.mod.components.try_to_get<component>(compo_id))
-            app.mod.free(*c);
-    });
-
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
@@ -149,18 +121,20 @@ static void show_component_popup_menu(application&                 app,
 
         if (const auto* file = fs.file_paths.try_to_get(sel.file); file) {
             if (ImGui::MenuItem("Delete component and file")) {
-                const auto id = app.mod.components.get_id(sel);
-                if (can_delete_component(app, id)) {
-                    app.component_ed.close(app.mod.components.get_id(sel));
-                    remove_component_and_file_task(app, sel.file);
+                const auto compo_id = app.mod.components.get_id(sel);
+                if (can_delete_component(app, compo_id)) {
+                    const auto file_id = sel.file;
+                    app.component_ed.close(compo_id);
+                    app.mod.components.free(compo_id);
+                    remove_component_and_file_task(app, file_id);
                 }
             }
         } else {
             if (ImGui::MenuItem("Delete component")) {
-                const auto id = app.mod.components.get_id(sel);
-                if (can_delete_component(app, id)) {
-                    const auto compo_id = app.mod.components.get_id(sel);
+                const auto compo_id = app.mod.components.get_id(sel);
+                if (can_delete_component(app, compo_id)) {
                     app.component_ed.close(compo_id);
+                    app.mod.components.free(compo_id);
                     remove_component_task(app, compo_id);
                 }
             }
