@@ -1759,34 +1759,50 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool try_modeling_copy_component_id(const small_string<31>&   reg,
-                                        const directory_path_str& dir,
-                                        const file_path_str&      file,
-                                        component_id&             c_id)
+    bool try_modeling_copy_component_id(const std::string_view reg,
+                                        const std::string_view dir,
+                                        const std::string_view file,
+                                        component_id&          c_id) noexcept
     {
         const auto ret = mod().files.read(
           [&](const auto& fs, const auto /*vers*/) noexcept -> component_id {
-              const auto reg_id = fs.find_registred_path_by_name(reg.sv());
-              const auto dir_id =
-                is_defined(reg_id)
-                  ? fs.find_directory_in_registry(reg_id, dir.sv())
-                  : fs.find_directory(dir.sv());
-              const auto file_id = fs.find_file_in_directory(dir_id, file.sv());
+              const auto  reg_id  = fs.find_registred_path_by_name(reg);
+              const auto  dir_id  = is_defined(reg_id)
+                                      ? fs.find_directory_in_registry(reg_id, dir)
+                                      : fs.find_directory(dir);
+              const auto  file_id = fs.find_file_in_directory(dir_id, file);
+              const auto* f       = fs.file_paths.try_to_get(file_id);
 
-              if (const auto* f = fs.file_paths.try_to_get(file_id)) {
-                  if (auto* c =
-                        mod().components.try_to_get<component>(f->component)) {
-
-                      if (c->state == component_status::unmodified)
-                          return f->component;
-
-                      if (const auto filepath = fs.get_fs_path(c->file))
-                          if (auto ret = mod().load_component(*filepath, *c))
-                              return f->component;
-                  }
+              if (not f) {
+                  warning(
+                    "unknown component file in {} / {} / {}", reg, dir, file);
+                  return undefined<component_id>();
               }
 
-              return undefined<component_id>();
+              if (not mod().components.try_to_get<component>(f->component)) {
+                  warning("unknown component in {} / {} / {}", reg, dir, file);
+                  return undefined<component_id>();
+              }
+
+              const auto compo_id = f->component;
+
+              auto& c = mod().components.get<component>(compo_id);
+              if (c.state == component_status::unmodified)
+                  return compo_id;
+
+              const auto filepath = fs.get_fs_path(c.file);
+              if (filepath.has_error()) {
+                  warning("fail to build component path in {} / {} / {}",
+                          reg,
+                          dir,
+                          file);
+                  return compo_id;
+              }
+
+              if (mod().load_component(*filepath, c).has_error())
+                  warning("fail to load component {}", filepath->string());
+
+              return compo_id;
           });
 
         if (is_defined(ret)) {
@@ -1824,7 +1840,7 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                try_modeling_copy_component_id(
-                 reg_name, dir_path, file_path, c_id);
+                 reg_name.sv(), dir_path.sv(), file_path.sv(), c_id);
     }
 
     bool copy_string_to_simluation_wrapper_type(i64& p) noexcept
@@ -2128,7 +2144,7 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                try_modeling_copy_component_id(
-                 reg_name, dir_path, file_path, c_id);
+                 reg_name.sv(), dir_path.sv(), file_path.sv(), c_id);
     }
 
     bool dispatch_child_component_type(const rapidjson::Value& val,
@@ -4122,7 +4138,7 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                try_modeling_copy_component_id(
-                 reg_name, dir_path, file_path, c_id) &&
+                 reg_name.sv(), dir_path.sv(), file_path.sv(), c_id) &&
                project_set(c_id);
     }
 

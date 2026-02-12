@@ -199,7 +199,8 @@ static auto combobox_file(application&                         app,
         if (ImGui::InputFilteredString("File##text", tmp.path)) {
             if (not end_with(tmp.path.sv(), opt)) {
                 if (opt == file_path_selector_option::force_irt_extension) {
-                    add_extension(tmp.path, file_path::file_type::component_file);
+                    add_extension(tmp.path,
+                                  file_path::file_type::component_file);
                     if (is_valid_dot_filename(tmp.path.sv()))
                         copy_file_task(app, tmp, ret);
                 }
@@ -513,7 +514,7 @@ bool application::init() noexcept
 
     mod.files.write([&](auto& fs) { fs.browse_registreds(jn); });
 
-    if (auto ret = mod.fill_components()) {
+    if (auto ret = mod.fill_components(); ret.has_error()) {
         jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
             title = "Modeling initialization error";
             msg   = "Fail to fill read component list";
