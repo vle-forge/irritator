@@ -81,6 +81,7 @@ static void do_build_default(variables& v) noexcept
 
 static std::error_code do_write(const variables& vars,
                                 const int        theme,
+                                const bool       have_notifications,
                                 std::FILE*       file) noexcept
 {
     fmt::print(file, "[paths]\n");
@@ -99,6 +100,10 @@ static std::error_code do_write(const variables& vars,
                    vars.rec_paths.paths[idx].sv());
     }
 
+    fmt::print(file, "[options]\n");
+    fmt::print(
+      file, "notifications={}\n", have_notifications ? "true" : "false");
+
     fmt::print(file, "[themes]\n");
     fmt::print(file, "selected={}\n", themes[theme]);
 
@@ -109,7 +114,8 @@ static std::error_code do_write(const variables& vars,
 
 static std::error_code do_save(std::FILE*       file,
                                const variables& vars,
-                               const int        theme) noexcept
+                               const int        theme,
+                               const bool       have_notifications) noexcept
 {
     fatal::ensure(file);
 
@@ -117,25 +123,26 @@ static std::error_code do_save(std::FILE*       file,
     if (std::ferror(file))
         return std::make_error_code(std::errc(std::errc::io_error));
 
-    return do_write(vars, theme, file);
+    return do_write(vars, theme, have_notifications, file);
 }
 
 static std::error_code do_save(const std::filesystem::path& filename,
                                const variables&             vars,
-                               const int                    theme) noexcept
+                               const int                    theme,
+                               const bool have_notifications) noexcept
 {
     auto file = file::open(filename, file_mode(file_open_options::write));
     if (file.has_error()) [[unlikely]]
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_save(file->to_file(), vars, theme);
+    return do_save(file->to_file(), vars, theme, have_notifications);
 }
 
-enum : u8 { section_colors, section_paths, section_COUNT };
+enum : u8 { section_colors, section_options, section_paths, section_COUNT };
 
 static bool do_read_section(variables& /*vars*/,
-                            std::bitset<2>&  current_section,
+                            std::bitset<3>&  current_section,
                             std::string_view section) noexcept
 {
     struct map {
@@ -143,7 +150,8 @@ static bool do_read_section(variables& /*vars*/,
         int              section;
     };
 
-    static const map m[] = { { "paths", section_paths },
+    static const map m[] = { { "options", section_options },
+                             { "paths", section_paths },
                              { "themes", section_colors } };
 
     auto it = sorted_vector_find(
@@ -164,7 +172,8 @@ static bool do_read_section(variables& /*vars*/,
 
 static bool do_read_affect(variables& /*vars*/,
                            int&                   theme,
-                           const std::bitset<2>&  current_section,
+                           std::atomic<bool>&     notifs,
+                           const std::bitset<3>&  current_section,
                            const std::string_view key,
                            const std::string_view val) noexcept
 {
@@ -206,6 +215,17 @@ static bool do_read_affect(variables& /*vars*/,
         }
     }
 
+    if (current_section.test(section_options) and key == "notifications") {
+        if (val == std::string_view("true") or val == "1") {
+            notifs = true;
+            return true;
+        }
+        if (val == std::string_view("false") or val == "0") {
+            notifs = false;
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -238,7 +258,7 @@ std::optional<int> do_read_integer(const std::string_view value) noexcept
 }
 
 static bool do_read_elem(variables&             vars,
-                         const std::bitset<2>&  current_section,
+                         const std::bitset<3>&  current_section,
                          const std::string_view element) noexcept
 {
     if (current_section.test(section_paths)) {
@@ -313,11 +333,12 @@ static_assert(not in_range("totoa"sv, 5));
 
 }
 
-static std::error_code do_parse(variables&       v,
-                                int&             theme,
-                                std::string_view buffer) noexcept
+static std::error_code do_parse(variables&         v,
+                                int&               theme,
+                                std::atomic<bool>& notifs,
+                                std::string_view   buffer) noexcept
 {
-    std::bitset<2> s;
+    std::bitset<3> s;
 
     for (auto pos = buffer.find_first_of(";#[=\n");
          pos != std::string_view::npos;
@@ -352,6 +373,7 @@ static std::error_code do_parse(variables&       v,
             if (not do_read_affect(
                   v,
                   theme,
+                  notifs,
                   s,
                   buffer.substr(0, pos),
                   buffer.substr(pos + 1u, new_line - pos - 1u)))
@@ -376,9 +398,10 @@ static std::error_code do_parse(variables&       v,
     return std::error_code();
 }
 
-static std::error_code do_load(std::FILE* file,
-                               variables& vars,
-                               int&       theme) noexcept
+static std::error_code do_load(std::FILE*         file,
+                               variables&         vars,
+                               int&               theme,
+                               std::atomic<bool>& notifs) noexcept
 {
     std::fseek(file, 0u, SEEK_END);
     auto size = std::ftell(file);
@@ -397,19 +420,20 @@ static std::error_code do_load(std::FILE* file,
         return std::make_error_code(std::errc(std::errc::io_error));
 
     return do_parse(
-      vars, theme, std::string_view{ buffer.data(), buffer.size() });
+      vars, theme, notifs, std::string_view{ buffer.data(), buffer.size() });
 }
 
 static std::error_code do_load(const std::filesystem::path& filename,
                                variables&                   vars,
-                               int&                         theme) noexcept
+                               int&                         theme,
+                               std::atomic<bool>&           notifs) noexcept
 {
     auto file = file::open(filename, file_mode{ file_open_options::read });
     if (file.has_error()) [[unlikely]]
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_load(file->to_file(), vars, theme);
+    return do_load(file->to_file(), vars, theme, notifs);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -572,7 +596,7 @@ config_manager::config_manager(const std::string& config_path) noexcept
 {
     m_vars.write([&](auto& buffer) noexcept {
         do_build_default(buffer);
-        if (do_load(config_path, buffer, theme)) {
+        if (do_load(config_path, buffer, theme, enable_notification_windows)) {
             if (not save()) {
                 std::fprintf(stderr,
                              "Fail to store configuration in %s\n",
@@ -589,7 +613,8 @@ std::error_code config_manager::save() const noexcept
     m_vars.read(
       [&](const auto& buffer, const auto version, auto& ret) noexcept {
           if (version != m_version)
-              ret = do_save(m_path, buffer, theme);
+              ret = do_save(
+                m_path, buffer, theme, enable_notification_windows.load());
       },
       ret);
 
@@ -604,7 +629,8 @@ std::error_code config_manager::load() noexcept
       [&](auto& buffer, auto& ret) noexcept {
           variables temp;
 
-          if (auto is_load_success = do_load(m_path.c_str(), temp, theme);
+          if (auto is_load_success = do_load(
+                m_path.c_str(), temp, theme, enable_notification_windows);
               not is_load_success) {
               ret = is_load_success;
           } else {
