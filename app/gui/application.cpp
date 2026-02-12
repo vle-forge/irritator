@@ -779,7 +779,8 @@ auto application::show() noexcept -> show_result_t
     //     }
     // }
 
-    notifications.show();
+    if (config.enable_notification_windows.load())
+        notifications.show();
 
     return ret;
 }

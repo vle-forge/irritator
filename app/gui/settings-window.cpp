@@ -196,6 +196,12 @@ void settings_window::show() noexcept
         changes++;
     }
 
+    auto have_notif = app.config.enable_notification_windows.load();
+    if (ImGui::Checkbox("Enable notification windows", &have_notif)) {
+        app.config.enable_notification_windows.store(have_notif);
+        changes++;
+    }
+
     ImGui::End();
 
     if (changes > 0) {

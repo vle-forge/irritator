@@ -297,8 +297,10 @@ public:
     void      swap(variables& other) noexcept;
     variables copy() const noexcept;
 
-    theme_colors colors;
-    int          theme = 0;
+    theme_colors      colors;
+    int               theme = 0;
+
+    std::atomic<bool> enable_notification_windows;
 
 private:
     /** Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or
