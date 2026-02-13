@@ -145,16 +145,40 @@ public:
     }
 
     template<typename Function, typename... Args>
-    void read(Function&& fn, Args&&... args) const noexcept
+    auto read(Function&& fn, Args&&... args) const noexcept
+      -> decltype(std::invoke(
+        std::forward<Function>(fn),
+        std::declval<ring_buffer<u16>&>(),
+        std::declval<pool<std::pair<u64, log_level>, u16>&>(),
+        std::declval<vector<title>&>(),
+        std::declval<vector<descr>&>(),
+        std::forward<Args>(args)...))
     {
-        m_logs.read([&](const auto& buffer, const auto /*version*/) {
-            std::invoke(std::forward<Function>(fn),
-                        buffer.ring,
-                        buffer.ids,
-                        buffer.titles,
-                        buffer.descriptions,
-                        std::forward<Args>(args)...);
-        });
+        if constexpr (std::is_void_v<decltype(std::invoke(
+                        std::forward<Function>(fn),
+                        std::declval<ring_buffer<u16>&>(),
+                        std::declval<pool<std::pair<u64, log_level>, u16>&>(),
+                        std::declval<vector<title>&>(),
+                        std::declval<vector<descr>&>(),
+                        std::forward<Args>(args)...))>) {
+            m_logs.read([&](const auto& buffer, const auto /*version*/) {
+                std::invoke(std::forward<Function>(fn),
+                            buffer.ring,
+                            buffer.ids,
+                            buffer.titles,
+                            buffer.descriptions,
+                            std::forward<Args>(args)...);
+            });
+        } else {
+            return m_logs.read([&](const auto& buffer, const auto /*version*/) {
+                return std::invoke(std::forward<Function>(fn),
+                                   buffer.ring,
+                                   buffer.ids,
+                                   buffer.titles,
+                                   buffer.descriptions,
+                                   std::forward<Args>(args)...);
+            });
+        }
     }
 
     template<typename Function, typename... Args>
@@ -180,6 +204,10 @@ public:
             buffer.ring.push_head(id);
         });
     }
+
+    /** Delete from @c m_logs all message with a creation time since epoch
+     * greater than @a duration. */
+    void cleanup_expired(const u64 duration) noexcept;
 
     void clear() noexcept;
 
@@ -297,8 +325,8 @@ public:
     void      swap(variables& other) noexcept;
     variables copy() const noexcept;
 
-    theme_colors      colors;
-    int               theme = 0;
+    theme_colors colors;
+    int          theme = 0;
 
     std::atomic<bool> enable_notification_windows;
 

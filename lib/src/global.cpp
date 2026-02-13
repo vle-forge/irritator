@@ -565,6 +565,41 @@ int journal_handler::ssize() const noexcept
     return len;
 }
 
+static inline u64 get_tick_count_in_milliseconds() noexcept
+{
+    namespace sc = std::chrono;
+
+    return duration_cast<sc::milliseconds>(
+             sc::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+static bool is_expired(const u64 creation_time, const u64 duration) noexcept
+{
+    const auto elapsed_time = get_tick_count_in_milliseconds() - creation_time;
+
+    return elapsed_time >= duration;
+}
+
+void journal_handler::cleanup_expired(const u64 duration) noexcept
+{
+    m_logs.write([&](auto& buffer) {
+        for (const auto id : buffer.ring)
+            if (buffer.ids.exists(id) and
+                is_expired(buffer.ids[id].first, duration))
+                buffer.ids.free(id);
+
+        while (not buffer.ring.empty()) {
+            const auto id = buffer.ring.front();
+
+            if (not buffer.ids.exists(id))
+                buffer.ring.dequeue();
+            else
+                break;
+        }
+    });
+}
+
 void stdfile_journal_consumer::read(journal_handler& lm) noexcept
 {
     lm.flush(

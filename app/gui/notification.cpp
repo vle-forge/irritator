@@ -37,14 +37,14 @@ static inline const char* notification_prefix[] = { "emergency error ",
                                                     "",
                                                     "debug " };
 
-static u64 get_elapsed_time(const notification& n) noexcept
+static u64 get_elapsed_time(const u64 creation_time) noexcept
 {
-    return get_tick_count_in_milliseconds() - n.creation_time;
+    return get_tick_count_in_milliseconds() - creation_time;
 }
 
-static notification_state get_state(const notification& n) noexcept
+static notification_state get_state(const u64 creation_time) noexcept
 {
-    const auto elapsed = get_elapsed_time(n);
+    const auto elapsed = get_elapsed_time(creation_time);
 
     if (elapsed > notification_fade_duration +
                     notification_manager::notification_duration +
@@ -61,10 +61,10 @@ static notification_state get_state(const notification& n) noexcept
     return notification_state::fadein;
 }
 
-static float get_fade_percent(const notification& n) noexcept
+static float get_fade_percent(const u64 creation_time) noexcept
 {
-    const auto state   = get_state(n);
-    const auto elapsed = get_elapsed_time(n);
+    const auto state   = get_state(creation_time);
+    const auto elapsed = get_elapsed_time(creation_time);
 
     switch (state) {
     case notification_state::fadein:
@@ -85,45 +85,6 @@ static float get_fade_percent(const notification& n) noexcept
     }
 
     unreachable();
-}
-
-notification::notification() noexcept
-  : creation_time(get_tick_count_in_milliseconds())
-  , level(log_level::info)
-{}
-
-notification::notification(log_level level_) noexcept
-  : creation_time(get_tick_count_in_milliseconds())
-  , level(level_)
-{}
-
-notification_manager::notification_manager() noexcept
-  : m_enabled_ids(notification_number)
-{
-    m_data.reserve(notification_number);
-}
-
-void notification_manager::enqueue(log_level        l,
-                                   std::string_view t,
-                                   std::string_view m,
-                                   u64              date) noexcept
-{
-    std::unique_lock lock(m_mutex);
-
-    if (m_data.full()) {
-        debug::ensure(not m_enabled_ids.empty());
-
-        auto id = *(m_enabled_ids.head());
-        m_enabled_ids.pop_head();
-        m_data.free(id);
-    }
-
-    auto& notif         = m_data.alloc(l);
-    notif.creation_time = date;
-    notif.message       = m;
-    notif.title         = t;
-
-    m_enabled_ids.emplace_enqueue(m_data.get_id(notif));
 }
 
 static ImU32 get_background_color(const theme_colors& t,
@@ -153,37 +114,31 @@ static ImU32 get_background_color(const theme_colors& t,
 
 void notification_manager::show() noexcept
 {
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        const auto vp_size = ImGui::GetMainViewport()->Size;
-        auto       height  = 0.f;
-        auto       i       = 0;
+    auto& app = container_of(this, &application::notifications);
 
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.f);
+    const auto need_cleanup = app.jn.read([&](const auto& ring,
+                                              const auto& ids,
+                                              const auto& titles,
+                                              const auto& descriptions) {
+        const auto vp_pos       = ImGui::GetMainViewport()->Pos;
+        const auto vp_size      = ImGui::GetMainViewport()->Size;
+        auto       height       = 0.f;
+        auto       i            = 0;
+        auto       need_cleanup = false;
 
-        for (auto it = m_enabled_ids.head(); it != m_enabled_ids.end(); ++it) {
-            auto* notif = m_data.try_to_get(*it);
-            if (!notif) {
-                *it = undefined<notification_id>();
+        for (const auto id : ring) {
+            const auto  date    = ids[id].first;
+            const auto  level   = ids[id].second;
+            const auto& title   = titles[id];
+            const auto& desc    = descriptions[id];
+            const auto  opacity = get_fade_percent(date);
+
+            if (get_state(date) == notification_state::expired) {
+                need_cleanup = true;
                 continue;
             }
 
-            auto& app = container_of(this, &application::notifications);
-            if (get_state(*notif) == notification_state::expired) {
-                auto& msg = app.log_wnd.enqueue();
-
-                if (notif->message.empty())
-                    msg.assign(notif->title.sv());
-                else
-                    format(
-                      msg, "{}: {}", notif->title.sv(), notif->message.sv());
-
-                m_data.free(*it);
-                *it = undefined<notification_id>();
-                continue;
-            }
-
-            const auto opacity = get_fade_percent(*notif);
-
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.f);
             ImGui::SetNextWindowBgAlpha(opacity);
             ImGui::SetNextWindowPos(
               ImVec2(vp_size.x - notification_x_padding,
@@ -193,7 +148,7 @@ void notification_manager::show() noexcept
 
             ImGui::PushStyleColor(
               ImGuiCol_WindowBg,
-              get_background_color(app.config.colors, notif->level));
+              get_background_color(app.config.colors, level));
 
             small_string<16> name;
             format(name, "##{}toast", i);
@@ -201,14 +156,14 @@ void notification_manager::show() noexcept
             ImGui::PopStyleColor(1);
 
             ImGui::PushTextWrapPos(vp_size.x / 3.f);
-            ImGui::TextUnformatted(notification_prefix[ordinal(notif->level)]);
+            ImGui::TextUnformatted(notification_prefix[ordinal(level)]);
             ImGui::SameLine();
-            ImGui::TextUnformatted(notif->title.c_str());
+            ImGui::TextUnformatted(title.c_str());
 
-            if (!notif->message.empty()) {
+            if (not desc.empty()) {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
                 ImGui::Separator();
-                ImGui::TextUnformatted(notif->message.c_str());
+                ImGui::TextUnformatted(desc.c_str());
             }
 
             ImGui::PopTextWrapPos();
@@ -217,13 +172,42 @@ void notification_manager::show() noexcept
             ImGui::End();
 
             ++i;
+
+            ImGui::PopStyleVar();
         }
 
-        while (!m_enabled_ids.empty() &&
-               m_enabled_ids.front() == undefined<notification_id>())
-            m_enabled_ids.dequeue();
+        return need_cleanup;
+    });
 
-        ImGui::PopStyleVar();
+    if (need_cleanup) {
+
+        // We need copy the expired tasks to the @c window-logger and the we
+        // clear all items from the journal handler.
+
+        app.add_gui_task([&app] {
+            app.jn.read([&](const auto& ring,
+                            const auto& ids,
+                            const auto& titles,
+                            const auto& descriptions) {
+                for (const auto id : ring) {
+                    const auto  date    = ids[id].first;
+                    const auto  level   = ids[id].second;
+                    const auto& title   = titles[id];
+                    const auto& desc    = descriptions[id];
+
+                    if (get_state(date) == notification_state::expired) {
+                        auto& str = app.log_wnd.enqueue();
+                        format(str,
+                               "{} {}: {}",
+                               log_level_names[ordinal(level)],
+                               titles[id].c_str(),
+                               descriptions[id].c_str());
+                    }
+                }
+            });
+
+            app.jn.cleanup_expired(3000u);
+        });
     }
 }
 

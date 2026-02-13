@@ -323,22 +323,6 @@ void show_combobox_external_sources(external_source_definition&     srcs,
                                     external_source_definition::id& elem_id,
                                     const char* name = "source") noexcept;
 
-struct notification {
-    static inline constexpr int title_length   = 127;
-    static inline constexpr int message_length = 510;
-
-    using title_t   = small_string<title_length>;
-    using message_t = small_string<message_length>;
-
-    notification() noexcept;
-    notification(log_level level_) noexcept;
-
-    title_t   title;
-    message_t message;
-    u64       creation_time;
-    log_level level;
-};
-
 //! @brief Show notification into small auto destructible windows in bottom
 //!  right/right.
 //!
@@ -351,20 +335,9 @@ public:
     static inline constexpr i32 notification_number   = 10;
     static inline constexpr u32 notification_duration = 3000;
 
-    notification_manager() noexcept;
+    notification_manager() noexcept = default;
 
     void show() noexcept;
-
-    void enqueue(log_level        l,
-                 std::string_view t,
-                 std::string_view m,
-                 u64              date) noexcept;
-
-private:
-    data_array<notification, notification_id> m_data;
-    ring_buffer<notification_id>              m_enabled_ids;
-
-    spin_mutex m_mutex;
 };
 
 //! @brief Show notification into a classical window in botton.
@@ -1869,8 +1842,7 @@ private:
     void          show_dock() noexcept;
     void          show_select_directory_dlg() noexcept;
 
-    u64              m_journal_timestep;
-    std::atomic_flag journal_displayed = ATOMIC_FLAG_INIT;
+    u64 m_journal_timestep;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node

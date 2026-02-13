@@ -717,37 +717,6 @@ auto application::show() noexcept -> show_result_t
     auto ret = show_menu();
     show_dock();
 
-    // Add a gui task to copy journal_handler entries into the log_window's
-    // buffer once a time at 1.000 ms and flush the journal_handler.
-
-    if (auto c = journal_handler::get_tick_count_in_milliseconds();
-        (c - m_journal_timestep) > 1'000u) {
-        m_journal_timestep = c;
-
-        if (not journal_displayed.test_and_set()) {
-            add_gui_task([&]() {
-                jn.flush(
-                  [](auto& ring,
-                     auto& ids,
-                     auto& titles,
-                     auto& descriptions,
-                     auto& notifications) noexcept {
-                      for (const auto id : ring) {
-                          if (ids.exists(id)) {
-                              notifications.enqueue(ids[id].second,
-                                                    titles[id].sv(),
-                                                    descriptions[id].sv(),
-                                                    ids[id].first);
-                          }
-                      }
-                  },
-                  notifications);
-
-                journal_displayed.clear();
-            });
-        }
-    }
-
     if (memory_wnd.is_open)
         memory_wnd.show();
 
@@ -756,28 +725,6 @@ auto application::show() noexcept -> show_result_t
 
     if (settings_wnd.is_open)
         settings_wnd.show();
-
-    // if (show_select_reg_path) {
-    //     const char* title = "Select directory";
-    //     ImGui::OpenPopup(title);
-    //     if (f_dialog.show_select_directory(title)) {
-    //         if (f_dialog.state == file_dialog::status::ok) {
-    //             auto* dir_path =
-    //               mod.registred_paths.try_to_get(selected_reg_path);
-    //             if (dir_path) {
-    //                 auto str = f_dialog.result.string();
-    //                 dir_path->path.assign(str);
-    //             }
-
-    //             show_select_reg_path = false;
-    //             selected_reg_path    = undefined<registred_path_id>();
-    //             f_dialog.result.clear();
-    //         }
-
-    //         f_dialog.clear();
-    //         show_select_reg_path = false;
-    //     }
-    // }
 
     if (config.enable_notification_windows.load())
         notifications.show();
