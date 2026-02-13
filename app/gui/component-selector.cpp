@@ -107,10 +107,15 @@ component_selector::result_t component_selector::combobox(
         }
 
         if (ImGui::BeginCombo(label, current_name)) {
-            ImGui::ColorButton(
-              "Undefined color",
-              to_ImVec4(app.config.colors[style_color::component_undefined]),
-              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+            const auto undef_color = app.config.vars.colors.read(
+              [&](const auto& v, const auto /*vers*/) noexcept {
+                  return to_ImVec4(v[style_color::component_undefined]);
+              });
+
+            ImGui::ColorButton("Undefined color",
+                               undef_color,
+                               ImGuiColorEditFlags_NoInputs |
+                                 ImGuiColorEditFlags_NoLabel);
             ImGui::SameLine(50.f);
             ImGui::PushID(-1);
             if (ImGui::Selectable(current_name, is_undefined(current))) {
@@ -199,10 +204,15 @@ component_selector::result_t component_selector::combobox(
         }
 
         if (ImGui::BeginCombo(label, current_name)) {
-            ImGui::ColorButton(
-              "Undefined color",
-              to_ImVec4(app.config.colors[style_color::component_undefined]),
-              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+            const auto undef_color = app.config.vars.colors.read(
+              [&](const auto& v, const auto /*vers*/) noexcept {
+                  return to_ImVec4(v[style_color::component_undefined]);
+              });
+
+            ImGui::ColorButton("Undefined color",
+                               undef_color,
+                               ImGuiColorEditFlags_NoInputs |
+                                 ImGuiColorEditFlags_NoLabel);
             ImGui::SameLine(30.f);
 
             ImGui::PushID(-1);

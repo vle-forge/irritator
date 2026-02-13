@@ -19,26 +19,26 @@ static ImVec4 alpha(const ImVec4& vec, const float f) noexcept
 
 static auto display_themes_selector(application& app) noexcept -> bool
 {
-    auto old_theme_id = app.config.theme;
+    auto old_theme_id = app.config.vars.theme.load();
 
     const char* previous_name = "-";
 
     if (0 <= old_theme_id and old_theme_id < 8) {
         previous_name = themes[old_theme_id];
     } else {
-        app.config.theme = 0;
+        app.config.vars.theme = 0;
     }
 
     if (ImGui::BeginCombo("Choose style", previous_name)) {
         for (int i = 0, e = length(themes); i != e; ++i) {
-            if (ImGui::Selectable(themes[i], i == app.config.theme)) {
-                app.config.theme = i;
+            if (ImGui::Selectable(themes[i], i == app.config.vars.theme)) {
+                app.config.vars.theme = i;
             }
         }
         ImGui::EndCombo();
     }
 
-    return app.config.theme != old_theme_id;
+    return app.config.vars.theme != old_theme_id;
 }
 
 void settings_window::show() noexcept
@@ -192,13 +192,13 @@ void settings_window::show() noexcept
     ImGui::Text("Graphics");
 
     if (display_themes_selector(app)) {
-        apply_style(app.config.theme);
+        apply_style(app.config.vars.theme);
         changes++;
     }
 
-    auto have_notif = app.config.enable_notification_windows.load();
+    auto have_notif = app.config.vars.enable_notification_windows.load();
     if (ImGui::Checkbox("Enable notification windows", &have_notif)) {
-        app.config.enable_notification_windows.store(have_notif);
+        app.config.vars.enable_notification_windows.store(have_notif);
         changes++;
     }
 
@@ -319,63 +319,61 @@ void settings_window::apply_style(const int theme) noexcept
     ImGuiStyle* style  = &ImGui::GetStyle();
     ImVec4*     colors = style->Colors;
 
-    ccopy(colors[ImGuiCol_PlotHistogramHovered])
-      .alpha(0.f)
-      .to(app.config.colors[style_color::background_error_notification]);
-    ccopy(colors[ImGuiCol_PlotHistogram])
-      .alpha(0.f)
-      .to(app.config.colors[style_color::background_warning_notification]);
-    ccopy(colors[ImGuiCol_PlotHistogram])
-      .alpha(0.f)
-      .invert_red_blue()
-      .to(app.config.colors[style_color::background_info_notification]);
+    app.config.vars.colors.write([&](auto& cc) {
+        ccopy(colors[ImGuiCol_PlotHistogramHovered])
+          .alpha(0.f)
+          .to(cc[style_color::background_error_notification]);
+        ccopy(colors[ImGuiCol_PlotHistogram])
+          .alpha(0.f)
+          .to(cc[style_color::background_warning_notification]);
+        ccopy(colors[ImGuiCol_PlotHistogram])
+          .alpha(0.f)
+          .invert_red_blue()
+          .to(cc[style_color::background_info_notification]);
 
-    ccopy(colors[ImGuiCol_FrameBg])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::background]);
-    ccopy(colors[ImGuiCol_FrameBgActive])
-      .alpha(0.5f)
-      .to(app.config.colors[style_color::background_selection]);
-    ccopy(colors[ImGuiCol_Border])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::inner_border]);
-    ccopy(colors[ImGuiCol_BorderShadow])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::outer_border]);
+        ccopy(colors[ImGuiCol_FrameBg])
+          .alpha(1.f)
+          .to(cc[style_color::background]);
+        ccopy(colors[ImGuiCol_FrameBgActive])
+          .alpha(0.5f)
+          .to(cc[style_color::background_selection]);
+        ccopy(colors[ImGuiCol_Border])
+          .alpha(1.f)
+          .to(cc[style_color::inner_border]);
+        ccopy(colors[ImGuiCol_BorderShadow])
+          .alpha(1.f)
+          .to(cc[style_color::outer_border]);
 
-    ccopy(colors[ImGuiCol_FrameBg])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::component_undefined]);
-    ccopy(colors[ImGuiCol_Button])
-      .alpha(0.5f)
-      .to(app.config.colors[style_color::edge]);
-    ccopy(colors[ImGuiCol_ButtonActive])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::edge_hovered]);
-    ccopy(colors[ImGuiCol_ButtonHovered])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::edge_active]);
-    ccopy(colors[ImGuiCol_Button])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::node]);
-    ccopy(colors[ImGuiCol_ButtonActive])
-      .alpha(0.5f)
-      .to(app.config.colors[style_color::node_hovered]);
-    ccopy(colors[ImGuiCol_ButtonHovered])
-      .alpha(1.f)
-      .to(app.config.colors[style_color::node_active]);
-    ccopy(colors[ImGuiCol_Button])
-      .alpha(1.f)
-      .invert_red_green()
-      .to(app.config.colors[style_color::node_2]);
-    ccopy(colors[ImGuiCol_ButtonActive])
-      .alpha(0.5f)
-      .invert_red_green()
-      .to(app.config.colors[style_color::node_2_hovered]);
-    ccopy(colors[ImGuiCol_ButtonHovered])
-      .alpha(1.f)
-      .invert_red_green()
-      .to(app.config.colors[style_color::node_2_active]);
+        ccopy(colors[ImGuiCol_FrameBg])
+          .alpha(1.f)
+          .to(cc[style_color::component_undefined]);
+        ccopy(colors[ImGuiCol_Button]).alpha(0.5f).to(cc[style_color::edge]);
+        ccopy(colors[ImGuiCol_ButtonActive])
+          .alpha(1.f)
+          .to(cc[style_color::edge_hovered]);
+        ccopy(colors[ImGuiCol_ButtonHovered])
+          .alpha(1.f)
+          .to(cc[style_color::edge_active]);
+        ccopy(colors[ImGuiCol_Button]).alpha(1.f).to(cc[style_color::node]);
+        ccopy(colors[ImGuiCol_ButtonActive])
+          .alpha(0.5f)
+          .to(cc[style_color::node_hovered]);
+        ccopy(colors[ImGuiCol_ButtonHovered])
+          .alpha(1.f)
+          .to(cc[style_color::node_active]);
+        ccopy(colors[ImGuiCol_Button])
+          .alpha(1.f)
+          .invert_red_green()
+          .to(cc[style_color::node_2]);
+        ccopy(colors[ImGuiCol_ButtonActive])
+          .alpha(0.5f)
+          .invert_red_green()
+          .to(cc[style_color::node_2_hovered]);
+        ccopy(colors[ImGuiCol_ButtonHovered])
+          .alpha(1.f)
+          .invert_red_green()
+          .to(cc[style_color::node_2_active]);
+    });
 
     apply_imnodes_theme_colors();
 }

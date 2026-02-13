@@ -292,9 +292,12 @@ void graph_component_editor_data::show_graph(application& app,
     const ImGuiIO& io        = ImGui::GetIO();
     ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
-    draw_list->AddRect(canvas_p0,
-                       canvas_p1,
-                       to_ImU32(app.config.colors[style_color::outer_border]));
+    draw_list->AddRect(
+      canvas_p0,
+      canvas_p1,
+      app.config.vars.colors.read([&](const auto& colors, const auto /*vers*/) {
+          return to_ImU32(colors[style_color::outer_border]);
+      }));
 
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
@@ -469,19 +472,27 @@ void graph_component_editor_data::show_graph(application& app,
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
     const float GRID_STEP = 64.0f;
 
+    auto [inner_border, node_active, edge, edge_active, background_selection] =
+      app.config.vars.colors.read([&](const auto& colors, const auto /*v*/) {
+          return std::tuple(
+            to_ImU32(colors[style_color::inner_border]),
+            to_ImU32(colors[style_color::node_active]),
+            to_ImU32(colors[style_color::edge]),
+            to_ImU32(colors[style_color::edge_active]),
+            to_ImU32(colors[style_color::background_selection]));
+      });
+
     for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x;
          x += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x + x, canvas_p0.y),
-          ImVec2(canvas_p0.x + x, canvas_p1.y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                           ImVec2(canvas_p0.x + x, canvas_p1.y),
+                           inner_border);
 
     for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y;
          y += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x, canvas_p0.y + y),
-          ImVec2(canvas_p1.x, canvas_p0.y + y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                           ImVec2(canvas_p1.x, canvas_p0.y + y),
+                           inner_border);
 
     for (const auto id : data.g.nodes) {
         const auto i = get_index(id);
@@ -511,13 +522,7 @@ void graph_component_editor_data::show_graph(application& app,
           origin.y +
             ((data.g.node_positions[i][1] + data.g.node_areas[i]) * zoom.y));
 
-        draw_list->AddRect(
-          p_min,
-          p_max,
-          to_ImU32(app.config.colors[style_color::node_active]),
-          0.f,
-          0,
-          4.f);
+        draw_list->AddRect(p_min, p_max, node_active, 0.f, 0, 4.f);
     }
 
     for (const auto id : data.g.edges) {
@@ -545,8 +550,7 @@ void graph_component_editor_data::show_graph(application& app,
           origin.x + ((data.g.node_positions[p_dst][0] + v_width) * zoom.x),
           origin.y + ((data.g.node_positions[p_dst][1] + v_height) * zoom.y));
 
-        draw_list->AddLine(
-          src, dst, to_ImU32(app.config.colors[style_color::edge]), 1.f);
+        draw_list->AddLine(src, dst, edge, 1.f);
     }
 
     for (const auto id : selected_edges) {
@@ -574,11 +578,7 @@ void graph_component_editor_data::show_graph(application& app,
                                 data.g.node_areas[p_dst] / 2.f) *
                                zoom.y));
 
-        draw_list->AddLine(
-          src,
-          dst,
-          to_ImU32(app.config.colors[style_color::edge_active]),
-          1.0f);
+        draw_list->AddLine(src, dst, edge_active, 1.0f);
     }
 
     if (run_selection) {
@@ -598,10 +598,7 @@ void graph_component_editor_data::show_graph(application& app,
                 std::max(start_selection.y, io.MousePos.y),
             };
 
-            draw_list->AddRectFilled(
-              bmin,
-              bmax,
-              to_ImU32(app.config.colors[style_color::background_selection]));
+            draw_list->AddRectFilled(bmin, bmax, background_selection);
         }
     }
 

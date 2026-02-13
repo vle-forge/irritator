@@ -146,9 +146,10 @@ void notification_manager::show() noexcept
               ImGuiCond_Always,
               ImVec2(1.0f, 1.0f));
 
-            ImGui::PushStyleColor(
-              ImGuiCol_WindowBg,
-              get_background_color(app.config.colors, level));
+            app.config.vars.colors.read([&](const auto& c, const auto /*v*/) {
+                ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                                      get_background_color(c, level));
+            });
 
             small_string<16> name;
             format(name, "##{}toast", i);
@@ -190,10 +191,10 @@ void notification_manager::show() noexcept
                             const auto& titles,
                             const auto& descriptions) {
                 for (const auto id : ring) {
-                    const auto  date    = ids[id].first;
-                    const auto  level   = ids[id].second;
-                    const auto& title   = titles[id];
-                    const auto& desc    = descriptions[id];
+                    const auto  date  = ids[id].first;
+                    const auto  level = ids[id].second;
+                    const auto& title = titles[id];
+                    const auto& desc  = descriptions[id];
 
                     if (get_state(date) == notification_state::expired) {
                         auto& str = app.log_wnd.enqueue();

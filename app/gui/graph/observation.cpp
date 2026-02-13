@@ -733,23 +733,31 @@ auto graph_editor::show(const char*     name,
 
     const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    if (initialize_canvas(
-          canvas_p0,
-          canvas_p1,
-          to_ImU32(app.config.colors[style_color::outer_border])))
+    u32 outer_border_c         = 0u;
+    u32 inner_border_c         = 0u;
+    u32 edge_c                 = 0u;
+    u32 node_active_c          = 0u;
+    u32 edge_active_c          = 0u;
+    u32 background_selection_c = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          outer_border_c = to_ImU32(colors[style_color::outer_border]);
+          inner_border_c = to_ImU32(colors[style_color::inner_border]);
+          edge_c         = to_ImU32(colors[style_color::edge]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+          background_selection_c =
+            to_ImU32(colors[style_color::background_selection]);
+      });
+
+    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
         update(app, graph);
 
     if (flags[option::show_grid])
-        draw_grid(canvas_p0,
-                  canvas_p1,
-                  to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph,
-               canvas_p0,
-               to_ImU32(app.config.colors[style_color::edge]),
-               to_ImU32(app.config.colors[style_color::node_active]),
-               to_ImU32(app.config.colors[style_color::edge_active]),
-               obs);
+    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
     if (draw_popup(app,
                    graph,
@@ -769,10 +777,7 @@ auto graph_editor::show(const char*     name,
         }
     }
 
-    draw_selection(
-      graph,
-      canvas_p0,
-      to_ImU32(app.config.colors[style_color::background_selection]));
+    draw_selection(graph, canvas_p0, background_selection_c);
 
     ImGui::GetWindowDrawList()->PopClipRect();
     ImGui::End();
@@ -815,30 +820,35 @@ void graph_editor::show(application&    app,
 
     const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    if (initialize_canvas(
-          canvas_p0,
-          canvas_p1,
-          to_ImU32(app.config.colors[style_color::outer_border])))
+    u32 outer_border_c         = 0u;
+    u32 inner_border_c         = 0u;
+    u32 edge_c                 = 0u;
+    u32 node_active_c          = 0u;
+    u32 edge_active_c          = 0u;
+    u32 background_selection_c = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          outer_border_c = to_ImU32(colors[style_color::outer_border]);
+          inner_border_c = to_ImU32(colors[style_color::inner_border]);
+          edge_c         = to_ImU32(colors[style_color::edge]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+          background_selection_c =
+            to_ImU32(colors[style_color::background_selection]);
+      });
+
+    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
         update(app, graph);
 
     if (flags[option::show_grid])
-        draw_grid(canvas_p0,
-                  canvas_p1,
-                  to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph,
-               canvas_p0,
-               to_ImU32(app.config.colors[style_color::edge]),
-               to_ImU32(app.config.colors[style_color::node_active]),
-               to_ImU32(app.config.colors[style_color::edge_active]),
-               app);
+    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, app);
 
     (void)draw_popup(app, graph, canvas_p0);
 
-    draw_selection(
-      graph,
-      canvas_p0,
-      to_ImU32(app.config.colors[style_color::background_selection]));
+    draw_selection(graph, canvas_p0, background_selection_c);
 
     ImGui::GetWindowDrawList()->PopClipRect();
     ImGui::EndChild();
@@ -877,25 +887,32 @@ void graph_editor::show(application&    app,
     if (canvas_sz.y < 50.0f)
         canvas_sz.y = 50.0f;
 
-    const auto canvas_p1 = canvas_p0 + canvas_sz;
+    const auto canvas_p1              = canvas_p0 + canvas_sz;
+    u32        outer_border_c         = 0u;
+    u32        inner_border_c         = 0u;
+    u32        edge_c                 = 0u;
+    u32        node_active_c          = 0u;
+    u32        edge_active_c          = 0u;
+    u32        background_selection_c = 0u;
 
-    if (initialize_canvas(
-          canvas_p0,
-          canvas_p1,
-          to_ImU32(app.config.colors[style_color::outer_border])))
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          outer_border_c = to_ImU32(colors[style_color::outer_border]);
+          inner_border_c = to_ImU32(colors[style_color::inner_border]);
+          edge_c         = to_ImU32(colors[style_color::edge]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+          background_selection_c =
+            to_ImU32(colors[style_color::background_selection]);
+      });
+
+    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
         update(app, graph);
 
     if (flags[option::show_grid])
-        draw_grid(canvas_p0,
-                  canvas_p1,
-                  to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph,
-               canvas_p0,
-               to_ImU32(app.config.colors[style_color::edge]),
-               to_ImU32(app.config.colors[style_color::node_active]),
-               to_ImU32(app.config.colors[style_color::edge_active]),
-               obs);
+    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
     if (draw_popup(app,
                    graph,
@@ -915,10 +932,7 @@ void graph_editor::show(application&    app,
         }
     }
 
-    draw_selection(
-      graph,
-      canvas_p0,
-      to_ImU32(app.config.colors[style_color::background_selection]));
+    draw_selection(graph, canvas_p0, background_selection_c);
 
     ImGui::GetWindowDrawList()->PopClipRect();
     ImGui::EndChild();
@@ -944,25 +958,32 @@ void graph_editor::show(application&     app,
     if (canvas_sz.y < 50.0f)
         canvas_sz.y = 50.0f;
 
-    const auto canvas_p1 = canvas_p0 + canvas_sz;
+    const auto canvas_p1              = canvas_p0 + canvas_sz;
+    u32        outer_border_c         = 0u;
+    u32        inner_border_c         = 0u;
+    u32        edge_c                 = 0u;
+    u32        node_active_c          = 0u;
+    u32        edge_active_c          = 0u;
+    u32        background_selection_c = 0u;
 
-    if (initialize_canvas(
-          canvas_p0,
-          canvas_p1,
-          to_ImU32(app.config.colors[style_color::outer_border])))
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          outer_border_c = to_ImU32(colors[style_color::outer_border]);
+          inner_border_c = to_ImU32(colors[style_color::inner_border]);
+          edge_c         = to_ImU32(colors[style_color::edge]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+          background_selection_c =
+            to_ImU32(colors[style_color::background_selection]);
+      });
+
+    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
         update(app, g.g);
 
     if (flags[option::show_grid])
-        draw_grid(canvas_p0,
-                  canvas_p1,
-                  to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(g.g,
-               canvas_p0,
-               to_ImU32(app.config.colors[style_color::edge]),
-               to_ImU32(app.config.colors[style_color::node_active]),
-               to_ImU32(app.config.colors[style_color::edge_active]),
-               app);
+    draw_graph(g.g, canvas_p0, edge_c, node_active_c, edge_active_c, app);
 
     (void)draw_popup(
       app,
@@ -970,10 +991,7 @@ void graph_editor::show(application&     app,
       canvas_p0,
       bitflags<popup_options>{ popup_options::show_graph_modication });
 
-    draw_selection(
-      g.g,
-      canvas_p0,
-      to_ImU32(app.config.colors[style_color::background_selection]));
+    draw_selection(g.g, canvas_p0, background_selection_c);
 
     ImGui::GetWindowDrawList()->PopClipRect();
     ImGui::End();

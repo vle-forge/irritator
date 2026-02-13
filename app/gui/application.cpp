@@ -220,9 +220,12 @@ static auto combobox_file(application&                         app,
 auto get_component_color(const application& app, const component_id id) noexcept
   -> const std::span<const float, 4>
 {
-    return app.mod.components.exists(id)
-             ? app.mod.components.get<component_color>(id)
-             : app.config.colors[style_color::component_undefined];
+    return app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*version*/) noexcept {
+          return app.mod.components.exists(id)
+                   ? app.mod.components.get<component_color>(id)
+                   : colors[style_color::component_undefined];
+      });
 }
 
 auto get_component_u32color(const application& app,
@@ -359,7 +362,7 @@ application::application(journal_handler& jn_) noexcept
   , copy_obs{ 16 }
   , m_journal_timestep{ journal_handler::get_tick_count_in_milliseconds() }
 {
-    settings_wnd.apply_style(config.theme);
+    settings_wnd.apply_style(config.vars.theme.load());
 
     task_mgr.start();
 
@@ -486,31 +489,32 @@ void application::free_project_window(const project_id pj_id) noexcept
 
 bool application::init() noexcept
 {
-    config.read_write([this](auto& vars) noexcept {
-        mod.files.write([&](auto& fs) {
-            for (const auto id : vars.rec_paths.ids) {
-                const auto idx = get_index(id);
+    config.vars.rec_paths.read(
+      [&](const auto& paths, const auto /*vers*/) noexcept {
+          mod.files.write([&](auto& fs) {
+              for (const auto id : paths.ids) {
+                  const auto idx = get_index(id);
 
-                auto& new_dir    = fs.registred_paths.alloc();
-                auto  new_dir_id = fs.registred_paths.get_id(new_dir);
-                new_dir.name     = vars.rec_paths.names[idx].sv();
-                new_dir.path     = vars.rec_paths.paths[idx].sv();
-                new_dir.priority = vars.rec_paths.priorities[idx];
+                  auto& new_dir    = fs.registred_paths.alloc();
+                  auto  new_dir_id = fs.registred_paths.get_id(new_dir);
+                  new_dir.name     = paths.names[idx].sv();
+                  new_dir.path     = paths.paths[idx].sv();
+                  new_dir.priority = paths.priorities[idx];
 
-                jn.push(log_level::info,
-                        [&new_dir](auto& title, auto& msg) noexcept {
-                            title = "New directory registred";
-                            format(msg,
-                                   "{} registred as path `{}' priority: {}",
-                                   new_dir.name.sv(),
-                                   new_dir.path.sv(),
-                                   new_dir.priority);
-                        });
+                  jn.push(log_level::info,
+                          [&new_dir](auto& title, auto& msg) noexcept {
+                              title = "New directory registred";
+                              format(msg,
+                                     "{} registred as path `{}' priority: {}",
+                                     new_dir.name.sv(),
+                                     new_dir.path.sv(),
+                                     new_dir.priority);
+                          });
 
-                fs.component_repertories.emplace_back(new_dir_id);
-            }
-        });
-    });
+                  fs.component_repertories.emplace_back(new_dir_id);
+              }
+          });
+      });
 
     mod.files.write([&](auto& fs) { fs.browse_registreds(jn); });
 
@@ -726,7 +730,7 @@ auto application::show() noexcept -> show_result_t
     if (settings_wnd.is_open)
         settings_wnd.show();
 
-    if (config.enable_notification_windows.load())
+    if (config.vars.enable_notification_windows.load())
         notifications.show();
 
     return ret;

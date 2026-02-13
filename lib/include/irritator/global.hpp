@@ -80,7 +80,11 @@ struct recorded_paths {
 };
 
 struct variables {
-    recorded_paths rec_paths;
+    shared_buffer<recorded_paths> rec_paths;
+    shared_buffer<theme_colors>   colors;
+
+    std::atomic<int>  theme                       = 0;
+    std::atomic<bool> enable_notification_windows = true;
 };
 
 //! Enumeration class used everywhere in irritator to produce log data.
@@ -265,70 +269,10 @@ public:
     config_manager(config_manager&&) noexcept            = delete;
     config_manager& operator=(config_manager&&) noexcept = delete;
 
-    /**
-     * Get the underlying @a variables object under @a shared_lock locker.
-     *
-     * @attention Do not store pointer or reference to any members of @a
-     * variables after the destruction of the @a config object (@c
-     * use-after-free). the config.
-     *
-     * @code
-     * config_manager cfgm;
-     * ...
-     * small_string<127> name;
-     * {
-     *     read_write([&name](const auto& vars) {
-     *         name = vars.g_themes.names[0];
-     *     });
-     * }
-     * @endcode
-     */
-    template<typename Function, typename... Args>
-    void read(Function&& fn, Args&&... args) noexcept
-    {
-        m_vars.read([&](const auto& buffer, const auto /*version*/) {
-            std::invoke(
-              std::forward<Function>(fn), buffer, std::forward<Args>(args)...);
-        });
-    }
-
-    /**
-     * Get the underlying @a variables object under a @a unique_lock locker.
-     *
-     * @attention Do not store pointer or reference to any members of @a
-     * variables after the destruction of the @a config object (@c
-     * use-after-free). the config.
-     *
-     * @code
-     * config_manager cfgm;
-     * ...
-     * small_string<127> name = "toto";
-     * {
-     *     read_write([&name](auto& vars) {
-     *         vars.g_themes.names[0] = name;
-     *     });
-     * }
-     * @endcode
-     */
-    template<typename Function, typename... Args>
-    void read_write(Function&& fn, Args&&... args) noexcept
-    {
-        m_vars.write([&](const auto& buffer) {
-            std::invoke(
-              std::forward<Function>(fn), buffer, std::forward<Args>(args)...);
-        });
-    }
-
-    std::error_code save() const noexcept;
+    std::error_code save() noexcept;
     std::error_code load() noexcept;
 
-    void      swap(variables& other) noexcept;
-    variables copy() const noexcept;
-
-    theme_colors colors;
-    int          theme = 0;
-
-    std::atomic<bool> enable_notification_windows;
+    variables vars;
 
 private:
     /** Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or
@@ -338,8 +282,7 @@ private:
      */
     const std::string m_path;
 
-    shared_buffer<variables> m_vars;
-    u64                      m_version = 0;
+    u64 m_version;
 };
 
 /** Retrieves the path of the file @a "irritator.ini" from the directoy @a

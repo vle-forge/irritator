@@ -43,79 +43,81 @@ constexpr Iterator sorted_vector_find(Iterator begin,
 
 static void do_build_default(variables& v) noexcept
 {
-    v.rec_paths.ids.reserve(16);
-    v.rec_paths.paths.resize(16);
-    v.rec_paths.priorities.resize(16);
-    v.rec_paths.names.resize(16);
+    v.rec_paths.write([&](recorded_paths& paths) noexcept {
+        paths.ids.reserve(16);
+        paths.paths.resize(16);
+        paths.priorities.resize(16);
+        paths.names.resize(16);
 
-    if (auto sys = get_system_component_dir(); sys.has_value()) {
-        std::error_code ec;
-        if (std::filesystem::exists(*sys, ec)) {
-            const auto idx              = v.rec_paths.ids.alloc();
-            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v.rec_paths.priorities[idx] = 20;
-            v.rec_paths.names[idx]      = "system";
+        if (auto sys = get_system_component_dir(); sys.has_value()) {
+            std::error_code ec;
+            if (std::filesystem::exists(*sys, ec)) {
+                const auto idx        = paths.ids.alloc();
+                paths.paths[idx]      = (const char*)sys->u8string().c_str();
+                paths.priorities[idx] = 20;
+                paths.names[idx]      = "system";
+            }
         }
-    }
 
-    if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
-        std::error_code ec;
-        if (std::filesystem::exists(*sys, ec)) {
-            const auto idx              = v.rec_paths.ids.alloc();
-            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v.rec_paths.priorities[idx] = 10;
-            v.rec_paths.names[idx]      = "p-system";
+        if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
+            std::error_code ec;
+            if (std::filesystem::exists(*sys, ec)) {
+                const auto idx        = paths.ids.alloc();
+                paths.paths[idx]      = (const char*)sys->u8string().c_str();
+                paths.priorities[idx] = 10;
+                paths.names[idx]      = "p-system";
+            }
         }
-    }
 
-    if (auto sys = get_default_user_component_dir(); sys.has_value()) {
-        std::error_code ec;
-        if (std::filesystem::exists(*sys, ec)) {
-            const auto idx              = v.rec_paths.ids.alloc();
-            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v.rec_paths.priorities[idx] = 0;
-            v.rec_paths.names[idx]      = "user";
+        if (auto sys = get_default_user_component_dir(); sys.has_value()) {
+            std::error_code ec;
+            if (std::filesystem::exists(*sys, ec)) {
+                const auto idx        = paths.ids.alloc();
+                paths.paths[idx]      = (const char*)sys->u8string().c_str();
+                paths.priorities[idx] = 0;
+                paths.names[idx]      = "user";
+            }
         }
-    }
+    });
+
+    v.enable_notification_windows = true;
+    v.theme                       = 0;
 }
 
-static std::error_code do_write(const variables& vars,
-                                const int        theme,
-                                const bool       have_notifications,
-                                std::FILE*       file) noexcept
+static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
 {
     fmt::print(file, "[paths]\n");
 
-    for (const auto id : vars.rec_paths.ids) {
-        const auto idx = get_index(id);
+    vars.rec_paths.read(
+      [&](const recorded_paths& paths, const auto /*vers*/) noexcept {
+          for (const auto id : paths.ids) {
+              const auto idx = get_index(id);
 
-        if (vars.rec_paths.names[idx].empty() or
-            vars.rec_paths.paths[idx].empty())
-            continue;
+              if (paths.names[idx].empty() or paths.paths[idx].empty())
+                  continue;
 
-        fmt::print(file,
-                   "{} {} {}\n",
-                   vars.rec_paths.names[idx].sv(),
-                   vars.rec_paths.priorities[idx],
-                   vars.rec_paths.paths[idx].sv());
-    }
+              fmt::print(file,
+                         "{} {} {}\n",
+                         paths.names[idx].sv(),
+                         paths.priorities[idx],
+                         paths.paths[idx].sv());
+          }
+      });
 
     fmt::print(file, "[options]\n");
-    fmt::print(
-      file, "notifications={}\n", have_notifications ? "true" : "false");
+    fmt::print(file,
+               "notifications={}\n",
+               vars.enable_notification_windows ? "true" : "false");
 
     fmt::print(file, "[themes]\n");
-    fmt::print(file, "selected={}\n", themes[theme]);
+    fmt::print(file, "selected={}\n", themes[vars.theme]);
 
     return std::ferror(file)
              ? std::make_error_code(std::errc(std::errc::io_error))
              : std::error_code();
 }
 
-static std::error_code do_save(std::FILE*       file,
-                               const variables& vars,
-                               const int        theme,
-                               const bool       have_notifications) noexcept
+static std::error_code do_save(std::FILE* file, const variables& vars) noexcept
 {
     fatal::ensure(file);
 
@@ -123,20 +125,18 @@ static std::error_code do_save(std::FILE*       file,
     if (std::ferror(file))
         return std::make_error_code(std::errc(std::errc::io_error));
 
-    return do_write(vars, theme, have_notifications, file);
+    return do_write(vars, file);
 }
 
 static std::error_code do_save(const std::filesystem::path& filename,
-                               const variables&             vars,
-                               const int                    theme,
-                               const bool have_notifications) noexcept
+                               const variables&             vars) noexcept
 {
     auto file = file::open(filename, file_mode(file_open_options::write));
     if (file.has_error()) [[unlikely]]
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_save(file->to_file(), vars, theme, have_notifications);
+    return do_save(file->to_file(), vars);
 }
 
 enum : u8 { section_colors, section_options, section_paths, section_COUNT };
@@ -170,58 +170,56 @@ static bool do_read_section(variables& /*vars*/,
     return true;
 }
 
-static bool do_read_affect(variables& /*vars*/,
-                           int&                   theme,
-                           std::atomic<bool>&     notifs,
+static bool do_read_affect(variables&             vars,
                            const std::bitset<3>&  current_section,
                            const std::string_view key,
                            const std::string_view val) noexcept
 {
     if (current_section.test(section_colors) and key == "selected") {
         if (val == std::string_view("Modern")) {
-            theme = 0;
+            vars.theme = 0;
             return true;
         }
         if (val == std::string_view("Dark")) {
-            theme = 1;
+            vars.theme = 1;
             return true;
         }
         if (val == std::string_view("Light")) {
-            theme = 2;
+            vars.theme = 2;
             return true;
         }
         if (val == std::string_view("Bess Dark")) {
-            theme = 3;
+            vars.theme = 3;
             return true;
         }
         if (val == std::string_view("Catpuccin Mocha")) {
-            theme = 4;
+            vars.theme = 4;
             return true;
         }
         if (val == std::string_view("Material You")) {
-            theme = 5;
+            vars.theme = 5;
             return true;
         }
         if (val == std::string_view("Fluent UI")) {
-            theme = 6;
+            vars.theme = 6;
             return true;
         }
         if (val == std::string_view("Fluent UI - Light")) {
-            theme = 7;
+            vars.theme = 7;
             return true;
         } else {
-            theme = 0;
+            vars.theme = 0;
             return true;
         }
     }
 
     if (current_section.test(section_options) and key == "notifications") {
         if (val == std::string_view("true") or val == "1") {
-            notifs = true;
+            vars.enable_notification_windows = true;
             return true;
         }
         if (val == std::string_view("false") or val == "0") {
-            notifs = false;
+            vars.enable_notification_windows = false;
             return true;
         }
     }
@@ -261,47 +259,48 @@ static bool do_read_elem(variables&             vars,
                          const std::bitset<3>&  current_section,
                          const std::string_view element) noexcept
 {
-    if (current_section.test(section_paths)) {
-        if (not vars.rec_paths.ids.can_alloc(1))
-            return false;
+    return vars.rec_paths.write([&](recorded_paths& rec_paths) noexcept {
+        if (current_section.test(section_paths)) {
+            if (not rec_paths.ids.can_alloc(1))
+                return false;
 
-        const auto id  = vars.rec_paths.ids.alloc();
-        const auto idx = get_index(id);
+            const auto id  = rec_paths.ids.alloc();
+            const auto idx = get_index(id);
 
-        vars.rec_paths.priorities[idx] = 0;
-        vars.rec_paths.names[idx].clear();
-        vars.rec_paths.paths[idx].clear();
+            rec_paths.priorities[idx] = 0;
+            rec_paths.names[idx].clear();
+            rec_paths.paths[idx].clear();
 
-        const auto sep_1 = element.find(' ');
-        if (sep_1 == std::string_view::npos or sep_1 + 1 > element.size())
-            return false;
+            const auto sep_1 = element.find(' ');
+            if (sep_1 == std::string_view::npos or sep_1 + 1 > element.size())
+                return false;
 
-        const auto name              = element.substr(0, sep_1);
-        const auto priority_and_path = element.substr(sep_1 + 1);
-        const auto sep_2             = priority_and_path.find(' ');
-        if (sep_2 == std::string_view::npos or
-            sep_2 + 1 > priority_and_path.size())
-            return false;
+            const auto name              = element.substr(0, sep_1);
+            const auto priority_and_path = element.substr(sep_1 + 1);
+            const auto sep_2             = priority_and_path.find(' ');
+            if (sep_2 == std::string_view::npos or
+                sep_2 + 1 > priority_and_path.size())
+                return false;
 
-        const auto priority = priority_and_path.substr(0, sep_2);
-        const auto path     = priority_and_path.substr(sep_2 + 1);
+            const auto priority = priority_and_path.substr(0, sep_2);
+            const auto path     = priority_and_path.substr(sep_2 + 1);
 
-        vars.rec_paths.names[idx]      = name;
-        vars.rec_paths.paths[idx]      = path;
-        vars.rec_paths.priorities[idx] = do_read_integer(priority).value_or(10);
+            rec_paths.names[idx]      = name;
+            rec_paths.paths[idx]      = path;
+            rec_paths.priorities[idx] = do_read_integer(priority).value_or(10);
 
-        if (vars.rec_paths.names[idx].empty() or
-            vars.rec_paths.paths[idx].empty()) {
-            vars.rec_paths.ids.free(id);
-        } else if (const auto f_id = find_name(vars.rec_paths, id);
-                   is_defined(f_id)) {
-            vars.rec_paths.ids.free(f_id);
+            if (rec_paths.names[idx].empty() or rec_paths.paths[idx].empty()) {
+                rec_paths.ids.free(id);
+            } else if (const auto f_id = find_name(rec_paths, id);
+                       is_defined(f_id)) {
+                rec_paths.ids.free(f_id);
+            }
+
+            return true;
         }
 
-        return true;
-    }
-
-    return false;
+        return false;
+    });
 }
 
 /**
@@ -333,10 +332,7 @@ static_assert(not in_range("totoa"sv, 5));
 
 }
 
-static std::error_code do_parse(variables&         v,
-                                int&               theme,
-                                std::atomic<bool>& notifs,
-                                std::string_view   buffer) noexcept
+static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
 {
     std::bitset<3> s;
 
@@ -372,8 +368,6 @@ static std::error_code do_parse(variables&         v,
             auto new_line = buffer.find('\n', pos + 1u);
             if (not do_read_affect(
                   v,
-                  theme,
-                  notifs,
                   s,
                   buffer.substr(0, pos),
                   buffer.substr(pos + 1u, new_line - pos - 1u)))
@@ -398,10 +392,7 @@ static std::error_code do_parse(variables&         v,
     return std::error_code();
 }
 
-static std::error_code do_load(std::FILE*         file,
-                               variables&         vars,
-                               int&               theme,
-                               std::atomic<bool>& notifs) noexcept
+static std::error_code do_load(std::FILE* file, variables& vars) noexcept
 {
     std::fseek(file, 0u, SEEK_END);
     auto size = std::ftell(file);
@@ -419,21 +410,18 @@ static std::error_code do_load(std::FILE*         file,
     if (std::cmp_not_equal(read, size))
         return std::make_error_code(std::errc(std::errc::io_error));
 
-    return do_parse(
-      vars, theme, notifs, std::string_view{ buffer.data(), buffer.size() });
+    return do_parse(vars, std::string_view{ buffer.data(), buffer.size() });
 }
 
 static std::error_code do_load(const std::filesystem::path& filename,
-                               variables&                   vars,
-                               int&                         theme,
-                               std::atomic<bool>&           notifs) noexcept
+                               variables&                   vars) noexcept
 {
     auto file = file::open(filename, file_mode{ file_open_options::read });
     if (file.has_error()) [[unlikely]]
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_load(file->to_file(), vars, theme, notifs);
+    return do_load(file->to_file(), vars);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -621,77 +609,30 @@ void stdfile_journal_consumer::read(journal_handler& lm) noexcept
       m_fp);
 }
 
-config_manager::config_manager() noexcept
-{
-    m_vars.write([&](auto& buffer) noexcept { do_build_default(buffer); });
-}
+config_manager::config_manager() noexcept { do_build_default(vars); }
 
 config_manager::config_manager(const std::string& config_path) noexcept
   : m_path{ config_path }
 {
-    m_vars.write([&](auto& buffer) noexcept {
-        do_build_default(buffer);
-        if (do_load(config_path, buffer, theme, enable_notification_windows)) {
-            if (not save()) {
-                std::fprintf(stderr,
-                             "Fail to store configuration in %s\n",
-                             config_path.c_str());
-            }
+    do_build_default(vars);
+
+    if (do_load(config_path, vars)) {
+        if (not save()) {
+            std::fprintf(stderr,
+                         "Fail to store configuration in %s\n",
+                         config_path.c_str());
         }
-    });
+    }
 }
 
-std::error_code config_manager::save() const noexcept
+std::error_code config_manager::save() noexcept
 {
-    std::error_code ret;
-
-    m_vars.read(
-      [&](const auto& buffer, const auto version, auto& ret) noexcept {
-          if (version != m_version)
-              ret = do_save(
-                m_path, buffer, theme, enable_notification_windows.load());
-      },
-      ret);
-
-    return ret;
+    return do_save(m_path, vars);
 }
 
 std::error_code config_manager::load() noexcept
 {
-    std::error_code ret;
-
-    m_vars.write(
-      [&](auto& buffer, auto& ret) noexcept {
-          variables temp;
-
-          if (auto is_load_success = do_load(
-                m_path.c_str(), temp, theme, enable_notification_windows);
-              not is_load_success) {
-              ret = is_load_success;
-          } else {
-              std::swap(buffer, temp);
-          }
-      },
-      ret);
-
-    return ret;
-}
-
-void config_manager::swap(variables& other) noexcept
-{
-    m_vars.write([&](auto& buffer) noexcept { std::swap(buffer, other); });
-}
-
-variables config_manager::copy() const noexcept
-{
-    variables ret;
-
-    m_vars.read([&](const auto& buffer,
-                    const auto /*version*/,
-                    auto& ret) noexcept { ret = buffer; },
-                ret);
-
-    return ret;
+    return do_load(m_path.c_str(), vars);
 }
 
 } // namespace irt

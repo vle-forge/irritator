@@ -388,16 +388,21 @@ static bool show_node(component_editor&         ed,
     const auto id  = gen.children.get_id(c);
     const auto idx = get_index(id);
 
-    auto& app = container_of(&ed, &application::component_ed);
+    auto& app              = container_of(&ed, &application::component_ed);
+    u32   node_2_c         = 0u;
+    u32   node_2_hovered_c = 0u;
+    u32   node_2_active_c  = 0u;
 
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            to_ImU32(app.config.colors[style_color::node_2]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarHovered,
-      to_ImU32(app.config.colors[style_color::node_2_hovered]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarSelected,
-      to_ImU32(app.config.colors[style_color::node_2_active]));
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          node_2_c         = to_ImU32(colors[style_color::node_2]);
+          node_2_hovered_c = to_ImU32(colors[style_color::node_2_hovered]);
+          node_2_active_c  = to_ImU32(colors[style_color::node_2_active]);
+      });
+
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_2_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_2_hovered_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_2_active_c);
 
     ImNodes::BeginNode(pack_node_child(id));
     ImNodes::BeginNodeTitleBar();
@@ -470,14 +475,20 @@ static void show_generic_node(application&     app,
                               const child_id c_id,
                               generic_component::child& /*c*/) noexcept
 {
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            to_ImU32(app.config.colors[style_color::node]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarHovered,
-      to_ImU32(app.config.colors[style_color::node_hovered]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarSelected,
-      to_ImU32(app.config.colors[style_color::node_active]));
+    u32 node_c         = 0u;
+    u32 node_hovered_c = 0u;
+    u32 node_active_c  = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          node_c         = to_ImU32(colors[style_color::node]);
+          node_hovered_c = to_ImU32(colors[style_color::node_hovered]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+      });
+
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_hovered_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_active_c);
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -500,14 +511,20 @@ static void show_grid_node(application&     app,
                            grid_component&  grid,
                            child_id         c_id) noexcept
 {
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            to_ImU32(app.config.colors[style_color::node]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarHovered,
-      to_ImU32(app.config.colors[style_color::node_hovered]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarSelected,
-      to_ImU32(app.config.colors[style_color::node_active]));
+    u32 node_c         = 0u;
+    u32 node_hovered_c = 0u;
+    u32 node_active_c  = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          node_c         = to_ImU32(colors[style_color::node]);
+          node_hovered_c = to_ImU32(colors[style_color::node_hovered]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+      });
+
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_hovered_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_active_c);
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -531,14 +548,20 @@ static void show_graph_node(application&     app,
                             graph_component& graph,
                             child_id         c_id) noexcept
 {
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            to_ImU32(app.config.colors[style_color::node]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarHovered,
-      to_ImU32(app.config.colors[style_color::node_hovered]));
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBarSelected,
-      to_ImU32(app.config.colors[style_color::node_active]));
+    u32 node_c         = 0u;
+    u32 node_hovered_c = 0u;
+    u32 node_active_c  = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          node_c         = to_ImU32(colors[style_color::node]);
+          node_hovered_c = to_ImU32(colors[style_color::node_hovered]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+      });
+
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_hovered_c);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_active_c);
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -562,15 +585,21 @@ static void show_graph(component_editor&  ed,
 {
     auto& app = container_of(&ed, &application::component_ed);
 
+    u32 node_c         = 0u;
+    u32 node_hovered_c = 0u;
+    u32 node_active_c  = 0u;
+
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          node_c         = to_ImU32(colors[style_color::node]);
+          node_hovered_c = to_ImU32(colors[style_color::node_hovered]);
+          node_active_c  = to_ImU32(colors[style_color::node_active]);
+      });
+
     parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
-        ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                to_ImU32(app.config.colors[style_color::node]));
-        ImNodes::PushColorStyle(
-          ImNodesCol_TitleBarHovered,
-          to_ImU32(app.config.colors[style_color::node_hovered]));
-        ImNodes::PushColorStyle(
-          ImNodesCol_TitleBarSelected,
-          to_ImU32(app.config.colors[style_color::node_active]));
+        ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_c);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_hovered_c);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_active_c);
 
         ImNodes::BeginNode(pack_node_X(id));
         ImNodes::BeginOutputAttribute(pack_X(id),
@@ -581,14 +610,9 @@ static void show_graph(component_editor&  ed,
     });
 
     parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
-        ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                to_ImU32(app.config.colors[style_color::node]));
-        ImNodes::PushColorStyle(
-          ImNodesCol_TitleBarHovered,
-          to_ImU32(app.config.colors[style_color::node_hovered]));
-        ImNodes::PushColorStyle(
-          ImNodesCol_TitleBarSelected,
-          to_ImU32(app.config.colors[style_color::node_active]));
+        ImNodes::PushColorStyle(ImNodesCol_TitleBar, node_c);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered, node_hovered_c);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, node_active_c);
 
         ImNodes::BeginNode(pack_node_Y(id));
         ImNodes::BeginInputAttribute(pack_Y(id),

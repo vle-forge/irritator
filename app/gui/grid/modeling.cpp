@@ -351,6 +351,12 @@ static void show_grid(application&                app,
         ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 10.f);
     }
 
+    auto [outer_border, inner_border] =
+      app.config.vars.colors.read([&](const auto& colors, const auto /*v*/) {
+          return std::make_pair(to_ImU32(colors[style_color::outer_border]),
+                                to_ImU32(colors[style_color::inner_border]));
+      });
+
     ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
     ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
 
@@ -365,9 +371,7 @@ static void show_grid(application&                app,
     const ImGuiIO& io        = ImGui::GetIO();
     ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
-    draw_list->AddRect(canvas_p0,
-                       canvas_p1,
-                       to_ImU32(app.config.colors[style_color::outer_border]));
+    draw_list->AddRect(canvas_p0, canvas_p1, outer_border);
 
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
@@ -402,17 +406,15 @@ static void show_grid(application&                app,
 
     for (float x = fmodf(ed.scrolling.x, GRID_STEP); x < canvas_sz.x;
          x += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x + x, canvas_p0.y),
-          ImVec2(canvas_p0.x + x, canvas_p1.y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                           ImVec2(canvas_p0.x + x, canvas_p1.y),
+                           inner_border);
 
     for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < canvas_sz.y;
          y += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x, canvas_p0.y + y),
-          ImVec2(canvas_p1.x, canvas_p0.y + y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
+        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                           ImVec2(canvas_p1.x, canvas_p0.y + y),
+                           inner_border);
 
     for (int row = 0; row < data.row(); ++row) {
         for (int col = 0; col < data.column(); ++col) {
