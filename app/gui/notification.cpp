@@ -120,7 +120,7 @@ void notification_manager::show() noexcept
                                               const auto& ids,
                                               const auto& titles,
                                               const auto& descriptions) {
-        const auto vp_pos       = ImGui::GetMainViewport()->Pos;
+        // const auto vp_pos       = ImGui::GetMainViewport()->Pos;
         const auto vp_size      = ImGui::GetMainViewport()->Size;
         auto       height       = 0.f;
         auto       i            = 0;
@@ -201,8 +201,8 @@ void notification_manager::show() noexcept
                         format(str,
                                "{} {}: {}",
                                log_level_names[ordinal(level)],
-                               titles[id].c_str(),
-                               descriptions[id].c_str());
+                               title.c_str(),
+                               desc.c_str());
                     }
                 }
             });

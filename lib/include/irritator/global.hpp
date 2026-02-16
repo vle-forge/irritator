@@ -281,8 +281,6 @@ private:
      * allocator.
      */
     const std::string m_path;
-
-    u64 m_version;
 };
 
 /** Retrieves the path of the file @a "irritator.ini" from the directoy @a

@@ -31,8 +31,7 @@ static void remove_component_and_file_task(application&       app,
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
-static void remove_component_task(application&       app,
-                                  const component_id compo_id) noexcept
+static void refresh_component_list_task(application& app) noexcept
 {
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
@@ -135,7 +134,7 @@ static void show_component_popup_menu(application&                 app,
                 if (can_delete_component(app, compo_id)) {
                     app.component_ed.close(compo_id);
                     app.mod.components.free(compo_id);
-                    remove_component_task(app, compo_id);
+                    refresh_component_list_task(app);
                 }
             }
         }
