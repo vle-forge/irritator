@@ -233,27 +233,6 @@ private:
     shared_buffer<data> m_logs;
 };
 
-/**
- * @brief Consume the journal and push into @a stdout by default or in a file @a
- * std::FILE.
- */
-class stdfile_journal_consumer
-{
-    std::FILE* m_fp = stdout;
-
-public:
-    stdfile_journal_consumer() noexcept = default;
-    ~stdfile_journal_consumer() noexcept;
-
-    explicit stdfile_journal_consumer(
-      const std::filesystem::path& path) noexcept;
-
-    void read(journal_handler& lm) noexcept;
-};
-
-class gui_log_consumer
-{};
-
 class config_manager
 {
 public:

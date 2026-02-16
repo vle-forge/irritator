@@ -511,7 +511,7 @@ bool application::init() noexcept
                                      new_dir.priority);
                           });
 
-                  fs.component_repertories.emplace_back(new_dir_id);
+                  fs.recorded_paths.emplace_back(new_dir_id);
               }
           });
       });

@@ -357,7 +357,7 @@ public:
             const auto dir_id = fs.registred_paths.get_id(dir);
             dir.name          = name;
             dir.path          = path.string().c_str();
-            fs.component_repertories.emplace_back(dir_id);
+            fs.recorded_paths.emplace_back(dir_id);
             return 1;
         }
 

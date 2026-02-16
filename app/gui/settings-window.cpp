@@ -59,7 +59,7 @@ void settings_window::show() noexcept
     auto& app     = container_of(this, &application::settings_wnd);
     int   changes = false;
 
-    if (ImGui::BeginTable("Component directories", 6)) {
+    if (ImGui::BeginTable("Recorded Paths", 6)) {
         ImGui::TableSetupColumn(
           "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
         ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
@@ -77,21 +77,6 @@ void settings_window::show() noexcept
 
             while (fs.registred_paths.next(dir)) {
                 const auto reg_id = fs.registred_paths.get_id(*dir);
-
-                // if (to_delete) {
-                //     const auto id =
-                //     app.mod.registred_paths.get_id(*to_delete);
-                //     app.mod.registred_paths.free(*to_delete);
-                //     to_delete = nullptr;
-
-                //     i32 i = 0, e = app.mod.component_repertories.ssize();
-                //     for (; i != e; ++i) {
-                //         if (app.mod.component_repertories[i] == id) {
-                //             app.mod.component_repertories.swap_pop_back(i);
-                //             break;
-                //         }
-                //     }
-                // }
 
                 ImGui::PushID(dir);
                 ImGui::TableNextRow();
@@ -172,7 +157,7 @@ void settings_window::show() noexcept
         ImGui::EndTable();
     }
 
-    if (ImGui::Button("Add directory")) {
+    if (ImGui::Button("Add new path")) {
         app.add_gui_task([&app]() {
             app.mod.files.write([&](auto& fs) {
                 if (fs.registred_paths.can_alloc(1)) {
@@ -182,7 +167,7 @@ void settings_window::show() noexcept
                     ndir.path     = "";
                     ndir.priority = 127;
                     app.request_open_directory_dlg(id);
-                    fs.component_repertories.emplace_back(id);
+                    fs.recorded_paths.emplace_back(id);
                 }
             });
         });

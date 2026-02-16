@@ -1454,13 +1454,13 @@ public:
           : registred_paths(r)
           , dir_paths(d)
           , file_paths(f)
-          , component_repertories(r, reserve_tag)
+          , recorded_paths(r, reserve_tag)
         {}
 
         data_array<registred_path, registred_path_id> registred_paths;
         data_array<dir_path, dir_path_id>             dir_paths;
         data_array<file_path, file_path_id>           file_paths;
-        vector<registred_path_id>                     component_repertories;
+        vector<registred_path_id>                     recorded_paths;
 
         int browse_registred(journal_handler&        jn,
                              const registred_path_id id) noexcept;

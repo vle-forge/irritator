@@ -444,41 +444,6 @@ vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
     return ret;
 }
 
-stdfile_journal_consumer::~stdfile_journal_consumer() noexcept
-{
-    debug::ensure(m_fp);
-
-    if (not(m_fp == stdout or m_fp == stderr))
-        std::fclose(m_fp);
-}
-
-stdfile_journal_consumer::stdfile_journal_consumer(
-  const std::filesystem::path& path) noexcept
-{
-    try {
-        std::FILE*  out       = nullptr;
-        const auto* unicode_p = path.c_str();
-        const auto* p         = reinterpret_cast<const char*>(unicode_p);
-
-#if defined(_WIN32)
-        if (::_wfopen_s(&out, unicode_p, L"w") == 0) {
-            m_fp = out;
-        }
-#else
-        if (out = std::fopen(path.c_str(), "w"); out) {
-            m_fp = out;
-        }
-#endif
-        else {
-            fmt::print(stderr, "- logging: fail to open {}\n", p);
-        }
-    } catch (...) {
-        fmt::print(stderr, "- logging: memory error\n");
-    }
-
-    fmt::print(m_fp, "irritator start logging\n");
-}
-
 journal_handler::journal_handler() noexcept
   : journal_handler(reserve_constraint(32u))
 {}
@@ -586,27 +551,6 @@ void journal_handler::cleanup_expired(const u64 duration) noexcept
                 break;
         }
     });
-}
-
-void stdfile_journal_consumer::read(journal_handler& lm) noexcept
-{
-    lm.flush(
-      [](auto& ring,
-         auto& ids,
-         auto& titles,
-         auto& descriptions,
-         auto* out) noexcept {
-          for (auto i : ring) {
-              if (ids.exists(i)) {
-                  fmt::print(out,
-                             "- {}: {}\n  {}\n",
-                             log_level_names[ordinal(ids[i].second)],
-                             titles[i].sv(),
-                             descriptions[i].sv());
-              }
-          }
-      },
-      m_fp);
 }
 
 config_manager::config_manager() noexcept { do_build_default(vars); }

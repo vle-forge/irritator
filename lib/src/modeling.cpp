@@ -41,7 +41,7 @@ modeling::modeling(journal_handler&                   jnl,
             fs.registred_paths.capacity() == 0 or
             fs.dir_paths.capacity() == 0 or fs.file_paths.capacity() == 0 or
             hsms.capacity() == 0 or graphs.capacity() == 0 or
-            fs.component_repertories.capacity() == 0)
+            fs.recorded_paths.capacity() == 0)
             journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
                 t = "Modeling initialization error";
                 format(m,
@@ -80,7 +80,7 @@ modeling::modeling(journal_handler&                   jnl,
                        graphs.capacity(),
                        res.graph_compos.value(),
                        res.components.value(),
-                       fs.component_repertories.capacity(),
+                       fs.recorded_paths.capacity(),
                        res.regs.value());
             });
     });
@@ -259,7 +259,7 @@ int modeling::file_access::browse_registreds(journal_handler& jn) noexcept
     const auto old = file_paths.ssize();
 
     const auto to_del = std::ranges::remove_if(
-      component_repertories, [&](const auto id) noexcept -> bool {
+      recorded_paths, [&](const auto id) noexcept -> bool {
           if (registred_paths.try_to_get(id)) {
               (void)browse_registred(jn, id);
               return false;
@@ -267,7 +267,7 @@ int modeling::file_access::browse_registreds(journal_handler& jn) noexcept
           return true;
       });
 
-    component_repertories.erase(to_del.begin(), to_del.end());
+    recorded_paths.erase(to_del.begin(), to_del.end());
 
     return file_paths.ssize() - old;
 }
@@ -578,7 +578,7 @@ auto modeling::file_access::find_file_in_directory(
 auto modeling::file_access::find_directory(std::string_view name) const noexcept
   -> dir_path_id
 {
-    for (const auto r_id : component_repertories)
+    for (const auto r_id : recorded_paths)
         if (const auto* reg = registred_paths.try_to_get(r_id))
             for (const auto d_id : reg->children)
                 if (const auto* dir = dir_paths.try_to_get(d_id))
@@ -591,7 +591,7 @@ auto modeling::file_access::find_directory(std::string_view name) const noexcept
 auto modeling::file_access::find_registred_path_by_name(
   const std::string_view name) const noexcept -> registred_path_id
 {
-    for (const auto r_id : component_repertories)
+    for (const auto r_id : recorded_paths)
         if (const auto* reg = registred_paths.try_to_get(r_id))
             if (reg->name.sv() == name)
                 return r_id;
@@ -692,25 +692,24 @@ registred_path_id modeling::file_access::alloc_registred(
         reg.name = name;
         reg.priority =
           static_cast<i8>(std::clamp<int>(priority, INT8_MIN, INT8_MAX));
-        component_repertories.emplace_back(reg_id);
+        recorded_paths.emplace_back(reg_id);
 
         auto to_erase =
-          std::ranges::remove_if(component_repertories, [&](const auto id) {
+          std::ranges::remove_if(recorded_paths, [&](const auto id) {
               const auto* r = registred_paths.try_to_get(id);
               return r == nullptr;
           });
 
         if (to_erase.begin() != to_erase.end())
-            component_repertories.erase(to_erase.begin(), to_erase.end());
+            recorded_paths.erase(to_erase.begin(), to_erase.end());
 
-        std::ranges::sort(component_repertories,
-                          [&](const auto a, const auto b) {
-                              const auto* ra = registred_paths.try_to_get(a);
-                              const auto* rb = registred_paths.try_to_get(b);
-                              if (ra and rb)
-                                  return ra->priority > rb->priority;
-                              return false;
-                          });
+        std::ranges::sort(recorded_paths, [&](const auto a, const auto b) {
+            const auto* ra = registred_paths.try_to_get(a);
+            const auto* rb = registred_paths.try_to_get(b);
+            if (ra and rb)
+                return ra->priority > rb->priority;
+            return false;
+        });
 
         return reg_id;
     }

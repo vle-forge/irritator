@@ -446,7 +446,7 @@ void library_window::show_repertories_content(
   const modeling::file_access& fs,
   const bitflags<file_type>    flags) noexcept
 {
-    for (const auto id : fs.component_repertories) {
+    for (const auto id : fs.recorded_paths) {
         small_string<31>        s;
         const small_string<31>* select;
 

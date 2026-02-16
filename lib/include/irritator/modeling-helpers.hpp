@@ -296,7 +296,7 @@ template<typename Function>
 void for_each_component(const modeling& mod, Function&& f) noexcept
 {
     mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
-        for (const auto reg_id : fs.component_repertories) {
+        for (const auto reg_id : fs.recorded_paths) {
             if (const auto* reg = fs.registred_paths.try_to_get(reg_id)) {
                 for (const auto dir_id : reg->children) {
                     if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
