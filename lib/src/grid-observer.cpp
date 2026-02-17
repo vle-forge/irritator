@@ -115,26 +115,29 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         v.clear();
 
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
-            if (auto* compo = mod.components.try_to_get<component>(tn->id);
-                compo and compo->type == component_type::grid) {
-                if (auto* grid =
-                      mod.grid_components.try_to_get(compo->id.grid_id);
-                    grid) {
+            mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (ids.exists(tn->id)) {
+                    if (mod.components[tn->id].type == component_type::grid) {
+                        if (auto* grid = mod.grid_components.try_to_get(
+                              mod.components[tn->id].id.grid_id)) {
 
-                    const auto len = grid->cells_number();
+                            const auto len = grid->cells_number();
 
-                    observers.resize(len);
-                    std::fill_n(
-                      observers.data(), len, undefined<observer_id>());
+                            observers.resize(len);
+                            std::fill_n(
+                              observers.data(), len, undefined<observer_id>());
 
-                    v.resize(len, zero);
+                            v.resize(len, zero);
 
-                    rows = grid->row();
-                    cols = grid->column();
+                            rows = grid->row();
+                            cols = grid->column();
 
-                    build_grid_observer(*this, pj, mod, sim, *tn, *grid);
+                            build_grid_observer(
+                              *this, pj, mod, sim, *tn, *grid);
+                        }
+                    }
                 }
-            }
+            });
         }
     });
 

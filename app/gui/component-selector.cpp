@@ -27,47 +27,65 @@ void component_selector::data_type::update(const modeling& mod) noexcept
 {
     clear();
 
-    for_each_component(mod,
-                       [&](const auto& reg,
-                           const auto& dir,
-                           const auto& file,
-                           const auto& compo) noexcept {
-                           const auto id = mod.components.get_id(compo);
+    mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+        for (const auto reg_id : fs.recorded_paths) {
+            if (const auto* reg = fs.registred_paths.try_to_get(reg_id)) {
+                for (const auto dir_id : reg->children) {
+                    if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
+                        for (const auto file_id : dir->children) {
+                            if (const auto* file =
+                                  fs.file_paths.try_to_get(file_id)) {
+                                mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      if (ids.exists(file->component))
+                                          return;
 
-                           by_names.emplace_back(id, compo.name.sv());
-                           by_files.emplace_back(id, std::string_view());
-                           format(by_files.back().second,
-                                  "{}/{}/{} {}",
-                                  reg.name.sv(),
-                                  dir.path.sv(),
-                                  file.path.sv(),
-                                  compo.name.sv());
+                                      auto  id    = file->component;
+                                      auto& compo = mod.components[id];
+                                      auto  name  = compo.name.sv();
 
-                           switch (compo.type) {
-                           case component_type::generic:
-                               by_generics.emplace_back(id, compo.name.sv());
-                               break;
+                                      by_names.emplace_back(id, name);
+                                      by_files.emplace_back(id,
+                                                            std::string_view());
+                                      format(by_files.back().second,
+                                             "{}/{}/{} {}",
+                                             reg->name.sv(),
+                                             dir->path.sv(),
+                                             file->path.sv(),
+                                             name);
 
-                           case component_type::grid:
-                               by_grids.emplace_back(id, compo.name.sv());
-                               break;
+                                      switch (compo.type) {
+                                      case component_type::generic:
+                                          by_generics.emplace_back(id, name);
+                                          break;
 
-                           case component_type::graph:
-                               by_graphs.emplace_back(id, compo.name.sv());
-                               break;
+                                      case component_type::grid:
+                                          by_grids.emplace_back(id, name);
+                                          break;
 
-                           case component_type::hsm:
-                               by_hsms.emplace_back(id, compo.name.sv());
-                               break;
+                                      case component_type::graph:
+                                          by_graphs.emplace_back(id, name);
+                                          break;
 
-                           case component_type::simulation:
-                               by_sims.emplace_back(id, compo.name.sv());
-                               break;
+                                      case component_type::hsm:
+                                          by_hsms.emplace_back(id, name);
+                                          break;
 
-                           case component_type::none:
-                               break;
-                           }
-                       });
+                                      case component_type::simulation:
+                                          by_sims.emplace_back(id, name);
+                                          break;
+
+                                      case component_type::none:
+                                          break;
+                                      }
+                                  });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
 
     std::ranges::sort(by_names);
     std::ranges::sort(by_files);
@@ -99,11 +117,14 @@ component_selector::result_t component_selector::combobox(
         const char* current_name = "-";
         auto        current      = old_current;
 
-        if (is_defined(current) and app.mod.components.exists(current)) {
-            current_name =
-              app.mod.components.get<component>(current).name.c_str();
-        } else {
-            current = undefined<component_id>();
+        if (is_defined(current)) {
+            app.mod.ids.read([&](const auto& ids, auto) {
+                if (ids.exists(current)) {
+                    current_name = app.mod.components[current].name.c_str();
+                } else {
+                    current = undefined<component_id>();
+                }
+            });
         }
 
         if (ImGui::BeginCombo(label, current_name)) {
@@ -195,12 +216,15 @@ component_selector::result_t component_selector::combobox(
         const char* current_name = empty_name;
         auto        current      = old_current;
 
-        if (is_defined(current) and app.mod.components.exists(current) and
-            app.mod.components.get<component>(current).type == type) {
-            current_name =
-              app.mod.components.get<component>(current).name.c_str();
-        } else {
-            current = undefined<component_id>();
+        if (is_defined(current)) {
+            app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (ids.exists(current)) {
+                    if (app.mod.components[current].type == type)
+                        current_name = app.mod.components[current].name.c_str();
+                } else {
+                    current = undefined<component_id>();
+                }
+            });
         }
 
         if (ImGui::BeginCombo(label, current_name)) {

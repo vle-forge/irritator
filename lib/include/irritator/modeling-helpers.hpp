@@ -285,11 +285,15 @@ inline expected<file> open_file(
 inline bool component_is_grid_or_graph(const modeling&  mod,
                                        const tree_node& tn) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get<component>(tn.id))
-        return any_equal(
-          compo->type, component_type::graph, component_type::grid);
+    return mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(tn.id)) {
+            return any_equal(mod.components[tn.id].type,
+                             component_type::graph,
+                             component_type::grid);
+        }
 
-    return false;
+        return false;
+    });
 }
 
 template<typename Function>
@@ -303,10 +307,14 @@ void for_each_component(const modeling& mod, Function&& f) noexcept
                         for (const auto file_id : dir->children) {
                             if (const auto* file =
                                   fs.file_paths.try_to_get(file_id)) {
-                                if (const auto* compo =
-                                      mod.components.try_to_get<component>(
-                                        file->component))
-                                    f(*reg, *dir, *file, *compo);
+                                mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      if (ids.exists(file->component))
+                                          f(*reg,
+                                            *dir,
+                                            *file,
+                                            mod.components[file->component]);
+                                  });
                             }
                         }
                     }
@@ -314,124 +322,6 @@ void for_each_component(const modeling& mod, Function&& f) noexcept
             }
         }
     });
-}
-
-/// \brief Call `f` function if `id` reference a generic component.
-///
-/// \details `f` is called if `id` reference an existing `generic_component`
-///   and do nothing otherwise. Function `f` receives constant `component` and
-///   constant `generic_component`.
-template<typename Function>
-void if_component_is_generic(const modeling&    mod,
-                             const component_id id,
-                             Function&&         f) noexcept
-{
-    if (const auto* compo = mod.components.try_to_get<component>(id)) {
-        if (compo->type == component_type::generic) {
-            if (const auto* gen =
-                  mod.generic_components.try_to_get(compo->id.generic_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
-}
-
-/// \brief Call `f` function if `id` reference a generic component.
-///
-/// \details `f` is called if `id` reference an existing `generic_component` and
-/// do nothing otherwise. Function `f` receives  `component` and
-/// `generic_component`.
-template<typename Function>
-void if_component_is_generic(modeling&          mod,
-                             const component_id id,
-                             Function&&         f) noexcept
-{
-    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
-        if (compo->type == component_type::generic) {
-            if (auto* gen =
-                  mod.generic_components.try_to_get(compo->id.generic_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
-}
-
-/// \brief Call `f` function if `id` reference a grid component.
-///
-/// \details `f` is called if `id` reference an existing `grid_component` and
-/// do nothing otherwise. Function `f` receives constant `component` and
-/// constant `grid_component`.
-template<typename Function>
-void if_component_is_grid(const modeling&    mod,
-                          const component_id id,
-                          Function&&         f) noexcept
-{
-    if (const auto* compo = mod.components.try_to_get<component>(id); compo) {
-        if (compo->type == component_type::grid) {
-            if (const auto* gen =
-                  mod.grid_components.try_to_get(compo->id.grid_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
-}
-
-/// \brief Call `f` function if `id` reference a grid component.
-///
-/// \details `f` is called if `id` reference an existing `grid_component` and
-/// do nothing otherwise. Function `f` receives  `component` and
-/// `grid_component`.
-template<typename Function>
-void if_component_is_grid(modeling&          mod,
-                          const component_id id,
-                          Function&&         f) noexcept
-{
-    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
-        if (compo->type == component_type::grid) {
-            if (auto* gen = mod.grid_components.try_to_get(compo->id.grid_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
-}
-
-/// \brief Call `f` function if `id` reference a graph component.
-///
-/// \details `f` is called if `id` reference an existing `graph_component` and
-/// do nothing otherwise. Function `f` receives constant `component` and
-/// constant `graph_component`.
-template<typename Function>
-void if_component_is_graph(const modeling&    mod,
-                           const component_id id,
-                           Function&&         f) noexcept
-{
-    if (const auto* compo = mod.components.try_to_get<component>(id); compo) {
-        if (compo->type == component_type::graph) {
-            if (const auto* gen =
-                  mod.graph_components.try_to_get(compo->id.graph_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
-}
-
-/// \brief Call `f` function if `id` reference a graph component.
-///
-/// \details `f` is called if `id` reference an existing `graph_component` and
-/// do nothing otherwise. Function `f` receives  `component` and
-/// `graph_component`.
-template<typename Function>
-void if_component_is_graph(modeling&          mod,
-                           const component_id id,
-                           Function&&         f) noexcept
-{
-    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
-        if (compo->type == component_type::graph) {
-            if (auto* gen = mod.graph_components.try_to_get(compo->id.graph_id);
-                gen)
-                std::invoke(std::forward<Function>(f), *compo, *gen);
-        }
-    }
 }
 
 template<typename Function>
@@ -542,54 +432,9 @@ void for_each_model(const simulation& sim,
 }
 
 template<typename Function>
-void if_tree_node_is_grid_do(project&     pj,
-                             modeling&    mod,
-                             tree_node_id tn_id,
-                             Function&&   f) noexcept
-{
-    tree_node*      grid_tn{};
-    component*      compo{};
-    grid_component* g_compo{};
-
-    if (grid_tn = pj.tree_nodes.try_to_get(tn_id); grid_tn) {
-        if (compo = mod.components.try_to_get<component>(grid_tn->id); compo) {
-            if (compo->type == component_type::grid) {
-                if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
-                    g_compo) {
-                    std::invoke(
-                      std::forward<Function>(f), *grid_tn, *compo, *g_compo);
-                }
-            }
-        }
-    }
-}
-
-template<typename Function>
-void if_tree_node_is_graph_do(project&     pj,
-                              modeling&    mod,
-                              tree_node_id tn_id,
-                              Function&&   f) noexcept
-{
-    tree_node*       graph_tn{};
-    component*       compo{};
-    graph_component* g_compo{};
-
-    if (graph_tn = pj.tree_nodes.try_to_get(tn_id); graph_tn) {
-        if (compo = mod.components.try_to_get<component>(graph_tn->id); compo) {
-            if (compo->type == component_type::graph) {
-                if (g_compo =
-                      mod.graph_components.try_to_get(compo->id.graph_id);
-                    g_compo) {
-                    std::invoke(
-                      std::forward<Function>(f), *graph_tn, *compo, *g_compo);
-                }
-            }
-        }
-    }
-}
-
-template<typename Function>
-void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
+void dispatch_component(const modeling&  mod,
+                        const component& compo,
+                        Function&&       f) noexcept
 {
     switch (compo.type) {
     case component_type::none:

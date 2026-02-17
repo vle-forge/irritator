@@ -116,61 +116,71 @@ void memory_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Components")) {
-        const auto& vec = app.mod.components.get<component>();
-        for (const auto id : app.mod.components) {
-            const auto& compo = vec[id];
+        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+            for (const auto id : ids) {
+                const auto& compo = app.mod.components[id];
 
-            ImGui::PushID(get_index(id));
-            if (ImGui::TreeNode(compo.name.c_str())) {
-                ImGui::LabelFormat(
-                  "type", "{}", component_type_names[ordinal(compo.type)]);
-
-                switch (compo.type) {
-                case component_type::generic:
+                ImGui::PushID(ordinal(id));
+                if (ImGui::TreeNode(compo.name.c_str())) {
                     ImGui::LabelFormat(
-                      "id", "{}", ordinal(compo.id.generic_id));
-                    break;
+                      "type", "{}", component_type_names[ordinal(compo.type)]);
 
-                case component_type::grid:
-                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.grid_id));
-                    break;
+                    switch (compo.type) {
+                    case component_type::generic:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.generic_id));
+                        break;
 
-                case component_type::graph:
-                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.graph_id));
-                    break;
+                    case component_type::grid:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.grid_id));
+                        break;
 
-                case component_type::hsm:
-                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.hsm_id));
-                    break;
+                    case component_type::graph:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.graph_id));
+                        break;
 
-                case component_type::simulation:
-                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.sim_id));
-                    break;
+                    case component_type::hsm:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.hsm_id));
+                        break;
 
-                case component_type::none:
-                    break;
-                }
+                    case component_type::simulation:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.sim_id));
+                        break;
 
-                app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                    if (const auto* f = fs.file_paths.try_to_get(compo.file)) {
-                        ImGui::LabelFormat("File", "{}", f->path.sv());
-                        if (const auto* d =
-                              fs.dir_paths.try_to_get(f->parent)) {
-                            ImGui::LabelFormat("Dir", "{}", d->path.sv());
-                            if (const auto* r =
-                                  fs.registred_paths.try_to_get(d->parent)) {
-                                ImGui::LabelFormat("Reg", "{}", r->path.sv());
-                            }
-                        }
+                    case component_type::none:
+                        break;
                     }
-                });
 
-                ImGui::LabelFormat("Description", "{}", ordinal(compo.desc));
+                    app.mod.files.read(
+                      [&](const auto& fs, const auto /*vers*/) {
+                          if (const auto* f =
+                                fs.file_paths.try_to_get(compo.file)) {
+                              ImGui::LabelFormat("File", "{}", f->path.sv());
+                              if (const auto* d =
+                                    fs.dir_paths.try_to_get(f->parent)) {
+                                  ImGui::LabelFormat("Dir", "{}", d->path.sv());
+                                  if (const auto* r =
+                                        fs.registred_paths.try_to_get(
+                                          d->parent)) {
+                                      ImGui::LabelFormat(
+                                        "Reg", "{}", r->path.sv());
+                                  }
+                              }
+                          }
+                      });
 
-                ImGui::TreePop();
+                    ImGui::LabelFormat(
+                      "Description", "{}", ordinal(compo.desc));
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
             }
-            ImGui::PopID();
-        }
+        });
     }
 
     if (ImGui::CollapsingHeader("Registred directoriess")) {

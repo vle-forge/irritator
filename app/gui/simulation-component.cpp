@@ -105,18 +105,8 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
-    auto  compo_id = ed.pj.head();
-    auto* compo    = app.mod.components.try_to_get<component>(compo_id);
-    auto* head     = ed.pj.tn_head();
-
-    if (!head || !compo) {
-        ed.simulation_state = simulation_status::not_started;
-        make_copy_error_msg(app, "Empty component");
-        return;
-    }
-
     auto ret = [&]() noexcept -> status {
-        irt_check(ed.pj.set(app.mod, *compo));
+        irt_check(ed.pj.set(app.mod, ed.pj.head()));
         irt_check(ed.pj.sim.srcs.prepare());
         irt_check(ed.pj.sim.initialize());
         ed.simulation_state = simulation_status::initialized;

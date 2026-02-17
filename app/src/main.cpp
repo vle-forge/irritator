@@ -328,6 +328,7 @@ public:
         const std::filesystem::path str{ front };
         load_next_token();
 
+#if 0
         if (auto file = irt::file::open(
               str, irt::file_mode(irt::file_open_options::read));
             file.has_value()) {
@@ -339,6 +340,7 @@ public:
         } else {
             return file.error();
         }
+#endif
 
         return irt::success();
     }

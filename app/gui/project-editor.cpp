@@ -59,18 +59,20 @@ void project_editor::select(application& app, tree_node_id id) noexcept
         m_selected_tree_node = undefined<tree_node_id>();
 
         if (auto* tree = pj.node(id); tree) {
-            if (auto* compo =
-                  app.mod.components.try_to_get<component>(tree->id);
-                compo) {
-                m_selected_tree_node = id;
+            app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (ids.exists(tree->id)) {
+                    auto& compo          = app.mod.components[tree->id];
+                    m_selected_tree_node = id;
 
-                if (compo->type == component_type::generic) {
-                    if (auto* gen = app.mod.generic_components.try_to_get(
-                          compo->id.generic_id)) {
-                        app.generic_sim.init(app, *this, *tree, *compo, *gen);
+                    if (compo.type == component_type::generic) {
+                        if (auto* gen = app.mod.generic_components.try_to_get(
+                              compo.id.generic_id)) {
+                            app.generic_sim.init(
+                              app, *this, *tree, compo, *gen);
+                        }
                     }
                 }
-            }
+            });
         } else {
             app.generic_sim.init(app, *this);
         }
@@ -174,27 +176,32 @@ static bool show_local_simulation_plot_observers_table(application&    app,
                         sub_obs_id = vobs.push_back(tn_id, mdl_id);
                         tn.variable_observer_ids.set(uid, vobs_id);
 
-                        if (auto* c =
-                              app.mod.components.try_to_get<component>(tn.id);
-                            c and c->type == component_type::generic) {
-                            if (auto* g = app.mod.generic_components.try_to_get(
-                                  c->id.generic_id);
-                                g) {
-                                for (auto& ch : g->children) {
-                                    const auto ch_id  = g->children.get_id(ch);
-                                    const auto ch_idx = get_index(ch_id);
-                                    const auto ch_uid =
-                                      g->children_names[ch_idx].sv();
+                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                            if (ids.exists(tn.id)) {
+                                auto& c = app.mod.components[tn.id];
+                                if (c.type == component_type::generic) {
+                                    if (auto* g =
+                                          app.mod.generic_components.try_to_get(
+                                            c.id.generic_id);
+                                        g) {
+                                        for (auto& ch : g->children) {
+                                            const auto ch_id =
+                                              g->children.get_id(ch);
+                                            const auto ch_idx =
+                                              get_index(ch_id);
+                                            const auto ch_uid =
+                                              g->children_names[ch_idx].sv();
 
-                                    if (ch_uid == uid) {
-                                        vobs
-                                          .get_names()[get_index(sub_obs_id)] =
-                                          ch_uid;
-                                        break;
+                                            if (ch_uid == uid) {
+                                                vobs.get_names()[get_index(
+                                                  sub_obs_id)] = ch_uid;
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
+                        });
 
                     } else {
                         auto& vobs =
@@ -336,32 +343,35 @@ static bool show_local_simulation_specific_observers(application&    app,
                                                      project_editor& ed,
                                                      tree_node& tn) noexcept
 {
-    auto& mod = app.mod;
+    return app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(tn.id)) {
+            auto& compo = app.mod.components[tn.id];
+            switch (compo.type) {
+            case component_type::graph:
+                if (auto* g =
+                      app.mod.graph_components.try_to_get(compo.id.graph_id))
+                    return show_local_observers(app, ed, tn, compo, *g);
+                break;
 
-    if (auto* compo = mod.components.try_to_get<component>(tn.id); compo) {
-        switch (compo->type) {
-        case component_type::graph:
-            if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id);
-                g)
-                return show_local_observers(app, ed, tn, *compo, *g);
-            break;
+            case component_type::grid:
+                if (auto* g =
+                      app.mod.grid_components.try_to_get(compo.id.grid_id))
+                    return show_local_observers(app, ed, tn, compo, *g);
+                break;
 
-        case component_type::grid:
-            if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id); g)
-                return show_local_observers(app, ed, tn, *compo, *g);
-            break;
+            case component_type::generic:
+                return show_local_simulation_plot_observers_table(app, ed, tn);
 
-        case component_type::generic:
-            return show_local_simulation_plot_observers_table(app, ed, tn);
-
-        default:
-            ImGui::TextFormat("Not yet implemented observers for component {}",
-                              component_type_names[ordinal(compo->type)]);
-            break;
+            default:
+                ImGui::TextFormat(
+                  "Not yet implemented observers for component {}",
+                  component_type_names[ordinal(compo.type)]);
+                break;
+            }
         }
-    }
 
-    return false;
+        return false;
+    });
 }
 
 static void show_local_variables_plot(application&       app,
@@ -999,23 +1009,27 @@ static void show_simulation_editor_treenode(application&    app,
                                             project_editor& ed,
                                             tree_node&      tn) noexcept
 {
-    if (auto* compo = app.mod.components.try_to_get<component>(tn.id); compo) {
-        dispatch_component(app.mod, *compo, [&](auto& c) noexcept {
-            using T = std::decay_t<decltype(c)>;
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(tn.id)) {
+            auto& compo = app.mod.components[tn.id];
 
-            if constexpr (std::is_same_v<T, grid_component>) {
-                app.grid_sim.display(app, ed, tn, *compo, c);
-            } else if constexpr (std::is_same_v<T, graph_component>) {
-                ed.graph_ed.show(app, ed, tn);
-            } else if constexpr (std::is_same_v<T, generic_component>) {
-                app.generic_sim.display(app, ed);
-            } else if constexpr (std::is_same_v<T, hsm_component>) {
-                app.hsm_sim.show_observations(app, ed, tn, *compo, c);
-            } else
-                ImGui::TextFormatDisabled(
-                  "Undefined simulation editor for this component");
-        });
-    }
+            dispatch_component(app.mod, compo, [&](auto& c) noexcept {
+                using T = std::decay_t<decltype(c)>;
+
+                if constexpr (std::is_same_v<T, grid_component>) {
+                    app.grid_sim.display(app, ed, tn, compo, c);
+                } else if constexpr (std::is_same_v<T, graph_component>) {
+                    ed.graph_ed.show(app, ed, tn);
+                } else if constexpr (std::is_same_v<T, generic_component>) {
+                    app.generic_sim.display(app, ed);
+                } else if constexpr (std::is_same_v<T, hsm_component>) {
+                    app.hsm_sim.show_observations(app, ed, tn, compo, c);
+                } else
+                    ImGui::TextFormatDisabled(
+                      "Undefined simulation editor for this component");
+            });
+        }
+    });
 }
 
 auto project_editor::show(application& app) noexcept -> show_result_t
@@ -1065,17 +1079,14 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                 if (selected) {
                     if (m_selected_tree_node != old_selected_tree_node) {
                         const auto compo_id = selected->id;
-                        if (app.mod.components.exists(compo_id)) {
-                            const auto& c =
-                              app.mod.components.get<component>(compo_id);
+                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                            const auto& c = app.mod.components[compo_id];
                             if (c.type == component_type::graph) {
                                 auto& graph_compo =
-                                  app.mod.graph_components.get(
-                                    app.mod.components.get<component>(compo_id)
-                                      .id.graph_id);
+                                  app.mod.graph_components.get(c.id.graph_id);
                                 graph_ed.update(app, graph_compo.g);
                             }
-                        }
+                        });
                     }
 
                     if (ImGui::BeginTabItem("Component parameters")) {

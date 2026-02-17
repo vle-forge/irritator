@@ -26,11 +26,13 @@ static void try_append(const application&                             app,
           out.end(),
           [&](const auto& elem) noexcept { return elem.second == tn.id; });
         it == out.end()) {
-        if (auto* compo = app.mod.components.try_to_get<component>(tn.id);
-            compo) {
-            out.emplace_back(std::make_pair(pj.tree_nodes.get_id(tn), tn.id));
-            names.emplace_back(compo->name.sv());
-        }
+        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+            if (ids.exists(tn.id)) {
+                out.emplace_back(
+                  std::make_pair(pj.tree_nodes.get_id(tn), tn.id));
+                names.emplace_back(app.mod.components[tn.id].name.sv());
+            }
+        });
     }
 }
 
@@ -104,43 +106,47 @@ void component_model_selector::observable_model_treenode(const project& pj,
         "%.*s (graph)", "%.*s (hsm)",
     };
 
-    if (auto* compo = app.mod.components.try_to_get<component>(tn.id)) {
-        debug::ensure(ordinal(compo->type) < length(compo_fmt));
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(tn.id)) {
+            const auto& compo = app.mod.components[tn.id];
+            debug::ensure(ordinal(compo.type) < length(compo_fmt));
 
-        const auto* fmt = compo_fmt[ordinal(compo->type)];
+            const auto* fmt = compo_fmt[ordinal(compo.type)];
 
-        if (compo->type == component_type::generic) {
-            ImGui::PushID(&tn);
-            if (ImGui::TreeNodeEx(&tn,
-                                  ImGuiTreeNodeFlags_DefaultOpen,
-                                  fmt,
-                                  compo->name.size(),
-                                  compo->name.data())) {
-                for_each_model(
-                  pj.sim,
-                  tn,
-                  [&](const std::string_view /*uid*/,
-                      const auto& mdl) noexcept {
-                      const auto current_mdl_id = pj.sim.models.get_id(mdl);
-                      ImGui::PushID(get_index(current_mdl_id));
+            if (compo.type == component_type::generic) {
+                ImGui::PushID(&tn);
+                if (ImGui::TreeNodeEx(&tn,
+                                      ImGuiTreeNodeFlags_DefaultOpen,
+                                      fmt,
+                                      compo.name.size(),
+                                      compo.name.data())) {
+                    for_each_model(
+                      pj.sim,
+                      tn,
+                      [&](const std::string_view /*uid*/,
+                          const auto& mdl) noexcept {
+                          const auto current_mdl_id = pj.sim.models.get_id(mdl);
+                          ImGui::PushID(get_index(current_mdl_id));
 
-                      const auto current_tn_id = pj.node(tn);
-                      if (ImGui::Selectable(
-                            dynamics_type_names[ordinal(mdl.type)],
-                            tn_id == current_tn_id && mdl_id == current_mdl_id,
-                            ImGuiSelectableFlags_DontClosePopups)) {
-                          tn_id  = current_tn_id;
-                          mdl_id = current_mdl_id;
-                      }
+                          const auto current_tn_id = pj.node(tn);
+                          if (ImGui::Selectable(
+                                dynamics_type_names[ordinal(mdl.type)],
+                                tn_id == current_tn_id &&
+                                  mdl_id == current_mdl_id,
+                                ImGuiSelectableFlags_DontClosePopups)) {
+                              tn_id  = current_tn_id;
+                              mdl_id = current_mdl_id;
+                          }
 
-                      ImGui::PopID();
-                  });
+                          ImGui::PopID();
+                      });
 
-                ImGui::TreePop();
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
             }
-            ImGui::PopID();
         }
-    }
+    });
 }
 
 void component_model_selector::observable_model_treenode(

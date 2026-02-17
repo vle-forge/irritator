@@ -1111,7 +1111,7 @@ void hsm_component_editor_data::show_selected_nodes(
     auto& app = container_of(&ed, &application::component_ed);
 
     if (auto* hsm = app.mod.hsm_components.try_to_get(m_hsm_id); hsm)
-        show_panel(app, app.mod.components.get<component>(m_id), *hsm);
+        show_panel(app, app.mod.components[m_id], *hsm);
 }
 
 bool hsm_component_editor_data::need_show_selected_nodes(

@@ -215,6 +215,8 @@ void TextFormatDisabled(fmt::format_string<Args...> fmt_str,
     buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
       std::min<std::size_t>(result.size, buffer.capacity())));
 
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
     ImGui::TextUnformatted(buffer.c_str());
     ImGui::PopStyleColor();
 }

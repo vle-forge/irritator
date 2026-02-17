@@ -534,7 +534,10 @@ public:
     graph_editor() noexcept;
 
     /** Display the graph component directly into a @c ImGui::BeginChild. */
-    void show(application& app, component& c, graph_component& g) noexcept;
+    void show(application&       app,
+              component&         c,
+              const component_id c_id,
+              graph_component&   g) noexcept;
 
     /** Display the simulation @c tree-node and @c graph-observer into an
      * @c ImGui::BeginChild window.
@@ -1419,8 +1422,6 @@ public:
         } data;
     };
 
-    struct impl;
-
     enum { tabitem_open_save, tabitem_open_in_out };
 
     /// List of tabulation opened in the @a ImGui::BeginTabBar.
@@ -1431,6 +1432,9 @@ public:
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
+
+    void          display_tabs() noexcept;
+    show_result_t display_tab_content(tab& t) noexcept;
 };
 
 class library_window
@@ -1479,6 +1483,11 @@ private:
                                                     file_type::data,
                                                     file_type::dot);
 
+    is_component_deletable_t is_component_deletable(
+      const application&            app,
+      const id_array<component_id>& ids,
+      const component_id            id) noexcept;
+
     void show_menu() noexcept;
     void show_file_treeview(const modeling::file_access&,
                             const bitflags<file_type>) noexcept;
@@ -1487,11 +1496,13 @@ private:
     void show_dirpath_content(const modeling::file_access&,
                               const dir_path&,
                               const bitflags<file_type>) noexcept;
-    void show_notsaved_content(const modeling::file_access& fs,
+    void show_notsaved_content(const modeling::file_access&,
+                               const id_array<component_id>&,
                                const bitflags<file_type>) noexcept;
     void show_file_component(const modeling::file_access&,
+                             const id_array<component_id>&,
                              const file_path&,
-                             const component&) noexcept;
+                             const component_id) noexcept;
     void show_file_project(const modeling::file_access&,
                            const file_path_id) noexcept;
 };

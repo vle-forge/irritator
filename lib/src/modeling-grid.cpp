@@ -113,12 +113,14 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
             const auto index    = grid.pos(row, col);
             const auto compo_id = grid.children()[index];
 
-            if (mod.components.exists(compo_id)) {
-                auto& ch             = grid.cache.alloc(compo_id, row, col);
-                auto  id             = grid.cache.get_id(ch);
-                grid.cache_names[id] = grid.make_unique_name_id(row, col);
-                ret[index]           = id;
-            }
+            mod.ids.read([&](const auto& ids, auto) {
+                if (ids.exists(compo_id)) {
+                    auto& ch             = grid.cache.alloc(compo_id, row, col);
+                    auto  id             = grid.cache.get_id(ch);
+                    grid.cache_names[id] = grid.make_unique_name_id(row, col);
+                    ret[index]           = id;
+                }
+            });
         }
     }
 
@@ -157,27 +159,29 @@ static void connection_add(modeling&        mod,
     if (not child_src or not child_dst)
         return;
 
-    auto* compo_src = mod.components.try_to_get<component>(child_src->compo_id);
-    auto* compo_dst = mod.components.try_to_get<component>(child_dst->compo_id);
-    if (not compo_src or not compo_dst)
-        return;
+    mod.ids.read([&](const auto& ids, auto) {
+        if (not(ids.exists(child_src->compo_id) and
+                ids.exists(child_dst->compo_id)))
+            return;
 
-    compo_src->y.for_each<port_str>(
-      [&](const auto sid, const auto& sname) noexcept {
-          split_name p_src(sname.sv());
+        mod.components[child_src->compo_id].y.for_each<port_str>(
+          [&](const auto sid, const auto& sname) noexcept {
+              split_name p_src(sname.sv());
 
-          if (port_src == p_src.left) {
-              compo_dst->x.for_each<port_str>(
-                [&](const auto did, const auto dname) noexcept {
-                    split_name p_dst(dname.sv());
+              if (port_src == p_src.left) {
+                  mod.components[child_dst->compo_id].x.for_each<port_str>(
+                    [&](const auto did, const auto dname) noexcept {
+                        split_name p_dst(dname.sv());
 
-                    if (port_dst == p_dst.left) {
-                        if (p_src.right == p_dst.right)
-                            grid.cache_connections.alloc(src, sid, dst, did);
-                    }
-                });
-          }
-      });
+                        if (port_dst == p_dst.left) {
+                            if (p_src.right == p_dst.right)
+                                grid.cache_connections.alloc(
+                                  src, sid, dst, did);
+                        }
+                    });
+              }
+          });
+    });
 }
 
 static void build_grid_connections(modeling&               mod,

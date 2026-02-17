@@ -711,79 +711,81 @@ auto graph_editor::show(const char*     name,
                        : show_result_type::request_to_close;
     }
 
-    debug::ensure(app.mod.components.exists(tn.id));
-    debug::ensure(app.mod.components.get<component>(tn.id).type ==
-                  component_type::graph);
+    return app.mod.ids.read([&](const auto& ids, auto) noexcept
+                              -> graph_editor::show_result_type {
+        debug::ensure(ids.exists(tn.id));
+        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
 
-    if (not app.mod.components.exists(tn.id))
-        return show_result_type::request_to_close;
+        if (not ids.exists(tn.id))
+            return show_result_type::request_to_close;
 
-    auto& compo = app.mod.components.get<component>(tn.id);
-    if (compo.type != component_type::graph)
-        return show_result_type::request_to_close;
+        auto& compo = app.mod.components[tn.id];
+        if (compo.type != component_type::graph)
+            return show_result_type::request_to_close;
 
-    auto&      graph     = app.mod.graph_components.get(compo.id.graph_id).g;
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
+        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
+        const auto canvas_p0 = ImGui::GetCursorScreenPos();
+        canvas_sz            = ImGui::GetContentRegionAvail();
 
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
+        if (canvas_sz.x < 50.0f)
+            canvas_sz.x = 50.0f;
+        if (canvas_sz.y < 50.0f)
+            canvas_sz.y = 50.0f;
 
-    const auto canvas_p1 = canvas_p0 + canvas_sz;
+        const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    u32 outer_border_c         = 0u;
-    u32 inner_border_c         = 0u;
-    u32 edge_c                 = 0u;
-    u32 node_active_c          = 0u;
-    u32 edge_active_c          = 0u;
-    u32 background_selection_c = 0u;
+        u32 outer_border_c         = 0u;
+        u32 inner_border_c         = 0u;
+        u32 edge_c                 = 0u;
+        u32 node_active_c          = 0u;
+        u32 edge_active_c          = 0u;
+        u32 background_selection_c = 0u;
 
-    app.config.vars.colors.read(
-      [&](const auto& colors, const auto /*v*/) noexcept {
-          outer_border_c = to_ImU32(colors[style_color::outer_border]);
-          inner_border_c = to_ImU32(colors[style_color::inner_border]);
-          edge_c         = to_ImU32(colors[style_color::edge]);
-          node_active_c  = to_ImU32(colors[style_color::node_active]);
-          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-          background_selection_c =
-            to_ImU32(colors[style_color::background_selection]);
-      });
+        app.config.vars.colors.read(
+          [&](const auto& colors, const auto /*v*/) noexcept {
+              outer_border_c = to_ImU32(colors[style_color::outer_border]);
+              inner_border_c = to_ImU32(colors[style_color::inner_border]);
+              edge_c         = to_ImU32(colors[style_color::edge]);
+              node_active_c  = to_ImU32(colors[style_color::node_active]);
+              edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+              background_selection_c =
+                to_ImU32(colors[style_color::background_selection]);
+          });
 
-    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
-        update(app, graph);
+        if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
+            update(app, graph);
 
-    if (flags[option::show_grid])
-        draw_grid(canvas_p0, canvas_p1, inner_border_c);
+        if (flags[option::show_grid])
+            draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
+        draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
-    if (draw_popup(app,
-                   graph,
-                   canvas_p0,
-                   bitflags<popup_options>{
-                     popup_options::show_make_project_global_window })) {
-        if (app.graph_eds.can_alloc()) {
-            auto& new_g = app.graph_eds.alloc();
-            new_g.update(app, graph);
+        if (draw_popup(app,
+                       graph,
+                       canvas_p0,
+                       bitflags<popup_options>{
+                         popup_options::show_make_project_global_window })) {
+            if (app.graph_eds.can_alloc()) {
+                auto& new_g = app.graph_eds.alloc();
+                new_g.update(app, graph);
 
-            app.sim_wnds.push_back(global_simulation_window{
-              .pj_id        = app.pjs.get_id(ed),
-              .tn_id        = ed.pj.tree_nodes.get_id(tn),
-              .graph_ed_id  = app.graph_eds.get_id(new_g),
-              .graph_obs_id = ed.pj.graph_observers.get_id(obs),
-            });
+                app.sim_wnds.push_back(global_simulation_window{
+                  .pj_id        = app.pjs.get_id(ed),
+                  .tn_id        = ed.pj.tree_nodes.get_id(tn),
+                  .graph_ed_id  = app.graph_eds.get_id(new_g),
+                  .graph_obs_id = ed.pj.graph_observers.get_id(obs),
+                });
+            }
         }
-    }
 
-    draw_selection(graph, canvas_p0, background_selection_c);
+        draw_selection(graph, canvas_p0, background_selection_c);
 
-    ImGui::GetWindowDrawList()->PopClipRect();
-    ImGui::End();
+        ImGui::GetWindowDrawList()->PopClipRect();
+        ImGui::End();
 
-    return is_open ? show_result_type::none
-                   : show_result_type::request_to_close;
+        return is_open ? show_result_type::none
+                       : show_result_type::request_to_close;
+    });
 }
 
 void graph_editor::show(application&    app,
@@ -798,60 +800,61 @@ void graph_editor::show(application&    app,
         return;
     }
 
-    debug::ensure(app.mod.components.exists(tn.id));
-    debug::ensure(app.mod.components.get<component>(tn.id).type ==
-                  component_type::graph);
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        debug::ensure(ids.exists(tn.id));
+        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
 
-    if (not app.mod.components.exists(tn.id))
-        return;
+        if (not ids.exists(tn.id))
+            return;
 
-    auto& compo = app.mod.components.get<component>(tn.id);
-    if (compo.type != component_type::graph)
-        return;
+        auto& compo = app.mod.components[tn.id];
+        if (compo.type != component_type::graph)
+            return;
 
-    auto&      graph     = app.mod.graph_components.get(compo.id.graph_id).g;
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
+        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
+        const auto canvas_p0 = ImGui::GetCursorScreenPos();
+        canvas_sz            = ImGui::GetContentRegionAvail();
 
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
+        if (canvas_sz.x < 50.0f)
+            canvas_sz.x = 50.0f;
+        if (canvas_sz.y < 50.0f)
+            canvas_sz.y = 50.0f;
 
-    const auto canvas_p1 = canvas_p0 + canvas_sz;
+        const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    u32 outer_border_c         = 0u;
-    u32 inner_border_c         = 0u;
-    u32 edge_c                 = 0u;
-    u32 node_active_c          = 0u;
-    u32 edge_active_c          = 0u;
-    u32 background_selection_c = 0u;
+        u32 outer_border_c         = 0u;
+        u32 inner_border_c         = 0u;
+        u32 edge_c                 = 0u;
+        u32 node_active_c          = 0u;
+        u32 edge_active_c          = 0u;
+        u32 background_selection_c = 0u;
 
-    app.config.vars.colors.read(
-      [&](const auto& colors, const auto /*v*/) noexcept {
-          outer_border_c = to_ImU32(colors[style_color::outer_border]);
-          inner_border_c = to_ImU32(colors[style_color::inner_border]);
-          edge_c         = to_ImU32(colors[style_color::edge]);
-          node_active_c  = to_ImU32(colors[style_color::node_active]);
-          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-          background_selection_c =
-            to_ImU32(colors[style_color::background_selection]);
-      });
+        app.config.vars.colors.read(
+          [&](const auto& colors, const auto /*v*/) noexcept {
+              outer_border_c = to_ImU32(colors[style_color::outer_border]);
+              inner_border_c = to_ImU32(colors[style_color::inner_border]);
+              edge_c         = to_ImU32(colors[style_color::edge]);
+              node_active_c  = to_ImU32(colors[style_color::node_active]);
+              edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+              background_selection_c =
+                to_ImU32(colors[style_color::background_selection]);
+          });
 
-    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
-        update(app, graph);
+        if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
+            update(app, graph);
 
-    if (flags[option::show_grid])
-        draw_grid(canvas_p0, canvas_p1, inner_border_c);
+        if (flags[option::show_grid])
+            draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, app);
+        draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, app);
 
-    (void)draw_popup(app, graph, canvas_p0);
+        (void)draw_popup(app, graph, canvas_p0);
 
-    draw_selection(graph, canvas_p0, background_selection_c);
+        draw_selection(graph, canvas_p0, background_selection_c);
 
-    ImGui::GetWindowDrawList()->PopClipRect();
-    ImGui::EndChild();
+        ImGui::GetWindowDrawList()->PopClipRect();
+        ImGui::EndChild();
+    });
 }
 
 void graph_editor::show(application&    app,
@@ -867,83 +870,84 @@ void graph_editor::show(application&    app,
         return;
     }
 
-    debug::ensure(app.mod.components.exists(tn.id));
-    debug::ensure(app.mod.components.get<component>(tn.id).type ==
-                  component_type::graph);
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        debug::ensure(ids.exists(tn.id));
+        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
 
-    if (not app.mod.components.exists(tn.id))
-        return;
+        if (not ids.exists(tn.id))
+            return;
 
-    auto& compo = app.mod.components.get<component>(tn.id);
-    if (compo.type != component_type::graph)
-        return;
+        auto& compo = app.mod.components[tn.id];
+        if (compo.type != component_type::graph)
+            return;
 
-    auto&      graph     = app.mod.graph_components.get(compo.id.graph_id).g;
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
+        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
+        const auto canvas_p0 = ImGui::GetCursorScreenPos();
+        canvas_sz            = ImGui::GetContentRegionAvail();
 
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
+        if (canvas_sz.x < 50.0f)
+            canvas_sz.x = 50.0f;
+        if (canvas_sz.y < 50.0f)
+            canvas_sz.y = 50.0f;
 
-    const auto canvas_p1              = canvas_p0 + canvas_sz;
-    u32        outer_border_c         = 0u;
-    u32        inner_border_c         = 0u;
-    u32        edge_c                 = 0u;
-    u32        node_active_c          = 0u;
-    u32        edge_active_c          = 0u;
-    u32        background_selection_c = 0u;
+        const auto canvas_p1              = canvas_p0 + canvas_sz;
+        u32        outer_border_c         = 0u;
+        u32        inner_border_c         = 0u;
+        u32        edge_c                 = 0u;
+        u32        node_active_c          = 0u;
+        u32        edge_active_c          = 0u;
+        u32        background_selection_c = 0u;
 
-    app.config.vars.colors.read(
-      [&](const auto& colors, const auto /*v*/) noexcept {
-          outer_border_c = to_ImU32(colors[style_color::outer_border]);
-          inner_border_c = to_ImU32(colors[style_color::inner_border]);
-          edge_c         = to_ImU32(colors[style_color::edge]);
-          node_active_c  = to_ImU32(colors[style_color::node_active]);
-          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-          background_selection_c =
-            to_ImU32(colors[style_color::background_selection]);
-      });
+        app.config.vars.colors.read(
+          [&](const auto& colors, const auto /*v*/) noexcept {
+              outer_border_c = to_ImU32(colors[style_color::outer_border]);
+              inner_border_c = to_ImU32(colors[style_color::inner_border]);
+              edge_c         = to_ImU32(colors[style_color::edge]);
+              node_active_c  = to_ImU32(colors[style_color::node_active]);
+              edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+              background_selection_c =
+                to_ImU32(colors[style_color::background_selection]);
+          });
 
-    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
-        update(app, graph);
+        if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
+            update(app, graph);
 
-    if (flags[option::show_grid])
-        draw_grid(canvas_p0, canvas_p1, inner_border_c);
+        if (flags[option::show_grid])
+            draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-    draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
+        draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
-    if (draw_popup(app,
-                   graph,
-                   canvas_p0,
-                   bitflags<popup_options>{
-                     popup_options::show_make_project_global_window })) {
-        if (app.graph_eds.can_alloc()) {
-            auto& new_g = app.graph_eds.alloc();
-            new_g.update(app, graph);
+        if (draw_popup(app,
+                       graph,
+                       canvas_p0,
+                       bitflags<popup_options>{
+                         popup_options::show_make_project_global_window })) {
+            if (app.graph_eds.can_alloc()) {
+                auto& new_g = app.graph_eds.alloc();
+                new_g.update(app, graph);
 
-            app.sim_wnds.push_back(global_simulation_window{
-              .pj_id        = app.pjs.get_id(ed),
-              .tn_id        = ed.pj.tree_nodes.get_id(tn),
-              .graph_ed_id  = app.graph_eds.get_id(new_g),
-              .graph_obs_id = ed.pj.graph_observers.get_id(obs),
-            });
+                app.sim_wnds.push_back(global_simulation_window{
+                  .pj_id        = app.pjs.get_id(ed),
+                  .tn_id        = ed.pj.tree_nodes.get_id(tn),
+                  .graph_ed_id  = app.graph_eds.get_id(new_g),
+                  .graph_obs_id = ed.pj.graph_observers.get_id(obs),
+                });
+            }
         }
-    }
 
-    draw_selection(graph, canvas_p0, background_selection_c);
+        draw_selection(graph, canvas_p0, background_selection_c);
 
-    ImGui::GetWindowDrawList()->PopClipRect();
-    ImGui::EndChild();
+        ImGui::GetWindowDrawList()->PopClipRect();
+        ImGui::EndChild();
+    });
 }
 
-void graph_editor::show(application&     app,
-                        component&       c,
-                        graph_component& g) noexcept
+void graph_editor::show(application&       app,
+                        component&         c,
+                        const component_id c_id,
+                        graph_component&   g) noexcept
 {
-    const auto name = format_n<64>(
-      "{}##{}", c.name.sv(), get_index(app.mod.components.get_id(c)));
+    const auto name = format_n<64>("{}##{}", c.name.sv(), ordinal(c_id));
 
     if (not ImGui::BeginChild(name.c_str())) {
         ImGui::EndChild();

@@ -62,6 +62,7 @@ static bool can_delete_component(application& app, component_id id) noexcept
 
 static void show_component_popup_menu(application&                 app,
                                       const modeling::file_access& fs,
+                                      const component_id           compo_id,
                                       const component&             sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
@@ -84,24 +85,42 @@ static void show_component_popup_menu(application&                 app,
 
         if (ImGui::MenuItem("Copy")) {
             if (app.mod.components.can_alloc(1)) {
-                auto new_c_id = app.mod.components.alloc_id();
-                app.mod.components.get<component_color>(
-                  new_c_id) = { 1.f, 1.f, 1.f, 1.f };
-                auto& new_c = app.mod.components.get<component>(new_c_id);
-                new_c.type  = component_type::generic;
-                new_c.name  = sel.name;
-                new_c.state = component_status::modified;
+                app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
+                    app.mod.ids.write([&](auto& ids) noexcept {
+                        if (not(ids.can_alloc(1) and ids.template grow<2, 1>()))
+                            return;
+                        if (not(app.mod.components.can_alloc(1) and
+                                app.mod.components.grow<2, 1>()))
+                            return;
+                        if (not(app.mod.component_colors.can_alloc(1) and
+                                app.mod.component_colors.grow<2, 1>()))
+                            return;
 
-                if (auto ret = app.mod.copy(sel, new_c); !ret) {
-                    app.jn.push(log_level::error,
-                                [](auto& title, auto& msg) noexcept {
-                                    title = "Library";
-                                    msg   = "Fail to copy model";
-                                });
-                }
+                        auto new_c_id = ids.alloc();
 
-                app.add_gui_task(
-                  [&app]() noexcept { app.component_sel.update(); });
+                        app.mod.component_colors[new_c_id] = {
+                            1.f, 1.f, 1.f, 1.f
+                        };
+
+                        auto& new_c = app.mod.components[new_c_id];
+                        new_c.type  = component_type::generic;
+                        new_c.name  = name;
+                        new_c.state = component_status::modified;
+
+                        if (auto ret =
+                              app.mod.copy(app.mod.components[compo_id], new_c);
+                            !ret) {
+                            app.jn.push(log_level::error,
+                                        [](auto& title, auto& msg) noexcept {
+                                            title = "Library";
+                                            msg   = "Fail to copy model";
+                                        });
+                        }
+
+                        app.component_sel.update();
+                        ;
+                    });
+                });
             } else {
                 app.jn.push(log_level::error,
                             [&](auto& title, auto& msg) noexcept {
@@ -114,27 +133,48 @@ static void show_component_popup_menu(application&                 app,
         }
 
         if (ImGui::MenuItem("Set as main project model")) {
-            const auto compo_id = app.mod.components.get_id(sel);
             app.library_wnd.try_set_component_as_project(app, compo_id);
         }
 
         if (const auto* file = fs.file_paths.try_to_get(sel.file); file) {
             if (ImGui::MenuItem("Delete component and file")) {
-                const auto compo_id = app.mod.components.get_id(sel);
                 if (can_delete_component(app, compo_id)) {
                     const auto file_id = sel.file;
                     app.component_ed.close(compo_id);
-                    app.mod.components.free(compo_id);
-                    remove_component_and_file_task(app, file_id);
+
+                    app.add_gui_task([&app, file_id, compo_id]() {
+                        app.mod.ids.write(
+                          [&](auto& ids) { ids.free(compo_id); });
+
+                        app.mod.files.write([&app, file_id](auto& fs) noexcept {
+                            if (const auto* f =
+                                  fs.file_paths.try_to_get(file_id)) {
+                                fs.remove_file(file_id);
+
+                                app.jn.push(
+                                  log_level::notice,
+                                  [&](auto& title, auto& msg) noexcept {
+                                      title = "Remove component file";
+                                      format(
+                                        msg, "File `{}' removed", f->path.sv());
+                                  });
+                            }
+                        });
+
+                        app.component_sel.update();
+                    });
                 }
-            }
-        } else {
-            if (ImGui::MenuItem("Delete component")) {
-                const auto compo_id = app.mod.components.get_id(sel);
-                if (can_delete_component(app, compo_id)) {
-                    app.component_ed.close(compo_id);
-                    app.mod.components.free(compo_id);
-                    refresh_component_list_task(app);
+            } else {
+                if (ImGui::MenuItem("Delete component")) {
+                    if (can_delete_component(app, compo_id)) {
+                        app.component_ed.close(compo_id);
+
+                        app.add_gui_task([&app, compo_id]() {
+                            app.mod.ids.write(
+                              [&](auto& ids) { ids.free(compo_id); });
+                            app.component_sel.update();
+                        });
+                    }
                 }
             }
         }
@@ -244,16 +284,17 @@ void library_window::show_file_project(const modeling::file_access& fs,
     }
 }
 
-void library_window::show_file_component(const modeling::file_access& fs,
-                                         const file_path&             file,
-                                         const component& c) noexcept
+void library_window::show_file_component(const modeling::file_access&  fs,
+                                         const id_array<component_id>& ids,
+                                         const file_path&              file,
+                                         const component_id id) noexcept
 {
-    auto&      app      = container_of(this, &application::library_wnd);
-    const auto id       = app.mod.components.get_id(c);
-    const bool selected = app.component_ed.is_component_open(id);
-    const auto state    = c.state;
+    auto&       app      = container_of(this, &application::library_wnd);
+    const bool  selected = app.component_ed.is_component_open(id);
+    const auto& compo    = app.mod.components[id];
+    const auto  state    = compo.state;
 
-    ImGui::PushID(&c);
+    ImGui::PushID(ordinal(id));
 
     const auto col = get_component_color(app, id);
     auto       im  = std::array<float, 4>{ col[0], col[1], col[2], col[3] };
@@ -262,17 +303,19 @@ void library_window::show_file_component(const modeling::file_access& fs,
                           im.data(),
                           ImGuiColorEditFlags_NoInputs |
                             ImGuiColorEditFlags_NoLabel)) {
-        if (app.mod.components.exists(id)) {
-            auto& data = app.mod.components.get<component_color>(id);
+        if (ids.exists(id)) {
+            auto& data = app.mod.component_colors[id];
             data       = im;
         }
     }
 
     ImGui::SameLine();
-    const auto name    = format_n<63>("{} ({})", c.name.sv(), file.path.sv());
-    const auto disable = state == component_status::unreadable;
-    const auto flags   = disable ? ImGuiSelectableFlags_Disabled
-                                 : ImGuiSelectableFlags_AllowDoubleClick;
+
+    const auto& c       = app.mod.components[id];
+    const auto  name    = format_n<63>("{} ({})", c.name.sv(), file.path.sv());
+    const auto  disable = state == component_status::unreadable;
+    const auto  flags   = disable ? ImGuiSelectableFlags_Disabled
+                                  : ImGuiSelectableFlags_AllowDoubleClick;
 
     if (ImGui::Selectable(name.c_str(), selected, flags)) {
         if (ImGui::IsMouseDoubleClicked(0))
@@ -281,7 +324,7 @@ void library_window::show_file_component(const modeling::file_access& fs,
             app.component_ed.request_to_open(id);
     }
 
-    show_component_popup_menu(app, fs, c);
+    show_component_popup_menu(app, fs, id, c);
     ImGui::PopID();
 
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -314,17 +357,15 @@ void library_window::show_file_component(const modeling::file_access& fs,
 }
 
 void library_window::show_notsaved_content(
-  const modeling::file_access& fs,
-  const bitflags<file_type>    flags) noexcept
+  const modeling::file_access&  fs,
+  const id_array<component_id>& ids,
+  const bitflags<file_type>     flags) noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
 
     if (flags[file_type::component]) {
-        auto& compos = app.mod.components.get<component>();
-        auto& colors = app.mod.components.get<component_color>();
-
-        for (const auto id : app.mod.components) {
-            auto& compo = compos[id];
+        for (const auto id : ids) {
+            const auto& compo = app.mod.components[id];
 
             const auto is_not_saved =
               app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
@@ -332,7 +373,7 @@ void library_window::show_notsaved_content(
               });
 
             if (is_not_saved) {
-                auto&      color    = colors[id];
+                auto&      color    = app.mod.component_colors[id];
                 const bool selected = app.component_ed.is_component_open(id);
 
                 ImGui::PushID(reinterpret_cast<const void*>(&compo));
@@ -352,7 +393,7 @@ void library_window::show_notsaved_content(
                 }
                 ImGui::PopID();
 
-                show_component_popup_menu(app, fs, compo);
+                show_component_popup_menu(app, fs, id, compo);
             }
         }
     }
@@ -417,9 +458,11 @@ void library_window::show_dirpath_content(
 
             case file_path::file_type::component_file:
                 if (flags[file_type::component]) {
-                    if (auto* compo = app.mod.components.try_to_get<component>(
-                          file->component))
-                        show_file_component(fs, *file, *compo);
+                    app.mod.ids.read([&](const auto& ids, auto) {
+                        if (ids.exists(file->component))
+                            show_file_component(
+                              fs, ids, *file, file->component);
+                    });
                 }
                 break;
 
@@ -483,30 +526,30 @@ void library_window::try_set_component_as_project(
     if (app.pjs.try_to_get(pj_id)) {
         app.add_gui_task([&app, compo_id, pj_id]() noexcept {
             auto& pj = app.pjs.get(pj_id);
-            if (auto* c = app.mod.components.try_to_get<component>(compo_id)) {
-                if (not pj.pj.set(app.mod, *c)) {
-                    app.jn.push(log_level::error, [](auto& title, auto& msg) {
-                        title = "Project failure",
-                        msg   = "Fail to import component as project";
-                    });
-                }
-                pj.disable_access = false;
+
+            if (not pj.pj.set(app.mod, compo_id)) {
+                app.jn.push(log_level::error, [](auto& title, auto& msg) {
+                    title = "Project failure",
+                    msg   = "Fail to import component as project";
+                });
             }
+            pj.disable_access = false;
         });
     }
 }
 
-static auto is_component_used_in_components(const application& app,
+static auto is_component_used_in_components(const modeling&               mod,
+                                            const id_array<component_id>& ids,
                                             const component_id id) noexcept
   -> bool
 {
-    for (const auto c_id : app.mod.components) {
-        const auto& c = app.mod.components.get<component>(c_id);
+    for (const auto c_id : ids) {
+        const auto& c = mod.components[c_id];
 
         switch (c.type) {
         case component_type::generic:
             if (const auto* g =
-                  app.mod.generic_components.try_to_get(c.id.generic_id)) {
+                  mod.generic_components.try_to_get(c.id.generic_id)) {
                 if (std::ranges::any_of(
                       g->children, [id](const auto& ch) noexcept -> bool {
                           return ch.type == child_type::component and
@@ -517,8 +560,7 @@ static auto is_component_used_in_components(const application& app,
             break;
 
         case component_type::grid:
-            if (const auto* g =
-                  app.mod.grid_components.try_to_get(c.id.grid_id)) {
+            if (const auto* g = mod.grid_components.try_to_get(c.id.grid_id)) {
                 if (std::ranges::any_of(
                       g->children(),
                       [id](const auto c) noexcept -> bool { return c == id; }))
@@ -528,7 +570,7 @@ static auto is_component_used_in_components(const application& app,
 
         case component_type::graph:
             if (const auto* g =
-                  app.mod.graph_components.try_to_get(c.id.graph_id)) {
+                  mod.graph_components.try_to_get(c.id.graph_id)) {
                 for (const auto i : g->g.nodes) {
                     if (g->g.node_components[i] == id)
                         return true;
@@ -576,15 +618,26 @@ static auto is_component_used_in_projects(const application&  app,
     return false;
 }
 
-auto library_window::is_component_deletable(const application& app,
+auto library_window::is_component_deletable(const application&            app,
+                                            const id_array<component_id>& ids,
                                             const component_id id) noexcept
   -> is_component_deletable_t
 {
-    return is_component_used_in_components(app, id)
+    return is_component_used_in_components(app.mod, ids, id)
              ? is_component_deletable_t::used_by_component
            : is_component_used_in_projects(app, id, stack)
              ? is_component_deletable_t::used_by_project
              : is_component_deletable_t::deletable;
+}
+
+auto library_window::is_component_deletable(const application& app,
+                                            const component_id id) noexcept
+  -> is_component_deletable_t
+{
+    return app.mod.ids.read(
+      [&](const auto& ids, auto) noexcept -> is_component_deletable_t {
+          return is_component_deletable(app, ids, id);
+      });
 }
 
 void library_window::show_menu() noexcept
@@ -635,22 +688,31 @@ void library_window::show_menu() noexcept
                 if (ImGui::MenuItem(internal_component_names[i])) {
                     if (app.mod.components.can_alloc(1) and
                         app.mod.generic_components.can_alloc(1)) {
-                        auto&      compo = app.mod.alloc_generic_component();
-                        const auto generic_id = compo.id.generic_id;
-                        auto& g = app.mod.generic_components.get(generic_id);
 
-                        compo.name  = internal_component_names[i];
-                        compo.state = component_status::modified;
+                        const auto compo_id = app.mod.alloc_generic_component();
 
-                        if (auto ret = app.mod.copy(
-                              enum_cast<internal_component>(i), compo, g);
-                            !ret) {
-                            app.jn.push(log_level::error, [](auto& t, auto& m) {
-                                t = "Library: copy in "
-                                    "generic component";
-                                m = "TODO";
-                            });
-                        }
+                        app.mod.ids.read([&](const auto& ids, auto) {
+                            if (not ids.exists(compo_id))
+                                return;
+
+                            auto& compo = app.mod.components[compo_id];
+                            compo.name  = internal_component_names[i];
+                            compo.state = component_status::modified;
+
+                            const auto gen_id = compo.id.generic_id;
+                            auto& g = app.mod.generic_components.get(gen_id);
+
+                            if (auto ret = app.mod.copy(
+                                  enum_cast<internal_component>(i), compo, g);
+                                !ret) {
+                                app.jn.push(log_level::error,
+                                            [](auto& t, auto& m) {
+                                                t = "Library: copy in "
+                                                    "generic component";
+                                                m = "TODO";
+                                            });
+                            }
+                        });
 
                         app.add_gui_task(
                           [&app]() noexcept { app.component_sel.update(); });
@@ -680,8 +742,11 @@ void library_window::show_file_treeview(
         show_repertories_content(fs, flags);
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
-            show_notsaved_content(fs, flags);
-            ImGui::TreePop();
+            auto& app = container_of(this, &application::library_wnd);
+            app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                show_notsaved_content(fs, ids, flags);
+                ImGui::TreePop();
+            });
         }
 
         ImGui::EndChild();

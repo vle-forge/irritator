@@ -183,6 +183,7 @@ enum class modeling_errc : std::int16_t {
     directory_error,
     file_error,
 
+    component_not_found,
     component_load_error,
     component_container_full,
     component_input_container_full,

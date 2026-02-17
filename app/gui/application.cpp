@@ -221,10 +221,13 @@ auto get_component_color(const application& app, const component_id id) noexcept
   -> const std::span<const float, 4>
 {
     return app.config.vars.colors.read(
-      [&](const auto& colors, const auto /*version*/) noexcept {
-          return app.mod.components.exists(id)
-                   ? app.mod.components.get<component_color>(id)
-                   : colors[style_color::component_undefined];
+      [&](const auto& colors,
+          const auto /*version*/) noexcept -> const std::span<const float, 4> {
+          return app.mod.ids.read([&](const auto& ids, auto) noexcept
+                                    -> const std::span<const float, 4> {
+              return ids.exists(id) ? app.mod.component_colors[id]
+                                    : colors[style_color::component_undefined];
+          });
       });
 }
 
@@ -749,12 +752,12 @@ auto build_unique_component_vector(application& app, tree_node& tn)
         auto* cur = stack.back();
         stack.pop_back();
 
-        if (auto* compo = app.mod.components.try_to_get<component>(cur->id);
-            compo) {
-            if (auto it = std::find(ret.begin(), ret.end(), cur->id);
-                it == ret.end())
-                ret.emplace_back(cur->id);
-        }
+        app.mod.ids.read([&](const auto& ids, auto) {
+            if (ids.exists(cur->id))
+                if (auto it = std::find(ret.begin(), ret.end(), cur->id);
+                    it == ret.end())
+                    ret.emplace_back(cur->id);
+        });
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);
@@ -1008,23 +1011,26 @@ void application::start_save_project(const project_id pj_id) noexcept
 void application::start_save_component(const component_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
-        if (auto* c = mod.components.try_to_get<component>(id); c) {
-            if (auto ret = mod.save(*c); not ret) {
-                jn.push(log_level::error, [&](auto& title, auto& msg) {
-                    title = "Component save error";
-                    format(msg,
-                           "Fail to save {} (part: {} {}",
-                           c->name.sv(),
-                           ordinal(ret.error().cat()),
-                           ret.error().value());
-                });
-            } else {
-                jn.push(log_level::notice, [&](auto& title, auto& msg) {
-                    title = "Component save";
-                    format(msg, "Save {} success", c->name.sv());
-                });
+        mod.ids.read([&](const auto& ids, auto) noexcept {
+            if (ids.exists(id)) {
+                auto& compo = mod.components[id];
+                if (auto ret = mod.save(id); not ret) {
+                    jn.push(log_level::error, [&](auto& title, auto& msg) {
+                        title = "Component save error";
+                        format(msg,
+                               "Fail to save {} (part: {} {}",
+                               compo.name.sv(),
+                               ordinal(ret.error().cat()),
+                               ret.error().value());
+                    });
+                } else {
+                    jn.push(log_level::notice, [&](auto& title, auto& msg) {
+                        title = "Component save";
+                        format(msg, "Save {} success", compo.name.sv());
+                    });
+                }
             }
-        }
+        });
     });
 }
 

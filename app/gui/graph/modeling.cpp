@@ -741,13 +741,14 @@ void graph_component_editor_data::show_dot_file_menu(
 void graph_component_editor_data::graph_component_editor_data::show(
   application& app) noexcept
 {
-    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (not ids.exists(m_id))
+            return;
 
-        auto* compo = app.mod.components.try_to_get<component>(m_id);
+        auto& compo = app.mod.components[m_id];
         auto* graph = app.mod.graph_components.try_to_get(graph_id);
-
-        debug::ensure(compo);
-        debug::ensure(graph);
+        if (not graph)
+            return;
 
         static bool show_save = false;
 
@@ -878,8 +879,8 @@ void graph_component_editor_data::graph_component_editor_data::show(
             }
         }
 
-        show_graph(app, *compo, *graph);
-    }
+        show_graph(app, compo, *graph);
+    });
 }
 
 void graph_component_editor_data::update_position_to_grid(
@@ -1103,28 +1104,32 @@ void graph_component_editor_data::show_selected_nodes(
                         r)
                         graph->g.node_components[idx] = r.id;
 
-                    if (auto* compo = app.mod.components.try_to_get<component>(
-                          graph->g.node_components[idx])) {
-                        if (not compo->x.empty()) {
+                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                        if (not ids.exists(graph->g.node_components[idx]))
+                            return;
+
+                        auto& compo =
+                          app.mod.components[graph->g.node_components[idx]];
+                        if (not compo.x.empty()) {
                             if (ImGui::TreeNodeEx("input ports")) {
-                                const auto& xnames = compo->x.get<port_str>();
-                                for (const auto id : compo->x) {
+                                const auto& xnames = compo.x.get<port_str>();
+                                for (const auto id : compo.x) {
                                     ImGui::TextFormat("{}", xnames[id].sv());
                                 }
                                 ImGui::TreePop();
                             }
                         }
 
-                        if (not compo->y.empty()) {
+                        if (not compo.y.empty()) {
                             if (ImGui::TreeNodeEx("output ports")) {
-                                const auto& ynames = compo->y.get<port_str>();
-                                for (const auto id : compo->y) {
+                                const auto& ynames = compo.y.get<port_str>();
+                                for (const auto id : compo.y) {
                                     ImGui::TextFormat("{}", ynames[id].sv());
                                 }
                                 ImGui::TreePop();
                             }
                         }
-                    }
+                    });
                 }
 
                 ImGui::PopID();

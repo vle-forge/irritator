@@ -226,35 +226,42 @@ static void add_output_attribute(const std::span<const std::string_view> names,
     }
 }
 
-static void delete_link(component&         compo,
-                        generic_component& gen,
-                        int                link_id) noexcept
+static bool delete_link(generic_component& gen, int link_id) noexcept
 {
     if (link_id >= 8192) {
         const auto id = static_cast<u32>(link_id - 8192);
         if (auto* con = gen.output_connections.try_to_get_from_pos(id); con) {
             gen.output_connections.free(*con);
-            compo.state = component_status::modified;
+            return true;
         }
     } else if (link_id >= 4096) {
         const auto id = static_cast<u32>(link_id - 4096);
         if (auto* con = gen.input_connections.try_to_get_from_pos(id); con) {
             gen.input_connections.free(*con);
-            compo.state = component_status::modified;
+            return true;
         }
     } else {
         const auto id = static_cast<u32>(link_id);
         if (auto* con = gen.connections.try_to_get_from_pos(id); con) {
             gen.connections.free(*con);
-            compo.state = component_status::modified;
+            return true;
         }
     }
+
+    return false;
 }
 
-static void remove_nodes(modeling&                      mod,
+static bool remove_nodes(modeling&                      mod,
+                         const id_array<component_id>&  ids,
                          generic_component_editor_data& data,
-                         component&                     parent) noexcept
+                         const component_id             parent_id) noexcept
 {
+    if (not ids.exists(parent_id))
+        return false;
+
+    auto        updated = 0;
+    const auto& parent  = mod.components[parent_id];
+
     if (parent.type == component_type::generic) {
         if_data_exists_do(
           mod.generic_components,
@@ -268,7 +275,7 @@ static void remove_nodes(modeling&                      mod,
                             generic.children.try_to_get_from_pos(idx);
                           child) {
                           generic.children.free(*child);
-                          parent.state = component_status::modified;
+                          ++updated;
                       }
                   }
               }
@@ -277,23 +284,27 @@ static void remove_nodes(modeling&                      mod,
 
     data.selected_nodes.clear();
     ImNodes::ClearNodeSelection();
+
+    return updated;
 }
 
-static void remove_links(generic_component_editor_data& data,
-                         component&                     parent,
+static bool remove_links(generic_component_editor_data& data,
                          generic_component&             s_parent) noexcept
 {
     std::sort(data.selected_links.begin(),
               data.selected_links.end(),
               std::greater<int>());
 
-    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i)
-        delete_link(parent, s_parent, data.selected_links[i]);
+    int update = false;
+    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i) {
+        if (delete_link(s_parent, data.selected_links[i]))
+            ++update;
+    }
 
     data.selected_links.clear();
     ImNodes::ClearLinkSelection();
 
-    parent.state = component_status::modified;
+    return update;
 }
 
 static void remove_component_input_output(ImVector<int>& v) noexcept
@@ -381,6 +392,7 @@ static bool show_connection(const generic_component& compo,
 }
 
 static bool show_node(component_editor&         ed,
+                      component_id              compo_id,
                       component&                compo,
                       generic_component&        gen,
                       generic_component::child& c) noexcept
@@ -424,10 +436,8 @@ static bool show_node(component_editor&         ed,
       app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
 
     if (c.id.mdl_type == dynamics_type::constant)
-        ret +=
-          show_extented_constant_parameter(app.mod,
-                                           app.mod.components.get_id(compo),
-                                           gen.children_parameters[idx]);
+        ret += show_extented_constant_parameter(
+          app.mod, compo_id, gen.children_parameters[idx]);
 
     ImGui::PopItemWidth();
     add_output_attribute(Y, id);
@@ -580,6 +590,7 @@ static void show_graph_node(application&     app,
 }
 
 static void show_graph(component_editor&  ed,
+                       component_id       parent_id,
                        component&         parent,
                        generic_component& s_parent) noexcept
 {
@@ -624,58 +635,63 @@ static void show_graph(component_editor&  ed,
 
     for (auto& c : s_parent.children) {
         if (c.type == child_type::model) {
-            (void)show_node(ed, parent, s_parent, c);
+            (void)show_node(ed, parent_id, parent, s_parent, c);
         } else {
             const auto cid  = s_parent.children.get_id(c);
             const auto cidx = get_index(cid);
             auto       id   = c.id.compo_id;
 
-            if (auto* compo = app.mod.components.try_to_get<component>(id)) {
-                switch (compo->type) {
-                case component_type::none:
-                    break;
+            app.mod.ids.read([&](const auto& ids, const auto /*v*/) noexcept {
+                if (ids.exists(id)) {
+                    auto& compo = app.mod.components[id];
+                    switch (compo.type) {
+                    case component_type::none:
+                        break;
 
-                case component_type::generic:
-                    if (auto* s_compo = app.mod.generic_components.try_to_get(
-                          compo->id.generic_id)) {
-                        show_generic_node(app,
-                                          s_parent.children_names[cidx].sv(),
-                                          *compo,
-                                          *s_compo,
-                                          cid,
-                                          c);
+                    case component_type::generic:
+                        if (auto* s_compo =
+                              app.mod.generic_components.try_to_get(
+                                compo.id.generic_id)) {
+                            show_generic_node(
+                              app,
+                              s_parent.children_names[cidx].sv(),
+                              compo,
+                              *s_compo,
+                              cid,
+                              c);
+                        }
+                        break;
+
+                    case component_type::grid:
+                        if (auto* s_compo = app.mod.grid_components.try_to_get(
+                              compo.id.grid_id)) {
+                            show_grid_node(app,
+                                           s_parent.children_names[cidx].sv(),
+                                           compo,
+                                           *s_compo,
+                                           cid);
+                        }
+                        break;
+
+                    case component_type::graph:
+                        if (auto* s_compo = app.mod.graph_components.try_to_get(
+                              compo.id.graph_id)) {
+                            show_graph_node(app,
+                                            s_parent.children_names[cidx].sv(),
+                                            compo,
+                                            *s_compo,
+                                            cid);
+                        }
+                        break;
+
+                    case component_type::hsm:
+                        break;
+
+                    case component_type::simulation:
+                        break;
                     }
-                    break;
-
-                case component_type::grid:
-                    if (auto* s_compo = app.mod.grid_components.try_to_get(
-                          compo->id.grid_id)) {
-                        show_grid_node(app,
-                                       s_parent.children_names[cidx].sv(),
-                                       *compo,
-                                       *s_compo,
-                                       cid);
-                    }
-                    break;
-
-                case component_type::graph:
-                    if (auto* s_compo = app.mod.graph_components.try_to_get(
-                          compo->id.graph_id)) {
-                        show_graph_node(app,
-                                        s_parent.children_names[cidx].sv(),
-                                        *compo,
-                                        *s_compo,
-                                        cid);
-                    }
-                    break;
-
-                case component_type::hsm:
-                    break;
-
-                case component_type::simulation:
-                    break;
                 }
-            }
+            });
         }
     }
 
@@ -693,12 +709,14 @@ static void show_graph(component_editor&  ed,
                    });
 }
 
-static void add_popup_menuitem(application&       app,
-                               component&         parent,
+static bool add_popup_menuitem(application&       app,
+                               const component_id parent_id,
                                generic_component& s_parent,
                                dynamics_type      type,
                                ImVec2             click_pos)
 {
+    int update = false;
+
     if (not s_parent.children.can_alloc(1)) {
         app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Generic component";
@@ -706,7 +724,7 @@ static void add_popup_menuitem(application&       app,
                     "generic component default size.";
         });
 
-        return;
+        return update;
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
@@ -720,24 +738,24 @@ static void add_popup_menuitem(application&       app,
         ImNodes::SetNodeScreenSpacePos(pack_node_child(id),
                                        ImVec2(click_pos.x, click_pos.y));
 
-        parent.state = component_status::modified;
-
         app.jn.push(log_level::info, [type](auto& title, auto& msg) noexcept {
             title = "Generic component";
             format(
               msg, "New model {} added", dynamics_type_names[ordinal(type)]);
         });
     }
+
+    return update;
 }
 
 static void add_popup_menuitem(application&       app,
-                               component&         parent,
+                               const component_id parent_id,
                                generic_component& s_parent,
                                int                type,
                                ImVec2             click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
-    add_popup_menuitem(app, parent, s_parent, d_type, click_pos);
+    add_popup_menuitem(app, parent_id, s_parent, d_type, click_pos);
 }
 
 static void compute_grid_layout(generic_component& s_compo,
@@ -773,19 +791,19 @@ static void compute_grid_layout(generic_component& s_compo,
 }
 
 static void add_component_to_current(application&       app,
-                                     component&         parent,
+                                     const component_id parent_id,
                                      generic_component& parent_compo,
-                                     component&         compo_to_add,
+                                     const component_id compo_to_add_id,
                                      ImVec2             click_pos = ImVec2())
 {
-
-    if (not app.mod.can_add(parent, compo_to_add)) {
-        app.jn.push(log_level::error, [&compo_to_add](auto& t, auto& m) {
-            t = "Fail to add component";
-            format(m,
-                   "Irritator does not accept recursive component {}",
-                   compo_to_add.name.sv());
-        });
+    if (not app.mod.can_add(parent_id, compo_to_add_id)) {
+        app.jn.push(
+          log_level::error, [&app, compo_to_add_id](auto& t, auto& m) {
+              t = "Fail to add component";
+              format(m,
+                     "Irritator does not accept recursive component {}",
+                     app.mod.components[compo_to_add_id].name.sv());
+          });
     }
 
     if (not parent_compo.children.can_alloc(1) and
@@ -796,10 +814,9 @@ static void add_component_to_current(application&       app,
                 "generic component default size.";
         });
 
-    const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
-    auto&      c               = parent_compo.children.alloc(compo_to_add_id);
-    const auto c_id            = parent_compo.children.get_id(c);
-    const auto c_idx           = get_index(c_id);
+    auto&      c     = parent_compo.children.alloc(compo_to_add_id);
+    const auto c_id  = parent_compo.children.get_id(c);
+    const auto c_idx = get_index(c_id);
 
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
@@ -808,7 +825,7 @@ static void add_component_to_current(application&       app,
 
 static void show_popup_menuitem(application&                   app,
                                 generic_component_editor_data& data,
-                                component&                     parent,
+                                const component_id             parent_id,
                                 generic_component& s_parent) noexcept
 {
     const bool open_popup =
@@ -824,11 +841,15 @@ static void show_popup_menuitem(application&                   app,
 
         if (not data.selected_links.empty())
             if (ImGui::MenuItem("Delete selected links"))
-                remove_links(data, parent, s_parent);
+                remove_links(data, s_parent);
 
         if (not data.selected_nodes.empty())
-            if (ImGui::MenuItem("Delete selected nodes"))
-                remove_nodes(app.mod, data, parent);
+            if (ImGui::MenuItem("Delete selected nodes")) {
+                app.mod.ids.read(
+                  [&](const auto& ids, const auto /*v*/) noexcept {
+                      remove_nodes(app.mod, ids, data, parent_id);
+                  });
+            }
 
         if (ImGui::MenuItem("Force grid layout")) {
             compute_grid_layout(s_parent,
@@ -846,17 +867,16 @@ static void show_popup_menuitem(application&                   app,
                     t = "can not allocate a new grid component";
                 });
             } else {
-                auto& compo    = app.mod.alloc_grid_component();
+                auto  compo_id = app.mod.alloc_grid_component();
+                auto& compo    = app.mod.components[compo_id];
                 auto& grid     = app.mod.grid_components.get(compo.id.grid_id);
-                auto  compo_id = app.mod.components.get_id(compo);
                 grid.resize(4, 4, undefined<component_id>());
 
-                app.mod.components.get<component_color>(
-                  compo_id) = { 1.f, 1.f, 1.f, 1.f };
-                app.mod.components.get<component>(compo_id).name = "Grid";
+                app.mod.component_colors[compo_id] = { 1.f, 1.f, 1.f, 1.f };
+                app.mod.components[compo_id].name  = "Grid";
 
                 add_component_to_current(
-                  app, parent, s_parent, compo, click_pos);
+                  app, parent_id, s_parent, compo_id, click_pos);
             }
         }
 
@@ -866,8 +886,12 @@ static void show_popup_menuitem(application&                   app,
             res.is_done) {
             debug::ensure(is_defined(res.id));
 
-            if (auto* c = app.mod.components.try_to_get<component>(res.id)) {
-                if (c->type == component_type::hsm)
+            app.mod.ids.read([&](const auto& ids, const auto /*v*/) noexcept {
+                if (not ids.exists(res.id))
+                    return;
+
+                auto& c = app.mod.components[res.id];
+                if (c.type == component_type::hsm)
                     app.jn.push(
                       log_level::error, [](auto& title, auto& msg) noexcept {
                           title = "Component editor";
@@ -875,8 +899,8 @@ static void show_popup_menuitem(application&                   app,
                                   "hierarchical state machine";
                       });
                 else
-                    add_component_to_current(app, parent, s_parent, *c);
-            }
+                    add_component_to_current(app, parent_id, s_parent, res.id);
+            });
         }
 
         ImGui::Separator();
@@ -885,7 +909,7 @@ static void show_popup_menuitem(application&                   app,
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_exp) + 1;
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -894,7 +918,7 @@ static void show_popup_menuitem(application&                   app,
             const auto e = ordinal(dynamics_type::qss2_exp) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -903,44 +927,56 @@ static void show_popup_menuitem(application&                   app,
             const auto e = ordinal(dynamics_type::qss3_exp) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
+            add_popup_menuitem(app,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_and_2,
+                               click_pos);
             add_popup_menuitem(
-              app, parent, s_parent, dynamics_type::logical_and_2, click_pos);
+              app, parent_id, s_parent, dynamics_type::logical_or_2, click_pos);
+            add_popup_menuitem(app,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_and_3,
+                               click_pos);
             add_popup_menuitem(
-              app, parent, s_parent, dynamics_type::logical_or_2, click_pos);
-            add_popup_menuitem(
-              app, parent, s_parent, dynamics_type::logical_and_3, click_pos);
-            add_popup_menuitem(
-              app, parent, s_parent, dynamics_type::logical_or_3, click_pos);
-            add_popup_menuitem(
-              app, parent, s_parent, dynamics_type::logical_invert, click_pos);
+              app, parent_id, s_parent, dynamics_type::logical_or_3, click_pos);
+            add_popup_menuitem(app,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_invert,
+                               click_pos);
             ImGui::EndMenu();
         }
 
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::counter, click_pos);
+          app, parent_id, s_parent, dynamics_type::counter, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::queue, click_pos);
+          app, parent_id, s_parent, dynamics_type::queue, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::dynamic_queue, click_pos);
+          app, parent_id, s_parent, dynamics_type::dynamic_queue, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::priority_queue, click_pos);
+          app, parent_id, s_parent, dynamics_type::priority_queue, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::generator, click_pos);
+          app, parent_id, s_parent, dynamics_type::generator, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::constant, click_pos);
+          app, parent_id, s_parent, dynamics_type::constant, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::time_func, click_pos);
+          app, parent_id, s_parent, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::accumulator_2, click_pos);
+          app, parent_id, s_parent, dynamics_type::accumulator_2, click_pos);
         add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
-        add_popup_menuitem(
-          app, parent, s_parent, dynamics_type::simulation_wrapper, click_pos);
+          app, parent_id, s_parent, dynamics_type::hsm_wrapper, click_pos);
+        add_popup_menuitem(app,
+                           parent_id,
+                           s_parent,
+                           dynamics_type::simulation_wrapper,
+                           click_pos);
 
         ImGui::EndPopup();
     }
@@ -999,23 +1035,26 @@ static void is_link_created(application& app,
                     debug_log("fail to create link");
                 parent.state = component_status::modified;
             } else {
-                const auto compo_dst =
-                  app.mod.components.try_to_get<component>(child->id.compo_id);
-                if (not compo_dst)
-                    return;
+                app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                    if (not ids.exists(child->id.compo_id))
+                        return;
 
-                const auto port_dst_id =
-                  compo_dst->x.get_from_index(child_port.second);
-                if (is_undefined(port_dst_id))
-                    return;
+                    const auto& compo_dst =
+                      app.mod.components[child->id.compo_id];
 
-                if (auto ret = s_parent.connect_input(
-                      port_id,
-                      *child,
-                      connection::port{ .compo = port_dst_id });
-                    !ret)
-                    debug_log("fail to create link\n");
-                parent.state = component_status::modified;
+                    const auto port_dst_id =
+                      compo_dst.x.get_from_index(child_port.second);
+                    if (is_undefined(port_dst_id))
+                        return;
+
+                    if (auto ret = s_parent.connect_input(
+                          port_id,
+                          *child,
+                          connection::port{ .compo = port_dst_id });
+                        !ret)
+                        debug_log("fail to create link\n");
+                    parent.state = component_status::modified;
+                });
             }
         } else {
             auto  ch_port_src = unpack_out(start);
@@ -1039,24 +1078,25 @@ static void is_link_created(application& app,
                         debug_log("fail to create link\n");
                     parent.state = component_status::modified;
                 } else {
-                    const auto compo_src =
-                      app.mod.components.try_to_get<component>(
-                        ch_src->id.compo_id);
-                    if (not compo_src)
-                        return;
+                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                        if (not ids.exists(ch_src->id.compo_id))
+                            return;
 
-                    const auto port_out =
-                      compo_src->y.get_from_index(ch_port_src.second);
-                    if (is_undefined(port_out))
-                        return;
+                        const auto& compo_src =
+                          app.mod.components[ch_src->id.compo_id];
+                        const auto port_out =
+                          compo_src.y.get_from_index(ch_port_src.second);
+                        if (is_undefined(port_out))
+                            return;
 
-                    if (auto ret = s_parent.connect_output(
-                          port_id,
-                          *ch_src,
-                          connection::port{ .compo = port_id });
-                        !ret)
-                        debug_log("fail to create link\n");
-                    parent.state = component_status::modified;
+                        if (auto ret = s_parent.connect_output(
+                              port_id,
+                              *ch_src,
+                              connection::port{ .compo = port_id });
+                            !ret)
+                            debug_log("fail to create link\n");
+                        parent.state = component_status::modified;
+                    });
                 }
             } else {
                 auto  ch_port_dst = unpack_in(end);
@@ -1079,90 +1119,96 @@ static void is_link_created(application& app,
                             debug_log("fail to create link\n");
                         parent.state = component_status::modified;
                     } else {
-                        const auto compo_dst =
-                          app.mod.components.try_to_get<component>(
-                            ch_dst->id.compo_id);
-                        if (not compo_dst)
-                            return;
+                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                            if (not ids.exists(ch_dst->id.compo_id))
+                                return;
 
-                        const auto port_dst_id =
-                          compo_dst->x.get_from_index(ch_port_dst.second);
-                        if (is_undefined(port_dst_id))
-                            return;
+                            const auto& compo_dst =
+                              app.mod.components[ch_dst->id.compo_id];
+                            const auto port_dst_id =
+                              compo_dst.x.get_from_index(ch_port_dst.second);
+                            if (is_undefined(port_dst_id))
+                                return;
 
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .model = port_out },
-                              *ch_dst,
-                              connection::port{ .compo = port_dst_id });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
+                            if (auto ret = s_parent.connect(
+                                  app.mod,
+                                  *ch_src,
+                                  connection::port{ .model = port_out },
+                                  *ch_dst,
+                                  connection::port{ .compo = port_dst_id });
+                                !ret)
+                                debug_log("fail to create link\n");
+                            parent.state = component_status::modified;
+                        });
                     }
                 } else {
-                    const auto compo_src =
-                      app.mod.components.try_to_get<component>(
-                        ch_src->id.compo_id);
-                    if (not compo_src)
-                        return;
-
-                    const auto port_out =
-                      compo_src->y.get_from_index(ch_port_src.second);
-                    if (is_undefined(port_out))
-                        return;
-
-                    if (ch_dst->type == child_type::model) {
-                        auto port_in = static_cast<int>(ch_port_dst.second);
-
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .compo = port_out },
-                              *ch_dst,
-                              connection::port{ .model = port_in });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                    } else {
-                        const auto compo_dst =
-                          app.mod.components.try_to_get<component>(
-                            ch_dst->id.compo_id);
-                        if (not compo_dst)
+                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                        if (not ids.exists(ch_src->id.compo_id))
                             return;
 
-                        const auto port_in =
-                          compo_dst->x.get_from_index(ch_port_dst.second);
-                        if (is_undefined(port_in))
+                        const auto& compo_src =
+                          app.mod.components[ch_src->id.compo_id];
+                        const auto port_out =
+                          compo_src.y.get_from_index(ch_port_src.second);
+
+                        if (is_undefined(port_out))
                             return;
 
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .compo = port_out },
-                              *ch_dst,
-                              connection::port{ .compo = port_in });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                    }
+                        if (ch_dst->type == child_type::model) {
+                            auto port_in = static_cast<int>(ch_port_dst.second);
+
+                            if (auto ret = s_parent.connect(
+                                  app.mod,
+                                  *ch_src,
+                                  connection::port{ .compo = port_out },
+                                  *ch_dst,
+                                  connection::port{ .model = port_in });
+                                !ret)
+                                debug_log("fail to create link\n");
+                            parent.state = component_status::modified;
+                        } else {
+                            if (not ids.exists(ch_dst->id.compo_id))
+                                return;
+
+                            const auto& compo_dst =
+                              app.mod.components[ch_dst->id.compo_id];
+                            const auto port_in =
+                              compo_dst.x.get_from_index(ch_port_dst.second);
+
+                            if (is_undefined(port_in))
+                                return;
+
+                            if (auto ret = s_parent.connect(
+                                  app.mod,
+                                  *ch_src,
+                                  connection::port{ .compo = port_out },
+                                  *ch_dst,
+                                  connection::port{ .compo = port_in });
+                                !ret)
+                                debug_log("fail to create link\n");
+                            parent.state = component_status::modified;
+                        }
+                    });
                 }
             }
         }
     }
 }
 
-static void is_link_destroyed(component&         parent,
-                              generic_component& s_parent) noexcept
+static bool is_link_destroyed(generic_component& s_parent) noexcept
 {
     int link_id;
 
     if (ImNodes::IsLinkDestroyed(&link_id))
-        delete_link(parent, s_parent, link_id);
+        return delete_link(s_parent, link_id);
+
+    return false;
 }
 
 static void show_component_editor(component_editor&              ed,
                                   generic_component_editor_data& data,
+                                  const id_array<component_id>&  ids,
+                                  component_id                   compo_id,
                                   component&                     compo,
                                   generic_component& s_compo) noexcept
 {
@@ -1175,8 +1221,8 @@ static void show_component_editor(component_editor&              ed,
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
       ImNodes::IsEditorHovered();
 
-    show_popup_menuitem(app, data, compo, s_compo);
-    show_graph(ed, compo, s_compo);
+    show_popup_menuitem(app, data, compo_id, s_compo);
+    show_graph(ed, compo_id, compo, s_compo);
 
     if (data.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -1184,7 +1230,7 @@ static void show_component_editor(component_editor&              ed,
     ImNodes::EndNodeEditor();
 
     is_link_created(app, data, compo, s_compo);
-    is_link_destroyed(compo, s_compo);
+    is_link_destroyed(s_compo);
 
     int num_selected_links = ImNodes::NumSelectedLinks();
     int num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1206,9 +1252,9 @@ static void show_component_editor(component_editor&              ed,
     if (is_editor_hovered and ImGui::IsKeyReleased(ImGuiKey_Delete) and
         not ImGui::IsAnyItemHovered()) {
         if (num_selected_nodes > 0)
-            remove_nodes(app.mod, data, compo);
+            remove_nodes(app.mod, ids, data, compo_id);
         else if (num_selected_links > 0)
-            remove_links(data, compo, s_compo);
+            remove_links(data, s_compo);
     }
 }
 
@@ -1271,12 +1317,17 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* compo = app.mod.components.try_to_get<component>(get_id())) {
-        const auto s_id = compo->id.generic_id;
+    const auto compo_id = get_id();
 
-        if (auto* s = app.mod.generic_components.try_to_get(s_id))
-            show_component_editor(ed, *this, *compo, *s);
-    }
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(compo_id)) {
+            auto&      compo = app.mod.components[compo_id];
+            const auto s_id  = compo.id.generic_id;
+
+            if (auto* s = app.mod.generic_components.try_to_get(s_id))
+                show_component_editor(ed, *this, ids, compo_id, compo, *s);
+        }
+    });
 }
 
 static void update_unique_id(generic_component&        gen,
@@ -1336,23 +1387,30 @@ void generic_component_editor_data::show_selected_nodes(
         return;
 
     auto& app = container_of(&ed, &application::component_ed);
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(m_id)) {
+            auto& compo = app.mod.components[m_id];
+            if (compo.type == component_type::generic) {
+                auto& gen = app.mod.generic_components.get(compo.id.generic_id);
 
-    if_component_is_generic(
-      app.mod, m_id, [&](component& compo, generic_component& gen) noexcept {
-          bool is_modified = false;
-          for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
-              if (is_node_X(selected_nodes[i]) || is_node_Y(selected_nodes[i]))
-                  continue;
+                bool is_modified = false;
+                for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+                    if (is_node_X(selected_nodes[i]) ||
+                        is_node_Y(selected_nodes[i]))
+                        continue;
 
-              const auto id = unpack_node_child(selected_nodes[i]);
-              if (auto* child = gen.children.try_to_get_from_pos(id); child)
-                  is_modified =
-                    show_selected_node(compo, gen, *child) or is_modified;
-          }
+                    const auto id = unpack_node_child(selected_nodes[i]);
+                    if (auto* child = gen.children.try_to_get_from_pos(id);
+                        child)
+                        is_modified =
+                          show_selected_node(compo, gen, *child) or is_modified;
+                }
 
-          if (is_modified)
-              compo.state = component_status::modified;
-      });
+                if (is_modified)
+                    compo.state = component_status::modified;
+            }
+        }
+    });
 }
 
 bool generic_component_editor_data::need_show_selected_nodes(
@@ -1374,33 +1432,37 @@ void generic_component_editor_data::store(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    auto* compo = app.mod.components.try_to_get<component>(m_id);
-    if (not compo or compo->type != component_type::generic)
-        return;
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (not ids.exists(m_id))
+            return;
 
-    auto* gen = app.mod.generic_components.try_to_get(compo->id.generic_id);
-    if (not gen)
-        return;
+        auto& compo = app.mod.components[m_id];
+        if (compo.type != component_type::generic)
+            return;
 
-    for (auto& c : gen->children) {
-        const auto id  = gen->children.get_id(c);
-        const auto idx = get_index(id);
+        auto& gen = app.mod.generic_components.get(compo.id.generic_id);
 
-        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_child(id));
-        gen->children_positions[idx].x = pos.x;
-        gen->children_positions[idx].y = pos.y;
-    }
+        for (auto& c : gen.children) {
+            const auto id  = gen.children.get_id(c);
+            const auto idx = get_index(id);
 
-    compo->x.for_each<position>([&](const auto id, auto& position) noexcept {
-        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_X(id));
-        position.x     = pos.x;
-        position.y     = pos.y;
-    });
+            const auto pos =
+              ImNodes::GetNodeEditorSpacePos(pack_node_child(id));
+            gen.children_positions[idx].x = pos.x;
+            gen.children_positions[idx].y = pos.y;
+        }
 
-    compo->y.for_each<position>([&](const auto id, auto& position) noexcept {
-        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_Y(id));
-        position.x     = pos.x;
-        position.y     = pos.y;
+        compo.x.for_each<position>([&](const auto id, auto& position) noexcept {
+            const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_X(id));
+            position.x     = pos.x;
+            position.y     = pos.y;
+        });
+
+        compo.y.for_each<position>([&](const auto id, auto& position) noexcept {
+            const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_Y(id));
+            position.x     = pos.x;
+            position.y     = pos.y;
+        });
     });
 }
 

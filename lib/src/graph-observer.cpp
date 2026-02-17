@@ -71,21 +71,23 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 
     values.write([&](auto& v) noexcept {
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
-            if (auto* compo = mod.components.try_to_get<component>(tn->id);
-                compo and compo->type == component_type::graph) {
-                if (auto* graph =
-                      mod.graph_components.try_to_get(compo->id.graph_id);
-                    graph) {
-                    const auto len = graph->g.nodes.ssize();
+            mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (ids.exists(tn->id)) {
+                    if (mod.components[tn->id].type == component_type::graph) {
+                        if (auto* graph = mod.graph_components.try_to_get(
+                              mod.components[tn->id].id.graph_id)) {
+                            const auto len = graph->g.nodes.ssize();
 
-                    observers.resize(len);
-                    std::fill_n(
-                      observers.data(), len, undefined<observer_id>());
-                    v.resize(len, zero);
+                            observers.resize(len);
+                            std::fill_n(
+                              observers.data(), len, undefined<observer_id>());
+                            v.resize(len, zero);
 
-                    build_graph(*this, mod, pj, sim, *tn, *graph);
+                            build_graph(*this, mod, pj, sim, *tn, *graph);
+                        }
+                    }
                 }
-            }
+            });
         }
     });
 

@@ -274,28 +274,26 @@ int modeling::file_access::browse_registreds(journal_handler& jn) noexcept
 
 status modeling::fill_components() noexcept
 {
+    enum class file_to_component_type { component = 0, project, graph };
+
     struct f_to_c {
         f_to_c(file_path_id f_id_, component_id c_id_) noexcept
           : f_id{ f_id_ }
-          , to{ .component = c_id_ }
+          , to{ c_id_ }
         {}
 
         f_to_c(file_path_id f_id_, project_id pj_id_) noexcept
           : f_id{ f_id_ }
-          , to{ .project = pj_id_ }
+          , to{ pj_id_ }
         {}
 
         f_to_c(file_path_id f_id_, graph_id g_id) noexcept
           : f_id{ f_id_ }
-          , to{ .graph = g_id }
+          , to{ g_id }
         {}
 
-        file_path_id f_id;
-        union {
-            component_id component{ 0 };
-            project_id   project;
-            graph_id     graph;
-        } to;
+        file_path_id                                     f_id;
+        std::variant<component_id, project_id, graph_id> to;
     };
 
     vector<f_to_c> file_id_to_compo_id;
@@ -325,16 +323,14 @@ status modeling::fill_components() noexcept
 
               for (const auto& f : fs.file_paths) {
                   if (f.type == file_path::file_type::component_file) {
-                      if (not components.exists(f.component)) {
-                          const auto file_id  = fs.file_paths.get_id(f);
-                          const auto compo_id = components.alloc_id();
+                      const auto component_exists =
+                        ids.read([&](const auto& ids, auto) -> bool {
+                            return ids.exists(f.component);
+                        });
 
-                          components.get<component_color>(
-                            compo_id) = { 1.f, 1.f, 1.f, 1.f };
-                          auto& compo = components.get<component>(compo_id);
-                          compo.file  = file_id;
-                          compo.type  = component_type::none;
-                          compo.state = component_status::unread;
+                      if (not component_exists) {
+                          const auto compo_id = alloc_component();
+                          const auto file_id  = fs.file_paths.get_id(f);
 
                           file_id_to_compo_id.emplace_back(file_id, compo_id);
                       }
@@ -351,20 +347,31 @@ status modeling::fill_components() noexcept
             if (auto* f = fs.file_paths.try_to_get(m.f_id)) {
                 switch (f->type) {
                 case file_path::file_type::component_file:
-                    f->component = m.to.component;
+                    f->component = *std::get_if<component_id>(&m.to);
                     break;
 
                 case file_path::file_type::project_file:
-                    f->pj_id = m.to.project;
+                    f->pj_id = *std::get_if<project_id>(&m.to);
                     break;
 
                 case file_path::file_type::dot_file:
-                    f->g_id = m.to.graph;
+                    f->g_id = *std::get_if<graph_id>(&m.to);
                     break;
 
                 default:
                     break;
                 }
+            }
+        }
+    });
+
+    ids.write([&](auto& /*ids*/) {
+        for (const auto& m : file_id_to_compo_id) {
+            if (std::cmp_equal(m.to.index(),
+                               ordinal(file_to_component_type::component))) {
+                const auto compo_id = *std::get_if<component_id>(&m.to);
+                auto&      compo    = components[compo_id];
+                compo.file          = m.f_id;
             }
         }
     });
@@ -397,61 +404,71 @@ status modeling::fill_components() noexcept
         });
     }
 
-    auto& compos = components.get<component>();
     while (have_unread_component) {
         have_unread_component = false;
 
-        for (auto id : components) {
-            auto& compo = compos[id];
-            if (compo.state == component_status::unmodified)
-                continue;
+        ids.read([&](const auto& ids, auto) {
+            for (auto id : ids) {
+                auto& compo = components[id];
+                if (compo.state == component_status::unmodified)
+                    continue;
 
-            files.read([&](const auto& fs, const auto /*vers*/) {
-                if (const auto file = fs.get_fs_path(compo.file)) {
-                    if (auto ret = load_component(*file, compo); !ret) {
-                        if (compo.state == component_status::unread) {
-                            journal.push(
-                              log_level::warning,
-                              [&](auto& t, auto& m) noexcept {
-                                  t = "Modeling initialization error";
-                                  format(m,
-                                         "Need to read dependency for "
-                                         "component {} ({})",
-                                         compo.name.sv(),
-                                         ordinal(id));
-                              });
+                files.read([&](const auto& fs, const auto /*vers*/) {
+                    if (const auto file = fs.get_fs_path(compo.file)) {
+                        if (auto ret = load_component(fs, ids, *file, id);
+                            !ret) {
+                            if (compo.state == component_status::unread) {
+                                journal.push(
+                                  log_level::warning,
+                                  [&](auto& t, auto& m) noexcept {
+                                      t = "Modeling initialization error";
+                                      format(m,
+                                             "Need to read dependency for "
+                                             "component {} ({})",
+                                             compo.name.sv(),
+                                             ordinal(id));
+                                  });
 
-                            have_unread_component = true;
-                        }
+                                have_unread_component = true;
+                            }
 
-                        if (compo.state == component_status::unreadable) {
-                            journal.push(
-                              log_level::warning,
-                              [&](auto& t, auto& m) noexcept {
-                                  t = "Modeling initialization error";
-                                  format(m,
-                                         "Fail to read component `{}'",
-                                         compo.name.sv());
-                              });
+                            if (compo.state == component_status::unreadable) {
+                                journal.push(
+                                  log_level::warning,
+                                  [&](auto& t, auto& m) noexcept {
+                                      t = "Modeling initialization error";
+                                      format(m,
+                                             "Fail to read component `{}'",
+                                             compo.name.sv());
+                                  });
+                            }
                         }
                     }
-                }
-            });
-        }
+                });
+            }
+        });
     }
 
     return success();
 }
 
-status modeling::load_component(const std::filesystem::path& filename,
-                                component&                   compo) noexcept
+status modeling::load_component(const modeling::file_access&  files,
+                                const id_array<component_id>& ids,
+                                const std::filesystem::path&  filename,
+                                const component_id            compo_id) noexcept
 {
+    if (not ids.exists(compo_id))
+        return new_error(modeling_errc::component_load_error);
+
+    auto& compo = components[compo_id];
+
     try {
         auto f = file::open(filename, file_mode{ file_open_options::read });
 
         if (f.has_value()) {
             json_dearchiver j;
-            if (not j(*this, compo, filename.string(), *f)) {
+
+            if (not j(*this, files, ids, compo_id, filename.string(), *f)) {
                 compo.state = component_status::unreadable;
                 return error_code(modeling_errc::component_load_error);
             }
@@ -630,9 +647,12 @@ component_id modeling::search_component_by_name(
     });
 
     return files.read([&](const auto& fs, const auto /*vers*/) {
-        if (const auto* f = fs.file_paths.try_to_get(file_id))
-            if (auto* c = components.try_to_get<component>(f->component))
-                return components.get_id(*c);
+        if (const auto* f = fs.file_paths.try_to_get(file_id)) {
+            const auto exists = ids.read(
+              [&](const auto& ids, auto) { return ids.exists(f->component); });
+
+            return exists ? f->component : undefined<component_id>();
+        }
 
         return undefined<component_id>();
     });
@@ -787,6 +807,32 @@ bool modeling::file_access::create_directories(
     }
 
     return false;
+}
+
+void modeling::file_access::remove_directory(const dir_path_id id) noexcept
+{
+    if (auto* d = dir_paths.try_to_get(id)) {
+        debug::ensure(not d->path.empty());
+        if (d->path.empty())
+            return;
+
+        for (const auto f_id : d->children)
+            file_paths.free(f_id);
+
+        if (const auto* r = registred_paths.try_to_get(d->parent)) {
+            try {
+                std::filesystem::path p(r->path.sv());
+                p /= d->path.sv();
+
+                std::error_code ec;
+                if (std::filesystem::exists(p, ec))
+                    std::filesystem::remove_all(p, ec);
+            } catch (...) {
+            }
+        }
+
+        dir_paths.free(id);
+    }
 }
 
 void modeling::file_access::remove_files(const dir_path_id id) noexcept
@@ -951,79 +997,172 @@ expected<std::filesystem::path> modeling::file_access::get_fs_path(
     }
 }
 
-bool modeling::can_alloc_grid_component() const noexcept
+bool modeling::can_alloc_component(id_array<component_id>& ids,
+                                   int                     count) noexcept
 {
-    return components.can_alloc(1) && grid_components.can_alloc();
+    return (ids.can_alloc(count) or ids.grow<3, 2>()) and
+           (components.resize(ids.capacity())) and
+           (component_colors.resize(ids.capacity()));
 }
 
-bool modeling::can_alloc_graph_component() const noexcept
+bool modeling::can_alloc_grid_component(id_array<component_id>& ids,
+                                        int                     count) noexcept
 {
-    return components.can_alloc(1) && graph_components.can_alloc();
+    return can_alloc_component(ids, count) and
+           (grid_components.can_alloc(count) or grid_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_generic_component() const noexcept
+bool modeling::can_alloc_graph_component(id_array<component_id>& ids,
+                                         int                     count) noexcept
 {
-    return components.can_alloc(1) && generic_components.can_alloc();
+    return can_alloc_component(ids, count) and
+           (graph_components.can_alloc(count) or graph_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_hsm_component() const noexcept
+bool modeling::can_alloc_generic_component(id_array<component_id>& ids,
+                                           int count) noexcept
 {
-    return components.can_alloc(1) && hsm_components.can_alloc();
+    return can_alloc_component(ids, count) and
+           (generic_components.can_alloc(count) or
+            generic_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_sim_component() const noexcept
+bool modeling::can_alloc_hsm_component(id_array<component_id>& ids,
+                                       int                     count) noexcept
 {
-    return components.can_alloc(1) && sim_components.can_alloc();
+    return can_alloc_component(ids, count) and
+           (hsm_components.can_alloc(count) or hsm_components.grow<3, 2>());
 }
 
-component& modeling::alloc_grid_component() noexcept
+bool modeling::can_alloc_sim_component(id_array<component_id>& ids,
+                                       int                     count) noexcept
 {
-    debug::ensure(can_alloc_grid_component());
+    return can_alloc_component(ids, count) and
+           (sim_components.can_alloc(count) or sim_components.grow<3, 2>());
+}
 
-    auto new_compo_id = components.alloc_id();
+bool modeling::can_alloc_component(int count) noexcept
+{
+    return ids.write(
+      [&](auto& ids) noexcept { return can_alloc_component(ids, count); });
+}
 
-    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& new_compo = components.get<component>(new_compo_id);
-    format(new_compo.name, "grid {}", get_index(new_compo_id));
-    new_compo.type  = component_type::grid;
+bool modeling::can_alloc_grid_component(int count) noexcept
+{
+    return ids.write(
+      [&](auto& ids) noexcept { return can_alloc_grid_component(ids, count); });
+}
+
+bool modeling::can_alloc_graph_component(int count) noexcept
+{
+    return ids.write([&](auto& ids) noexcept {
+        return can_alloc_graph_component(ids, count);
+    });
+}
+
+bool modeling::can_alloc_generic_component(int count) noexcept
+{
+    return ids.write([&](auto& ids) noexcept {
+        return can_alloc_generic_component(ids, count);
+    });
+}
+
+bool modeling::can_alloc_hsm_component(int count) noexcept
+{
+    return ids.write(
+      [&](auto& ids) noexcept { return can_alloc_hsm_component(ids, count); });
+}
+
+bool modeling::can_alloc_sim_component(int count) noexcept
+{
+    return ids.write(
+      [&](auto& ids) noexcept { return can_alloc_sim_component(ids, count); });
+}
+
+unsigned modeling::component_count() const noexcept
+{
+    return ids.read(
+      [&](const auto& ids, auto) noexcept -> unsigned { return ids.size(); });
+}
+
+component_id modeling::alloc_component(id_array<component_id>& ids) noexcept
+{
+    if (not can_alloc_component(ids, 1))
+        return undefined<component_id>();
+
+    auto new_compo_id              = ids.alloc();
+    component_colors[new_compo_id] = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo                = components[new_compo_id];
+    format(new_compo.name, "component-{}", get_index(new_compo_id));
+    new_compo.type  = component_type::none;
     new_compo.state = component_status::modified;
+    new_compo.x.clear();
+    new_compo.y.clear();
+
+    return new_compo_id;
+}
+
+component_id modeling::alloc_grid_component(
+  id_array<component_id>& ids) noexcept
+{
+    if (not can_alloc_grid_component(ids, 1))
+        return undefined<component_id>();
+
+    const auto new_compo_id = alloc_component(ids);
+    auto&      new_compo    = components[new_compo_id];
+    format(new_compo.name, "grid {}", get_index(new_compo_id));
+    new_compo.type = component_type::grid;
 
     auto& grid = grid_components.alloc();
     grid.resize(4, 4, undefined<component_id>());
     new_compo.id.grid_id = grid_components.get_id(grid);
 
-    return new_compo;
+    return new_compo_id;
 }
 
-component& modeling::alloc_graph_component() noexcept
+component_id modeling::alloc_generic_component(
+  id_array<component_id>& ids) noexcept
 {
-    debug::ensure(can_alloc_graph_component());
+    if (not can_alloc_generic_component(ids, 1))
+        return undefined<component_id>();
 
-    auto new_compo_id = components.alloc_id();
+    const auto new_compo_id = alloc_component(ids);
+    auto&      new_compo    = components[new_compo_id];
+    format(new_compo.name, "simple {}", get_index(new_compo_id));
+    new_compo.type = component_type::generic;
 
-    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& new_compo = components.get<component>(new_compo_id);
+    auto& new_s_compo       = generic_components.alloc();
+    new_compo.id.generic_id = generic_components.get_id(new_s_compo);
+
+    return new_compo_id;
+}
+
+component_id modeling::alloc_graph_component(
+  id_array<component_id>& ids) noexcept
+{
+    if (not can_alloc_graph_component(ids, 1))
+        return undefined<component_id>();
+
+    const auto new_compo_id = alloc_component(ids);
+    auto&      new_compo    = components[new_compo_id];
     format(new_compo.name, "graph {}", get_index(new_compo_id));
-    new_compo.type  = component_type::graph;
-    new_compo.state = component_status::modified;
+    new_compo.type = component_type::graph;
 
     auto& graph           = graph_components.alloc();
     new_compo.id.graph_id = graph_components.get_id(graph);
 
-    return new_compo;
+    return new_compo_id;
 }
 
-component& modeling::alloc_hsm_component() noexcept
+component_id modeling::alloc_hsm_component(id_array<component_id>& ids) noexcept
 {
-    debug::ensure(can_alloc_hsm_component());
+    if (not can_alloc_hsm_component(ids, 1))
+        return undefined<component_id>();
 
-    auto new_compo_id = components.alloc_id();
-
-    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& new_compo = components.get<component>(new_compo_id);
+    const auto new_compo_id = alloc_component(ids);
+    auto&      new_compo    = components[new_compo_id];
     format(new_compo.name, "hsm {}", get_index(new_compo_id));
-    new_compo.type  = component_type::hsm;
-    new_compo.state = component_status::modified;
+    new_compo.type = component_type::hsm;
 
     auto& h             = hsm_components.alloc();
     new_compo.id.hsm_id = hsm_components.get_id(h);
@@ -1031,70 +1170,82 @@ component& modeling::alloc_hsm_component() noexcept
     h.machine.states[0].super_id = hierarchical_state_machine::invalid_state_id;
     h.machine.top_state          = 0;
 
-    return new_compo;
+    return new_compo_id;
 }
 
-component& modeling::alloc_sim_component() noexcept
+component_id modeling::alloc_sim_component(id_array<component_id>& ids) noexcept
 {
-    debug::ensure(can_alloc_sim_component());
+    if (not can_alloc_sim_component(ids, 1))
+        return undefined<component_id>();
 
-    auto new_compo_id = components.alloc_id();
-
-    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& new_compo = components.get<component>(new_compo_id);
+    const auto new_compo_id = alloc_component(ids);
+    auto&      new_compo    = components[new_compo_id];
     format(new_compo.name, "sim {}", get_index(new_compo_id));
-    new_compo.type  = component_type::simulation;
-    new_compo.state = component_status::modified;
+    new_compo.type = component_type::simulation;
 
     auto& h             = sim_components.alloc();
     new_compo.id.sim_id = sim_components.get_id(h);
 
-    return new_compo;
+    return new_compo_id;
 }
 
-component& modeling::alloc_generic_component() noexcept
+component_id modeling::alloc_grid_component() noexcept
 {
-    debug::ensure(can_alloc_generic_component());
-
-    auto new_compo_id = components.alloc_id();
-
-    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
-    auto& new_compo = components.get<component>(new_compo_id);
-    format(new_compo.name, "simple {}", get_index(new_compo_id));
-    new_compo.type  = component_type::generic;
-    new_compo.state = component_status::modified;
-
-    auto& new_s_compo       = generic_components.alloc();
-    new_compo.id.generic_id = generic_components.get_id(new_s_compo);
-
-    return new_compo;
+    return ids.write([&](auto& ids) { return alloc_grid_component(ids); });
 }
 
-static bool can_add_component(const modeling&       mod,
-                              const component_id    c,
-                              vector<component_id>& out,
-                              component_id          search) noexcept
+component_id modeling::alloc_graph_component() noexcept
+{
+    return ids.write([&](auto& ids) { return alloc_graph_component(ids); });
+}
+
+component_id modeling::alloc_hsm_component() noexcept
+{
+    return ids.write([&](auto& ids) { return alloc_hsm_component(ids); });
+}
+
+component_id modeling::alloc_sim_component() noexcept
+{
+    return ids.write([&](auto& ids) { return alloc_sim_component(ids); });
+}
+
+component_id modeling::alloc_generic_component() noexcept
+{
+    return ids.write([&](auto& ids) { return alloc_generic_component(ids); });
+}
+
+component_id modeling::alloc_component() noexcept
+{
+    return ids.write(
+      [&](auto& ids) noexcept -> component_id { return alloc_component(ids); });
+}
+
+static bool can_add_component(const id_array<component_id>& ids,
+                              const component_id            c,
+                              vector<component_id>&         out,
+                              component_id                  search) noexcept
 {
     if (c == search)
         return false;
 
-    if (auto* compo = mod.components.try_to_get<component>(c); compo)
+    if (ids.exists(c))
         out.emplace_back(c);
 
     return true;
 }
 
-static bool can_add_component(const modeling&       mod,
-                              const component&      compo,
-                              vector<component_id>& out,
-                              component_id          search) noexcept
+static bool can_add_component(const modeling&               mod,
+                              const id_array<component_id>& ids,
+                              const component&              compo,
+                              vector<component_id>&         out,
+                              component_id                  search) noexcept
 {
     switch (compo.type) {
     case component_type::grid: {
         auto id = compo.id.grid_id;
         if (auto* g = mod.grid_components.try_to_get(id); g) {
             for (const auto ch : g->children())
-                if (not can_add_component(mod, ch, out, search))
+                if (not can_add_component(ids, ch, out, search))
                     return false;
         }
     } break;
@@ -1104,7 +1255,7 @@ static bool can_add_component(const modeling&       mod,
         if (auto* g = mod.graph_components.try_to_get(id); g) {
             for (const auto edge_id : g->g.nodes)
                 if (not can_add_component(
-                      mod, g->g.node_components[edge_id], out, search))
+                      ids, g->g.node_components[edge_id], out, search))
                     return false;
         }
     } break;
@@ -1114,7 +1265,7 @@ static bool can_add_component(const modeling&       mod,
         if (auto* s = mod.generic_components.try_to_get(id); s) {
             for (const auto& ch : s->children)
                 if (ch.type == child_type::component)
-                    if (not can_add_component(mod, ch.id.compo_id, out, search))
+                    if (not can_add_component(ids, ch.id.compo_id, out, search))
                         return false;
         }
         break;
@@ -1127,30 +1278,30 @@ static bool can_add_component(const modeling&       mod,
     return true;
 }
 
-bool modeling::can_add(const component& parent,
-                       const component& other) const noexcept
+bool modeling::can_add(const component_id parent_id,
+                       const component_id other_id) const noexcept
 {
-    vector<component_id> stack;
-    component_id         parent_id = components.get_id(parent);
-    component_id         other_id  = components.get_id(other);
+    return ids.read([&](const auto& ids, auto) {
+        vector<component_id> stack;
 
-    if (parent_id == other_id)
-        return false;
+        if (parent_id == other_id)
+            return false;
 
-    if (not can_add_component(*this, other, stack, parent_id))
-        return false;
+        if (not can_add_component(ids, other_id, stack, parent_id))
+            return false;
 
-    while (!stack.empty()) {
-        auto id = stack.back();
-        stack.pop_back();
+        while (!stack.empty()) {
+            auto id = stack.back();
+            stack.pop_back();
 
-        if (auto* compo = components.try_to_get<component>(id); compo) {
-            if (not can_add_component(*this, *compo, stack, parent_id))
-                return false;
+            if (ids.exists(id)) {
+                if (not can_add_component(ids, id, stack, parent_id))
+                    return false;
+            }
         }
-    }
 
-    return true;
+        return true;
+    });
 }
 
 void modeling::clear(component& compo) noexcept
@@ -1204,47 +1355,55 @@ void modeling::free(graph_component& gen) noexcept
     graph_components.free(gen);
 }
 
-void modeling::free(component& compo) noexcept
+void modeling::free(component_id id) noexcept
 {
-    switch (compo.type) {
-    case component_type::none:
-        break;
+    ids.write([&](auto& ids) {
+        if (not ids.exists(id))
+            return;
 
-    case component_type::generic:
-        if_data_exists_do(
-          generic_components, compo.id.generic_id, [&](auto& g) { free(g); });
-        break;
+        const auto& compo = components[id];
 
-    case component_type::grid:
-        if_data_exists_do(
-          grid_components, compo.id.grid_id, [&](auto& g) { free(g); });
-        break;
+        switch (compo.type) {
+        case component_type::none:
+            break;
 
-    case component_type::graph:
-        if_data_exists_do(
-          graph_components, compo.id.graph_id, [&](auto& g) { free(g); });
-        break;
+        case component_type::generic:
+            if_data_exists_do(generic_components,
+                              compo.id.generic_id,
+                              [&](auto& g) { free(g); });
+            break;
 
-    case component_type::hsm:
-        if_data_exists_do(
-          hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
-        break;
+        case component_type::grid:
+            if_data_exists_do(
+              grid_components, compo.id.grid_id, [&](auto& g) { free(g); });
+            break;
 
-    case component_type::simulation:
-        if (auto* s = sim_components.try_to_get(compo.id.sim_id))
-            sim_components.free(*s);
-        break;
-    }
+        case component_type::graph:
+            if_data_exists_do(
+              graph_components, compo.id.graph_id, [&](auto& g) { free(g); });
+            break;
 
-    if (descriptions.exists(compo.desc))
-        descriptions.free(compo.desc);
+        case component_type::hsm:
+            if_data_exists_do(
+              hsm_components, compo.id.hsm_id, [&](auto& h) { free(h); });
+            break;
 
-    files.write([&](auto& fs) noexcept {
-        if (auto* path = fs.file_paths.try_to_get(compo.file); path)
-            fs.file_paths.free(*path);
+        case component_type::simulation:
+            if (auto* s = sim_components.try_to_get(compo.id.sim_id))
+                sim_components.free(*s);
+            break;
+        }
+
+        if (descriptions.exists(compo.desc))
+            descriptions.free(compo.desc);
+
+        files.write([&](auto& fs) noexcept {
+            if (auto* path = fs.file_paths.try_to_get(compo.file); path)
+                fs.file_paths.free(*path);
+        });
+
+        ids.free(id);
     });
-
-    components.free(components.get_id(compo));
 }
 
 generic_component::child& modeling::alloc(generic_component& parent,
@@ -1397,36 +1556,47 @@ status modeling::copy(const component& src, component& dst) noexcept
     return success();
 }
 
-status modeling::save(component& c) noexcept
+status modeling::save(const component_id compo_id) noexcept
 {
-    const auto filenames = make_component_files(*this, c.file);
 
-    if (not filenames.has_value())
-        return new_error(modeling_errc::file_error);
+    return ids.read([&](const auto& ids, auto) -> status {
+        if (not ids.exists(compo_id))
+            return new_error(modeling_errc::component_load_error);
 
-    auto cfile =
-      file::open(filenames->component, file_mode{ file_open_options::write });
-    if (cfile.has_error()) [[unlikely]]
-        return cfile.error();
+        auto&      c         = components[compo_id];
+        const auto filenames = make_component_files(*this, c.file);
 
-    json_archiver j;
-    if (auto ret = j(*this, c, *cfile); ret.has_error())
-        return ret.error();
+        if (not filenames.has_value())
+            return new_error(modeling_errc::file_error);
 
-    if (descriptions.exists(c.desc)) {
-        auto dfile = file::open(filenames->description,
+        auto cfile = file::open(filenames->component,
                                 file_mode{ file_open_options::write });
+        if (cfile.has_error()) [[unlikely]]
+            return cfile.error();
 
-        if (dfile.has_value()) [[likely]] {
-            auto& str = descriptions.get<0>()[c.desc];
+        const auto ret = files.read([&](const auto& files, auto) -> status {
+            json_archiver j;
+            if (auto ret = j(*this, files, ids, compo_id, *cfile);
+                ret.has_error())
+                return ret.error();
+            return success();
+        });
 
-            dfile->write(str.sv());
+        if (descriptions.exists(c.desc)) {
+            auto dfile = file::open(filenames->description,
+                                    file_mode{ file_open_options::write });
+
+            if (dfile.has_value()) [[likely]] {
+                auto& str = descriptions.get<0>()[c.desc];
+
+                dfile->write(str.sv());
+            }
         }
-    }
 
-    c.state = component_status::unmodified;
+        c.state = component_status::unmodified;
 
-    return success();
+        return success();
+    });
 }
 
 } // namespace irt

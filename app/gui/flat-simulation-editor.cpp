@@ -879,7 +879,7 @@ void flat_simulation_editor::compute_rects(application&    app,
         if (cur.read_child) {
             if (cur.read_sibling) {
                 stack.pop_back();
-                auto& c = app.mod.components.get<component>(cur.tn->id);
+                auto& c = app.mod.components[cur.tn->id];
                 compute_rect(d, pj_ed.pj, app.mod, *cur.tn, c);
             } else {
                 stack.back().read_sibling = true;

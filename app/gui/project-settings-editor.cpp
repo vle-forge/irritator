@@ -50,7 +50,7 @@ static tree_node_id show_project_hierarchy(application&    app,
 
         const auto  tn_id         = stack.back().tn;
         const auto& tn            = pj_ed.pj.tree_nodes.get(tn_id);
-        const auto& compo         = app.mod.components.get<component>(tn.id);
+        const auto& compo         = app.mod.components[tn.id];
         auto        is_selected   = tn_id == selection;
         const auto  copy_selected = is_selected;
 

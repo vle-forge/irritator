@@ -372,56 +372,61 @@ bool show_extented_constant_parameter(const modeling&    mod,
                                       const component_id id,
                                       parameter&         p) noexcept
 {
-    int ret = false;
+    return mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
+        int ret = false;
 
-    if (const auto* c = mod.components.try_to_get<component>(id)) {
-        const auto type = enum_cast<constant::init_type>(p.integers[0]);
-        const auto port = enum_cast<port_id>(p.integers[1]);
+        if (ids.exists(id)) {
+            const auto& c    = mod.components[id];
+            const auto  type = enum_cast<constant::init_type>(p.integers[0]);
+            const auto  port = enum_cast<port_id>(p.integers[1]);
 
-        if (type == constant::init_type::incoming_component_n) {
-            const auto selected      = c->x.exists(port);
-            const auto selected_name = get_selected_input_name(*c, port);
+            if (type == constant::init_type::incoming_component_n) {
+                const auto selected      = c.x.exists(port);
+                const auto selected_name = get_selected_input_name(c, port);
 
-            if (ImGui::BeginCombo("input port", selected_name)) {
-                if (ImGui::Selectable("-", not selected)) {
-                    p.integers[1] = 0;
-                    ++ret;
-                }
-
-                c->x.for_each<port_str>([&](const auto id, const auto& name) {
-                    if (ImGui::Selectable(name.c_str(),
-                                          p.integers[1] == ordinal(id))) {
-                        p.integers[1] = ordinal(id);
+                if (ImGui::BeginCombo("input port", selected_name)) {
+                    if (ImGui::Selectable("-", not selected)) {
+                        p.integers[1] = 0;
                         ++ret;
                     }
-                });
 
-                ImGui::EndCombo();
-            }
-        } else if (type == constant::init_type::outcoming_component_n) {
-            const auto selected      = c->y.exists(port);
-            const auto selected_name = get_selected_output_name(*c, port);
+                    c.x.for_each<port_str>(
+                      [&](const auto id, const auto& name) {
+                          if (ImGui::Selectable(name.c_str(),
+                                                p.integers[1] == ordinal(id))) {
+                              p.integers[1] = ordinal(id);
+                              ++ret;
+                          }
+                      });
 
-            if (ImGui::BeginCombo("output port", selected_name)) {
-                if (ImGui::Selectable("-", not selected)) {
-                    p.integers[1] = 0;
-                    ++ret;
+                    ImGui::EndCombo();
                 }
+            } else if (type == constant::init_type::outcoming_component_n) {
+                const auto selected      = c.y.exists(port);
+                const auto selected_name = get_selected_output_name(c, port);
 
-                c->y.for_each<port_str>([&](const auto id, const auto& name) {
-                    if (ImGui::Selectable(name.c_str(),
-                                          p.integers[1] == ordinal(id))) {
-                        p.integers[1] = ordinal(id);
+                if (ImGui::BeginCombo("output port", selected_name)) {
+                    if (ImGui::Selectable("-", not selected)) {
+                        p.integers[1] = 0;
                         ++ret;
                     }
-                });
 
-                ImGui::EndCombo();
+                    c.y.for_each<port_str>(
+                      [&](const auto id, const auto& name) {
+                          if (ImGui::Selectable(name.c_str(),
+                                                p.integers[1] == ordinal(id))) {
+                              p.integers[1] = ordinal(id);
+                              ++ret;
+                          }
+                      });
+
+                    ImGui::EndCombo();
+                }
             }
         }
-    }
 
-    return ret;
+        return ret;
+    });
 }
 
 template<typename ExternalSourceType>
@@ -668,9 +673,11 @@ bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept
 {
     const auto param_compo_id = enum_cast<component_id>(p.integers[0]);
     const auto compo_id =
-      is_defined(param_compo_id) and app.mod.components.exists(param_compo_id)
-        ? param_compo_id
-        : undefined<component_id>();
+      app.mod.ids.read([&](const auto& ids, auto) noexcept -> component_id {
+          return is_defined(param_compo_id) and ids.exists(param_compo_id)
+                   ? param_compo_id
+                   : undefined<component_id>();
+      });
 
     const auto ret = app.component_sel.combobox(
       "hsm component", component_type::hsm, compo_id);

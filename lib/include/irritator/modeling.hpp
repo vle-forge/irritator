@@ -1437,12 +1437,9 @@ public:
     data_array<hsm_component, hsm_component_id>         hsm_components;
     data_array<simulation_component, simulation_component_id> sim_components;
 
-    id_data_array<void,
-                  component_id,
-                  allocator<new_delete_memory_resource>,
-                  component,
-                  component_color>
-      components;
+    shared_buffer<id_array<component_id>> ids;
+    vector<component>                     components;
+    vector<component_color>               component_colors;
 
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
@@ -1515,7 +1512,11 @@ public:
         bool create_directories(const registred_path_id id) const noexcept;
         bool create_directories(const dir_path_id id) const noexcept;
 
-        /// Removes any files in the file system.
+        /// Removes @c dir_path_id and all @c file_id @c dir_path::children then
+        /// remove directory from filesystem.
+        void remove_directory(const dir_path_id id) noexcept;
+
+        /// Removes any files in the @c dir_path file system.
         void remove_files(const dir_path_id id) noexcept;
 
         /// Removes @c file_id from the file system.
@@ -1561,8 +1562,10 @@ public:
     status fill_components() noexcept;
 
     //! Reads the component @c compo and all dependencies recursively.
-    status load_component(const std::filesystem::path& path,
-                          component&                   compo) noexcept;
+    status load_component(const modeling::file_access&  files,
+                          const id_array<component_id>& ids,
+                          const std::filesystem::path&  path,
+                          const component_id            compo_id) noexcept;
 
     /** Search a component from three string.
      *
@@ -1579,29 +1582,54 @@ public:
     /// Deletes the component, the file (@c file_path_id) and the
     /// description
     /// (@c description_id) objects attached.
-    void free(component& c) noexcept;
+    void free(component_id id) noexcept;
     void free(generic_component& c) noexcept;
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
     void free(hsm_component& c) noexcept;
 
-    bool can_alloc_grid_component() const noexcept;
-    bool can_alloc_generic_component() const noexcept;
-    bool can_alloc_graph_component() const noexcept;
-    bool can_alloc_hsm_component() const noexcept;
-    bool can_alloc_sim_component() const noexcept;
+    bool can_alloc_component(int count = 1) noexcept;
+    bool can_alloc_grid_component(int count = 1) noexcept;
+    bool can_alloc_generic_component(int count = 1) noexcept;
+    bool can_alloc_graph_component(int count = 1) noexcept;
+    bool can_alloc_hsm_component(int count = 1) noexcept;
+    bool can_alloc_sim_component(int count = 1) noexcept;
 
-    component& alloc_grid_component() noexcept;
-    component& alloc_generic_component() noexcept;
-    component& alloc_graph_component() noexcept;
-    component& alloc_hsm_component() noexcept;
-    component& alloc_sim_component() noexcept;
+    unsigned component_count() const noexcept;
 
+    component_id alloc_component() noexcept;
+    component_id alloc_grid_component() noexcept;
+    component_id alloc_generic_component() noexcept;
+    component_id alloc_graph_component() noexcept;
+    component_id alloc_hsm_component() noexcept;
+    component_id alloc_sim_component() noexcept;
+
+private:
+    bool can_alloc_component(id_array<component_id>& ids, int count) noexcept;
+    bool can_alloc_grid_component(id_array<component_id>& ids,
+                                  int                     count) noexcept;
+    bool can_alloc_generic_component(id_array<component_id>& ids,
+                                     int                     count) noexcept;
+    bool can_alloc_graph_component(id_array<component_id>& ids,
+                                   int                     count) noexcept;
+    bool can_alloc_hsm_component(id_array<component_id>& ids,
+                                 int                     count) noexcept;
+    bool can_alloc_sim_component(id_array<component_id>& ids,
+                                 int                     count) noexcept;
+
+    component_id alloc_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_grid_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_generic_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_graph_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_hsm_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_sim_component(id_array<component_id>& ids) noexcept;
+
+public:
     /// Checks if the child can be added to the parent to avoid recursive
     /// loop (ie. a component child which need the same component in
     /// sub-child).
-    bool can_add(const component& parent,
-                 const component& other) const noexcept;
+    bool can_add(const component_id parent,
+                 const component_id other) const noexcept;
 
     generic_component::child& alloc(generic_component& parent,
                                     dynamics_type      type) noexcept;
@@ -1617,7 +1645,7 @@ public:
     status copy(grid_component& grid, generic_component& s) noexcept;
     status copy(graph_component& grid, generic_component& s) noexcept;
 
-    status save(component& c) noexcept;
+    status save(const component_id c) noexcept;
 
     journal_handler& journal;
 
@@ -1779,12 +1807,18 @@ public:
      * into the @c project and the number of @c irt::model and @c
      * irt::hierarchical_state_machine to fill the @C irt::simulation
      * structures. */
-    required_data compute_memory_required(const modeling&  mod,
-                                          const component& c) const noexcept;
+    required_data compute_memory_required(const modeling&    mod,
+                                          const component_id c) const noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling& mod, component& compo) noexcept;
+    status set(modeling&                     mod,
+               const id_array<component_id>& ids,
+               const component_id            compo_id) noexcept;
+
+    /// Assign a new @c component head. The previously allocated tree_node
+    /// hierarchy is removed and a newly one is allocated.
+    status set(modeling& mod, const component_id compo_id) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component
     /// head.
