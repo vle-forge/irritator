@@ -22,87 +22,91 @@ static tree_node_id show_project_hierarchy(application&    app,
                                            tree_node&      root,
                                            tree_node_id    selection) noexcept
 {
-    struct elem {
-        explicit constexpr elem(const tree_node_id id) noexcept
-          : tn(id)
-        {}
+    return app.mod.ids.read([&](const auto& ids,
+                                auto) noexcept -> tree_node_id {
+        struct elem {
+            explicit constexpr elem(const tree_node_id id) noexcept
+              : tn(id)
+            {}
 
-        tree_node_id tn;
+            tree_node_id tn;
 
-        bool children_read = false;
-        bool sibling_read  = false;
-        bool pop_required  = false;
-    };
+            bool children_read = false;
+            bool sibling_read  = false;
+            bool pop_required  = false;
+        };
 
-    small_vector<elem, max_component_stack_size> stack;
+        small_vector<elem, max_component_stack_size> stack;
 
-    auto next_selection = selection;
+        auto next_selection = selection;
 
-    stack.emplace_back(pj_ed.pj.tree_nodes.get_id(root));
+        stack.emplace_back(pj_ed.pj.tree_nodes.get_id(root));
 
-    while (not stack.empty()) {
-        if (stack.back().children_read and stack.back().sibling_read) {
-            if (stack.back().pop_required)
-                ImGui::TreePop();
-            stack.pop_back();
-            continue;
-        }
+        while (not stack.empty()) {
+            if (stack.back().children_read and stack.back().sibling_read) {
+                if (stack.back().pop_required)
+                    ImGui::TreePop();
+                stack.pop_back();
+                continue;
+            }
 
-        const auto  tn_id         = stack.back().tn;
-        const auto& tn            = pj_ed.pj.tree_nodes.get(tn_id);
-        const auto& compo         = app.mod.components[tn.id];
-        auto        is_selected   = tn_id == selection;
-        const auto  copy_selected = is_selected;
+            const auto  tn_id         = stack.back().tn;
+            const auto& tn            = pj_ed.pj.tree_nodes.get(tn_id);
+            const auto& compo         = ids.components[tn.id];
+            auto        is_selected   = tn_id == selection;
+            const auto  copy_selected = is_selected;
 
-        const auto name =
-          format_n<127>("{} ({})", compo.name.sv(), tn.unique_id.sv());
+            const auto name =
+              format_n<127>("{} ({})", compo.name.sv(), tn.unique_id.sv());
 
-        if (not stack.back().children_read) {
-            stack.back().children_read = true;
-            if (not tn.tree.get_child()) {
-                if (ImGui::SelectableWithHint(
+            if (not stack.back().children_read) {
+                stack.back().children_read = true;
+                if (not tn.tree.get_child()) {
+                    if (ImGui::SelectableWithHint(
+                          name.c_str(),
+                          component_type_names[ordinal(compo.type)],
+                          &is_selected)) {
+                        next_selection =
+                          is_selected ? (selection != tn_id ? tn_id : selection)
+                                      : undefined<tree_node_id>();
+                    }
+                } else {
+                    const auto open = ImGui::TreeNodeExSelectableWithHint(
                       name.c_str(),
                       component_type_names[ordinal(compo.type)],
-                      &is_selected)) {
-                    next_selection =
-                      is_selected ? (selection != tn_id ? tn_id : selection)
-                                  : undefined<tree_node_id>();
-                }
-            } else {
-                const auto open = ImGui::TreeNodeExSelectableWithHint(
-                  name.c_str(),
-                  component_type_names[ordinal(compo.type)],
-                  &is_selected,
-                  ImGuiTreeNodeFlags_OpenOnArrow |
-                    ImGuiTreeNodeFlags_SpanAvailWidth);
+                      &is_selected,
+                      ImGuiTreeNodeFlags_OpenOnArrow |
+                        ImGuiTreeNodeFlags_SpanAvailWidth);
 
-                if (copy_selected != is_selected)
-                    next_selection =
-                      is_selected ? tn_id : undefined<tree_node_id>();
+                    if (copy_selected != is_selected)
+                        next_selection =
+                          is_selected ? tn_id : undefined<tree_node_id>();
 
-                if (open) {
-                    stack.back().pop_required = true;
-                    stack.emplace_back(
-                      pj_ed.pj.tree_nodes.get_id(*tn.tree.get_child()));
+                    if (open) {
+                        stack.back().pop_required = true;
+                        stack.emplace_back(
+                          pj_ed.pj.tree_nodes.get_id(*tn.tree.get_child()));
+                    }
                 }
+                continue;
             }
-            continue;
+
+            if (not stack.back().sibling_read) {
+                stack.back().sibling_read = true;
+
+                if (stack.back().children_read and
+                    not stack.back().pop_required)
+                    stack.pop_back(); // Optimization: do not let sibling into
+                                      // the stack. The stack size is now
+                                      // limited to the max component depth.
+
+                if (auto* sibling = tn.tree.get_sibling())
+                    stack.emplace_back(pj_ed.pj.tree_nodes.get_id(*sibling));
+            }
         }
 
-        if (not stack.back().sibling_read) {
-            stack.back().sibling_read = true;
-
-            if (stack.back().children_read and not stack.back().pop_required)
-                stack.pop_back(); // Optimization: do not let sibling into the
-                                  // stack. The stack size is now limited to the
-                                  // max component depth.
-
-            if (auto* sibling = tn.tree.get_sibling())
-                stack.emplace_back(pj_ed.pj.tree_nodes.get_id(*sibling));
-        }
-    }
-
-    return next_selection;
+        return next_selection;
+    });
 }
 
 static inline constexpr std::string_view simulation_status_names[] = {

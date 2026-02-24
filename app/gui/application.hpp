@@ -609,7 +609,7 @@ private:
 
     void auto_fit_camera() noexcept;
     void center_camera() noexcept;
-    void reset_camera(application& app, graph& g) noexcept;
+    void reset_camera(application& app, const graph& g) noexcept;
 
     bool initialize_canvas(ImVec2 top_left,
                            ImVec2 bottom_right,
@@ -631,6 +631,10 @@ private:
                     graph&                        g,
                     ImVec2                        top_left,
                     const bitflags<popup_options> opt = {}) noexcept;
+    bool draw_popup(application&                  app,
+                    const graph&                  g,
+                    ImVec2                        top_left,
+                    const bitflags<popup_options> opt = {}) noexcept;
     void draw_selection(const graph& g,
                         ImVec2       top_left,
                         ImU32        background_selection_color) noexcept;
@@ -644,8 +648,8 @@ public:
 
     void clear() noexcept;
 
-    void show(component_editor& ed) noexcept;
-    void show_selected_nodes(component_editor& ed) noexcept;
+    bool show(component_editor& ed, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -656,7 +660,7 @@ public:
     ImVec2     size{ 30.f, 30.f };
     ImVec2     scrolling{ 0.f, 0.f };
     float      zoom[2]{ 1.f, 1.f };
-    component* hovered_component = nullptr;
+    const component* hovered_component = nullptr;
 
     int row = 10;
     int col = 10;
@@ -666,6 +670,12 @@ public:
 
 private:
     component_id m_id = undefined<component_id>();
+
+    void read(application& app) noexcept;
+    void write(application& app) noexcept;
+
+    grid_component m_grid;
+    u64            m_version = std::numeric_limits<u64>::max();
 };
 
 class graph_component_editor_data
@@ -676,8 +686,8 @@ public:
 
     void clear() noexcept;
 
-    void show(component_editor& ed) noexcept;
-    void show_selected_nodes(component_editor& ed) noexcept;
+    bool show(component_editor& ed, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -734,7 +744,7 @@ private:
         graph_component_id           g_id     = undefined<graph_component_id>();
     } scale_free_builder;
 
-    void show(application& app) noexcept;
+    void show(application&, component&) noexcept;
     bool compute_automatic_layout(graph_component& graph) noexcept;
     void update_position_to_grid(graph_component& graph) noexcept;
     void clear_file_access() noexcept;
@@ -744,31 +754,44 @@ private:
     void auto_fit_camera(ImVec2 top_left,
                          ImVec2 bottom_right,
                          ImVec2 canvas_sz) noexcept;
-    void show_scale_free_menu(application&     app,
-                              graph_component& graph) noexcept;
-    void show_small_world_menu(application&     app,
-                               graph_component& graph) noexcept;
-    void show_dot_file_menu(application& app, graph_component& graph) noexcept;
-    void show_graph(application&     app,
+    bool show_scale_free_menu(application& app) noexcept;
+    bool show_small_world_menu(application& app) noexcept;
+    bool show_dot_file_menu(application& app) noexcept;
+    bool show_graph(application&     app,
                     component&       compo,
                     graph_component& data) noexcept;
+
+private:
+    void read(application& app) noexcept;
+    void write(application& app) noexcept;
+
+    graph_component m_graph;
+    u64             m_version = std::numeric_limits<u64>::max();
 };
 
 class simulation_component_editor_data
 {
 public:
-    simulation_component_editor_data(const component_id            id,
-                                     const simulation_component_id sid,
-                                     simulation_component& /*sim*/) noexcept;
+    simulation_component_editor_data(
+      const component_id            id,
+      const simulation_component_id sid,
+      const simulation_component& /*sim*/) noexcept;
 
-    void show_selected_nodes(component_editor& /*ed*/) noexcept;
-    void show(component_editor& /*ed*/) noexcept;
+    bool show_selected_nodes(component_editor&, component&) noexcept;
+    bool show(component_editor&, component&) noexcept;
 
     component_id            m_id     = undefined<component_id>();
     simulation_component_id m_sim_id = undefined<simulation_component_id>();
     registred_path_id       m_reg    = undefined<registred_path_id>();
     dir_path_id             m_dir    = undefined<dir_path_id>();
     file_path_id            m_file   = undefined<file_path_id>();
+
+private:
+    void read(application& app) noexcept;
+    void write(application& app) noexcept;
+
+    simulation_component m_sim;
+    u64                  m_version = std::numeric_limits<u64>::max();
 };
 
 class hsm_component_editor_data
@@ -781,36 +804,41 @@ public:
 
     hsm_component_editor_data(const component_id     id,
                               const hsm_component_id hid,
-                              hsm_component&         hsm) noexcept;
+                              const hsm_component&   hsm) noexcept;
     ~hsm_component_editor_data() noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    void show(component_editor& ed) noexcept;
-    void show_selected_nodes(component_editor& ed) noexcept;
+    bool show(component_editor& ed, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
     /**
-       Stores the @c hsm_component_editor_data hidden attributes into hsm
-       component. For example the position of nodes (in ImNodes). This function
-       is called before switching to another component or before saving the
-       component.
+     * Stores the @c hsm_component_editor_data hidden attributes into hsm
+     * component. For example the position of nodes (in ImNodes). This function
+     * is called before switching to another component or before saving the
+     * component.
      */
     void store(component_editor& ed) noexcept;
 
 private:
-    void show_hsm(hsm_component& hsm) noexcept;
-    void show_menu(hsm_component& hsm) noexcept;
-    void show_graph(hsm_component& hsm) noexcept;
-    void show_panel(application&   app,
-                    component&     compo,
-                    hsm_component& hsm) noexcept;
-    void clear(hsm_component& hsm) noexcept;
-    bool valid(hsm_component& hsm) noexcept;
+    bool show_hsm() noexcept;
+    bool show_menu() noexcept;
+    bool show_graph() noexcept;
+    bool show_panel(component&) noexcept;
+    void clear() noexcept;
+    bool valid() noexcept;
+
+    void read(application& app) noexcept;
+    void write(application& app) noexcept;
 
     ImNodesEditorContext* m_context = nullptr;
+
+    /** An editable @c hsm_component. */
+    hsm_component m_hsm;
+    u64           m_version = std::numeric_limits<u64>::max();
 
     ImVector<int> m_selected_links;
     ImVector<int> m_selected_nodes;
@@ -835,13 +863,13 @@ class generic_component_editor_data
 {
 public:
     generic_component_editor_data(const component_id         id,
-                                  component&                 compo,
+                                  const component&           compo,
                                   const generic_component_id gid,
                                   const generic_component&   gen) noexcept;
     ~generic_component_editor_data() noexcept;
 
-    void show(component_editor& ed) noexcept;
-    void show_selected_nodes(component_editor& ed) noexcept;
+    bool show(component_editor& ed, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -882,7 +910,12 @@ public:
     std::bitset<6> options;
 
 private:
-    component_id m_id = undefined<component_id>();
+    void read(application& app) noexcept;
+    void write(application& app) noexcept;
+
+    generic_component m_generic;
+    u64               m_version = std::numeric_limits<u64>::max();
+    component_id      m_id      = undefined<component_id>();
 };
 
 class generic_simulation_editor
@@ -903,11 +936,11 @@ public:
      * @param compo The component of the tree node.
      * @param gen The generic_component in the compo.
      */
-    void init(application&       app,
-              project_editor&    pj_ed,
-              const tree_node&   tn,
-              component&         compo,
-              generic_component& gen) noexcept;
+    void init(application&             app,
+              project_editor&          pj_ed,
+              const tree_node&         tn,
+              const component&         compo,
+              const generic_component& gen) noexcept;
 
     /**
      * Build the @c links and @c nodes vectors from the entire simulation
@@ -1048,11 +1081,10 @@ public:
     /** Restore the variable to the default value. */
     void reset() noexcept;
 
-    bool display(application&    app,
-                 project_editor& ed,
-                 tree_node&      tn,
-                 component&      compo,
-                 grid_component& grid) noexcept;
+    bool display(application&      app,
+                 project_editor&   ed,
+                 tree_node&        tn,
+                 grid_component_id grid_id) noexcept;
 
     grid_component_id current_id = undefined<grid_component_id>();
 
@@ -1063,11 +1095,10 @@ public:
 };
 
 struct hsm_simulation_editor {
-    bool show_observations(application&    app,
-                           project_editor& ed,
-                           tree_node&      tn,
-                           component&      compo,
-                           hsm_component&  hsm) noexcept;
+    bool show_observations(application&     app,
+                           project_editor&  ed,
+                           tree_node&       tn,
+                           hsm_component_id hsm_id) noexcept;
 
     hsm_component_id current_id = undefined<hsm_component_id>();
 };
@@ -1399,19 +1430,17 @@ public:
         component_id   id;
         component_type type;
 
-        /// @c reg is used to edit the @c component @c file_path_id.
-        registred_path_id reg = undefined<registred_path_id>();
+        component           compo;
+        component_file_path file;
+        description_str     desc;
 
-        /// @c dir is used to edit the @c component @c file_path_id.
-        dir_path_id dir = undefined<dir_path_id>();
+        directory_path_str dir_name;
 
-        /// @c file is used to edit the @c component @c file_path_id.
-        file_path_id file = undefined<file_path_id>();
+        u64 version = std::numeric_limits<u64>::max();
 
         bool is_dock_init = false;
 
-        atomic_request_buffer<dir_path_id>  new_dir;
-        atomic_request_buffer<file_path_id> new_file;
+        atomic_request_buffer<dir_path_id> new_dir;
 
         union {
             grid_editor_data_id       grid;
@@ -1484,27 +1513,28 @@ private:
                                                     file_type::dot);
 
     is_component_deletable_t is_component_deletable(
-      const application&            app,
-      const modeling::component_access& ids,
-      const component_id            id) noexcept;
+      const application&      app,
+      const component_access& ids,
+      const component_id      id) noexcept;
 
     void show_menu() noexcept;
-    void show_file_treeview(const modeling::file_access&,
+    void show_file_treeview(const file_access&,
+                            const component_access&,
                             const bitflags<file_type>) noexcept;
-    void show_repertories_content(const modeling::file_access&,
+    void show_repertories_content(const file_access&,
+                                  const component_access&,
                                   const bitflags<file_type>) noexcept;
-    void show_dirpath_content(const modeling::file_access&,
+    void show_dirpath_content(const file_access&,
+                              const component_access&,
                               const dir_path&,
                               const bitflags<file_type>) noexcept;
-    void show_notsaved_content(const modeling::file_access&,
-                               const modeling::component_access&,
+    void show_notsaved_content(const file_access&,
+                               const component_access&,
                                const bitflags<file_type>) noexcept;
-    void show_file_component(const modeling::file_access&,
-                             const modeling::component_access&,
-                             const file_path&,
+    void show_file_component(const file_access&,
+                             const component_access&,
                              const component_id) noexcept;
-    void show_file_project(const modeling::file_access&,
-                           const file_path_id) noexcept;
+    void show_file_project(const file_access&, const file_path_id) noexcept;
 };
 
 class settings_window
@@ -1874,19 +1904,21 @@ bool show_select_model_box(const char*     button_label,
                            tree_node&      tn,
                            graph_observer& access) noexcept;
 
-bool show_local_observers(application&     app,
-                          project_editor&  ed,
-                          tree_node&       tn,
-                          component&       compo,
-                          graph_component& graph) noexcept;
+bool show_local_observers(application&            app,
+                          project_editor&         ed,
+                          const component_access& ids,
+                          tree_node&              tn,
+                          const component&        compo,
+                          const graph_component&  graph) noexcept;
 
 void alloc_grid_observer(irt::application& app, irt::tree_node& tn);
 
-bool show_local_observers(application&    app,
-                          project_editor& ed,
-                          tree_node&      tn,
-                          component&      compo,
-                          grid_component& grid) noexcept;
+bool show_local_observers(application&            app,
+                          project_editor&         ed,
+                          const component_access& ids,
+                          tree_node&              tn,
+                          const component&        compo,
+                          const grid_component&   grid) noexcept;
 
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.

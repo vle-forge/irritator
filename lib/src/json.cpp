@@ -1759,12 +1759,12 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool try_modeling_copy_component_id(const modeling::file_access&      files,
-                                        const modeling::component_access& ids,
-                                        const std::string_view            reg,
-                                        const std::string_view            dir,
-                                        const std::string_view            file,
-                                        component_id& c_id) noexcept
+    bool try_modeling_copy_component_id(const file_access&      files,
+                                        const component_access& ids,
+                                        const std::string_view  reg,
+                                        const std::string_view  dir,
+                                        const std::string_view  file,
+                                        component_id&           c_id) noexcept
     {
         const auto  reg_id  = files.find_registred_path_by_name(reg);
         const auto  dir_id  = is_defined(reg_id)
@@ -1784,7 +1784,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        auto& c = mod().components[compo_id];
+        auto& c = ids.components[compo_id];
         if (c.state == component_status::unmodified) {
             c_id = compo_id;
             return true;
@@ -1812,10 +1812,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool try_read_child_hsm_sim_component(const rapidjson::Value&      val,
-                                          const modeling::file_access& files,
-                                          const modeling::component_access& ids,
-                                          component_id& c_id) noexcept
+    bool try_read_child_hsm_sim_component(const rapidjson::Value& val,
+                                          const file_access&      files,
+                                          const component_access& ids,
+                                          component_id&           c_id) noexcept
     {
         auto_stack a(this, "child simple or grid component");
 
@@ -1862,9 +1862,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_modeling_dynamics(const rapidjson::Value&           val,
-                                const modeling::file_access&      files,
-                                const modeling::component_access& ids,
+    bool read_modeling_dynamics(const rapidjson::Value& val,
+                                const file_access&      files,
+                                const component_access& ids,
                                 simulation_wrapper_tag,
                                 parameter& p) noexcept
     {
@@ -1897,9 +1897,9 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_modeling_dynamics(const rapidjson::Value&           val,
-                                const modeling::file_access&      files,
-                                const modeling::component_access& ids,
+    bool read_modeling_dynamics(const rapidjson::Value& val,
+                                const file_access&      files,
+                                const component_access& ids,
                                 hsm_wrapper_tag,
                                 parameter& p) noexcept
     {
@@ -2068,12 +2068,12 @@ struct json_dearchiver::impl {
                fix_child_name(generic, c);
     }
 
-    bool read_child_model_dynamics(const rapidjson::Value&           val,
-                                   const modeling::file_access&      files,
-                                   const modeling::component_access& ids,
-                                   component&                        compo,
-                                   generic_component&                gen,
-                                   generic_component::child&         c) noexcept
+    bool read_child_model_dynamics(const rapidjson::Value&   val,
+                                   const file_access&        files,
+                                   const component_access&   ids,
+                                   component&                compo,
+                                   generic_component&        gen,
+                                   generic_component::child& c) noexcept
     {
         auto_stack a(this, "child model dynamics");
 
@@ -2105,13 +2105,13 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_child_model(const rapidjson::Value&           val,
-                          const modeling::file_access&      files,
-                          const modeling::component_access& ids,
-                          component&                        compo,
-                          generic_component&                gen,
-                          const dynamics_type               type,
-                          generic_component::child&         c) noexcept
+    bool read_child_model(const rapidjson::Value&   val,
+                          const file_access&        files,
+                          const component_access&   ids,
+                          component&                compo,
+                          generic_component&        gen,
+                          const dynamics_type       type,
+                          generic_component::child& c) noexcept
     {
         auto_stack a(this, "child model");
 
@@ -2121,21 +2121,20 @@ struct json_dearchiver::impl {
         return read_child_model_dynamics(val, files, ids, compo, gen, c);
     }
 
-    auto search_component(const modeling::component_access& ids,
+    auto search_component(const component_access& ids,
                           std::string_view name) const noexcept -> component_id
     {
         for (const auto id : ids)
-            if (mod().components[id].name == name)
+            if (ids.components[id].name == name)
                 return id;
 
         return undefined<component_id>();
     }
 
-    bool read_child_simple_or_grid_component(
-      const rapidjson::Value&           val,
-      const modeling::file_access&      files,
-      const modeling::component_access& ids,
-      component_id&                     c_id) noexcept
+    bool read_child_simple_or_grid_component(const rapidjson::Value& val,
+                                             const file_access&      files,
+                                             const component_access& ids,
+                                             component_id& c_id) noexcept
     {
         auto_stack a(this, "child simple or grid component");
 
@@ -2168,11 +2167,11 @@ struct json_dearchiver::impl {
                                               c_id);
     }
 
-    bool dispatch_child_component_type(const rapidjson::Value&           val,
-                                       const modeling::file_access&      files,
-                                       const modeling::component_access& ids,
-                                       component_type                    type,
-                                       component_id& c_id) noexcept
+    bool dispatch_child_component_type(const rapidjson::Value& val,
+                                       const file_access&      files,
+                                       const component_access& ids,
+                                       component_type          type,
+                                       component_id&           c_id) noexcept
     {
         auto_stack a(this, "dispatch child component type");
 
@@ -2199,10 +2198,10 @@ struct json_dearchiver::impl {
         return error("unknown element");
     }
 
-    bool read_child_component(const rapidjson::Value&           val,
-                              const modeling::file_access&      files,
-                              const modeling::component_access& ids,
-                              component_id&                     c_id) noexcept
+    bool read_child_component(const rapidjson::Value& val,
+                              const file_access&      files,
+                              const component_access& ids,
+                              component_id&           c_id) noexcept
     {
         auto_stack a(this, "read child component");
 
@@ -2215,14 +2214,13 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool dispatch_child_component_or_model(
-      const rapidjson::Value&           val,
-      const modeling::file_access&      files,
-      const modeling::component_access& ids,
-      component&                        compo,
-      generic_component&                generic,
-      dynamics_type                     d_type,
-      generic_component::child&         c) noexcept
+    bool dispatch_child_component_or_model(const rapidjson::Value&   val,
+                                           const file_access&        files,
+                                           const component_access&   ids,
+                                           component&                compo,
+                                           generic_component&        generic,
+                                           dynamics_type             d_type,
+                                           generic_component::child& c) noexcept
     {
         auto_stack a(this, "dispatch child component or model");
 
@@ -2231,10 +2229,10 @@ struct json_dearchiver::impl {
                  : read_child_model(val, files, ids, compo, generic, d_type, c);
     }
 
-    bool read_child_component_or_model(const rapidjson::Value&           val,
-                                       const modeling::file_access&      files,
-                                       const modeling::component_access& ids,
-                                       component&                        compo,
+    bool read_child_component_or_model(const rapidjson::Value&   val,
+                                       const file_access&        files,
+                                       const component_access&   ids,
+                                       component&                compo,
                                        generic_component&        generic,
                                        generic_component::child& c) noexcept
     {
@@ -2252,11 +2250,11 @@ struct json_dearchiver::impl {
                  val, files, ids, compo, generic, type, c);
     }
 
-    bool read_children_array(const rapidjson::Value&           val,
-                             const modeling::file_access&      files,
-                             const modeling::component_access& ids,
-                             component&                        compo,
-                             generic_component&                generic) noexcept
+    bool read_children_array(const rapidjson::Value& val,
+                             const file_access&      files,
+                             const component_access& ids,
+                             component&              compo,
+                             generic_component&      generic) noexcept
     {
         auto_stack a(this, "children array");
 
@@ -2284,11 +2282,11 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_children(const rapidjson::Value&           val,
-                       const modeling::file_access&      files,
-                       const modeling::component_access& ids,
-                       component&                        compo,
-                       generic_component&                generic) noexcept
+    bool read_children(const rapidjson::Value& val,
+                       const file_access&      files,
+                       const component_access& ids,
+                       component&              compo,
+                       generic_component&      generic) noexcept
     {
         auto_stack a(this, "children");
 
@@ -2407,13 +2405,16 @@ struct json_dearchiver::impl {
     }
 
     bool alloc_and_read_source(const rapidjson::Value& value,
+                               const file_access&      files,
+                               component_access&       ids,
                                source_type             type,
-                               component&              compo) noexcept
+                               component_id            compo_id) noexcept
     {
         auto_stack s(this, "alloc and read source");
 
-        const auto id = compo.srcs.data.alloc_id();
-        auto&      selem =
+        auto& compo = ids.components[compo_id];
+        auto  id    = compo.srcs.data.alloc_id();
+        auto& selem =
           compo.srcs.data.get<external_source_definition::source_element>();
         auto& names = compo.srcs.data.get<name_str>();
 
@@ -2421,9 +2422,11 @@ struct json_dearchiver::impl {
         case source_type::constant:
             return read_constant_source(value, id, selem[id], names[id]);
         case source_type::binary_file:
-            return read_binary_source(value, compo, id, selem[id], names[id]);
+            return read_binary_source(
+              value, files, ids, compo_id, id, selem[id], names[id]);
         case source_type::text_file:
-            return read_text_source(value, compo, id, selem[id], names[id]);
+            return read_text_source(
+              value, files, ids, compo_id, id, selem[id], names[id]);
         case source_type::random:
             return read_random_source(value, id, selem[id], names[id]);
         }
@@ -2431,7 +2434,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_source(const rapidjson::Value& val, component& compo) noexcept
+    bool read_source(const rapidjson::Value& val,
+                     const file_access&            files,
+                     component_access&       ids,
+                     component_id            compo_id) noexcept
     {
         auto_stack s(this, "source");
 
@@ -2440,29 +2446,35 @@ struct json_dearchiver::impl {
         return for_first_member(
           val, "type"sv, [&](const auto& value) noexcept -> bool {
               return read_temp_string(value) and copy_to_source_type(type) and
-                     alloc_and_read_source(val, type, compo);
+                     alloc_and_read_source(val, files, ids, type, compo_id);
           });
     }
 
-    bool read_sources(const rapidjson::Value& val, component& compo) noexcept
+    bool read_sources(const rapidjson::Value& val,
+                      const file_access&      files,
+                      component_access&       ids,
+                      component_id            compo_id) noexcept
     {
         auto_stack s(this, "sources");
 
-        i64 len = 0;
+        auto& compo = ids.components[compo_id];
+        i64   len   = 0;
 
         return is_value_array(val) and copy_array_size(val, len) and
                external_source_definition_reserve(compo.srcs, len) and
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_source(value, compo);
+                     return read_source(value, files, ids, compo_id);
                  });
     }
 
-    bool search_file_from_dir_component(const component& compo,
-                                        file_path_id&    out) const noexcept
+    bool search_file_from_dir_component(const component_access& ids,
+                                        const file_access&      files,
+                                        const component_id      compo_id,
+                                        file_path_id& out) const noexcept
     {
-        out = get_file_from_component(mod(), compo, temp_string);
+        out = get_file_from_component(ids, files, compo_id, temp_string);
 
         return is_defined(out);
     }
@@ -2505,9 +2517,11 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_binary_source(const rapidjson::Value&                     value,
-                            component&                                  compo,
-                            external_source_definition::id              id,
+    bool read_binary_source(const rapidjson::Value&        value,
+                            const file_access&             files,
+                            component_access&              ids,
+                            const component_id             compo_id,
+                            external_source_definition::id id,
                             external_source_definition::source_element& src,
                             name_str& s_name) noexcept
     {
@@ -2529,7 +2543,8 @@ struct json_dearchiver::impl {
 
                      if ("path"sv == name)
                          return read_temp_string(value) &&
-                                search_file_from_dir_component(compo, bin.file);
+                                search_file_from_dir_component(
+                                  ids, files, compo_id, bin.file);
 
                      return true;
                  }) &&
@@ -2538,7 +2553,9 @@ struct json_dearchiver::impl {
     }
 
     bool read_text_source(const rapidjson::Value&                     value,
-                          component&                                  compo,
+                          const file_access&                          files,
+                          component_access&                           ids,
+                          const component_id                          compo_id,
                           external_source_definition::id              id,
                           external_source_definition::source_element& src,
                           name_str& s_name) noexcept
@@ -2561,7 +2578,8 @@ struct json_dearchiver::impl {
 
                      if ("path"sv == name)
                          return read_temp_string(value) &&
-                                search_file_from_dir_component(compo, txt.file);
+                                search_file_from_dir_component(
+                                  ids, files, compo_id, txt.file);
 
                      return true;
                  }) &&
@@ -2835,7 +2853,7 @@ struct json_dearchiver::impl {
         return error("unknown generic component child");
     }
 
-    bool get_x_port(const modeling::component_access& ids,
+    bool get_x_port(const component_access&           ids,
                     generic_component&                generic,
                     const child_id                    dst_id,
                     const std::optional<std::string>& dst_str_port,
@@ -2857,7 +2875,7 @@ struct json_dearchiver::impl {
                     return error("unknwon generic component port");
 
                 if (ids.exists(child->id.compo_id)) {
-                    const auto& compo = mod().components[child->id.compo_id];
+                    const auto& compo = ids.components[child->id.compo_id];
                     auto        p_id  = compo.get_x(*dst_str_port);
                     if (is_undefined(p_id))
                         return error("unknown input component");
@@ -2874,7 +2892,7 @@ struct json_dearchiver::impl {
         return error("unknown element");
     }
 
-    bool get_y_port(const modeling::component_access& ids,
+    bool get_y_port(const component_access&           ids,
                     generic_component&                generic,
                     const child_id                    src_id,
                     const std::optional<std::string>& src_str_port,
@@ -2896,7 +2914,7 @@ struct json_dearchiver::impl {
                     return error("unknwon generic component port");
 
                 if (ids.exists(child->id.compo_id)) {
-                    const auto& compo = mod().components[child->id.compo_id];
+                    const auto& compo = ids.components[child->id.compo_id];
                     auto        p_id  = compo.get_y(*src_str_port);
                     if (is_undefined(p_id))
                         return error("unknown output component");
@@ -2944,9 +2962,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_internal_connection(const rapidjson::Value&           val,
-                                  const modeling::component_access& ids,
-                                  generic_component& gen) noexcept
+    bool read_internal_connection(const rapidjson::Value& val,
+                                  const component_access& ids,
+                                  generic_component&      gen) noexcept
     {
         auto_stack s(this, "component generic internal connection");
 
@@ -2997,10 +3015,10 @@ struct json_dearchiver::impl {
                modeling_connect(gen, *src_id, *src_port, *dst_id, *dst_port);
     }
 
-    bool read_output_connection(const rapidjson::Value&           val,
-                                const modeling::component_access& ids,
-                                component&                        compo,
-                                generic_component&                gen) noexcept
+    bool read_output_connection(const rapidjson::Value& val,
+                                const component_access& ids,
+                                component&              compo,
+                                generic_component&      gen) noexcept
     {
         auto_stack s(this, "component generic output connection");
 
@@ -3039,10 +3057,10 @@ struct json_dearchiver::impl {
                modeling_connect_output(gen, src_id, *src_port, *port);
     }
 
-    bool read_input_connection(const rapidjson::Value&           val,
-                               const modeling::component_access& ids,
-                               component&                        compo,
-                               generic_component&                gen) noexcept
+    bool read_input_connection(const rapidjson::Value& val,
+                               const component_access& ids,
+                               component&              compo,
+                               generic_component&      gen) noexcept
     {
         auto_stack s(this, "component generic input connection");
 
@@ -3082,10 +3100,10 @@ struct json_dearchiver::impl {
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
-    bool read_input_pack_connection(const rapidjson::Value&           val,
-                                    const modeling::file_access&      files,
-                                    const modeling::component_access& ids,
-                                    component& compo) noexcept
+    bool read_input_pack_connection(const rapidjson::Value& val,
+                                    const file_access&      files,
+                                    const component_access& ids,
+                                    component&              compo) noexcept
     {
         auto_stack s(this, "component input pack connection");
 
@@ -3105,7 +3123,7 @@ struct json_dearchiver::impl {
 
         if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                child_port = mod().components[child].get_x(temp_string);
+                child_port = ids.components[child].get_x(temp_string);
             else
                 return error("bad input pack connection child-port");
         }
@@ -3118,10 +3136,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_output_pack_connection(const rapidjson::Value&           val,
-                                     const modeling::file_access&      files,
-                                     const modeling::component_access& ids,
-                                     component& compo) noexcept
+    bool read_output_pack_connection(const rapidjson::Value& val,
+                                     const file_access&      files,
+                                     const component_access& ids,
+                                     component&              compo) noexcept
     {
         auto_stack s(this, "component output pack connection");
 
@@ -3141,7 +3159,7 @@ struct json_dearchiver::impl {
 
         if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                child_port = mod().components[child].get_y(temp_string);
+                child_port = ids.components[child].get_y(temp_string);
             else
                 return error("bad output pack connection child-port");
         }
@@ -3154,12 +3172,12 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool dispatch_connection_type(const rapidjson::Value&           val,
-                                  const modeling::file_access&      files,
-                                  const modeling::component_access& ids,
-                                  connection_type                   type,
-                                  component&                        compo,
-                                  generic_component& gen) noexcept
+    bool dispatch_connection_type(const rapidjson::Value& val,
+                                  const file_access&      files,
+                                  const component_access& ids,
+                                  connection_type         type,
+                                  component&              compo,
+                                  generic_component&      gen) noexcept
     {
         auto_stack s(this, "component generic dispatch connection");
 
@@ -3179,11 +3197,11 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
-    bool read_connections(const rapidjson::Value&           val,
-                          const modeling::file_access&      files,
-                          const modeling::component_access& ids,
-                          component&                        compo,
-                          generic_component&                gen) noexcept
+    bool read_connections(const rapidjson::Value& val,
+                          const file_access&      files,
+                          const component_access& ids,
+                          component&              compo,
+                          generic_component&      gen) noexcept
     {
         auto_stack s(this, "component generic connections");
 
@@ -3208,16 +3226,19 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_generic_component(const rapidjson::Value&           val,
-                                const modeling::file_access&      files,
-                                const modeling::component_access& ids,
-                                component& compo) noexcept
+    bool read_generic_component(const rapidjson::Value& val,
+                                const file_access&      files,
+                                component_access&       ids,
+                                component&              compo) noexcept
     {
         auto_stack s(this, "component generic");
 
-        auto& generic       = mod().generic_components.alloc();
+        if (not ids.can_alloc_generic_component(1))
+            return error("too much generic components");
+
+        auto& generic       = ids.generic_components.alloc();
         compo.type          = component_type::generic;
-        compo.id.generic_id = mod().generic_components.get_id(generic);
+        compo.id.generic_id = ids.generic_components.get_id(generic);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -3250,10 +3271,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_grid_children(const rapidjson::Value&           val,
-                            const modeling::file_access&      files,
-                            const modeling::component_access& ids,
-                            grid_component&                   compo) noexcept
+    bool read_grid_children(const rapidjson::Value& val,
+                            const file_access&      files,
+                            const component_access& ids,
+                            grid_component&         compo) noexcept
     {
         auto_stack s(this, "component grid children");
 
@@ -3268,10 +3289,10 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool dispatch_graph_type(const rapidjson::Value&      val,
-                             const rapidjson::Value&      name,
-                             const modeling::file_access& files,
-                             graph_component&             graph) noexcept
+    bool dispatch_graph_type(const rapidjson::Value& val,
+                             const rapidjson::Value& name,
+                             const file_access&      files,
+                             graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph type");
 
@@ -3298,9 +3319,9 @@ struct json_dearchiver::impl {
         return error("bad graph component type");
     }
 
-    bool read_dot_graph_param(const rapidjson::Value&      val,
-                              const modeling::file_access& files,
-                              graph_component&             graph) noexcept
+    bool read_dot_graph_param(const rapidjson::Value& val,
+                              const file_access&      files,
+                              graph_component&        graph) noexcept
     {
         auto_stack s(this, "read dot graph parameters");
 
@@ -3407,10 +3428,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_graph_children(const rapidjson::Value&           val,
-                             const modeling::file_access&      files,
-                             const modeling::component_access& ids,
-                             graph_component&                  compo) noexcept
+    bool read_graph_children(const rapidjson::Value& val,
+                             const file_access&      files,
+                             const component_access& ids,
+                             graph_component&        compo) noexcept
     {
         auto_stack s(this, "component graph children");
 
@@ -3447,10 +3468,10 @@ struct json_dearchiver::impl {
         return std::cmp_equal(grid.cells_number(), grid.children().size());
     }
 
-    bool read_grid_input_connection(const rapidjson::Value&           val,
-                                    const modeling::component_access& ids,
-                                    const component&                  compo,
-                                    grid_component& grid) noexcept
+    bool read_grid_input_connection(const rapidjson::Value& val,
+                                    const component_access& ids,
+                                    const component&        compo,
+                                    grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
 
@@ -3486,7 +3507,7 @@ struct json_dearchiver::impl {
             const auto c_compo_id = grid.children()[pos];
 
             if (ids.exists(c_compo_id)) {
-                const auto& c      = mod().components[c_compo_id];
+                const auto& c      = ids.components[c_compo_id];
                 const auto  con_id = c.get_x(*id);
                 const auto  con_x  = compo.get_x(*x);
 
@@ -3502,10 +3523,10 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool read_grid_output_connection(const rapidjson::Value&           val,
-                                     const modeling::component_access& ids,
-                                     const component&                  compo,
-                                     grid_component& grid) noexcept
+    bool read_grid_output_connection(const rapidjson::Value& val,
+                                     const component_access& ids,
+                                     const component&        compo,
+                                     grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
 
@@ -3541,7 +3562,7 @@ struct json_dearchiver::impl {
             const auto c_compo_id = grid.children()[pos];
 
             if (ids.exists(c_compo_id)) {
-                const auto& c      = mod().components[c_compo_id];
+                const auto& c      = ids.components[c_compo_id];
                 const auto  con_id = c.get_x(*id);
                 const auto  con_y  = compo.get_y(*y);
 
@@ -3557,11 +3578,11 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool read_grid_connection(const rapidjson::Value&           val,
-                              const modeling::file_access&      files,
-                              const modeling::component_access& ids,
-                              component&                        compo,
-                              grid_component&                   grid) noexcept
+    bool read_grid_connection(const rapidjson::Value& val,
+                              const file_access&      files,
+                              const component_access& ids,
+                              component&              compo,
+                              grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
 
@@ -3579,11 +3600,11 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_grid_connections(const rapidjson::Value&           val,
-                               const modeling::file_access&      files,
-                               const modeling::component_access& ids,
-                               component&                        compo,
-                               grid_component&                   grid) noexcept
+    bool read_grid_connections(const rapidjson::Value& val,
+                               const file_access&      files,
+                               const component_access& ids,
+                               component&              compo,
+                               grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
 
@@ -3607,16 +3628,19 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_grid_component(const rapidjson::Value&           val,
-                             const modeling::file_access&      files,
-                             const modeling::component_access& ids,
-                             component&                        compo) noexcept
+    bool read_grid_component(const rapidjson::Value& val,
+                             const file_access&      files,
+                             component_access&       ids,
+                             component&              compo) noexcept
     {
         auto_stack s(this, "component grid");
 
-        auto& grid       = mod().grid_components.alloc();
+        if (not ids.can_alloc_grid_component(1))
+            return error("too much grid components");
+
+        auto& grid       = ids.grid_components.alloc();
         compo.type       = component_type::grid;
-        compo.id.grid_id = mod().grid_components.get_id(grid);
+        compo.id.grid_id = ids.grid_components.get_id(grid);
 
         std::optional<i32> rows, columns;
 
@@ -3661,8 +3685,9 @@ struct json_dearchiver::impl {
                is_grid_valid(grid);
     }
 
-    bool graph_component_build_graph(const modeling::file_access& files,
-                                     graph_component& graph) noexcept
+    bool graph_component_build_graph(const file_access& files,
+                                     component_access&  ids,
+                                     graph_component&   graph) noexcept
     {
         auto_stack s(this, "component graph build random graph");
 
@@ -3670,7 +3695,7 @@ struct json_dearchiver::impl {
         case graph_component::graph_type::dot_file:
             if (const auto* f =
                   files.file_paths.try_to_get(graph.param.dot.file)) {
-                if (const auto* g = mod().graphs.try_to_get(f->g_id)) {
+                if (const auto* g = ids.graphs.try_to_get(f->g_id)) {
                     graph.g = *g;
                     graph.update_position();
                     return true;
@@ -3707,10 +3732,10 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
-    bool read_graph_input_connection(const rapidjson::Value&           val,
-                                     const modeling::component_access& ids,
-                                     const component&                  compo,
-                                     graph_component& graph) noexcept
+    bool read_graph_input_connection(const rapidjson::Value& val,
+                                     const component_access& ids,
+                                     const component&        compo,
+                                     graph_component&        graph) noexcept
     {
         auto_stack s(this, "component input graph connection");
 
@@ -3742,7 +3767,7 @@ struct json_dearchiver::impl {
         } else {
             const auto c_compo_id = graph.g.node_components[id];
             if (ids.exists(c_compo_id)) {
-                const auto& c      = mod().components[c_compo_id];
+                const auto& c      = ids.components[c_compo_id];
                 const auto  con_id = c.get_x(*id_opt);
                 const auto  con_x  = compo.get_x(*x_opt);
 
@@ -3757,10 +3782,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_graph_output_connection(const rapidjson::Value&           val,
-                                      const modeling::component_access& ids,
-                                      const component&                  compo,
-                                      graph_component& graph) noexcept
+    bool read_graph_output_connection(const rapidjson::Value& val,
+                                      const component_access& ids,
+                                      const component&        compo,
+                                      graph_component&        graph) noexcept
     {
         auto_stack s(this, "component output graph connection");
 
@@ -3792,7 +3817,7 @@ struct json_dearchiver::impl {
         } else {
             const auto c_compo_id = graph.g.node_components[id];
             if (ids.exists(c_compo_id)) {
-                const auto& c      = mod().components[c_compo_id];
+                const auto& c      = ids.components[c_compo_id];
                 const auto  con_id = c.get_x(*id_opt);
                 const auto  con_y  = compo.get_y(*y_opt);
 
@@ -3807,11 +3832,11 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool read_graph_connection(const rapidjson::Value&           val,
-                               const modeling::file_access&      files,
-                               const modeling::component_access& ids,
-                               component&                        compo,
-                               graph_component&                  graph) noexcept
+    bool read_graph_connection(const rapidjson::Value& val,
+                               const file_access&      files,
+                               const component_access& ids,
+                               component&              compo,
+                               graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph connection");
 
@@ -3829,11 +3854,11 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_graph_connections(const rapidjson::Value&           val,
-                                const modeling::file_access&      files,
-                                const modeling::component_access& ids,
-                                component&                        compo,
-                                graph_component& graph) noexcept
+    bool read_graph_connections(const rapidjson::Value& val,
+                                const file_access&      files,
+                                const component_access& ids,
+                                component&              compo,
+                                graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph connections");
 
@@ -3847,23 +3872,26 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_graph_component(const rapidjson::Value&           val,
-                              const modeling::file_access&      files,
-                              const modeling::component_access& ids,
-                              component&                        compo) noexcept
+    bool read_graph_component(const rapidjson::Value& val,
+                              const file_access&      files,
+                              component_access&       ids,
+                              component&              compo) noexcept
     {
         auto_stack s(this, "component graph");
 
-        auto& graph       = mod().graph_components.alloc();
+        if (not ids.can_alloc_graph_component(1))
+            return error("too much graph components");
+
+        auto& graph       = ids.graph_components.alloc();
         compo.type        = component_type::graph;
-        compo.id.graph_id = mod().graph_components.get_id(graph);
+        compo.id.graph_id = ids.graph_components.get_id(graph);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("graph-type"sv == name)
                   return value.IsString() &&
                          dispatch_graph_type(val, value, files, graph) &&
-                         graph_component_build_graph(files, graph) &&
+                         graph_component_build_graph(files, ids, graph) &&
                          read_graph_children(val, files, ids, graph);
 
               if ("connections"sv == name)
@@ -3875,13 +3903,17 @@ struct json_dearchiver::impl {
     }
 
     bool read_hsm_component(const rapidjson::Value& val,
+                            component_access&       ids,
                             component&              compo) noexcept
     {
         auto_stack s(this, "component hsm");
 
-        auto& hsm       = mod().hsm_components.alloc();
+        if (not ids.can_alloc_hsm_component(1))
+            return error("too much hsm components");
+
+        auto& hsm       = ids.hsm_components.alloc();
         compo.type      = component_type::hsm;
-        compo.id.hsm_id = mod().hsm_components.get_id(hsm);
+        compo.id.hsm_id = ids.hsm_components.get_id(hsm);
 
         std::optional<u64> id;
 
@@ -3929,11 +3961,11 @@ struct json_dearchiver::impl {
           }); // FIXME SOURCE and (optional_has_value(id) ? ;
     }
 
-    bool copy_to_sim(const modeling::file_access& files,
-                     simulation_component&        sim,
-                     std::string_view             reg,
-                     std::string_view             dir,
-                     std::string_view             file) noexcept
+    bool copy_to_sim(const file_access&    files,
+                     simulation_component& sim,
+                     std::string_view      reg,
+                     std::string_view      dir,
+                     std::string_view      file) noexcept
     {
         const auto r_id = files.find_registred_path_by_name(reg);
         const auto d_id = is_defined(r_id)
@@ -3953,19 +3985,19 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool read_simulation_component(const rapidjson::Value&      val,
-                                   const modeling::file_access& files,
-                                   component&                   compo) noexcept
+    bool read_simulation_component(const rapidjson::Value& val,
+                                   const file_access&      files,
+                                   component_access&       ids,
+                                   component&              compo) noexcept
     {
         auto_stack _(this, "component simulation");
 
-        if (not mod().sim_components.can_alloc(1) and
-            not mod().sim_components.grow<2, 1>())
-            return false;
+        if (not ids.can_alloc_sim_component(1))
+            return error("too much simulation components");
 
-        auto& sim       = mod().sim_components.alloc();
+        auto& sim       = ids.sim_components.alloc();
         compo.type      = component_type::simulation;
-        compo.id.sim_id = mod().sim_components.get_id(sim);
+        compo.id.sim_id = ids.sim_components.get_id(sim);
 
         name_str           reg_name;
         directory_path_str dir_path;
@@ -3992,10 +4024,10 @@ struct json_dearchiver::impl {
                  files, sim, reg_name.sv(), dir_path.sv(), file_path.sv());
     }
 
-    bool dispatch_component_type(const rapidjson::Value&           val,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 component& compo) noexcept
+    bool dispatch_component_type(const rapidjson::Value& val,
+                                 const file_access&      files,
+                                 component_access&       ids,
+                                 component&              compo) noexcept
     {
         switch (compo.type) {
         case component_type::none:
@@ -4011,10 +4043,10 @@ struct json_dearchiver::impl {
             return read_graph_component(val, files, ids, compo);
 
         case component_type::hsm:
-            return read_hsm_component(val, compo);
+            return read_hsm_component(val, ids, compo);
 
         case component_type::simulation:
-            return read_simulation_component(val, files, compo);
+            return read_simulation_component(val, files, ids, compo);
         }
 
         return error("unknown component type: {} ({})",
@@ -4135,20 +4167,21 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_component(const rapidjson::Value&           val,
-                        const modeling::file_access&      files,
-                        const modeling::component_access& ids,
-                        const component_id                compo_id,
-                        component&                        compo) noexcept
+    bool read_component(const rapidjson::Value& val,
+                        const file_access&      files,
+                        component_access&       ids,
+                        component_id            compo_id) noexcept
     {
         auto_stack s(this, "component");
+
+        auto& compo = ids.components[compo_id];
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("name"sv == name)
                   return read_temp_string(value) && copy_string_to(compo.name);
               if ("sources"sv == name)
-                  return read_sources(value, compo);
+                  return read_sources(value, files, ids, compo_id);
               if ("x"sv == name)
                   return read_input_ports(value, compo.x);
               if ("y"sv == name)
@@ -4158,8 +4191,8 @@ struct json_dearchiver::impl {
                          convert_to_component(compo) &&
                          dispatch_component_type(val, files, ids, compo);
               if ("colors"sv == name)
-                  return read_component_colors(
-                    value, mod().component_colors[compo_id]);
+                  return read_component_colors(value,
+                                               ids.component_colors[compo_id]);
 
               return true;
           });
@@ -4171,8 +4204,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool project_set(const modeling::component_access& ids,
-                     component_id                      c_id) noexcept
+    bool project_set(const component_access& ids, component_id c_id) noexcept
     {
         auto_stack s(this, "project set components");
 
@@ -4185,10 +4217,9 @@ struct json_dearchiver::impl {
             return error("fail to read component");
     }
 
-    bool read_project_top_component(
-      const rapidjson::Value&           val,
-      const modeling::file_access&      files,
-      const modeling::component_access& ids) noexcept
+    bool read_project_top_component(const rapidjson::Value& val,
+                                    const file_access&      files,
+                                    const component_access& ids) noexcept
     {
         auto_stack s(this, "project top component");
 
@@ -4687,9 +4718,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_project(const rapidjson::Value&           val,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids) noexcept
+    bool read_project(const rapidjson::Value& val,
+                      const file_access&      files,
+                      const component_access& ids) noexcept
     {
         auto_stack s(this, "project");
 
@@ -4717,27 +4748,27 @@ struct json_dearchiver::impl {
                project_time_limit_affect(begin, end);
     }
 
-    status parse_component(const rapidjson::Document&        doc,
-                           const modeling::file_access&      files,
-                           const modeling::component_access& ids,
-                           const component_id                compo_id,
-                           component&                        compo) noexcept
+    status parse_component(const rapidjson::Document& doc,
+                           const file_access&         files,
+                           component_access&          ids,
+                           component_id               compo_id,
+                           component&                 compo) noexcept
     {
-        debug::ensure(compo.state != component_status::unmodified);
+        compo = component{};
 
-        if (read_component(doc.GetObject(), files, ids, compo_id, compo)) {
+        if (read_component(doc.GetObject(), files, ids, compo_id)) {
             compo.state = component_status::unmodified;
             return success();
         } else {
             compo.state = component_status::unreadable;
-            mod().clear(compo);
+            ids.free(compo_id);
             return error_code(json_errc::invalid_component_format);
         }
     }
 
-    status parse_project(const rapidjson::Document&        doc,
-                         const modeling::file_access&      files,
-                         const modeling::component_access& ids) noexcept
+    status parse_project(const rapidjson::Document& doc,
+                         const file_access&         files,
+                         const component_access&    ids) noexcept
     {
         pj().clear();
         sim().clear();
@@ -4796,8 +4827,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_integrator_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4813,8 +4844,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_inverse_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4826,8 +4857,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_multiplier_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4839,8 +4870,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_sum_2_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4852,8 +4883,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_sum_3_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4865,8 +4896,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_sum_4_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4878,8 +4909,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_wsum_2_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4897,8 +4928,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_wsum_3_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4918,8 +4949,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_wsum_4_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4941,8 +4972,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_integer_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4954,8 +4985,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_compare_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4971,8 +5002,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_sin_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4984,8 +5015,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_cos_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -4997,8 +5028,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_log_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5010,8 +5041,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_exp_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5023,8 +5054,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const counter_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5045,8 +5076,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const queue_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5060,8 +5091,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const dynamic_queue_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5076,8 +5107,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const priority_queue_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5092,8 +5123,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const generator_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5120,8 +5151,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const constant_tag,
                const modeling& /*mod*/,
                const component& compo,
@@ -5183,8 +5214,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_cross_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5202,8 +5233,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_flipflop_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5215,8 +5246,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_filter_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5232,8 +5263,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_power_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5247,8 +5278,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_gain_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5262,8 +5293,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const qss_square_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5275,8 +5306,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const accumulator_2_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5288,8 +5319,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const time_func_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5309,8 +5340,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_and_2_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5322,8 +5353,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_and_3_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5335,8 +5366,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_or_2_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5348,8 +5379,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_or_3_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5361,8 +5392,8 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const modeling::file_access& /*files*/,
-               const modeling::component_access& /*ids*/,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_invert_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
@@ -5373,11 +5404,11 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write(Writer&                      writer,
-               const modeling::file_access& files,
-               const modeling::component_access& /*ids*/,
+    void write(Writer&                 writer,
+               const file_access&      files,
+               const component_access& ids,
                const simulation_wrapper_tag,
-               const modeling& mod,
+               const modeling& /*mod*/,
                const component& /*compo*/,
                const parameter& p) noexcept
     {
@@ -5387,9 +5418,9 @@ struct json_archiver::impl {
 
         const auto id =
           enum_cast<component_id>(p.integers[simulation_wrapper_tag::id]);
-        const auto& c = mod.components[id];
+        const auto& f = ids.component_file_paths[id];
 
-        write_child_component_path(mod, files, c, writer);
+        write_child_component_path(writer, files, f);
 
         writer.EndObject();
 
@@ -5406,11 +5437,11 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write(Writer&                           writer,
-               const modeling::file_access&      files,
-               const modeling::component_access& ids,
+    void write(Writer&                 writer,
+               const file_access&      files,
+               const component_access& ids,
                const hsm_wrapper_tag,
-               const modeling& mod,
+               const modeling& /*mod*/,
                const component& /*compo*/,
                const parameter& p) noexcept
     {
@@ -5423,9 +5454,10 @@ struct json_archiver::impl {
           enum_cast<component_id>(p.integers[hsm_wrapper_tag::id]);
 
         if (ids.exists(id)) {
-            const auto& c = mod.components[id];
+            const auto& c = ids.components[id];
+            const auto& f = ids.component_file_paths[id];
 
-            write_child_component_path(mod, files, c, writer);
+            write_child_component_path(writer, files, f);
             writer.EndObject();
 
             writer.Key("i1");
@@ -5439,7 +5471,7 @@ struct json_archiver::impl {
             writer.Key("timeout");
             writer.Double(p.reals[hsm_wrapper_tag::timer]);
 
-            if (auto* hc = mod.hsm_components.try_to_get(c.id.hsm_id)) {
+            if (auto* hc = ids.hsm_components.try_to_get(c.id.hsm_id)) {
                 if (hc->machine.is_using_source()) {
                     writer.Key("source-id");
                     writer.Uint64(
@@ -5530,7 +5562,7 @@ struct json_archiver::impl {
     template<typename Writer>
     void write_binary_source(
       const modeling& /*mod*/,
-      const modeling::file_access&                     files,
+      const file_access&                               files,
       const external_source_definition::binary_source& bin,
       Writer&                                          w) noexcept
     {
@@ -5543,7 +5575,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_text_source(const modeling& /*mod*/,
-                           const modeling::file_access&                   files,
+                           const file_access&                             files,
                            const external_source_definition::text_source& txt,
                            Writer& w) noexcept
     {
@@ -5677,7 +5709,7 @@ struct json_archiver::impl {
     void write_child_component_path(Writer&               w,
                                     const registred_path& reg,
                                     const dir_path&       dir,
-                                    const file_path&      file) noexcept
+                                    const component_file_path&      file) noexcept
     {
         w.Key("path");
         w.String(reg.name.begin(), reg.name.size());
@@ -5690,34 +5722,33 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_component_path(const modeling& /*mod*/,
-                                    const modeling::file_access& files,
-                                    const component&             compo,
-                                    Writer&                      w) noexcept
+    void write_child_component_path(Writer&            w,
+                                    const file_access& files,
+                                    const component_file_path& file) noexcept
     {
-        if (auto* f = files.file_paths.try_to_get(compo.file)) {
-            if (auto* d = files.dir_paths.try_to_get(f->parent)) {
-                if (auto* r = files.registred_paths.try_to_get(d->parent)) {
-                    debug::ensure(not r->path.empty());
-                    debug::ensure(not r->name.empty());
-                    debug::ensure(not d->path.empty());
-                    debug::ensure(not f->path.empty());
+        if (auto* d = files.dir_paths.try_to_get(file.parent)) {
+            if (auto* r = files.registred_paths.try_to_get(d->parent)) {
+                debug::ensure(not r->path.empty());
+                debug::ensure(not r->name.empty());
+                debug::ensure(not d->path.empty());
+                debug::ensure(not file.path.empty());
 
-                    write_child_component_path(w, *r, *d, *f);
-                }
+                write_child_component_path(w, *r, *d, file);
             }
         }
     }
 
     template<typename Writer>
-    void write_child_component(const modeling&                   mod,
-                               const modeling::file_access&      files,
-                               const modeling::component_access& ids,
-                               const component_id                compo_id,
-                               Writer&                           w) noexcept
+    void write_child_component(const modeling&         /*mod*/,
+                               const file_access&      files,
+                               const component_access& ids,
+                               const component_id      compo_id,
+                               Writer&                 w) noexcept
     {
         if (ids.exists(compo_id)) {
-            const auto& compo = mod.components[compo_id];
+            const auto& compo = ids.components[compo_id];
+            const auto& file = ids.component_file_paths[compo_id];
+
             w.Key("component-type");
             w.String(component_type_names[ordinal(compo.type)]);
 
@@ -5725,19 +5756,19 @@ struct json_archiver::impl {
             case component_type::none:
                 break;
             case component_type::grid:
-                write_child_component_path(mod, files, compo, w);
+                write_child_component_path(w, files, file);
                 break;
             case component_type::graph:
-                write_child_component_path(mod, files, compo, w);
+                write_child_component_path(w, files, file);
                 break;
             case component_type::generic:
-                write_child_component_path(mod, files, compo, w);
+                write_child_component_path(w, files, file);
                 break;
             case component_type::hsm:
-                write_child_component_path(mod, files, compo, w);
+                write_child_component_path(w, files, file);
                 break;
             case component_type::simulation:
-                write_child_component_path(mod, files, compo, w);
+                write_child_component_path(w, files, file);
                 break;
             }
         } else {
@@ -5767,16 +5798,16 @@ struct json_archiver::impl {
     //}
 
     template<typename Writer>
-    void write_connection_packs(const modeling&                   mod,
-                                const modeling::file_access&      files,
-                                const modeling::component_access& ids,
-                                const component&                  compo,
-                                Writer&                           w) noexcept
+    void write_connection_packs(const modeling&         mod,
+                                const file_access&      files,
+                                const component_access& ids,
+                                const component&        compo,
+                                Writer&                 w) noexcept
     {
         for (const auto& con : compo.input_connection_pack) {
             if (compo.x.exists(con.parent_port) and
                 ids.exists(con.child_component) and
-                mod.components[con.child_component].x.exists(con.child_port)) {
+                ids.components[con.child_component].x.exists(con.child_port)) {
                 w.StartObject();
                 w.Key("type");
                 w.String("input-pack");
@@ -5784,8 +5815,8 @@ struct json_archiver::impl {
                 w.String(compo.x.get<port_str>(con.parent_port).c_str());
                 write_child_component(mod, files, ids, con.child_component, w);
                 w.String("child-port");
-                w.String(mod.components[con.child_component]
-                           .x.get<port_str>(con.child_port)
+                w.String(ids.components[con.child_component]
+                           .x.template get<port_str>(con.child_port)
                            .c_str());
                 w.EndObject();
             }
@@ -5794,7 +5825,7 @@ struct json_archiver::impl {
         for (const auto& con : compo.output_connection_pack) {
             if (compo.y.exists(con.parent_port) and
                 ids.exists(con.child_component) and
-                mod.components[con.child_component].y.exists(con.child_port)) {
+                ids.components[con.child_component].y.exists(con.child_port)) {
                 w.StartObject();
                 w.Key("type");
                 w.String("output-pack");
@@ -5802,8 +5833,8 @@ struct json_archiver::impl {
                 w.String(compo.y.get<port_str>(con.parent_port).c_str());
                 write_child_component(mod, files, ids, con.child_component, w);
                 w.String("child-port");
-                w.String(mod.components[con.child_component]
-                           .y.get<port_str>(con.child_port)
+                w.String(ids.components[con.child_component]
+                           .y.template get<port_str>(con.child_port)
                            .c_str());
                 w.EndObject();
             }
@@ -5811,13 +5842,13 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child(const modeling&                   mod,
-                     const modeling::file_access&      files,
-                     const modeling::component_access& ids,
-                     const component&                  compo,
-                     const generic_component&          gen,
-                     const generic_component::child&   ch,
-                     Writer&                           w) noexcept
+    void write_child(const modeling&                 mod,
+                     const file_access&              files,
+                     const component_access&         ids,
+                     const component&                compo,
+                     const generic_component&        gen,
+                     const generic_component::child& ch,
+                     Writer&                         w) noexcept
     {
         const auto child_id  = gen.children.get_id(ch);
         const auto child_idx = get_index(child_id);
@@ -5878,9 +5909,9 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_generic_component_children(const modeling&              mod,
-                                          const modeling::file_access& files,
-                                          const modeling::component_access& ids,
+    void write_generic_component_children(const modeling&          mod,
+                                          const file_access&       files,
+                                          const component_access&  ids,
                                           const component&         compo,
                                           const generic_component& simple_compo,
                                           Writer&                  w) noexcept
@@ -5945,14 +5976,14 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_input_connection(const modeling&                   mod,
-                                const modeling::component_access& ids,
-                                const component&                  parent,
-                                const generic_component&          gen,
-                                const port_id                     x,
-                                const generic_component::child&   dst,
-                                const connection::port            dst_x,
-                                Writer&                           w) noexcept
+    void write_input_connection(const modeling&                 /*mod*/,
+                                const component_access&         ids,
+                                const component&                parent,
+                                const generic_component&        gen,
+                                const port_id                   x,
+                                const generic_component::child& dst,
+                                const connection::port          dst_x,
+                                Writer&                         w) noexcept
     {
         w.StartObject();
         w.Key("type");
@@ -5967,7 +5998,7 @@ struct json_archiver::impl {
             w.Int(dst_x.model);
         } else {
             if (ids.exists(dst.id.compo_id)) {
-                const auto& compo_child = mod.components[dst.id.compo_id];
+                const auto& compo_child = ids.components[dst.id.compo_id];
                 if (compo_child.x.exists(dst_x.compo))
                     w.String(compo_child.x.get<port_str>(dst_x.compo).c_str());
             }
@@ -5977,14 +6008,14 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_output_connection(const modeling&                   mod,
-                                 const modeling::component_access& ids,
-                                 const component&                  parent,
-                                 const generic_component&          gen,
-                                 const port_id                     y,
-                                 const generic_component::child&   src,
-                                 const connection::port            src_y,
-                                 Writer&                           w) noexcept
+    void write_output_connection(const modeling&                 /*mod*/,
+                                 const component_access&         ids,
+                                 const component&                parent,
+                                 const generic_component&        gen,
+                                 const port_id                   y,
+                                 const generic_component::child& src,
+                                 const connection::port          src_y,
+                                 Writer&                         w) noexcept
     {
         w.StartObject();
         w.Key("type");
@@ -5999,7 +6030,7 @@ struct json_archiver::impl {
             w.Int(src_y.model);
         } else {
             if (ids.exists(src.id.compo_id)) {
-                const auto& compo_child = mod.components[src.id.compo_id];
+                const auto& compo_child = ids.components[src.id.compo_id];
                 if (compo_child.y.exists(src_y.compo)) {
                     w.String(compo_child.y.get<port_str>(src_y.compo).c_str());
                 }
@@ -6009,14 +6040,14 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_internal_connection(const modeling&                   mod,
-                                   const modeling::component_access& ids,
-                                   const generic_component&          gen,
-                                   const generic_component::child&   src,
-                                   const connection::port            src_y,
-                                   const generic_component::child&   dst,
-                                   const connection::port            dst_x,
-                                   Writer&                           w) noexcept
+    void write_internal_connection(const modeling&                 /*mod*/,
+                                   const component_access&         ids,
+                                   const generic_component&        gen,
+                                   const generic_component::child& src,
+                                   const connection::port          src_y,
+                                   const generic_component::child& dst,
+                                   const connection::port          dst_x,
+                                   Writer&                         w) noexcept
     {
         const char* src_str = nullptr;
         const char* dst_str = nullptr;
@@ -6025,7 +6056,7 @@ struct json_archiver::impl {
 
         if (src.type == child_type::component) {
             if (ids.exists(src.id.compo_id)) {
-                auto& compo = mod.components[src.id.compo_id];
+                auto& compo = ids.components[src.id.compo_id];
                 if (compo.y.exists(src_y.compo))
                     src_str = compo.y.get<port_str>(src_y.compo).c_str();
             }
@@ -6034,7 +6065,7 @@ struct json_archiver::impl {
 
         if (dst.type == child_type::component) {
             if (ids.exists(dst.id.compo_id)) {
-                auto& compo = mod.components[dst.id.compo_id];
+                auto& compo = ids.components[dst.id.compo_id];
                 if (compo.x.exists(dst_x.compo))
                     dst_str = compo.x.get<port_str>(dst_x.compo).c_str();
             }
@@ -6065,13 +6096,12 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_generic_component_connections(
-      const modeling&                   mod,
-      const modeling::file_access&      files,
-      const modeling::component_access& ids,
-      const component&                  compo,
-      const generic_component&          gen,
-      Writer&                           w) noexcept
+    void write_generic_component_connections(const modeling&          mod,
+                                             const file_access&       files,
+                                             const component_access&  ids,
+                                             const component&         compo,
+                                             const generic_component& gen,
+                                             Writer& w) noexcept
     {
         w.Key("connections");
         w.StartArray();
@@ -6106,24 +6136,24 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_generic_component(const modeling&                   mod,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 const component&                  compo,
-                                 const generic_component&          s_compo,
-                                 Writer&                           w) noexcept
+    void write_generic_component(const modeling&          mod,
+                                 const file_access&       files,
+                                 const component_access&  ids,
+                                 const component&         compo,
+                                 const generic_component& s_compo,
+                                 Writer&                  w) noexcept
     {
         write_generic_component_children(mod, files, ids, compo, s_compo, w);
         write_generic_component_connections(mod, files, ids, compo, s_compo, w);
     }
 
     template<typename Writer>
-    void write_grid_component(const modeling&                   mod,
-                              const modeling::file_access&      files,
-                              const modeling::component_access& ids,
-                              const component&                  compo,
-                              const grid_component&             grid,
-                              Writer&                           w) noexcept
+    void write_grid_component(const modeling&         mod,
+                              const file_access&      files,
+                              const component_access& ids,
+                              const component&        compo,
+                              const grid_component&   grid,
+                              Writer&                 w) noexcept
     {
         w.Key("rows");
         w.Int(grid.row());
@@ -6150,7 +6180,7 @@ struct json_archiver::impl {
             const auto child_compo_id = grid.children()[pos];
 
             if (ids.exists(child_compo_id)) {
-                const auto& c = mod.components[child_compo_id];
+                const auto& c = ids.components[child_compo_id];
                 if (c.x.exists(con.id)) {
                     w.StartObject();
                     w.Key("type");
@@ -6173,7 +6203,7 @@ struct json_archiver::impl {
             const auto child_compo_id = grid.children()[pos];
 
             if (ids.exists(child_compo_id)) {
-                const auto& c = mod.components[child_compo_id];
+                const auto& c = ids.components[child_compo_id];
                 if (c.x.exists(con.id)) {
                     w.StartObject();
                     w.Key("type");
@@ -6197,12 +6227,12 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_graph_component(const modeling&                   mod,
-                               const modeling::file_access&      files,
-                               const modeling::component_access& ids,
-                               const component&                  compo,
-                               const graph_component&            g,
-                               Writer&                           w) noexcept
+    void write_graph_component(const modeling&         mod,
+                               const file_access&      files,
+                               const component_access& ids,
+                               const component&        compo,
+                               const graph_component&  g,
+                               Writer&                 w) noexcept
     {
         w.Key("graph-type");
 
@@ -6306,7 +6336,7 @@ struct json_archiver::impl {
             if (not ids.exists(child_compo_id))
                 return;
 
-            const auto& c = mod.components[child_compo_id];
+            const auto& c = ids.components[child_compo_id];
             if (c.x.exists(con.id)) {
                 w.StartObject();
                 w.Key("type");
@@ -6329,7 +6359,7 @@ struct json_archiver::impl {
             if (not ids.exists(child_compo_id))
                 return;
 
-            const auto& c = mod.components[child_compo_id];
+            const auto& c = ids.components[child_compo_id];
             if (c.x.exists(con.id)) {
                 w.StartObject();
                 w.Key("type");
@@ -6463,9 +6493,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_simulation_component(modeling& /*mod*/,
-                                    const modeling::file_access& files,
-                                    const simulation_component&  sim,
-                                    Writer&                      w) noexcept
+                                    const file_access&          files,
+                                    const simulation_component& sim,
+                                    Writer&                     w) noexcept
     {
         if (auto* dir = files.dir_paths.try_to_get(sim.dir_id)) {
             const auto view = dir->path.sv();
@@ -6483,12 +6513,12 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_component_save(Writer&                           w,
-                           modeling&                         mod,
-                           const modeling::file_access&      files,
-                           const modeling::component_access& ids,
-                           const component_id                compo_id,
-                           component&                        compo) noexcept
+    void do_component_save(Writer&                 w,
+                           modeling&               mod,
+                           const file_access&      files,
+                           const component_access& ids,
+                           const component_id      compo_id,
+                           const component&        compo) noexcept
     {
         w.StartObject();
 
@@ -6557,7 +6587,7 @@ struct json_archiver::impl {
 
         w.Key("colors");
         w.StartArray();
-        const auto& color = mod.component_colors[compo_id];
+        const auto& color = ids.component_colors[compo_id];
         w.Double(color[0]);
         w.Double(color[1]);
         w.Double(color[2]);
@@ -6574,31 +6604,31 @@ struct json_archiver::impl {
             break;
 
         case component_type::generic: {
-            auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
+            auto* p = ids.generic_components.try_to_get(compo.id.generic_id);
             if (p)
                 write_generic_component(mod, files, ids, compo, *p, w);
         } break;
 
         case component_type::grid: {
-            auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
+            auto* p = ids.grid_components.try_to_get(compo.id.grid_id);
             if (p)
                 write_grid_component(mod, files, ids, compo, *p, w);
         } break;
 
         case component_type::graph: {
-            auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
+            auto* p = ids.graph_components.try_to_get(compo.id.graph_id);
             if (p)
                 write_graph_component(mod, files, ids, compo, *p, w);
         } break;
 
         case component_type::hsm: {
-            auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
+            auto* p = ids.hsm_components.try_to_get(compo.id.hsm_id);
             if (p)
                 write_hsm_component(*p, w);
         } break;
 
         case component_type::simulation:
-            auto* p = mod.sim_components.try_to_get(compo.id.sim_id);
+            auto* p = ids.sim_components.try_to_get(compo.id.sim_id);
             if (p)
                 write_simulation_component(mod, files, *p, w);
             break;
@@ -6777,11 +6807,11 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void do_project_save_component(Writer& w,
-                                   const modeling::component_access& /*ids*/,
-                                   component&            compo,
+                                   const component_access& /*ids*/,
+                                   const component&            compo,
                                    const registred_path& reg,
                                    const dir_path&       dir,
-                                   const file_path&      file) noexcept
+                                   const component_file_path&      file) noexcept
     {
         w.Key("component-type");
         w.String(component_type_names[ordinal(compo.type)]);
@@ -6806,23 +6836,22 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    status do_project_save(Writer&                           w,
-                           project&                          pj,
-                           modeling&                         mod,
-                           const modeling::file_access&      files,
-                           const modeling::component_access& ids,
-                           const component_id                compo_id) noexcept
+    status do_project_save(Writer&                 w,
+                           project&                pj,
+                           modeling&               /*mod*/,
+                           const file_access&      files,
+                           const component_access& ids,
+                           const component_id      compo_id) noexcept
     {
         debug::ensure(ids.exists(compo_id));
 
-        auto&       compo = mod.components[compo_id];
-        const auto* file  = files.file_paths.try_to_get(compo.file);
-        if (!file)
-            return new_error(modeling_errc::file_error);
-        if (file->path.empty())
+        const auto&       compo = ids.components[compo_id];
+        const auto& file = ids.component_file_paths[compo_id];
+
+        if (is_undefined(file.parent) or file.path.empty())
             return new_error(modeling_errc::file_error);
 
-        const auto* dir = files.dir_paths.try_to_get(file->parent);
+        const auto* dir = files.dir_paths.try_to_get(file.parent);
         if (!dir)
             return new_error(modeling_errc::directory_error);
         if (dir->path.empty())
@@ -6843,7 +6872,7 @@ struct json_archiver::impl {
         w.Key("end");
         w.Double(pj.sim.limits.end());
 
-        do_project_save_component(w, ids, compo, *reg, *dir, *file);
+        do_project_save_component(w, ids, compo, *reg, *dir, file);
         do_project_save_parameters(w, pj);
         do_project_save_observations(w, pj);
         w.EndObject();
@@ -6882,12 +6911,13 @@ status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
     return success();
 }
 
-status json_dearchiver::operator()(modeling&                         mod,
-                                   const modeling::file_access&      files,
-                                   const modeling::component_access& ids,
-                                   const component_id                compo_id,
-                                   std::string_view                  path,
-                                   file& io) noexcept
+status json_dearchiver::operator()(modeling&          mod,
+                                   const file_access& files,
+                                   component_access&  ids,
+                                   std::string_view   path,
+                                   const component_id compo_id,
+                                   component&         compo,
+                                   file&              io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode()[file_open_options::read] or
@@ -6896,27 +6926,26 @@ status json_dearchiver::operator()(modeling&                         mod,
 
     rapidjson::Document doc;
 
-    if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_not_found);
+    if (auto ret = read_file_to_buffer(buffer, io); ret.has_error())
+        return ret.error();
 
-    return read_file_to_buffer(buffer, io)
-      .and_then([&]() {
-          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
-      })
-      .and_then([&]() {
-          json_dearchiver::impl i(*this, mod, path);
-          return i.parse_component(
-            doc, files, ids, compo_id, mod.components[compo_id]);
-      });
+    if (auto ret =
+          parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+        ret.has_error())
+        return ret.error();
+
+    json_dearchiver::impl i(*this, mod, path);
+
+    return i.parse_component(doc, files, ids, compo_id, compo);
 }
 
-status json_dearchiver::operator()(project&                          pj,
-                                   modeling&                         mod,
-                                   simulation&                       sim,
-                                   const modeling::file_access&      files,
-                                   const modeling::component_access& ids,
-                                   std::string_view                  path,
-                                   file& io) noexcept
+status json_dearchiver::operator()(project&                pj,
+                                   modeling&               mod,
+                                   simulation&             sim,
+                                   const file_access&      files,
+                                   const component_access& ids,
+                                   std::string_view        path,
+                                   file&                   io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode()[file_open_options::read] or
@@ -6935,32 +6964,30 @@ status json_dearchiver::operator()(project&                          pj,
       });
 }
 
-status json_dearchiver::operator()(modeling&                         mod,
-                                   const modeling::file_access&      files,
-                                   const modeling::component_access& ids,
-                                   const component_id                compo_id,
-                                   std::span<char> io) noexcept
+status json_dearchiver::operator()(modeling&          mod,
+                                   const file_access& files,
+                                   component_access&  ids,
+                                   const component_id compo_id,
+                                   component&         compo,
+                                   std::span<char>    io) noexcept
 {
     clear();
     rapidjson::Document doc;
 
-    if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_not_found);
+    if (auto ret = parse_json_data(io, doc); ret.has_error())
+        return ret.error();
 
-    auto& compo = mod.components[compo_id];
+    json_dearchiver::impl i(*this, mod);
 
-    return parse_json_data(io, doc).and_then([&]() {
-        json_dearchiver::impl i(*this, mod);
-        return i.parse_component(doc, files, ids, compo_id, compo);
-    });
+    return i.parse_component(doc, files, ids, compo_id, compo);
 }
 
-status json_dearchiver::operator()(project&                          pj,
-                                   modeling&                         mod,
-                                   simulation&                       sim,
-                                   const modeling::file_access&      files,
-                                   const modeling::component_access& ids,
-                                   std::span<char> io) noexcept
+status json_dearchiver::operator()(project&                pj,
+                                   modeling&               mod,
+                                   simulation&             sim,
+                                   const file_access&      files,
+                                   const component_access& ids,
+                                   std::span<char>         io) noexcept
 {
     clear();
     rapidjson::Document doc;
@@ -6971,11 +6998,11 @@ status json_dearchiver::operator()(project&                          pj,
     });
 }
 
-status json_archiver::operator()(modeling&                         mod,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 const component_id                compo_id,
-                                 file&                             io,
+status json_archiver::operator()(modeling&                   mod,
+                                 const file_access&          files,
+                                 const component_access&     ids,
+                                 const component_id          compo_id,
+                                 file&                       io,
                                  json_archiver::print_option print) noexcept
 {
     clear();
@@ -7004,7 +7031,7 @@ status json_archiver::operator()(modeling&                         mod,
     if (not ids.exists(compo_id))
         return new_error(modeling_errc::component_not_found);
 
-    auto& compo = mod.components[compo_id];
+    const auto& compo = ids.components[compo_id];
 
     switch (print) {
     case json_archiver::print_option::indent_2:
@@ -7026,11 +7053,11 @@ status json_archiver::operator()(modeling&                         mod,
     return success();
 }
 
-status json_archiver::operator()(modeling&                         mod,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 const component_id                compo_id,
-                                 vector<char>&                     out,
+status json_archiver::operator()(modeling&                   mod,
+                                 const file_access&          files,
+                                 const component_access&     ids,
+                                 const component_id          compo_id,
+                                 vector<char>&               out,
                                  json_archiver::print_option print) noexcept
 {
     clear();
@@ -7043,7 +7070,7 @@ status json_archiver::operator()(modeling&                         mod,
     if (not ids.exists(compo_id))
         return new_error(modeling_errc::component_not_found);
 
-    auto& compo = mod.components[compo_id];
+    const auto& compo = ids.components[compo_id];
 
     switch (print) {
     case json_archiver::print_option::indent_2: {
@@ -7088,12 +7115,12 @@ status json_archiver::operator()(modeling&                         mod,
     return success();
 }
 
-status json_archiver::operator()(project&                          pj,
-                                 modeling&                         mod,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 file&                             io,
-                                 print_option print_options) noexcept
+status json_archiver::operator()(project&                pj,
+                                 modeling&               mod,
+                                 const file_access&      files,
+                                 const component_access& ids,
+                                 file&                   io,
+                                 print_option            print_options) noexcept
 {
     clear();
 
@@ -7144,12 +7171,12 @@ status json_archiver::operator()(project&                          pj,
     }
 }
 
-status json_archiver::operator()(project&                          pj,
-                                 modeling&                         mod,
-                                 const modeling::file_access&      files,
-                                 const modeling::component_access& ids,
-                                 vector<char>&                     out,
-                                 print_option print_options) noexcept
+status json_archiver::operator()(project&                pj,
+                                 modeling&               mod,
+                                 const file_access&      files,
+                                 const component_access& ids,
+                                 vector<char>&           out,
+                                 print_option            print_options) noexcept
 {
     clear();
 

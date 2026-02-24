@@ -8,11 +8,10 @@
 namespace irt {
 
 template<typename Dynamics>
-static child_id alloc(modeling&              mod,
-                      generic_component&     parent,
+static child_id alloc(generic_component&     parent,
                       const std::string_view name = {}) noexcept
 {
-    auto&      child = mod.alloc(parent, dynamics_typeof<Dynamics>());
+    auto&      child = parent.alloc(dynamics_typeof<Dynamics>());
     const auto id    = parent.children.get_id(child);
     const auto index = get_index(id);
 
@@ -95,9 +94,7 @@ static status add_integrator_component_port(component&         dst,
 }
 
 template<int QssLevel>
-status add_lotka_volterra(modeling&          mod,
-                          component&         dst,
-                          generic_component& com) noexcept
+status add_lotka_volterra(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -105,18 +102,18 @@ status add_lotka_volterra(modeling&          mod,
     if (!com.children.can_alloc(5))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com, "X");
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com, "X");
     com.children_parameters[integrator_a].set_integrator(18.0_r, 0.1_r);
 
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com, "Y");
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com, "Y");
     com.children_parameters[integrator_b].set_integrator(7.0_r, 0.1_r);
 
-    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product = alloc<abstract_multiplier<QssLevel>>(com);
 
-    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(mod, com, "X+XY");
+    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(com, "X+XY");
     com.children_parameters[sum_a].set_wsum2(2.0_r, -0.4_r);
 
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com, "Y+XY");
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(com, "Y+XY");
     com.children_parameters[sum_b].set_wsum2(-1.0_r, 0.1_r);
 
     irt_check(connect(com, sum_a, 0, integrator_a, 0));
@@ -135,7 +132,7 @@ status add_lotka_volterra(modeling&          mod,
 }
 
 template<int QssLevel>
-status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
+status add_lif(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
 
@@ -147,22 +144,22 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0 = alloc<irt::constant>(mod, com, "1");
+    auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
 
-    auto mdl_1 = alloc<irt::constant>(mod, com, "-10");
+    auto mdl_1 = alloc<irt::constant>(com, "-10");
     com.children_parameters[mdl_1].set_constant(-10, 0);
 
-    auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
+    auto mdl_2 = alloc<irt::qss3_wsum_2>(com);
     com.children_parameters[mdl_2].set_wsum2(-0.1, 1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com, "u");
+    auto mdl_3 = alloc<irt::qss3_integrator>(com, "u");
     com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
-    auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
+    auto mdl_4 = alloc<irt::qss3_cross>(com);
     com.children_parameters[mdl_4].set_cross(1);
 
-    auto mdl_5 = alloc<irt::qss3_flipflop>(mod, com);
+    auto mdl_5 = alloc<irt::qss3_flipflop>(com);
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 1));
     irt_check(connect(com, mdl_1, 0, mdl_5, 0));
@@ -178,9 +175,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 }
 
 template<int QssLevel>
-status add_izhikevich(modeling&          mod,
-                      component&         dst,
-                      generic_component& com) noexcept
+status add_izhikevich(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
 
@@ -189,59 +184,59 @@ status add_izhikevich(modeling&          mod,
     if (!(com.children.can_alloc(19) && com.connections.can_alloc(22)))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "u");
-    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "v");
+    auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(com, "u");
+    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(com, "v");
 
     com.children_parameters[mdl_0].set_integrator(0, 0.01);
     com.children_parameters[mdl_1].set_integrator(0, 0.01);
 
-    auto mdl_2       = alloc<irt::abstract_square<QssLevel>>(mod, com);
-    auto mdl_cst_004 = alloc<irt::constant>(mod, com, "0.04");
+    auto mdl_2       = alloc<irt::abstract_square<QssLevel>>(com);
+    auto mdl_cst_004 = alloc<irt::constant>(com, "0.04");
     com.children_parameters[mdl_cst_004].set_constant(0.04, 0);
 
-    auto mdl_3 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    auto mdl_3 = alloc<irt::abstract_multiplier<QssLevel>>(com);
 
-    auto mdl_cst_5 = alloc<irt::constant>(mod, com, "5");
+    auto mdl_cst_5 = alloc<irt::constant>(com, "5");
     com.children_parameters[mdl_cst_5].set_constant(5, 0);
-    auto mdl_4 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    auto mdl_4 = alloc<irt::abstract_multiplier<QssLevel>>(com);
 
-    auto mdl_cst_140 = alloc<irt::constant>(mod, com, "140");
+    auto mdl_cst_140 = alloc<irt::constant>(com, "140");
     com.children_parameters[mdl_cst_140].set_constant(140, 0);
-    auto mdl_5 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
+    auto mdl_5 = alloc<irt::abstract_wsum<QssLevel, 2>>(com);
     com.children_parameters[mdl_5].set_wsum2(1, -1);
 
-    auto mdl_6 = alloc<irt::constant>(mod, com, "-99");
+    auto mdl_6 = alloc<irt::constant>(com, "-99");
     com.children_parameters[mdl_6].set_constant(-99, 0);
 
-    auto mdl_7 = alloc<irt::abstract_sum<QssLevel, 4>>(mod, com);
+    auto mdl_7 = alloc<irt::abstract_sum<QssLevel, 4>>(com);
 
-    auto mdl_8 = alloc<irt::constant>(mod, com, "0.2");
+    auto mdl_8 = alloc<irt::constant>(com, "0.2");
     com.children_parameters[mdl_8].set_constant(0.2, 0);
 
-    auto mdl_9 = alloc<irt::constant>(mod, com, "2");
+    auto mdl_9 = alloc<irt::constant>(com, "2");
     com.children_parameters[mdl_9].set_constant(2, 0);
 
-    auto mdl_10 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    auto mdl_10 = alloc<irt::abstract_multiplier<QssLevel>>(com);
 
-    auto mdl_11 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
+    auto mdl_11 = alloc<irt::abstract_wsum<QssLevel, 2>>(com);
     com.children_parameters[mdl_11].set_wsum2(1, -1);
 
-    auto mdl_12 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    auto mdl_12 = alloc<irt::abstract_multiplier<QssLevel>>(com);
 
-    auto mdl_13 = alloc<irt::abstract_cross<QssLevel>>(mod, com);
+    auto mdl_13 = alloc<irt::abstract_cross<QssLevel>>(com);
     com.children_parameters[mdl_13].set_cross(30);
 
-    auto mdl_14 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
+    auto mdl_14 = alloc<irt::abstract_flipflop<QssLevel>>(com);
 
-    auto mdl_15 = alloc<irt::constant>(mod, com);
+    auto mdl_15 = alloc<irt::constant>(com);
     com.children_parameters[mdl_15].set_constant(-65, 0);
 
-    auto mdl_16 = alloc<irt::abstract_sum<QssLevel, 2>>(mod, com);
+    auto mdl_16 = alloc<irt::abstract_sum<QssLevel, 2>>(com);
 
-    auto mdl_17 = alloc<irt::constant>(mod, com);
+    auto mdl_17 = alloc<irt::constant>(com);
     com.children_parameters[mdl_17].set_constant(-16, 0);
 
-    auto mdl_18 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
+    auto mdl_18 = alloc<irt::abstract_flipflop<QssLevel>>(com);
 
     irt_check(connect(com, mdl_cst_004, 0, mdl_3, 0));
     irt_check(connect(com, mdl_cst_5, 0, mdl_4, 0));
@@ -280,19 +275,17 @@ status add_izhikevich(modeling&          mod,
 }
 
 template<int QssLevel>
-status add_van_der_pol(modeling&          mod,
-                       component&         dst,
-                       generic_component& com) noexcept
+status add_van_der_pol(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(5))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
-    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com, "X");
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com, "Y");
+    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(com);
+    auto product1     = alloc<abstract_multiplier<QssLevel>>(com);
+    auto product2     = alloc<abstract_multiplier<QssLevel>>(com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(com, "X");
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(com, "Y");
 
     com.children_parameters[integrator_a].set_integrator(0.0_r, 0.001_r);
     com.children_parameters[integrator_b].set_integrator(10.0_r, 0.001_r);
@@ -317,9 +310,7 @@ status add_van_der_pol(modeling&          mod,
 }
 
 template<int QssLevel>
-status add_negative_lif(modeling&          mod,
-                        component&         dst,
-                        generic_component& com) noexcept
+status add_negative_lif(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
 
@@ -331,22 +322,22 @@ status add_negative_lif(modeling&          mod,
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0 = alloc<irt::constant>(mod, com, "1");
+    auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
 
-    auto mdl_1 = alloc<irt::constant>(mod, com, "0");
+    auto mdl_1 = alloc<irt::constant>(com, "0");
     com.children_parameters[mdl_1].set_constant(0, 0);
 
-    auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
+    auto mdl_2 = alloc<irt::qss3_wsum_2>(com);
     com.children_parameters[mdl_2].set_wsum2(-0.1, -1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com, "u");
+    auto mdl_3 = alloc<irt::qss3_integrator>(com, "u");
     com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
-    auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
+    auto mdl_4 = alloc<irt::qss3_cross>(com);
     com.children_parameters[mdl_4].set_cross(-1);
 
-    auto mdl_5 = alloc<irt::qss3_flipflop>(mod, com);
+    auto mdl_5 = alloc<irt::qss3_flipflop>(com);
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 1));
     irt_check(connect(com, mdl_1, 0, mdl_5, 0));
@@ -362,52 +353,52 @@ status add_negative_lif(modeling&          mod,
 }
 
 template<int QssLevel>
-status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
+status add_seirs(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(17))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto dS = alloc<abstract_integrator<QssLevel>>(mod, com, "dS");
+    auto dS = alloc<abstract_integrator<QssLevel>>(com, "dS");
     com.children_parameters[dS].set_integrator(0.999_r, 0.0001_r);
 
-    auto dE = alloc<abstract_integrator<QssLevel>>(mod, com, "dE");
+    auto dE = alloc<abstract_integrator<QssLevel>>(com, "dE");
     com.children_parameters[dE].set_integrator(0.0_r, 0.0001_r);
 
-    auto dI = alloc<abstract_integrator<QssLevel>>(mod, com, "dI");
+    auto dI = alloc<abstract_integrator<QssLevel>>(com, "dI");
     com.children_parameters[dI].set_integrator(0.001_r, 0.0001_r);
 
-    auto dR = alloc<abstract_integrator<QssLevel>>(mod, com, "dR");
+    auto dR = alloc<abstract_integrator<QssLevel>>(com, "dR");
     com.children_parameters[dR].set_integrator(0.0_r, 0.0001_r);
 
-    auto beta = alloc<constant>(mod, com, "beta");
+    auto beta = alloc<constant>(com, "beta");
     com.children_parameters[beta].set_constant(0.5_r, 0.0_r);
-    auto rho = alloc<constant>(mod, com, "rho");
+    auto rho = alloc<constant>(com, "rho");
     com.children_parameters[rho].set_constant(0.00274397_r, 0.0_r);
-    auto sigma = alloc<constant>(mod, com, "sigma");
+    auto sigma = alloc<constant>(com, "sigma");
     com.children_parameters[sigma].set_constant(0.33333_r, 0.0_r);
-    auto gamma = alloc<constant>(mod, com, "gamma");
+    auto gamma = alloc<constant>(com, "gamma");
     com.children_parameters[gamma].set_constant(0.142857_r, 0.0_r);
 
-    auto rho_R    = alloc<abstract_multiplier<QssLevel>>(mod, com, "rho R");
-    auto beta_S   = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S");
-    auto beta_S_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S I");
+    auto rho_R    = alloc<abstract_multiplier<QssLevel>>(com, "rho R");
+    auto beta_S   = alloc<abstract_multiplier<QssLevel>>(com, "beta S");
+    auto beta_S_I = alloc<abstract_multiplier<QssLevel>>(com, "beta S I");
 
     auto rho_R_beta_S_I =
-      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "rho R - beta S I");
+      alloc<abstract_wsum<QssLevel, 2>>(com, "rho R - beta S I");
     com.children_parameters[rho_R_beta_S_I].set_wsum2(1.0_r, -1.0_r);
     auto beta_S_I_sigma_E =
-      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "beta S I - sigma E");
+      alloc<abstract_wsum<QssLevel, 2>>(com, "beta S I - sigma E");
     com.children_parameters[beta_S_I_sigma_E].set_wsum2(1.0_r, -1.0_r);
 
-    auto sigma_E = alloc<abstract_multiplier<QssLevel>>(mod, com, "sigma E");
-    auto gamma_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "gamma I");
+    auto sigma_E = alloc<abstract_multiplier<QssLevel>>(com, "sigma E");
+    auto gamma_I = alloc<abstract_multiplier<QssLevel>>(com, "gamma I");
 
     auto sigma_E_gamma_I =
-      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "sigma E - gamma I");
+      alloc<abstract_wsum<QssLevel, 2>>(com, "sigma E - gamma I");
     com.children_parameters[sigma_E_gamma_I].set_wsum2(1.0_r, -1.0_r);
     auto gamma_I_rho_R =
-      alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
+      alloc<abstract_wsum<QssLevel, 2>>(com, "gamma I - rho R");
     com.children_parameters[gamma_I_rho_R].set_wsum2(-1.0_r, 1.0_r);
 
     irt_check(connect(com, rho, 0, rho_R, 0));
@@ -441,64 +432,72 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
     return success();
 }
 
-status modeling::copy(const internal_component src,
-                      component&               dst,
-                      generic_component&       gen) noexcept
+status component_access::copy(const internal_component src,
+                              const component_id       id) noexcept
 {
+    if (not exists(id))
+        return new_error(modeling_errc::component_not_found);
+
+    auto& dst = components[id];
+    if (dst.type != component_type::generic)
+        return new_error(modeling_errc::component_not_found);
+
+    auto& gen = generic_components.get(dst.id.generic_id);
+
     switch (src) {
     case internal_component::qss1_izhikevich:
-        irt_check(add_izhikevich<1>(*this, dst, gen));
+        irt_check(add_izhikevich<1>(dst, gen));
         break;
     case internal_component::qss1_lif:
-        irt_check(add_lif<1>(*this, dst, gen));
+        irt_check(add_lif<1>(dst, gen));
         break;
     case internal_component::qss1_lotka_volterra:
-        irt_check(add_lotka_volterra<1>(*this, dst, gen));
+        irt_check(add_lotka_volterra<1>(dst, gen));
         break;
     case internal_component::qss1_negative_lif:
-        irt_check(add_negative_lif<1>(*this, dst, gen));
+        irt_check(add_negative_lif<1>(dst, gen));
         break;
     case internal_component::qss1_seirs:
-        irt_check(add_seirs<1>(*this, dst, gen));
+        irt_check(add_seirs<1>(dst, gen));
         break;
     case internal_component::qss1_van_der_pol:
-        irt_check(add_van_der_pol<1>(*this, dst, gen));
+        irt_check(add_van_der_pol<1>(dst, gen));
         break;
     case internal_component::qss2_izhikevich:
-        irt_check(add_izhikevich<2>(*this, dst, gen));
+        irt_check(add_izhikevich<2>(dst, gen));
         break;
     case internal_component::qss2_lif:
-        irt_check(add_lif<2>(*this, dst, gen));
+        irt_check(add_lif<2>(dst, gen));
         break;
     case internal_component::qss2_lotka_volterra:
-        irt_check(add_lotka_volterra<2>(*this, dst, gen));
+        irt_check(add_lotka_volterra<2>(dst, gen));
         break;
     case internal_component::qss2_negative_lif:
-        irt_check(add_negative_lif<2>(*this, dst, gen));
+        irt_check(add_negative_lif<2>(dst, gen));
         break;
     case internal_component::qss2_seirs:
-        irt_check(add_seirs<2>(*this, dst, gen));
+        irt_check(add_seirs<2>(dst, gen));
         break;
     case internal_component::qss2_van_der_pol:
-        irt_check(add_van_der_pol<2>(*this, dst, gen));
+        irt_check(add_van_der_pol<2>(dst, gen));
         break;
     case internal_component::qss3_izhikevich:
-        irt_check(add_izhikevich<3>(*this, dst, gen));
+        irt_check(add_izhikevich<3>(dst, gen));
         break;
     case internal_component::qss3_lif:
-        irt_check(add_lif<3>(*this, dst, gen));
+        irt_check(add_lif<3>(dst, gen));
         break;
     case internal_component::qss3_lotka_volterra:
-        irt_check(add_lotka_volterra<3>(*this, dst, gen));
+        irt_check(add_lotka_volterra<3>(dst, gen));
         break;
     case internal_component::qss3_negative_lif:
-        irt_check(add_negative_lif<3>(*this, dst, gen));
+        irt_check(add_negative_lif<3>(dst, gen));
         break;
     case internal_component::qss3_seirs:
-        irt_check(add_seirs<3>(*this, dst, gen));
+        irt_check(add_seirs<3>(dst, gen));
         break;
     case internal_component::qss3_van_der_pol:
-        irt_check(add_van_der_pol<3>(*this, dst, gen));
+        irt_check(add_van_der_pol<3>(dst, gen));
     }
 
     const auto children = gen.children.size();
@@ -511,8 +510,8 @@ status modeling::copy(const internal_component src,
     for (auto& c : gen.children) {
         const auto index = get_index(gen.children.get_id(c));
 
-        const auto px = 100.f + static_cast<float>(x * 240.f);
-        const auto py = 100.f + static_cast<float>(y * 200.f);
+        const auto px = 100.f + static_cast<float>(x) * 240.f;
+        const auto py = 100.f + static_cast<float>(y) * 200.f;
 
         gen.children_positions[index].x = px;
         gen.children_positions[index].y = py;

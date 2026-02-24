@@ -19,7 +19,7 @@ namespace irt {
 
 static constexpr const char* empty = "-";
 
-static auto get_reg_preview(const modeling::file_access& fs,
+static auto get_reg_preview(const file_access&      fs,
                             const registred_path_id id) noexcept -> const char*
 {
     const auto* reg = fs.registred_paths.try_to_get(id);
@@ -27,16 +27,16 @@ static auto get_reg_preview(const modeling::file_access& fs,
     return reg ? reg->name.c_str() : empty;
 }
 
-static auto get_dir_preview(const modeling::file_access& fs,
-                            const dir_path_id id) noexcept -> const char*
+static auto get_dir_preview(const file_access& fs,
+                            const dir_path_id  id) noexcept -> const char*
 {
     const auto* dir = fs.dir_paths.try_to_get(id);
 
     return dir ? dir->path.c_str() : empty;
 }
 
-static auto combobox_reg(const modeling::file_access& fs,
-                         const registred_path_id      reg_id) noexcept
+static auto combobox_reg(const file_access&      fs,
+                         const registred_path_id reg_id) noexcept
   -> registred_path_id
 {
     const char* preview = get_reg_preview(fs, reg_id);
@@ -61,9 +61,9 @@ static auto combobox_reg(const modeling::file_access& fs,
     return ret;
 }
 
-static auto combobox_dir(const modeling::file_access& fs,
-                         const registred_path&        reg,
-                         const dir_path_id dir_id) noexcept -> dir_path_id
+static auto combobox_dir(const file_access&    fs,
+                         const registred_path& reg,
+                         const dir_path_id     dir_id) noexcept -> dir_path_id
 {
     auto* dir_preview = get_dir_preview(fs, dir_id);
     auto  ret         = undefined<dir_path_id>();
@@ -106,7 +106,7 @@ static void alloc_dir_task(application&                        app,
 
 static void combobox_newdir(application&                        app,
                             atomic_request_buffer<dir_path_id>& new_dir,
-                            const modeling::file_access&        fs,
+                            const file_access&                  fs,
                             const registred_path_id             reg_id,
                             dir_path_id&                        in_out) noexcept
 {
@@ -173,7 +173,7 @@ static void alloc_file_task(
 
 static auto combobox_file(application&                         app,
                           atomic_request_buffer<file_path_id>& new_file,
-                          const modeling::file_access&         fs,
+                          const file_access&                   fs,
                           const file_path_selector_option      opt,
                           const dir_path_id                    parent,
                           const file_path_id file_id) noexcept -> file_path_id
@@ -225,7 +225,7 @@ auto get_component_color(const application& app, const component_id id) noexcept
           const auto /*version*/) noexcept -> const std::span<const float, 4> {
           return app.mod.ids.read([&](const auto& ids, auto) noexcept
                                     -> const std::span<const float, 4> {
-              return ids.exists(id) ? app.mod.component_colors[id]
+              return ids.exists(id) ? ids.component_colors[id]
                                     : colors[style_color::component_undefined];
           });
       });
@@ -1013,7 +1013,8 @@ void application::start_save_component(const component_id id) noexcept
     add_gui_task([&, id]() noexcept {
         mod.ids.read([&](const auto& ids, auto) noexcept {
             if (ids.exists(id)) {
-                auto& compo = mod.components[id];
+                const auto& compo = ids.components[id];
+
                 if (auto ret = mod.save(id); not ret) {
                     jn.push(log_level::error, [&](auto& title, auto& msg) {
                         title = "Component save error";

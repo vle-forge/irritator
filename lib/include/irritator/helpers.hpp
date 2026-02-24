@@ -563,7 +563,7 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
 //! Remove data from @c data_array @c d when the predicate
 //! function @c pred returns true. Otherwise do noting.
 template<typename Data, typename Predicate>
-void remove_data_if(Data& d, Predicate&& pred) noexcept
+unsigned remove_data_if(Data& d, Predicate&& pred) noexcept
 {
     static_assert(std::is_const_v<Data> == false);
 
@@ -571,9 +571,11 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
 
     value_type* current = nullptr;
     value_type* to_del  = nullptr;
+    unsigned    nb      = 0;
 
     while (d.next(current)) {
         if (to_del) {
+            ++nb;
             d.free(*to_del);
             to_del = nullptr;
         }
@@ -583,9 +585,12 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
     }
 
     if (to_del) {
+        ++nb;
         d.free(*to_del);
         to_del = nullptr;
     }
+
+    return nb;
 }
 
 //! @brief If @c pred returns true, remove datas.

@@ -351,7 +351,7 @@ public:
      */
     int registred_path_add(const std::filesystem::path& path,
                            const std::string_view       name,
-                           irt::modeling::file_access&  fs) noexcept
+                           irt::file_access&            fs) noexcept
     {
         std::error_code ec;
         if (std::filesystem::exists(path, ec) and ec == std::errc{}) {
@@ -373,7 +373,7 @@ public:
      * @return @c status_type::status_registred_path_empty if all path does not
      * exists.
      */
-    int registred_path_add(irt::modeling::file_access& fs) noexcept
+    int registred_path_add(irt::file_access& fs) noexcept
     {
         int i = 0;
 

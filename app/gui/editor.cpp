@@ -368,65 +368,63 @@ static const char* get_selected_output_name(const component& c, const port_id p)
     return c.y.exists(p) ? c.y.get<port_str>(p).c_str() : "-";
 }
 
-bool show_extented_constant_parameter(const modeling&    mod,
-                                      const component_id id,
-                                      parameter&         p) noexcept
+bool show_extented_constant_parameter(const component_access& ids,
+                                      const component_id      id,
+                                      parameter&              p) noexcept
 {
-    return mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
-        int ret = false;
+    int ret = false;
 
-        if (ids.exists(id)) {
-            const auto& c    = mod.components[id];
-            const auto  type = enum_cast<constant::init_type>(p.integers[0]);
-            const auto  port = enum_cast<port_id>(p.integers[1]);
+    if (ids.exists(id)) {
+        const auto& c    = ids.components[id];
+        const auto  type = enum_cast<constant::init_type>(p.integers[0]);
+        const auto  port = enum_cast<port_id>(p.integers[1]);
 
-            if (type == constant::init_type::incoming_component_n) {
-                const auto selected      = c.x.exists(port);
-                const auto selected_name = get_selected_input_name(c, port);
+        if (type == constant::init_type::incoming_component_n) {
+            const auto selected      = c.x.exists(port);
+            const auto selected_name = get_selected_input_name(c, port);
 
-                if (ImGui::BeginCombo("input port", selected_name)) {
-                    if (ImGui::Selectable("-", not selected)) {
-                        p.integers[1] = 0;
-                        ++ret;
-                    }
-
-                    c.x.for_each<port_str>(
-                      [&](const auto id, const auto& name) {
-                          if (ImGui::Selectable(name.c_str(),
-                                                p.integers[1] == ordinal(id))) {
-                              p.integers[1] = ordinal(id);
-                              ++ret;
-                          }
-                      });
-
-                    ImGui::EndCombo();
+            if (ImGui::BeginCombo("input port", selected_name)) {
+                if (ImGui::Selectable("-", not selected)) {
+                    p.integers[1] = 0;
+                    ++ret;
                 }
-            } else if (type == constant::init_type::outcoming_component_n) {
-                const auto selected      = c.y.exists(port);
-                const auto selected_name = get_selected_output_name(c, port);
 
-                if (ImGui::BeginCombo("output port", selected_name)) {
-                    if (ImGui::Selectable("-", not selected)) {
-                        p.integers[1] = 0;
-                        ++ret;
-                    }
+                c.x.template for_each<port_str>(
+                  [&](const auto id, const auto& name) {
+                      if (ImGui::Selectable(name.c_str(),
+                                            p.integers[1] == ordinal(id))) {
+                          p.integers[1] = ordinal(id);
+                          ++ret;
+                      }
+                  });
 
-                    c.y.for_each<port_str>(
-                      [&](const auto id, const auto& name) {
-                          if (ImGui::Selectable(name.c_str(),
-                                                p.integers[1] == ordinal(id))) {
-                              p.integers[1] = ordinal(id);
-                              ++ret;
-                          }
-                      });
+                ImGui::EndCombo();
+            }
+        } else if (type == constant::init_type::outcoming_component_n) {
+            const auto selected      = c.y.exists(port);
+            const auto selected_name = get_selected_output_name(c, port);
 
-                    ImGui::EndCombo();
+            if (ImGui::BeginCombo("output port", selected_name)) {
+                if (ImGui::Selectable("-", not selected)) {
+                    p.integers[1] = 0;
+                    ++ret;
                 }
+
+                c.y.template for_each<port_str>(
+                  [&](const auto id, const auto& name) {
+                      if (ImGui::Selectable(name.c_str(),
+                                            p.integers[1] == ordinal(id))) {
+                          p.integers[1] = ordinal(id);
+                          ++ret;
+                      }
+                  });
+
+                ImGui::EndCombo();
             }
         }
+    }
 
-        return ret;
-    });
+    return ret;
 }
 
 template<typename ExternalSourceType>

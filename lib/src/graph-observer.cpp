@@ -73,9 +73,9 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
             mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (ids.exists(tn->id)) {
-                    if (mod.components[tn->id].type == component_type::graph) {
-                        if (auto* graph = mod.graph_components.try_to_get(
-                              mod.components[tn->id].id.graph_id)) {
+                    if (ids.components[tn->id].type == component_type::graph) {
+                        if (auto* graph = ids.graph_components.try_to_get(
+                              ids.components[tn->id].id.graph_id)) {
                             const auto len = graph->g.nodes.ssize();
 
                             observers.resize(len);

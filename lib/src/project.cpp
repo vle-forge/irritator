@@ -254,6 +254,21 @@ public:
     }
 };
 
+struct grid_component_cache {
+    data_array<grid_component::child, child_id> cache;
+    data_array<connection, connection_id>       cache_connections;
+    vector<name_str>                            cache_names;
+};
+
+struct graph_component_cache {
+    data_array<graph_component::child, child_id> cache;
+    data_array<connection, connection_id>        cache_connections;
+    vector<name_str>                             cache_names;
+};
+
+// using grid_cache_type  = table<grid_component_id, grid_component_cache>;
+// using graph_cache_type = table<graph_component_id, graph_component_cache>;
+
 struct simulation_copy {
     simulation_copy(project&                             pj_,
                     modeling&                            mod_,
@@ -261,23 +276,71 @@ struct simulation_copy {
       : pj{ pj_ }
       , mod(mod_)
       , tree_nodes(tree_nodes_)
+    {}
+
+    /// For all hsm component, make a copy from modeling::hsm into
+    /// simulation::hsm to ensure link between simulation and modeling.
+    status make_hsm_mod_to_sim(const component_access& ids) noexcept
     {
-        /* For all hsm component, make a copy from modeling::hsm into
-         * simulation::hsm to ensure link between simulation and modeling. */
-        for (auto& modhsm : mod.hsm_components) {
+        hsm_mod_to_sim.data.clear();
+
+        for (const auto& modhsm : ids.hsm_components) {
             if (not pj.sim.hsms.can_alloc())
-                break;
+                return new_error(project_errc::memory_error);
 
             auto& sim_hsm     = pj.sim.hsms.alloc(modhsm.machine);
-            sim_hsm.parent_id = ordinal(mod.hsm_components.get_id(modhsm));
+            sim_hsm.parent_id = ordinal(ids.hsm_components.get_id(modhsm));
 
-            const auto hsm_id = mod.hsm_components.get_id(modhsm);
+            const auto hsm_id = ids.hsm_components.get_id(modhsm);
             const auto sim_id = pj.sim.hsms.get_id(sim_hsm);
 
             hsm_mod_to_sim.data.emplace_back(hsm_id, sim_id);
         }
 
         hsm_mod_to_sim.sort();
+
+        return success();
+    }
+
+    /// For grid and graph components, build the names, children and connections
+    /// cache.
+    status make_component_cache(const component_access& ids) noexcept
+    {
+        grid_caches.data.clear();
+        graph_caches.data.clear();
+
+        for (const auto& grid : ids.grid_components) {
+            const auto grid_id = ids.grid_components.get_id(grid);
+            grid_caches.data.emplace_back(grid_id, grid_component_cache{});
+
+            const auto ret =
+              grid.build_cache(ids,
+                               grid_caches.data.back().value.cache,
+                               grid_caches.data.back().value.cache_connections,
+                               grid_caches.data.back().value.cache_names);
+
+            if (ret.has_error())
+                return new_error(project_errc::component_cache_error);
+        }
+
+        for (const auto& graph : ids.graph_components) {
+            const auto graph_id = ids.graph_components.get_id(graph);
+            graph_caches.data.emplace_back(graph_id, graph_component_cache{});
+
+            const auto ret = graph.build_cache(
+              ids,
+              graph_caches.data.back().value.cache,
+              graph_caches.data.back().value.cache_connections,
+              graph_caches.data.back().value.cache_names);
+
+            if (ret.has_error())
+                return new_error(project_errc::component_cache_error);
+        }
+
+        grid_caches.sort();
+        graph_caches.sort();
+
+        return success();
     }
 
     project&  pj;
@@ -298,13 +361,16 @@ struct simulation_copy {
     data_array<tree_node, tree_node_id>&         tree_nodes;
     table<hsm_component_id, hsm_id>              hsm_mod_to_sim;
     table<component_id, vector<mod_to_sim_srcs>> srcs_mod_to_sim;
+
+    table<grid_component_id, grid_component_cache>   grid_caches;
+    table<graph_component_id, graph_component_cache> graph_caches;
 };
 
-static auto make_tree_recursive(simulation_copy&              sc,
-                                const modeling::component_access& ids,
-                                tree_node&                    parent,
-                                const component_id            compo_id,
-                                const std::string_view        uid) noexcept
+static auto make_tree_recursive(simulation_copy&        sc,
+                                const component_access& ids,
+                                tree_node&              parent,
+                                const component_id      compo_id,
+                                const std::string_view  uid) noexcept
   -> expected<tree_node_id>;
 
 struct parent_t {
@@ -324,45 +390,44 @@ static auto get_incoming_connection(const generic_component& gen,
           return internal.index_dst.compo == id;
       });
 
-    return nb_input + nb_internal;
+    return static_cast<int>(nb_input + nb_internal);
 }
 
-static auto get_incoming_connection(const modeling&               mod,
-                                    const modeling::component_access& ids,
-                                    const tree_node&              tn,
+static auto get_incoming_connection(const component_access& ids,
+                                    const tree_node&        tn,
                                     const port_id id) noexcept -> expected<int>
 {
     if (not ids.exists(tn.id))
         return new_error(project_errc::import_error);
 
-    const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
 
     if (not compo.x.exists(id))
         return new_error(project_errc::import_error);
 
     if (compo.type == component_type::generic) {
-        auto* gen = mod.generic_components.try_to_get(compo.id.generic_id);
+        auto* gen = ids.generic_components.try_to_get(compo.id.generic_id);
         return gen ? get_incoming_connection(*gen, id) : 0;
     }
 
     return new_error(project_errc::import_error);
 }
 
-static auto get_incoming_connection(const modeling&               mod,
-                                    const modeling::component_access& ids,
-                                    const tree_node&              tn) noexcept
+static auto get_incoming_connection(const modeling& /*mod*/,
+                                    const component_access& ids,
+                                    const tree_node&        tn) noexcept
   -> expected<int>
 {
     if (not ids.exists(tn.id))
         return new_error(project_errc::import_error);
 
-    const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
     auto        nb    = 0;
 
     compo.x.for_each_id([&](auto id) noexcept {
         if (compo.type == component_type::generic) {
             if (auto* gen =
-                  mod.generic_components.try_to_get(compo.id.generic_id))
+                  ids.generic_components.try_to_get(compo.id.generic_id))
                 nb += get_incoming_connection(*gen, id);
         }
     });
@@ -382,44 +447,44 @@ static auto get_outcoming_connection(const generic_component& gen,
           return internal.index_src.compo == id;
       });
 
-    return nb_input + nb_internal;
+    return static_cast<int>(nb_input + nb_internal);
 }
 
-static auto get_outcoming_connection(const modeling&               mod,
-                                     const modeling::component_access& ids,
-                                     const tree_node&              tn,
+static auto get_outcoming_connection(const modeling& /*mod*/,
+                                     const component_access& ids,
+                                     const tree_node&        tn,
                                      const port_id id) noexcept -> expected<int>
 {
     if (not ids.exists(tn.id))
         return new_error(project_errc::import_error);
 
-    const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
 
     if (not compo.y.exists(id))
         return new_error(project_errc::import_error);
 
     if (compo.type == component_type::generic) {
-        auto* gen = mod.generic_components.try_to_get(compo.id.generic_id);
+        auto* gen = ids.generic_components.try_to_get(compo.id.generic_id);
         return gen ? get_outcoming_connection(*gen, id) : 0;
     }
 
     return new_error(project_errc::import_error);
 }
 
-static auto get_outcoming_connection(const modeling&               mod,
-                                     const modeling::component_access& ids,
-                                     const tree_node&              tn) noexcept
+static auto get_outcoming_connection(const modeling& /*mod*/,
+                                     const component_access& ids,
+                                     const tree_node&        tn) noexcept
   -> expected<int>
 {
     if (not ids.exists(tn.id))
         return new_error(project_errc::import_error);
 
-    const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
     auto        nb    = 0;
 
     compo.y.for_each_id([&](auto id) noexcept {
         if (compo.type == component_type::generic) {
-            auto* gen = mod.generic_components.try_to_get(compo.id.generic_id);
+            auto* gen = ids.generic_components.try_to_get(compo.id.generic_id);
             if (gen)
                 nb += get_outcoming_connection(*gen, id);
         }
@@ -428,11 +493,11 @@ static auto get_outcoming_connection(const modeling&               mod,
     return nb;
 }
 
-static auto make_tree_hsm_leaf(const simulation_copy&        sc,
-                               const modeling::component_access& ids,
-                               const parameter&              mod_parameter,
-                               parameter&                    sim_parameter,
-                               hsm_wrapper& dyn) noexcept -> status
+static auto make_tree_hsm_leaf(const simulation_copy&  sc,
+                               const component_access& ids,
+                               const parameter&        mod_parameter,
+                               parameter&              sim_parameter,
+                               hsm_wrapper&            dyn) noexcept -> status
 {
     const auto id_param_0 = mod_parameter.integers[hsm_wrapper_tag::id];
     const auto compo_id   = enum_cast<component_id>(id_param_0);
@@ -440,13 +505,13 @@ static auto make_tree_hsm_leaf(const simulation_copy&        sc,
     if (not ids.exists(compo_id))
         return new_error(project_errc::component_unknown);
 
-    const auto& compo = sc.mod.components[compo_id];
+    const auto& compo = ids.components[compo_id];
     if (compo.type != component_type::hsm)
         return new_error(project_errc::component_unknown);
 
     const auto hsm_id = compo.id.hsm_id;
 
-    debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
+    debug::ensure(ids.hsm_components.try_to_get(hsm_id));
     const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
     const auto  shsm_id = *shsm;
 
@@ -459,11 +524,11 @@ static auto make_tree_hsm_leaf(const simulation_copy&        sc,
     return success();
 }
 
-static auto make_tree_constant_leaf(simulation_copy&              sc,
-                                    const modeling::component_access& ids,
-                                    tree_node&                    parent,
-                                    const parameter&              mod_parameter,
-                                    parameter&                    sim_parameter,
+static auto make_tree_constant_leaf(simulation_copy&        sc,
+                                    const component_access& ids,
+                                    tree_node&              parent,
+                                    const parameter&        mod_parameter,
+                                    parameter&              sim_parameter,
                                     constant& dyn) noexcept -> status
 {
     const auto raw_type = mod_parameter.integers[constant_tag::i_type];
@@ -504,10 +569,10 @@ static auto make_tree_constant_leaf(simulation_copy&              sc,
             if (not ids.exists(parent.id))
                 return new_error(project_errc::import_error);
 
-            if (not sc.mod.components[parent.id].x.exists(id))
+            if (not ids.components[parent.id].x.exists(id))
                 return new_error(project_errc::component_port_x_unknown);
 
-            if (auto nb = get_incoming_connection(sc.mod, ids, parent, id);
+            if (auto nb = get_incoming_connection(ids, parent, id);
                 nb.has_value()) {
                 sim_parameter.reals[constant_tag::value] = *nb;
                 dyn.value                                = *nb;
@@ -525,7 +590,7 @@ static auto make_tree_constant_leaf(simulation_copy&              sc,
             if (not ids.exists(parent.id))
                 return new_error(project_errc::import_error);
 
-            if (not sc.mod.components[parent.id].y.exists(id))
+            if (not ids.components[parent.id].y.exists(id))
                 return new_error(project_errc::component_port_y_unknown);
 
             if (auto nb = get_outcoming_connection(sc.mod, ids, parent, id);
@@ -543,7 +608,7 @@ static auto make_tree_constant_leaf(simulation_copy&              sc,
 }
 
 static auto make_tree_leaf(simulation_copy&                sc,
-                           const modeling::component_access&   ids,
+                           const component_access&         ids,
                            tree_node&                      parent,
                            const generic_component&        gen,
                            const std::string_view          uid,
@@ -665,10 +730,10 @@ static auto make_tree_leaf(simulation_copy&                sc,
     return new_mdl_id;
 }
 
-static status make_tree_recursive(simulation_copy&              sc,
-                                  const modeling::component_access& ids,
-                                  tree_node&                    new_tree,
-                                  generic_component&            src) noexcept
+static status make_tree_recursive(simulation_copy&        sc,
+                                  const component_access& ids,
+                                  tree_node&              new_tree,
+                                  generic_component&      src) noexcept
 {
     new_tree.children.resize(src.children.max_used());
 
@@ -695,7 +760,7 @@ static status make_tree_recursive(simulation_copy&              sc,
             }
         } else {
             const auto mdl_type = child.id.mdl_type;
-            auto mdl_id = make_tree_leaf(sc,
+            auto       mdl_id   = make_tree_leaf(sc,
                                          ids,
                                          new_tree,
                                          src,
@@ -718,20 +783,29 @@ static status make_tree_recursive(simulation_copy&              sc,
     return success();
 }
 
-static status make_tree_recursive(simulation_copy&              sc,
-                                  const modeling::component_access& ids,
-                                  tree_node&                    new_tree,
-                                  grid_component&               src) noexcept
+static status make_tree_recursive(simulation_copy&        sc,
+                                  const component_access& ids,
+                                  tree_node&              new_tree,
+                                  grid_component&         src) noexcept
 {
-    new_tree.children.resize(src.cache.max_used());
+    const auto  src_id    = ids.grid_components.get_id(src);
+    const auto* src_cache = sc.grid_caches.get(src_id);
+    fatal::ensure(src_cache);
 
-    for (auto& child : src.cache) {
-        const auto child_id = src.cache.get_id(child);
+    new_tree.children.resize(src_cache->cache.max_used());
 
+    for (auto& child : src_cache->cache) {
+        const auto child_id = src_cache->cache.get_id(child);
         const auto compo_id = child.compo_id;
+
         if (ids.exists(compo_id)) {
-            auto tn_id = make_tree_recursive(
-              sc, ids, new_tree, compo_id, src.cache_names[child_id].sv());
+            const auto tn_id =
+              make_tree_recursive(sc,
+                                  ids,
+                                  new_tree,
+                                  compo_id,
+                                  src_cache->cache_names[child_id].sv());
+
             if (not tn_id)
                 return tn_id.error();
 
@@ -746,20 +820,28 @@ static status make_tree_recursive(simulation_copy&              sc,
     return success();
 }
 
-static status make_tree_recursive(simulation_copy&              sc,
-                                  const modeling::component_access& ids,
-                                  tree_node&                    new_tree,
-                                  graph_component&              src) noexcept
+static status make_tree_recursive(simulation_copy&        sc,
+                                  const component_access& ids,
+                                  tree_node&              new_tree,
+                                  graph_component&        src) noexcept
 {
-    new_tree.children.resize(src.cache.max_used());
+    const auto  src_id    = ids.graph_components.get_id(src);
+    const auto* src_cache = sc.graph_caches.get(src_id);
+    fatal::ensure(src_cache);
 
-    for (auto& child : src.cache) {
-        const auto child_id = src.cache.get_id(child);
+    new_tree.children.resize(src_cache->cache.max_used());
+
+    for (auto& child : src_cache->cache) {
+        const auto child_id = src_cache->cache.get_id(child);
         const auto compo_id = child.compo_id;
 
         if (ids.exists(compo_id)) {
-            auto tn_id = make_tree_recursive(
-              sc, ids, new_tree, compo_id, src.cache_names[child_id].sv());
+            auto tn_id =
+              make_tree_recursive(sc,
+                                  ids,
+                                  new_tree,
+                                  compo_id,
+                                  src_cache->cache_names[child_id].sv());
 
             if (not tn_id.has_value())
                 return tn_id.error();
@@ -869,24 +951,23 @@ static status external_source_copy(const modeling&                   mod,
     return success();
 }
 
-static status make_tree_recursive(
-  [[maybe_unused]] simulation_copy& sc,
-  [[maybe_unused]] const modeling::component_access&,
-  [[maybe_unused]] tree_node&     new_tree,
-  [[maybe_unused]] hsm_component& src) noexcept
+static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
+                                  [[maybe_unused]] const component_access&,
+                                  [[maybe_unused]] tree_node&     new_tree,
+                                  [[maybe_unused]] hsm_component& src) noexcept
 {
     debug::ensure(sc.pj.sim.hsms.can_alloc());
 
     return success();
 }
 
-static status update_external_source(simulation_copy&              sc,
-                                     const modeling::component_access& ids,
-                                     const component_id compo_id) noexcept
+static status update_external_source(simulation_copy&        sc,
+                                     const component_access& ids,
+                                     const component_id      compo_id) noexcept
 {
     if (const auto* exist = sc.srcs_mod_to_sim.get(compo_id); not exist) {
         debug::ensure(ids.exists(compo_id));
-        auto& compo = sc.mod.components[compo_id];
+        auto& compo = ids.components[compo_id];
 
         if (not compo.srcs.data.empty()) {
             external_sources_reserve_add(compo.srcs, sc.pj.sim.srcs);
@@ -907,11 +988,11 @@ static status update_external_source(simulation_copy&              sc,
     return success();
 }
 
-static auto make_tree_recursive(simulation_copy&              sc,
-                                const modeling::component_access& ids,
-                                tree_node&                    parent,
-                                const component_id            compo_id,
-                                const std::string_view unique_id) noexcept
+static auto make_tree_recursive(simulation_copy&        sc,
+                                const component_access& ids,
+                                tree_node&              parent,
+                                const component_id      compo_id,
+                                const std::string_view  unique_id) noexcept
   -> expected<tree_node_id>
 {
     if (not sc.tree_nodes.can_alloc())
@@ -924,14 +1005,14 @@ static auto make_tree_recursive(simulation_copy&              sc,
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
 
-    const auto& compo = sc.mod.components[compo_id];
+    const auto& compo = ids.components[compo_id];
 
     irt_check(update_external_source(sc, ids, compo_id));
 
     switch (compo.type) {
     case component_type::generic: {
         auto s_id = compo.id.generic_id;
-        if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
+        if (auto* s = ids.generic_components.try_to_get(s_id); s)
             irt_check(make_tree_recursive(sc, ids, new_tree, *s));
         parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
                                                            tn_id);
@@ -939,7 +1020,7 @@ static auto make_tree_recursive(simulation_copy&              sc,
 
     case component_type::grid: {
         auto g_id = compo.id.grid_id;
-        if (auto* g = sc.mod.grid_components.try_to_get(g_id); g)
+        if (auto* g = ids.grid_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, ids, new_tree, *g));
         parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
                                                            tn_id);
@@ -947,7 +1028,7 @@ static auto make_tree_recursive(simulation_copy&              sc,
 
     case component_type::graph: {
         auto g_id = compo.id.graph_id;
-        if (auto* g = sc.mod.graph_components.try_to_get(g_id); g)
+        if (auto* g = ids.graph_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, ids, new_tree, *g));
         parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
                                                            tn_id);
@@ -984,15 +1065,15 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
     return success();
 }
 
-static void get_input_models(vector<model_port>& inputs,
-                             const simulation&   sim,
-                             const modeling&     mod,
-                             const tree_node&    tn,
-                             const port_id       p) noexcept;
+static void get_input_models(vector<model_port>&     inputs,
+                             const simulation_copy&  sc,
+                             const component_access& ids,
+                             const tree_node&        tn,
+                             const port_id           p) noexcept;
 
 static void get_input_models(vector<model_port>&      inputs,
-                             const simulation&        sim,
-                             const modeling&          mod,
+                             const simulation_copy&   sc,
+                             const component_access&  ids,
                              const tree_node&         tn,
                              const generic_component& gen,
                              const port_id            p) noexcept
@@ -1012,17 +1093,17 @@ static void get_input_models(vector<model_port>&      inputs,
         } else {
             debug::ensure(tn.children[con.dst].tn);
             get_input_models(
-              inputs, sim, mod, *tn.children[con.dst].tn, con.port.compo);
+              inputs, sc, ids, *tn.children[con.dst].tn, con.port.compo);
         }
     }
 }
 
-static void get_input_models(vector<model_port>&    inputs,
-                             const simulation&      sim,
-                             const modeling&        mod,
-                             const tree_node&       tn,
-                             const graph_component& graph,
-                             const port_id          p) noexcept
+static void get_input_models(vector<model_port>&     inputs,
+                             const simulation_copy&  sc,
+                             const component_access& ids,
+                             const tree_node&        tn,
+                             const graph_component&  graph,
+                             const port_id           p) noexcept
 {
     for (const auto& con : graph.input_connections) {
         if (con.x != p)
@@ -1033,16 +1114,16 @@ static void get_input_models(vector<model_port>&    inputs,
 
         const auto idx = get_index(con.v);
         debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, sim, mod, *tn.children[idx].tn, con.id);
+        get_input_models(inputs, sc, ids, *tn.children[idx].tn, con.id);
     }
 }
 
-static void get_input_models(vector<model_port>&   inputs,
-                             const simulation&     sim,
-                             const modeling&       mod,
-                             const tree_node&      tn,
-                             const grid_component& grid,
-                             const port_id         p) noexcept
+static void get_input_models(vector<model_port>&     inputs,
+                             const simulation_copy&  sc,
+                             const component_access& ids,
+                             const tree_node&        tn,
+                             const grid_component&   grid,
+                             const port_id           p) noexcept
 {
     for (const auto& con : grid.input_connections) {
         if (con.x != p)
@@ -1053,14 +1134,14 @@ static void get_input_models(vector<model_port>&   inputs,
             continue;
 
         debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, sim, mod, *tn.children[idx].tn, con.id);
+        get_input_models(inputs, sc, ids, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_input_pack_models(
   vector<model_port>&                                   inputs,
-  const simulation&                                     sim,
-  const modeling&                                       mod,
+  const simulation_copy&                                sc,
+  const component_access&                               ids,
   const tree_node&                                      tn,
   const component&                                      compo,
   const port_id                                         p,
@@ -1076,7 +1157,7 @@ static void get_input_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_input_models(
-                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+                  inputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
@@ -1084,8 +1165,8 @@ static void get_input_pack_models(
 
 static void get_input_pack_models(
   vector<model_port>&                                 inputs,
-  const simulation&                                   sim,
-  const modeling&                                     mod,
+  const simulation_copy&                              sc,
+  const component_access&                             ids,
   const tree_node&                                    tn,
   const component&                                    compo,
   const port_id                                       p,
@@ -1100,7 +1181,7 @@ static void get_input_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_input_models(
-                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+                  inputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
@@ -1108,8 +1189,8 @@ static void get_input_pack_models(
 
 static void get_input_pack_models(
   vector<model_port>&                                inputs,
-  const simulation&                                  sim,
-  const modeling&                                    mod,
+  const simulation_copy&                             sc,
+  const component_access&                            ids,
   const tree_node&                                   tn,
   const component&                                   compo,
   const port_id                                      p,
@@ -1124,71 +1205,69 @@ static void get_input_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_input_models(
-                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+                  inputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
 }
 
-static void get_input_models(vector<model_port>& inputs,
-                             const simulation&   sim,
-                             const modeling&     mod,
-                             const tree_node&    tn,
-                             const port_id       p) noexcept
+static void get_input_models(vector<model_port>&     inputs,
+                             const simulation_copy&  sc,
+                             const component_access& ids,
+                             const tree_node&        tn,
+                             const port_id           p) noexcept
 {
-    mod.ids.read([&](const auto& ids, auto) noexcept {
-        if (not ids.exists(tn.id))
-            return;
+    if (not ids.exists(tn.id))
+        return;
 
-        const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
 
-        switch (compo.type) {
-        case component_type::generic: {
-            if (auto* g =
-                  mod.generic_components.try_to_get(compo.id.generic_id)) {
-                get_input_models(inputs, sim, mod, tn, *g, p);
-                get_input_pack_models(
-                  inputs, sim, mod, tn, compo, p, g->children);
-            }
-        } break;
-
-        case component_type::graph: {
-            if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
-                get_input_models(inputs, sim, mod, tn, *g, p);
-                get_input_pack_models(inputs, sim, mod, tn, compo, p, g->cache);
-            }
-
-        } break;
-
-        case component_type::grid: {
-            if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
-                get_input_models(inputs, sim, mod, tn, *g, p);
-                get_input_pack_models(inputs, sim, mod, tn, compo, p, g->cache);
-            }
-        } break;
-
-        case component_type::hsm:
-        case component_type::none:
-        case component_type::simulation:
-            break;
+    switch (compo.type) {
+    case component_type::generic: {
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id)) {
+            get_input_models(inputs, sc, ids, tn, *g, p);
+            get_input_pack_models(inputs, sc, ids, tn, compo, p, g->children);
         }
-    });
+    } break;
+
+    case component_type::graph: {
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
+            const auto* gcache = sc.graph_caches.get(compo.id.graph_id);
+            fatal::ensure(gcache);
+            get_input_models(inputs, sc, ids, tn, *g, p);
+            get_input_pack_models(inputs, sc, ids, tn, compo, p, gcache->cache);
+        }
+
+    } break;
+
+    case component_type::grid: {
+        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
+            const auto* gcache = sc.grid_caches.get(compo.id.grid_id);
+            fatal::ensure(gcache);
+            get_input_models(inputs, sc, ids, tn, *g, p);
+            get_input_pack_models(inputs, sc, ids, tn, compo, p, gcache->cache);
+        }
+    } break;
+
+    case component_type::hsm:
+    case component_type::none:
+    case component_type::simulation:
+        break;
+    }
 }
 
-static void get_output_models(vector<model_port>&           outputs,
-                              const simulation&             sim,
-                              const modeling&               mod,
-                              const modeling::component_access& ids,
-                              const tree_node&              tn,
-                              const port_id                 p) noexcept;
+static void get_output_models(vector<model_port>&     outputs,
+                              const simulation_copy&  sc,
+                              const component_access& ids,
+                              const tree_node&        tn,
+                              const port_id           p) noexcept;
 
-static void get_output_models(vector<model_port>&           outputs,
-                              const simulation&             sim,
-                              const modeling&               mod,
-                              const modeling::component_access& ids,
-                              const tree_node&              tn,
-                              const generic_component&      gen,
-                              const port_id                 p) noexcept
+static void get_output_models(vector<model_port>&      outputs,
+                              const simulation_copy&   sc,
+                              const component_access&  ids,
+                              const tree_node&         tn,
+                              const generic_component& gen,
+                              const port_id            p) noexcept
 {
     for (const auto& con : gen.output_connections) {
         if (con.y != p)
@@ -1205,18 +1284,17 @@ static void get_output_models(vector<model_port>&           outputs,
         } else {
             debug::ensure(tn.children[con.src].tn);
             get_output_models(
-              outputs, sim, mod, ids, *tn.children[con.src].tn, con.port.compo);
+              outputs, sc, ids, *tn.children[con.src].tn, con.port.compo);
         }
     }
 }
 
-static void get_output_models(vector<model_port>&           outputs,
-                              const simulation&             sim,
-                              const modeling&               mod,
-                              const modeling::component_access& ids,
-                              const tree_node&              tn,
-                              const graph_component&        graph,
-                              const port_id                 p) noexcept
+static void get_output_models(vector<model_port>&     outputs,
+                              const simulation_copy&  sc,
+                              const component_access& ids,
+                              const tree_node&        tn,
+                              const graph_component&  graph,
+                              const port_id           p) noexcept
 {
     for (const auto& con : graph.output_connections) {
         if (con.y != p)
@@ -1227,17 +1305,16 @@ static void get_output_models(vector<model_port>&           outputs,
 
         const auto idx = get_index(con.v);
         debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, sim, mod, ids, *tn.children[idx].tn, con.id);
+        get_output_models(outputs, sc, ids, *tn.children[idx].tn, con.id);
     }
 }
 
-static void get_output_models(vector<model_port>&           outputs,
-                              const simulation&             sim,
-                              const modeling&               mod,
-                              const modeling::component_access& ids,
-                              const tree_node&              tn,
-                              const grid_component&         grid,
-                              const port_id                 p) noexcept
+static void get_output_models(vector<model_port>&     outputs,
+                              const simulation_copy&  sc,
+                              const component_access& ids,
+                              const tree_node&        tn,
+                              const grid_component&   grid,
+                              const port_id           p) noexcept
 {
     for (const auto& con : grid.output_connections) {
         if (con.y != p)
@@ -1248,15 +1325,14 @@ static void get_output_models(vector<model_port>&           outputs,
             continue;
 
         debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, sim, mod, ids, *tn.children[idx].tn, con.id);
+        get_output_models(outputs, sc, ids, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_output_pack_models(
   vector<model_port>&                                   outputs,
-  const simulation&                                     sim,
-  const modeling&                                       mod,
-  const modeling::component_access&                         ids,
+  const simulation_copy&                                sc,
+  const component_access&                               ids,
   const tree_node&                                      tn,
   const component&                                      compo,
   const port_id                                         p,
@@ -1272,7 +1348,7 @@ static void get_output_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_output_models(
-                  outputs, sim, mod, ids, *tn.children[idx].tn, con.child_port);
+                  outputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
@@ -1280,9 +1356,8 @@ static void get_output_pack_models(
 
 static void get_output_pack_models(
   vector<model_port>&                                 outputs,
-  const simulation&                                   sim,
-  const modeling&                                     mod,
-  const modeling::component_access&                       ids,
+  const simulation_copy&                              sc,
+  const component_access&                             ids,
   const tree_node&                                    tn,
   const component&                                    compo,
   const port_id                                       p,
@@ -1297,7 +1372,7 @@ static void get_output_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_output_models(
-                  outputs, sim, mod, ids, *tn.children[idx].tn, con.child_port);
+                  outputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
@@ -1305,9 +1380,8 @@ static void get_output_pack_models(
 
 static void get_output_pack_models(
   vector<model_port>&                                outputs,
-  const simulation&                                  sim,
-  const modeling&                                    mod,
-  const modeling::component_access&                      ids,
+  const simulation_copy&                             sc,
+  const component_access&                            ids,
   const tree_node&                                   tn,
   const component&                                   compo,
   const port_id                                      p,
@@ -1322,46 +1396,48 @@ static void get_output_pack_models(
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_output_models(
-                  outputs, sim, mod, ids, *tn.children[idx].tn, con.child_port);
+                  outputs, sc, ids, *tn.children[idx].tn, con.child_port);
             }
         }
     }
 }
 
-static void get_output_models(vector<model_port>&           outputs,
-                              const simulation&             sim,
-                              const modeling&               mod,
-                              const modeling::component_access& ids,
-                              const tree_node&              tn,
-                              const port_id                 p) noexcept
+static void get_output_models(vector<model_port>&     outputs,
+                              const simulation_copy&  sc,
+                              const component_access& ids,
+                              const tree_node&        tn,
+                              const port_id           p) noexcept
 {
     if (not ids.exists(tn.id))
         return;
 
-    const auto& compo = mod.components[tn.id];
+    const auto& compo = ids.components[tn.id];
 
     switch (compo.type) {
     case component_type::generic: {
-        if (auto* g = mod.generic_components.try_to_get(compo.id.generic_id)) {
-            get_output_models(outputs, sim, mod, ids, tn, *g, p);
-            get_output_pack_models(
-              outputs, sim, mod, ids, tn, compo, p, g->children);
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id)) {
+            get_output_models(outputs, sc, ids, tn, *g, p);
+            get_output_pack_models(outputs, sc, ids, tn, compo, p, g->children);
         }
     } break;
 
     case component_type::graph: {
-        if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
-            get_output_models(outputs, sim, mod, ids, tn, *g, p);
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
+            const auto* gcache = sc.graph_caches.get(compo.id.graph_id);
+            fatal::ensure(gcache);
+            get_output_models(outputs, sc, ids, tn, *g, p);
             get_output_pack_models(
-              outputs, sim, mod, ids, tn, compo, p, g->cache);
+              outputs, sc, ids, tn, compo, p, gcache->cache);
         }
     } break;
 
     case component_type::grid: {
-        if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
-            get_output_models(outputs, sim, mod, ids, tn, *g, p);
+        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
+            const auto* gcache = sc.grid_caches.get(compo.id.grid_id);
+            fatal::ensure(gcache);
+            get_output_models(outputs, sc, ids, tn, *g, p);
             get_output_pack_models(
-              outputs, sim, mod, ids, tn, compo, p, g->cache);
+              outputs, sc, ids, tn, compo, p, gcache->cache);
         }
     } break;
 
@@ -1380,7 +1456,7 @@ static auto prepare_sum_connections(
   tree_node&                                   tree,
   const data_array<connection, connection_id>& connections,
   simulation_copy&                             sc,
-  const modeling::component_access& /*ids*/) -> status
+  const component_access&                      ids) -> status
 {
     sc.sum_input_connections.clear();
     sc.sum_output_connections.clear();
@@ -1399,7 +1475,7 @@ static auto prepare_sum_connections(
             auto*       tn       = tree.children[dst_idx].tn;
             const auto  compo_id = tn->id;
             const auto  port_id  = cnx.index_dst.compo;
-            const auto& c        = sc.mod.components[compo_id];
+            const auto& c        = ids.components[compo_id];
 
             if (c.x.exists(port_id)) {
                 if (c.x.get<port_option>(port_id) == port_option::sum) {
@@ -1418,7 +1494,7 @@ static auto prepare_sum_connections(
             auto*       tn       = tree.children[src_idx].tn;
             const auto  compo_id = tn->id;
             const auto  port_id  = cnx.index_src.compo;
-            const auto& c        = sc.mod.components[compo_id];
+            const auto& c        = ids.components[compo_id];
 
             if (c.y.exists(port_id)) {
                 if (c.y.get<port_option>(port_id) == port_option::sum) {
@@ -1438,28 +1514,26 @@ static auto prepare_sum_connections(
 
 /** Get the @a port_option of the @a p_id port of the @a compo_id
  * component. */
-static auto get_input_connection_type(const modeling&               mod,
-                                      const modeling::component_access& ids,
-                                      const component_id            compo_id,
-                                      const port_id& p_id) noexcept
+static auto get_input_connection_type(const component_access& ids,
+                                      const component_id      compo_id,
+                                      const port_id&          p_id) noexcept
   -> port_option
 {
     debug::ensure(ids.exists(compo_id));
 
-    return mod.components[compo_id].x.get<port_option>(p_id);
+    return ids.components[compo_id].x.get<port_option>(p_id);
 }
 
 /** Get the @a port_option of the @a p_id port of the @a compo_id
  * component. */
-static auto get_output_connection_type(const modeling&               mod,
-                                       const modeling::component_access& ids,
-                                       const component_id            compo_id,
-                                       const port_id& p_id) noexcept
+static auto get_output_connection_type(const component_access& ids,
+                                       const component_id      compo_id,
+                                       const port_id&          p_id) noexcept
   -> port_option
 {
     debug::ensure(ids.exists(compo_id));
 
-    return mod.components[compo_id].y.get<port_option>(p_id);
+    return ids.components[compo_id].y.get<port_option>(p_id);
 }
 
 /** Adds @a qss3_sum_4 connections in place of the @a port to sum all the
@@ -1534,7 +1608,7 @@ static status simulation_copy_sum_connections(
 template<typename Child>
 static status simulation_copy_connections(
   simulation_copy&                             sc,
-  const modeling::component_access&                ids,
+  const component_access&                      ids,
   tree_node&                                   tree,
   const data_array<Child, child_id>&           children,
   const data_array<connection, connection_id>& connections) noexcept
@@ -1572,18 +1646,17 @@ static status simulation_copy_connections(
             } else {
                 port = cnx.index_dst.compo;
                 tn   = tree.children[dst_idx].tn;
-                get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
+                get_input_models(sc.inputs, sc, ids, *tn, port);
 
-                input_type =
-                  get_input_connection_type(sc.mod, ids, tn->id, port);
+                input_type = get_input_connection_type(ids, tn->id, port);
             }
         } else {
             port = cnx.index_src.compo;
             tn   = tree.children[src_idx].tn;
-            get_output_models(sc.outputs, sc.pj.sim, sc.mod, ids, *tn, port);
+            get_output_models(sc.outputs, sc, ids, *tn, port);
 
             output_type = get_output_connection_type(
-              sc.mod, ids, tree.children[src_idx].tn->id, cnx.index_src.compo);
+              ids, tree.children[src_idx].tn->id, cnx.index_src.compo);
 
             if (tree.is_model(cnx.dst)) {
                 sc.inputs.emplace_back(tree.children[dst_idx].mdl,
@@ -1591,10 +1664,9 @@ static status simulation_copy_connections(
             } else {
                 port = cnx.index_dst.compo;
                 tn   = tree.children[dst_idx].tn;
-                get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
+                get_input_models(sc.inputs, sc, ids, *tn, port);
 
-                input_type =
-                  get_input_connection_type(sc.mod, ids, tn->id, port);
+                input_type = get_input_connection_type(ids, tn->id, port);
             }
         }
 
@@ -1632,32 +1704,41 @@ static status simulation_copy_connections(
     return success();
 }
 
-static status simulation_copy_connections(simulation_copy&              sc,
-                                          const modeling::component_access& ids,
-                                          tree_node&                    tree,
-                                          const component_id compo_id)
+static status simulation_copy_connections(simulation_copy&        sc,
+                                          const component_access& ids,
+                                          tree_node&              tree,
+                                          const component_id      compo_id)
 {
     debug::ensure(ids.exists(compo_id));
 
-    const auto& compo = sc.mod.components[compo_id];
+    const auto& compo = ids.components[compo_id];
 
     switch (compo.type) {
-    case component_type::generic: {
-        if (auto* g = sc.mod.generic_components.try_to_get(compo.id.generic_id))
+    case component_type::generic:
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id)) {
             return simulation_copy_connections(
               sc, ids, tree, g->children, g->connections);
-    } break;
+        }
+        break;
 
     case component_type::grid:
-        if (auto* g = sc.mod.grid_components.try_to_get(compo.id.grid_id))
+        if (ids.grid_components.try_to_get(compo.id.grid_id)) {
+            const auto* gcache = sc.grid_caches.get(compo.id.grid_id);
+            fatal::ensure(gcache);
+
             return simulation_copy_connections(
-              sc, ids, tree, g->cache, g->cache_connections);
+              sc, ids, tree, gcache->cache, gcache->cache_connections);
+        }
         break;
 
     case component_type::graph:
-        if (auto* g = sc.mod.graph_components.try_to_get(compo.id.graph_id))
+        if (ids.graph_components.try_to_get(compo.id.graph_id)) {
+            const auto* gcache = sc.graph_caches.get(compo.id.graph_id);
+            fatal::ensure(gcache);
+
             return simulation_copy_connections(
-              sc, ids, tree, g->cache, g->cache_connections);
+              sc, ids, tree, gcache->cache, gcache->cache_connections);
+        }
         break;
 
     case component_type::none:
@@ -1673,9 +1754,9 @@ static status simulation_copy_connections(simulation_copy&              sc,
     return success();
 }
 
-static status simulation_copy_connections(simulation_copy&              sc,
-                                          const modeling::component_access& ids,
-                                          tree_node& head) noexcept
+static status simulation_copy_connections(simulation_copy&        sc,
+                                          const component_access& ids,
+                                          tree_node&              head) noexcept
 {
     sc.stack.clear();
     sc.stack.emplace_back(&head);
@@ -1697,21 +1778,8 @@ static status simulation_copy_connections(simulation_copy&              sc,
     return success();
 }
 
-static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
-{
-    for (auto& grid : mod.grid_components)
-        irt_check(grid.build_cache(mod));
-
-    for (auto& graph : mod.graph_components) {
-        if (auto ret = graph.build_cache(mod); not ret.has_value())
-            return new_error(project_errc::component_cache_error);
-    }
-
-    return success();
-}
-
 static auto make_tree_from(simulation_copy&                     sc,
-                           const modeling::component_access&        ids,
+                           const component_access&              ids,
                            data_array<tree_node, tree_node_id>& data,
                            const component_id                   parent) noexcept
   -> expected<tree_node_id>
@@ -1719,8 +1787,8 @@ static auto make_tree_from(simulation_copy&                     sc,
     if (not data.can_alloc())
         return new_error(project_errc::memory_error);
 
-    auto& compo    = sc.mod.components[parent];
-    auto& new_tree = data.alloc(parent, std::string_view{});
+    const auto& compo    = ids.components[parent];
+    auto&       new_tree = data.alloc(parent, std::string_view{});
     new_tree.tree.set_id(&new_tree);
     new_tree.unique_id = "root";
 
@@ -1740,25 +1808,25 @@ static auto make_tree_from(simulation_copy&                     sc,
     switch (compo.type) {
     case component_type::generic: {
         auto s_id = compo.id.generic_id;
-        if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
+        if (auto* s = ids.generic_components.try_to_get(s_id))
             irt_check(make_tree_recursive(sc, ids, new_tree, *s));
     } break;
 
     case component_type::grid: {
         auto g_id = compo.id.grid_id;
-        if (auto* g = sc.mod.grid_components.try_to_get(g_id); g)
+        if (auto* g = ids.grid_components.try_to_get(g_id))
             irt_check(make_tree_recursive(sc, ids, new_tree, *g));
     } break;
 
     case component_type::graph: {
         auto g_id = compo.id.graph_id;
-        if (auto* g = sc.mod.graph_components.try_to_get(g_id); g)
+        if (auto* g = ids.graph_components.try_to_get(g_id))
             irt_check(make_tree_recursive(sc, ids, new_tree, *g));
     } break;
 
     case component_type::hsm: {
         auto h_id = compo.id.hsm_id;
-        if (auto* h = sc.mod.hsm_components.try_to_get(h_id); h)
+        if (auto* h = ids.hsm_components.try_to_get(h_id))
             irt_check(make_tree_recursive(sc, ids, new_tree, *h));
         break;
     }
@@ -1857,9 +1925,9 @@ class treenode_require_computer
 public:
     table<component_id, project::required_data> map;
 
-    project::required_data compute(const modeling&               mod,
-                                   const modeling::component_access& ids,
-                                   const generic_component&      g) noexcept
+    project::required_data compute(const modeling&          mod,
+                                   const component_access&  ids,
+                                   const generic_component& g) noexcept
     {
         project::required_data ret;
 
@@ -1876,9 +1944,9 @@ public:
         return ret;
     }
 
-    project::required_data compute(const modeling&               mod,
-                                   const modeling::component_access& ids,
-                                   const grid_component&         g) noexcept
+    project::required_data compute(const modeling&         mod,
+                                   const component_access& ids,
+                                   const grid_component&   g) noexcept
     {
         project::required_data ret;
 
@@ -1893,9 +1961,9 @@ public:
         return ret;
     }
 
-    project::required_data compute(const modeling&               mod,
-                                   const modeling::component_access& ids,
-                                   const graph_component&        g) noexcept
+    project::required_data compute(const modeling&         mod,
+                                   const component_access& ids,
+                                   const graph_component&  g) noexcept
     {
         project::required_data ret;
 
@@ -1910,12 +1978,12 @@ public:
     }
 
 public:
-    project::required_data compute(const modeling&               mod,
-                                   const modeling::component_access& ids,
-                                   const component_id            c_id) noexcept
+    project::required_data compute(const modeling&         mod,
+                                   const component_access& ids,
+                                   const component_id      c_id) noexcept
     {
         project::required_data ret{ .tree_node_nb = 1 };
-        const auto&            c = mod.components[c_id];
+        const auto&            c = ids.components[c_id];
 
         if (auto* ptr = map.get(c_id)) {
             ret = *ptr;
@@ -1923,19 +1991,19 @@ public:
             switch (c.type) {
             case component_type::generic: {
                 auto s_id = c.id.generic_id;
-                if (auto* s = mod.generic_components.try_to_get(s_id); s)
+                if (auto* s = ids.generic_components.try_to_get(s_id); s)
                     ret += compute(mod, ids, *s);
             } break;
 
             case component_type::grid: {
                 auto g_id = c.id.grid_id;
-                if (auto* g = mod.grid_components.try_to_get(g_id); g)
+                if (auto* g = ids.grid_components.try_to_get(g_id); g)
                     ret += compute(mod, ids, *g);
             } break;
 
             case component_type::graph: {
                 auto g_id = c.id.graph_id;
-                if (auto* g = mod.graph_components.try_to_get(g_id); g)
+                if (auto* g = ids.graph_components.try_to_get(g_id); g)
                     ret += compute(mod, ids, *g);
             } break;
 
@@ -1972,17 +2040,18 @@ project::required_data project::compute_memory_required(
 }
 
 static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
-  simulation_copy&   sc,
-  const component_id compo_id) noexcept
+  simulation_copy&        sc,
+  const component_access& ids,
+  const component_id      compo_id) noexcept
 {
     if (not sc.tree_nodes.can_alloc())
         return new_error(project_errc::memory_error);
 
-    auto& compo = sc.mod.components[compo_id];
+    auto& compo = ids.components[compo_id];
     auto& tn    = sc.tree_nodes.alloc(compo_id, std::string_view{});
     tn.tree.set_id(&tn);
 
-    auto* com_hsm = sc.mod.hsm_components.try_to_get(compo.id.hsm_id);
+    auto* com_hsm = ids.hsm_components.try_to_get(compo.id.hsm_id);
     if (not com_hsm)
         return new_error(project_errc::component_unknown);
 
@@ -2016,9 +2085,9 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
 }
 
-status project::set(modeling&                     mod,
-                    const modeling::component_access& ids,
-                    const component_id            compo_id) noexcept
+status project::set(modeling&               mod,
+                    const component_access& ids,
+                    const component_id      compo_id) noexcept
 {
     clear();
 
@@ -2032,17 +2101,18 @@ status project::set(modeling&                     mod,
             return new_error(project_errc::memory_error);
     }
 
-    irt_check(make_component_cache(*this, mod));
-
     sim.clear();
     sim.grow_models_to(numbers.model_nb);
     sim.grow_connections_to(numbers.model_nb * 8);
 
     simulation_copy sc(*this, mod, tree_nodes);
-    const auto&     compo = mod.components[compo_id];
+    irt_check(sc.make_hsm_mod_to_sim(ids));
+    irt_check(sc.make_component_cache(ids));
+
+    const auto& compo = ids.components[compo_id];
 
     if (compo.type == component_type::hsm) {
-        if (auto tn_compo = set_project_from_hsm(sc, compo_id); tn_compo) {
+        if (auto tn_compo = set_project_from_hsm(sc, ids, compo_id); tn_compo) {
             m_tn_head = tn_compo->first;
             m_head    = tn_compo->second;
         } else
@@ -2410,6 +2480,176 @@ graph_observer& project::alloc_graph_observer() noexcept
     auto& obs = graph_observers.alloc();
     assign_name(graph_observers, obs.name);
     return obs;
+}
+
+template<typename Child>
+static status import_in_generic(
+  generic_component&                           gen,
+  const data_array<Child, child_id>&           children,
+  const data_array<connection, connection_id>& connections,
+  const std::span<position>  positions  = std::span<position>{},
+  const std::span<name_str>  names      = std::span<name_str>{},
+  const std::span<parameter> parameters = std::span<parameter>{}) noexcept
+{
+    table<child_id, child_id> src_to_this;
+
+    if (not gen.children.can_alloc(children.size())) {
+        gen.children.reserve(children.size());
+        if (not gen.children.can_alloc(children.size()))
+            return new_error(modeling_errc::generic_children_container_full);
+    }
+
+    for (const auto& c : children) {
+        auto new_c_id = undefined<child_id>();
+
+        if constexpr (std::is_same_v<std::decay_t<Child>,
+                                     generic_component::child>) {
+            auto& new_c = c.type == child_type::component
+                            ? gen.children.alloc(c.id.compo_id)
+                            : gen.children.alloc(c.id.mdl_type);
+            new_c_id    = gen.children.get_id(new_c);
+        } else {
+            auto& new_c = gen.children.alloc(c.compo_id);
+            new_c_id    = gen.children.get_id(new_c);
+        }
+
+        src_to_this.data.emplace_back(children.get_id(c), new_c_id);
+    }
+
+    src_to_this.sort();
+
+    for (const auto& con : connections) {
+        if (auto* child_src = src_to_this.get(con.src); child_src) {
+            if (auto* child_dst = src_to_this.get(con.dst); child_dst) {
+                gen.connections.alloc(
+                  *child_src, con.index_src, *child_dst, con.index_dst);
+            }
+        }
+    }
+
+    if (gen.children_positions.size() <= positions.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = gen.children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(gen.children.get_id(*dst));
+
+                gen.children_positions[dst_idx] = positions[src_idx];
+            }
+        }
+    }
+
+    if (gen.children_names.size() <= names.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = gen.children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(gen.children.get_id(*dst));
+
+                gen.children_names[dst_idx] =
+                  gen.exists_child(names[src_idx].sv())
+                    ? gen.make_unique_name_id(pair.value)
+                    : names[src_idx];
+            }
+        }
+    }
+
+    if (gen.children_parameters.size() < parameters.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = gen.children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(gen.children.get_id(*dst));
+
+                gen.children_parameters[dst_idx] = parameters[src_idx];
+            }
+        }
+    }
+
+    return success();
+}
+
+status component_access::import(const generic_component& generic,
+                                generic_component&       dst) noexcept
+{
+    return import_in_generic(dst, generic.children, generic.connections);
+}
+
+status component_access::import(const graph_component& graph,
+                                generic_component&     dst) noexcept
+{
+    data_array<graph_component::child, child_id> children;
+    data_array<connection, connection_id>        connections;
+    vector<name_str>                             cache_names;
+
+    if (not graph.build_cache(*this, children, connections, cache_names))
+        return new_error(modeling_errc::graph_children_container_full);
+
+    return import_in_generic(dst, children, connections);
+}
+
+status component_access::import(const grid_component& grid,
+                                generic_component&    dst) noexcept
+{
+    data_array<grid_component::child, child_id> children;
+    data_array<connection, connection_id>       connections;
+    vector<name_str>                            cache_names;
+
+    if (not grid.build_cache(*this, children, connections, cache_names))
+        return new_error(modeling_errc::grid_children_container_full);
+
+    return import_in_generic(dst, children, connections);
+}
+
+status modeling::import(const component_id src,
+                        const component_id dst,
+                        const std::span<position> /*positions*/,
+                        const std::span<name_str> /*names*/,
+                        const std::span<parameter> /*parameters*/) noexcept
+{
+    return ids.write([&](auto& ids) noexcept -> status {
+        if (not ids.exists(src) or not ids.exists(dst))
+            return new_error(modeling_errc::component_not_found);
+
+        const auto& src_compo = ids.components[src];
+        auto&       dst_compo = ids.components[dst];
+
+        if (dst_compo.type != component_type::generic)
+            return new_error(modeling_errc::component_type_mismatch);
+
+        auto& gen = ids.generic_components.get(dst_compo.id.generic_id);
+
+        switch (src_compo.type) {
+        case component_type::generic:
+            return ids.import(
+              ids.generic_components.get(src_compo.id.generic_id), gen);
+
+        case component_type::graph:
+            return ids.import(ids.graph_components.get(src_compo.id.graph_id),
+                              gen);
+
+        case component_type::grid:
+            return ids.import(
+              ids.generic_components.get(src_compo.id.generic_id), gen);
+
+        case component_type::hsm:
+            return success();
+
+        case component_type::none:
+            return success();
+
+        case component_type::simulation:
+            return success();
+        }
+
+        unreachable();
+    });
 }
 
 } // namespace irt

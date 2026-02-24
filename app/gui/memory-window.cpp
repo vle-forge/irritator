@@ -21,12 +21,11 @@ void memory_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("descriptions: {} / {}",
-                          app.mod.descriptions.size(),
-                          app.mod.descriptions.capacity());
-        ImGui::TextFormat("components: {} / {}",
-                          app.mod.components.size(),
-                          app.mod.components.capacity());
+        app.mod.ids.read([&](const auto& ids, const auto /*vers*/) noexcept {
+            ImGui::TextFormat("descriptions: {} / {}",
+                              ids.components.size(),
+                              ids.components.capacity());
+        });
 
         app.mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
             ImGui::TextFormat("registred_paths: {} / {} / {}",
@@ -45,30 +44,35 @@ void memory_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Graph")) {
-        for (const auto& g : app.mod.graphs) {
-            const auto id = app.mod.graphs.get_id(g);
+        app.mod.ids.read([&](const auto& ids, const auto /*vers*/) noexcept {
+            for (const auto& g : ids.graphs) {
+                const auto id = ids.graphs.get_id(g);
 
-            if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
-                ImGui::LabelFormat("main-id", "{}", g.main_id);
-                ImGui::LabelFormat("nodes", "{}", g.nodes.size());
-                ImGui::LabelFormat("edges", "{}", g.edges.size());
-                ImGui::TreePop();
+                if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
+                    ImGui::LabelFormat("main-id", "{}", g.main_id);
+                    ImGui::LabelFormat("nodes", "{}", g.nodes.size());
+                    ImGui::LabelFormat("edges", "{}", g.edges.size());
+                    ImGui::TreePop();
+                }
             }
-        }
+        });
     }
 
     if (ImGui::CollapsingHeader("HSM")) {
-        for (const auto& g : app.mod.hsms) {
-            const auto id = app.mod.hsms.get_id(g);
+        app.mod.ids.read([&](const auto& ids, const auto /*vers*/) noexcept {
+            for (const auto& g : ids.hsms) {
+                const auto id = ids.hsms.get_id(g);
 
-            if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
-                ImGui::LabelFormat(
-                  "max state", "{}", g.compute_max_state_used());
-                ImGui::LabelFormat("edges", "{}", g.top_state);
-                ImGui::LabelFormat("using source", "{}", g.is_using_source());
-                ImGui::TreePop();
+                if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
+                    ImGui::LabelFormat(
+                      "max state", "{}", g.compute_max_state_used());
+                    ImGui::LabelFormat("edges", "{}", g.top_state);
+                    ImGui::LabelFormat(
+                      "using source", "{}", g.is_using_source());
+                    ImGui::TreePop();
+                }
             }
-        }
+        });
     }
 
     if (ImGui::CollapsingHeader("Project", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -118,9 +122,10 @@ void memory_window::show() noexcept
     if (ImGui::CollapsingHeader("Components")) {
         app.mod.ids.read([&](const auto& ids, auto) noexcept {
             for (const auto id : ids) {
-                const auto& compo = app.mod.components[id];
+                const auto& compo = ids.components[id];
 
                 ImGui::PushID(ordinal(id));
+
                 if (ImGui::TreeNode(compo.name.c_str())) {
                     ImGui::LabelFormat(
                       "type", "{}", component_type_names[ordinal(compo.type)]);
@@ -155,27 +160,22 @@ void memory_window::show() noexcept
                         break;
                     }
 
-                    app.mod.files.read(
-                      [&](const auto& fs, const auto /*vers*/) {
-                          if (const auto* f =
-                                fs.file_paths.try_to_get(compo.file)) {
-                              ImGui::LabelFormat("File", "{}", f->path.sv());
-                              if (const auto* d =
-                                    fs.dir_paths.try_to_get(f->parent)) {
-                                  ImGui::LabelFormat("Dir", "{}", d->path.sv());
-                                  if (const auto* r =
-                                        fs.registred_paths.try_to_get(
-                                          d->parent)) {
-                                      ImGui::LabelFormat(
-                                        "Reg", "{}", r->path.sv());
-                                  }
-                              }
-                          }
-                      });
+                    const auto& file = ids.component_file_paths[id];
+                    ImGui::LabelFormat("File", "{}", file.path.sv());
 
-                    ImGui::LabelFormat(
-                      "Description", "{}", ordinal(compo.desc));
+                    app.mod.files.read([&](const auto& fs, auto) {
+                        if (const auto* d =
+                              fs.dir_paths.try_to_get(file.parent)) {
+                            ImGui::LabelFormat("Dir", "{}", d->path.sv());
+                            if (const auto* r =
+                                  fs.registred_paths.try_to_get(d->parent)) {
+                                ImGui::LabelFormat("Reg", "{}", r->path.sv());
+                            }
+                        }
+                    });
 
+                    const auto& desc = ids.component_descriptions[id];
+                    ImGui::LabelFormat("Description", "{}", desc.size());
                     ImGui::TreePop();
                 }
                 ImGui::PopID();

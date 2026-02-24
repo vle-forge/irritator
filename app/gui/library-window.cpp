@@ -11,30 +11,31 @@
 
 namespace irt {
 
-static void remove_component_and_file_task(application&       app,
-                                           const file_path_id id) noexcept
-{
-    app.add_gui_task([&app, id]() noexcept {
-        app.mod.files.write([&](auto& fs) noexcept {
-            if (const auto* f = fs.file_paths.try_to_get(id)) {
-                fs.remove_file(id);
+// static void remove_component_and_file_task(application&       app,
+//                                            const file_path_id id) noexcept
+// {
+//     app.add_gui_task([&app, id]() noexcept {
+//         app.mod.files.write([&](auto& fs) noexcept {
+//             if (const auto* f = fs.file_paths.try_to_get(id)) {
+//                 fs.remove_file(id);
 
-                app.jn.push(log_level::notice,
-                            [&](auto& title, auto& msg) noexcept {
-                                title = "Remove component file";
-                                format(msg, "File `{}' removed", f->path.sv());
-                            });
-            }
-        });
-    });
+//                 app.jn.push(log_level::notice,
+//                             [&](auto& title, auto& msg) noexcept {
+//                                 title = "Remove component file";
+//                                 format(msg, "File `{}' removed",
+//                                 f->path.sv());
+//                             });
+//             }
+//         });
+//     });
 
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
+//     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+// }
 
-static void refresh_component_list_task(application& app) noexcept
-{
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
+// static void refresh_component_list_task(application& app) noexcept
+// {
+//     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+// }
 
 static bool can_delete_component(application& app, component_id id) noexcept
 {
@@ -60,10 +61,10 @@ static bool can_delete_component(application& app, component_id id) noexcept
     return false;
 }
 
-static void show_component_popup_menu(application&                 app,
-                                      const modeling::file_access& fs,
-                                      const component_id           compo_id,
-                                      const component&             sel) noexcept
+static void show_component_popup_menu(application& app,
+                                      const file_access& /*fs*/,
+                                      const component_id compo_id,
+                                      const component&   sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component"))
@@ -84,50 +85,26 @@ static void show_component_popup_menu(application&                 app,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Copy")) {
-            if (app.mod.components.can_alloc(1)) {
+            if (app.mod.can_alloc_component(1)) {
                 app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
                     app.mod.ids.write([&](auto& ids) noexcept {
-                        if (not(ids.can_alloc(1) and ids.template grow<2, 1>()))
-                            return;
-                        if (not(app.mod.components.can_alloc(1) and
-                                app.mod.components.grow<2, 1>()))
-                            return;
-                        if (not(app.mod.component_colors.can_alloc(1) and
-                                app.mod.component_colors.grow<2, 1>()))
-                            return;
-
-                        auto new_c_id = ids.alloc();
-
-                        app.mod.component_colors[new_c_id] = {
-                            1.f, 1.f, 1.f, 1.f
-                        };
-
-                        auto& new_c = app.mod.components[new_c_id];
-                        new_c.type  = component_type::generic;
-                        new_c.name  = name;
-                        new_c.state = component_status::modified;
-
-                        if (auto ret =
-                              app.mod.copy(app.mod.components[compo_id], new_c);
-                            !ret) {
+                        const auto c = ids.copy(compo_id);
+                        if (c.has_error())
                             app.jn.push(log_level::error,
                                         [](auto& title, auto& msg) noexcept {
                                             title = "Library";
                                             msg   = "Fail to copy model";
                                         });
-                        }
-
-                        app.component_sel.update();
-                        ;
                     });
                 });
+
+                app.add_gui_task(
+                  [&app]() noexcept { app.component_sel.update(); });
             } else {
                 app.jn.push(log_level::error,
                             [&](auto& title, auto& msg) noexcept {
                                 title = "Library";
-                                format(msg,
-                                       "Can not alloc a new component ({})",
-                                       app.mod.components.capacity());
+                                format(msg, "Can not alloc a new component");
                             });
             }
         }
@@ -136,46 +113,44 @@ static void show_component_popup_menu(application&                 app,
             app.library_wnd.try_set_component_as_project(app, compo_id);
         }
 
-        if (const auto* file = fs.file_paths.try_to_get(sel.file); file) {
-            if (ImGui::MenuItem("Delete component and file")) {
-                if (can_delete_component(app, compo_id)) {
-                    const auto file_id = sel.file;
-                    app.component_ed.close(compo_id);
+        if (ImGui::MenuItem("Delete component")) {
+            if (can_delete_component(app, compo_id)) {
+                app.component_ed.close(compo_id);
 
-                    app.add_gui_task([&app, file_id, compo_id]() {
-                        app.mod.ids.write(
-                          [&](auto& ids) { ids.free(compo_id); });
+                app.add_gui_task([&app, compo_id]() noexcept {
+                    app.mod.ids.write([&](auto& ids) noexcept {
+                        const auto& compo = ids.component_file_paths[compo_id];
+                        if (is_undefined(compo.parent))
+                            return;
 
-                        app.mod.files.write([&app, file_id](auto& fs) noexcept {
-                            if (const auto* f =
-                                  fs.file_paths.try_to_get(file_id)) {
-                                fs.remove_file(file_id);
+                        if (compo.path.sv().empty())
+                            return;
 
-                                app.jn.push(
-                                  log_level::notice,
-                                  [&](auto& title, auto& msg) noexcept {
-                                      title = "Remove component file";
-                                      format(
-                                        msg, "File `{}' removed", f->path.sv());
-                                  });
+                        app.mod.files.write([&](auto& fs) noexcept {
+                            const auto file = make_file(fs, compo);
+                            if (file.has_value()) {
+                                std::error_code ec;
+
+                                if (std::filesystem::exists(*file, ec)) {
+                                    std::filesystem::remove(*file, ec);
+                                    app.jn.push(
+                                      log_level::notice,
+                                      [&](auto& title, auto& msg) noexcept {
+                                          title = "Remove component file";
+                                          format(msg,
+                                                 "File `{}' removed",
+                                                 file->string());
+                                      });
+                                }
                             }
                         });
 
-                        app.component_sel.update();
+                        ids.free(compo_id);
                     });
-                }
-            } else {
-                if (ImGui::MenuItem("Delete component")) {
-                    if (can_delete_component(app, compo_id)) {
-                        app.component_ed.close(compo_id);
+                });
 
-                        app.add_gui_task([&app, compo_id]() {
-                            app.mod.ids.write(
-                              [&](auto& ids) { ids.free(compo_id); });
-                            app.component_sel.update();
-                        });
-                    }
-                }
+                app.add_gui_task(
+                  [&app, compo_id]() { app.component_sel.update(); });
             }
         }
 
@@ -183,7 +158,7 @@ static void show_component_popup_menu(application&                 app,
     }
 }
 
-void library_window::show_file_project(const modeling::file_access& fs,
+void library_window::show_file_project(const file_access& fs,
                                        const file_path_id file_id) noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
@@ -284,34 +259,38 @@ void library_window::show_file_project(const modeling::file_access& fs,
     }
 }
 
-void library_window::show_file_component(const modeling::file_access&  fs,
-                                         const modeling::component_access& ids,
-                                         const file_path&              file,
-                                         const component_id id) noexcept
+void library_window::show_file_component(const file_access&      fs,
+                                         const component_access& ids,
+                                         const component_id      id) noexcept
 {
     auto&       app      = container_of(this, &application::library_wnd);
     const bool  selected = app.component_ed.is_component_open(id);
-    const auto& compo    = app.mod.components[id];
+    const auto& compo    = ids.components[id];
+    const auto& file     = ids.component_file_paths[id];
     const auto  state    = compo.state;
 
     ImGui::PushID(ordinal(id));
 
-    const auto col = get_component_color(app, id);
-    auto       im  = std::array<float, 4>{ col[0], col[1], col[2], col[3] };
+    component_color im = ids.component_colors[id];
 
     if (ImGui::ColorEdit4("Color selection",
                           im.data(),
                           ImGuiColorEditFlags_NoInputs |
                             ImGuiColorEditFlags_NoLabel)) {
         if (ids.exists(id)) {
-            auto& data = app.mod.component_colors[id];
-            data       = im;
+            app.add_gui_task([&app, id, im]() noexcept {
+                app.mod.ids.write([&](auto& ids) noexcept {
+                    if (ids.exists(id)) {
+                        ids.component_colors[id] = im;
+                    }
+                });
+            });
         }
     }
 
     ImGui::SameLine();
 
-    const auto& c       = app.mod.components[id];
+    const auto& c       = ids.components[id];
     const auto  name    = format_n<63>("{} ({})", c.name.sv(), file.path.sv());
     const auto  disable = state == component_status::unreadable;
     const auto  flags   = disable ? ImGuiSelectableFlags_Disabled
@@ -357,30 +336,35 @@ void library_window::show_file_component(const modeling::file_access&  fs,
 }
 
 void library_window::show_notsaved_content(
-  const modeling::file_access&  fs,
-  const modeling::component_access& ids,
-  const bitflags<file_type>     flags) noexcept
+  const file_access&        fs,
+  const component_access&   ids,
+  const bitflags<file_type> flags) noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
 
     if (flags[file_type::component]) {
         for (const auto id : ids) {
-            const auto& compo = app.mod.components[id];
-
-            const auto is_not_saved =
-              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                  return fs.file_paths.try_to_get(compo.file) == nullptr;
-              });
+            const auto& compo        = ids.components[id];
+            const auto& file         = ids.component_file_paths[id];
+            const auto  is_not_saved = file.path.empty();
 
             if (is_not_saved) {
-                auto&      color    = app.mod.component_colors[id];
-                const bool selected = app.component_ed.is_component_open(id);
+                component_color color = ids.component_colors[id];
+                const auto selected   = app.component_ed.is_component_open(id);
 
                 ImGui::PushID(reinterpret_cast<const void*>(&compo));
-                ImGui::ColorEdit4("Color selection",
-                                  to_float_ptr(color),
-                                  ImGuiColorEditFlags_NoInputs |
-                                    ImGuiColorEditFlags_NoLabel);
+                if (ImGui::ColorEdit4("Color selection",
+                                      color.data(),
+                                      ImGuiColorEditFlags_NoInputs |
+                                        ImGuiColorEditFlags_NoLabel)) {
+                    app.add_gui_task([&app, id, color]() noexcept {
+                        app.mod.ids.write([&](auto& ids) noexcept {
+                            if (ids.exists(id)) {
+                                ids.component_colors[id] = color;
+                            }
+                        });
+                    });
+                }
 
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(compo.name.c_str(),
@@ -426,12 +410,11 @@ void library_window::show_notsaved_content(
 }
 
 void library_window::show_dirpath_content(
-  const modeling::file_access& fs,
-  const dir_path&              dir,
-  const bitflags<file_type>    flags) noexcept
+  const file_access&        fs,
+  const component_access&   ids,
+  const dir_path&           dir,
+  const bitflags<file_type> flags) noexcept
 {
-    auto& app = container_of(this, &application::library_wnd);
-
     if (dir.status == dir_path::state::error) {
         ImGui::TextFormatDisabled("{} (error)", dir.path.sv());
         return;
@@ -442,6 +425,17 @@ void library_window::show_dirpath_content(
                           "%.*s",
                           dir.path.ssize(),
                           dir.path.data())) {
+        const auto dir_id = fs.dir_paths.get_id(dir);
+        if (flags[file_type::component]) {
+            for (const auto id : ids.ids) {
+                const auto& file = ids.component_file_paths[id];
+
+                if (file.parent == dir_id) {
+                    show_file_component(fs, ids, id);
+                }
+            }
+        }
+
         for (const auto file_id : dir.children) {
             const auto* file = fs.file_paths.try_to_get(file_id);
             if (file == nullptr)
@@ -457,13 +451,6 @@ void library_window::show_dirpath_content(
                 break;
 
             case file_path::file_type::component_file:
-                if (flags[file_type::component]) {
-                    app.mod.ids.read([&](const auto& ids, auto) {
-                        if (ids.exists(file->component))
-                            show_file_component(
-                              fs, ids, *file, file->component);
-                    });
-                }
                 break;
 
             case file_path::file_type::txt_file:
@@ -486,8 +473,9 @@ void library_window::show_dirpath_content(
 }
 
 void library_window::show_repertories_content(
-  const modeling::file_access& fs,
-  const bitflags<file_type>    flags) noexcept
+  const file_access&        fs,
+  const component_access&   ids,
+  const bitflags<file_type> flags) noexcept
 {
     for (const auto id : fs.recorded_paths) {
         small_string<31>        s;
@@ -510,7 +498,7 @@ void library_window::show_repertories_content(
             for (const auto dir_id : reg_dir->children) {
                 auto* dir = fs.dir_paths.try_to_get(dir_id);
                 if (dir and dir->status != dir_path::state::error)
-                    show_dirpath_content(fs, *dir, flags);
+                    show_dirpath_content(fs, ids, *dir, flags);
             }
             ImGui::TreePop();
         }
@@ -538,18 +526,17 @@ void library_window::try_set_component_as_project(
     }
 }
 
-static auto is_component_used_in_components(const modeling&               mod,
-                                            const modeling::component_access& ids,
-                                            const component_id id) noexcept
+static auto is_component_used_in_components(const component_access& ids,
+                                            const component_id      id) noexcept
   -> bool
 {
     for (const auto c_id : ids) {
-        const auto& c = mod.components[c_id];
+        const auto& c = ids.components[c_id];
 
         switch (c.type) {
         case component_type::generic:
             if (const auto* g =
-                  mod.generic_components.try_to_get(c.id.generic_id)) {
+                  ids.generic_components.try_to_get(c.id.generic_id)) {
                 if (std::ranges::any_of(
                       g->children, [id](const auto& ch) noexcept -> bool {
                           return ch.type == child_type::component and
@@ -560,7 +547,7 @@ static auto is_component_used_in_components(const modeling&               mod,
             break;
 
         case component_type::grid:
-            if (const auto* g = mod.grid_components.try_to_get(c.id.grid_id)) {
+            if (const auto* g = ids.grid_components.try_to_get(c.id.grid_id)) {
                 if (std::ranges::any_of(
                       g->children(),
                       [id](const auto c) noexcept -> bool { return c == id; }))
@@ -570,7 +557,7 @@ static auto is_component_used_in_components(const modeling&               mod,
 
         case component_type::graph:
             if (const auto* g =
-                  mod.graph_components.try_to_get(c.id.graph_id)) {
+                  ids.graph_components.try_to_get(c.id.graph_id)) {
                 for (const auto i : g->g.nodes) {
                     if (g->g.node_components[i] == id)
                         return true;
@@ -618,12 +605,12 @@ static auto is_component_used_in_projects(const application&  app,
     return false;
 }
 
-auto library_window::is_component_deletable(const application&            app,
-                                            const modeling::component_access& ids,
-                                            const component_id id) noexcept
+auto library_window::is_component_deletable(const application&      app,
+                                            const component_access& ids,
+                                            const component_id      id) noexcept
   -> is_component_deletable_t
 {
-    return is_component_used_in_components(app.mod, ids, id)
+    return is_component_used_in_components(ids, id)
              ? is_component_deletable_t::used_by_component
            : is_component_used_in_projects(app, id, stack)
              ? is_component_deletable_t::used_by_project
@@ -686,43 +673,35 @@ void library_window::show_menu() noexcept
         if (ImGui::BeginMenu("Examples")) {
             for (auto i = 0; i < internal_component_count; ++i) {
                 if (ImGui::MenuItem(internal_component_names[i])) {
-                    if (app.mod.components.can_alloc(1) and
-                        app.mod.generic_components.can_alloc(1)) {
+                    app.add_gui_task([&]() noexcept {
+                        app.mod.ids.write([&](auto& ids) noexcept {
+                            const auto compo_id = ids.alloc_generic_component();
 
-                        const auto compo_id = app.mod.alloc_generic_component();
-
-                        app.mod.ids.read([&](const auto& ids, auto) {
-                            if (not ids.exists(compo_id))
+                            if (is_undefined(compo_id)) {
+                                app.jn.push(
+                                  log_level::error, [](auto& t, auto& m) {
+                                      t = "Library: copy in generic "
+                                          "component";
+                                      m = "Can not allocate a new component";
+                                  });
                                 return;
+                            }
 
-                            auto& compo = app.mod.components[compo_id];
-                            compo.name  = internal_component_names[i];
-                            compo.state = component_status::modified;
+                            const auto ret = ids.copy(
+                              enum_cast<internal_component>(i), compo_id);
 
-                            const auto gen_id = compo.id.generic_id;
-                            auto& g = app.mod.generic_components.get(gen_id);
-
-                            if (auto ret = app.mod.copy(
-                                  enum_cast<internal_component>(i), compo, g);
-                                !ret) {
+                            if (ret.has_value())
                                 app.jn.push(log_level::error,
                                             [](auto& t, auto& m) {
                                                 t = "Library: copy in "
                                                     "generic component";
                                                 m = "TODO";
                                             });
-                            }
                         });
+                    });
 
-                        app.add_gui_task(
-                          [&app]() noexcept { app.component_sel.update(); });
-                    } else {
-                        app.jn.push(log_level::error, [](auto& t, auto& m) {
-                            t = "Library: copy in generic "
-                                "component";
-                            m = "Can not allocate a new component";
-                        });
-                    }
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
                 }
             }
             ImGui::EndMenu();
@@ -733,13 +712,14 @@ void library_window::show_menu() noexcept
 }
 
 void library_window::show_file_treeview(
-  const modeling::file_access& fs,
-  const bitflags<file_type>    flags) noexcept
+  const file_access&        fs,
+  const component_access&   ids,
+  const bitflags<file_type> flags) noexcept
 {
     if (not ImGui::BeginChild("##library", ImGui::GetContentRegionAvail())) {
         ImGui::EndChild();
     } else {
-        show_repertories_content(fs, flags);
+        show_repertories_content(fs, ids, flags);
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
             auto& app = container_of(this, &application::library_wnd);
@@ -766,25 +746,28 @@ void library_window::show() noexcept
     auto& app = container_of(this, &application::library_wnd);
 
     app.mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
-        if (ImGui::BeginTabBar("Library")) {
-            if (ImGui::BeginTabItem("Components")) {
-                show_file_treeview(fs,
-                                   bitflags<file_type>(file_type::component));
-                ImGui::EndTabItem();
-            }
+        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+            if (ImGui::BeginTabBar("Library")) {
+                if (ImGui::BeginTabItem("Components")) {
+                    show_file_treeview(
+                      fs, ids, bitflags<file_type>(file_type::component));
+                    ImGui::EndTabItem();
+                }
 
-            if (ImGui::BeginTabItem("Projects")) {
-                show_file_treeview(fs, bitflags<file_type>(file_type::project));
-                ImGui::EndTabItem();
-            }
+                if (ImGui::BeginTabItem("Projects")) {
+                    show_file_treeview(
+                      fs, ids, bitflags<file_type>(file_type::project));
+                    ImGui::EndTabItem();
+                }
 
-            if (ImGui::BeginTabItem("Files")) {
-                show_file_treeview(fs, flags);
-                ImGui::EndTabItem();
-            }
+                if (ImGui::BeginTabItem("Files")) {
+                    show_file_treeview(fs, ids, flags);
+                    ImGui::EndTabItem();
+                }
 
-            ImGui::EndTabBar();
-        }
+                ImGui::EndTabBar();
+            }
+        });
     });
 
     ImGui::End();

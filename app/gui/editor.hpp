@@ -64,9 +64,9 @@ bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept;
  *
  * @return True if the parameter @c is changed.
  */
-bool show_extented_constant_parameter(const modeling&    mod,
-                                      const component_id id,
-                                      parameter&         p) noexcept;
+bool show_extented_constant_parameter(const component_access& ids,
+                                      const component_id      id,
+                                      parameter&              p) noexcept;
 
 } // irt
 

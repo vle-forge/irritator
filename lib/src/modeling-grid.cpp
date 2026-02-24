@@ -84,43 +84,31 @@ constexpr static int compute_grid_connections_size(
            grid.row() * row_mult;
 }
 
-static bool can_alloc_grid_children_and_connections(
-  grid_component& grid) noexcept
-{
-    const auto children    = grid.cells_number();
-    const auto connections = compute_grid_connections_size(grid);
-
-    grid.cache.reserve(children);
-    grid.cache_connections.reserve(connections);
-
-    return grid.cache.can_alloc(children) and
-           grid.cache_connections.can_alloc(connections);
-}
-
-static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
-  -> vector<child_id>
+static auto build_grid_children(
+  const grid_component&                        grid,
+  const component_access&                      ids,
+  data_array<grid_component::child, child_id>& cache,
+  vector<name_str>& cache_names) noexcept -> vector<child_id>
 {
     const auto children_nb = grid.cells_number();
 
     vector<child_id> ret;
 
     ret.resize(children_nb, undefined<child_id>());
-    grid.cache.reserve(children_nb);
-    grid.cache_names.resize(children_nb);
+    cache.reserve(children_nb);
+    cache_names.resize(children_nb);
 
     for (int row = 0; row < grid.row(); ++row) {
         for (int col = 0; col < grid.column(); ++col) {
             const auto index    = grid.pos(row, col);
             const auto compo_id = grid.children()[index];
 
-            mod.ids.read([&](const auto& ids, auto) {
-                if (ids.exists(compo_id)) {
-                    auto& ch             = grid.cache.alloc(compo_id, row, col);
-                    auto  id             = grid.cache.get_id(ch);
-                    grid.cache_names[id] = grid.make_unique_name_id(row, col);
-                    ret[index]           = id;
-                }
-            });
+            if (ids.exists(compo_id)) {
+                auto& ch        = cache.alloc(compo_id, row, col);
+                auto  id        = cache.get_id(ch);
+                cache_names[id] = grid.make_unique_name_id(row, col);
+                ret[index]      = id;
+            }
         }
     }
 
@@ -144,51 +132,55 @@ struct split_name {
     std::string_view right;
 };
 
-static void connection_add(modeling&        mod,
-                           grid_component&  grid,
-                           child_id         src,
-                           std::string_view port_src,
-                           child_id         dst,
-                           std::string_view port_dst) noexcept
+static void connection_add(
+  const grid_component& /*grid*/,
+  const component_access&                      ids,
+  child_id                                     src,
+  std::string_view                             port_src,
+  child_id                                     dst,
+  std::string_view                             port_dst,
+  data_array<grid_component::child, child_id>& cache,
+  data_array<connection, connection_id>&       cache_connections) noexcept
 {
-    auto* child_src = grid.cache.try_to_get(src);
-    auto* child_dst = grid.cache.try_to_get(dst);
+    auto* child_src = cache.try_to_get(src);
+    auto* child_dst = cache.try_to_get(dst);
 
     debug::ensure(child_src and child_dst);
 
     if (not child_src or not child_dst)
         return;
 
-    mod.ids.read([&](const auto& ids, auto) {
-        if (not(ids.exists(child_src->compo_id) and
-                ids.exists(child_dst->compo_id)))
-            return;
+    if (not(ids.exists(child_src->compo_id) and
+            ids.exists(child_dst->compo_id)))
+        return;
 
-        mod.components[child_src->compo_id].y.for_each<port_str>(
-          [&](const auto sid, const auto& sname) noexcept {
-              split_name p_src(sname.sv());
+    ids.components[child_src->compo_id].y.template for_each<port_str>(
+      [&](const auto sid, const auto& sname) noexcept {
+          split_name p_src(sname.sv());
 
-              if (port_src == p_src.left) {
-                  mod.components[child_dst->compo_id].x.for_each<port_str>(
-                    [&](const auto did, const auto dname) noexcept {
-                        split_name p_dst(dname.sv());
+          if (port_src == p_src.left) {
+              ids.components[child_dst->compo_id].x.template for_each<port_str>(
+                [&](const auto did, const auto dname) noexcept {
+                    split_name p_dst(dname.sv());
 
-                        if (port_dst == p_dst.left) {
-                            if (p_src.right == p_dst.right)
-                                grid.cache_connections.alloc(
-                                  src, sid, dst, did);
-                        }
-                    });
-              }
-          });
-    });
+                    if (port_dst == p_dst.left) {
+                        if (p_src.right == p_dst.right)
+                            cache_connections.alloc(src, sid, dst, did);
+                    }
+                });
+          }
+      });
 }
 
-static void build_grid_connections(modeling&               mod,
-                                   grid_component&         grid,
-                                   const vector<child_id>& ids,
-                                   const int               row,
-                                   const int               col) noexcept
+static void build_grid_connections(
+  const grid_component&                        grid,
+  const component_access&                      ids,
+  const vector<child_id>&                      vec,
+  data_array<grid_component::child, child_id>& cache,
+  data_array<connection, connection_id>&       cache_connections,
+  vector<name_str>& /*cache_names*/,
+  const int row,
+  const int col) noexcept
 {
     struct destination {
         int  r; // row index [0..grid.row[
@@ -304,41 +296,41 @@ static void build_grid_connections(modeling&               mod,
                 valids[i] = 0 <= dests[i].r and dests[i].r < grid.row();
     }
 
-    if (const auto c_src = ids[grid.pos(row, col)]; is_defined(c_src)) {
+    if (const auto c_src = vec[grid.pos(row, col)]; is_defined(c_src)) {
         for (std::size_t i = 0; i < valids.size(); ++i) {
             if (valids[i]) {
                 debug::ensure(0 <= dests[i].r and dests[i].r < grid.row());
                 debug::ensure(0 <= dests[i].c and dests[i].c < grid.column());
 
-                if (const auto c_dst = ids[grid.pos(dests[i].r, dests[i].c)];
+                if (const auto c_dst = vec[grid.pos(dests[i].r, dests[i].c)];
                     is_defined(c_dst)) {
 
-                    connection_add(mod,
-                                   grid,
+                    connection_add(grid,
+                                   ids,
                                    c_src,
                                    p_names[ordinal(srcs[i])],
                                    c_dst,
-                                   p_names[ordinal(dests[i].p)]);
+                                   p_names[ordinal(dests[i].p)],
+                                   cache,
+                                   cache_connections);
                 }
             }
         }
     }
 }
 
-static void build_grid_connections(modeling&               mod,
-                                   grid_component&         grid,
-                                   const vector<child_id>& ids) noexcept
+static void build_grid_connections(
+  const grid_component&                        grid,
+  const component_access&                      ids,
+  const vector<child_id>&                      vec,
+  data_array<grid_component::child, child_id>& cache,
+  data_array<connection, connection_id>&       cache_connections,
+  vector<name_str>&                            cache_names) noexcept
 {
     for (int row = 0; row < grid.row(); ++row)
         for (int col = 0; col < grid.column(); ++col)
-            build_grid_connections(mod, grid, ids, row, col);
-}
-
-status modeling::copy(grid_component& grid, generic_component& s) noexcept
-{
-    irt_check(grid.build_cache(*this));
-
-    return s.import(grid);
+            build_grid_connections(
+              grid, ids, vec, cache, cache_connections, cache_names, row, col);
 }
 
 name_str grid_component::make_unique_name_id(int row, int col) const noexcept
@@ -423,21 +415,29 @@ expected<output_connection_id> grid_component::connect_output(
     return output_connections.get_id(output_connections.alloc(y, row, col, id));
 }
 
-void grid_component::clear_cache() noexcept
+expected<void> grid_component::build_cache(
+  const component_access&                      ids,
+  data_array<grid_component::child, child_id>& cache,
+  data_array<connection, connection_id>&       cache_connections,
+  vector<name_str>&                            cache_names) const noexcept
 {
     cache.clear();
     cache_connections.clear();
-}
+    cache_names.clear();
 
-status grid_component::build_cache(modeling& mod) noexcept
-{
-    clear_cache();
+    const auto children    = this->cells_number();
+    const auto connections = compute_grid_connections_size(*this);
 
-    if (not can_alloc_grid_children_and_connections(*this))
+    cache.reserve(children);
+    cache_connections.reserve(connections);
+
+    if (not(cache.can_alloc(children) and
+            cache_connections.can_alloc(connections)))
         return new_error(modeling_errc::generic_children_container_full);
 
-    const auto vec = build_grid_children(mod, *this);
-    build_grid_connections(mod, *this, vec);
+    const auto vec = build_grid_children(*this, ids, cache, cache_names);
+    build_grid_connections(
+      *this, ids, vec, cache, cache_connections, cache_names);
 
     return success();
 }

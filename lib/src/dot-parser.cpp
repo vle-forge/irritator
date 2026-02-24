@@ -1549,29 +1549,14 @@ struct reg_dir_file {
 };
 
 static std::optional<reg_dir_file> build_component_string(
-  const modeling&    mod,
-  const component_id id) noexcept
+  const file_access&         fs,
+  const component_file_path& file_path) noexcept
 {
-    return mod.ids.read(
-      [&](const auto& ids, auto) noexcept -> std::optional<reg_dir_file> {
-          if (not ids.exists(id))
-              return std::nullopt;
+    if (const auto* d = fs.dir_paths.try_to_get(file_path.parent))
+        if (const auto* r = fs.registred_paths.try_to_get(d->parent))
+            return reg_dir_file{ .r = r->name.sv(), .d = d->path.sv(), .f = file_path.path.sv() };
 
-          return mod.files.read(
-            [&](const auto& fs,
-                const auto /*vers*/) -> std::optional<reg_dir_file> {
-                if (const auto* f =
-                      fs.file_paths.try_to_get(mod.components[id].file))
-                    if (const auto* d = fs.dir_paths.try_to_get(f->parent))
-                        if (const auto* r =
-                              fs.registred_paths.try_to_get(d->parent))
-                            return reg_dir_file{ .r = r->name.sv(),
-                                                 .d = d->path.sv(),
-                                                 .f = f->path.sv() };
-
-                return std::nullopt;
-            });
-      });
+    return std::nullopt;
 }
 
 template<typename OutputIterator>
@@ -1609,16 +1594,27 @@ expected<void> write_dot_stream(const modeling& mod,
                                  g.node_positions[idx][1]);
         }
 
-        if (auto compo = build_component_string(mod, g.node_components[idx]);
-            compo.has_value()) {
-            out = fmt::format_to(out,
-                                 ", component=\"{}:{}:{}\"];\n",
-                                 compo->r,
-                                 compo->d,
-                                 compo->f);
-        } else {
-            out = fmt::format_to(out, "];\n");
-        }
+        mod.files.read([&](const auto& fs, auto) noexcept {
+            mod.ids.read([&](const auto& ids, auto) noexcept {
+                const auto compo_id = g.node_components[idx];
+                if (ids.exists(compo_id)) {
+                    const auto& fp    = ids.component_file_paths[compo_id];
+                    const auto  compo = build_component_string(fs, fp);
+
+                    if (compo.has_value()) {
+                        out = fmt::format_to(out,
+                                             ", component=\"{}:{}:{}\"];\n",
+                                             compo->r,
+                                             compo->d,
+                                             compo->f);
+                    } else {
+                        out = fmt::format_to(out, "];\n");
+                    }
+                } else {
+                    out = fmt::format_to(out, "];\n");
+                }
+            });
+        });
     }
 
     const auto edge_type = g.flags[graph::option_flags::directed] ? "->" : "--";

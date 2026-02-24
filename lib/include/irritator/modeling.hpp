@@ -1,4 +1,5 @@
 // Copyright (c) 2020 INRA Distributed under the Boost Software License,
+// Copyright (c) 2020 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -31,7 +32,6 @@ enum class graph_component_id : u32;
 enum class grid_component_id : u32;
 enum class simulation_component_id : u32;
 enum class tree_node_id : u64;
-enum class description_id : u64;
 enum class child_id : u32;
 enum class connection_id : u64;
 enum class variable_observer_id : u64;
@@ -70,13 +70,6 @@ struct relative_id_path {
 };
 
 enum class child_type : u8 { model, component };
-
-enum class description_status : u8 {
-    unread,
-    read_only,
-    modified,
-    unmodified,
-};
 
 enum class internal_component : u8 {
     qss1_izhikevich,
@@ -129,6 +122,8 @@ struct connection;
 class generic_component;
 class grid_component;
 class graph_component;
+struct component_access;
+struct file_access;
 struct component;
 class modeling;
 struct cache_rw;
@@ -319,6 +314,17 @@ public:
     vector<position>  children_positions;
     vector<name_str>  children_names;
     vector<parameter> children_parameters;
+
+    child& alloc(const component_id id) noexcept;
+    child& alloc(const dynamics_type type) noexcept;
+
+    /** Copy the @c generic_component children and connections into this
+     * generic_component.
+     *
+     * @param src The source.
+     * @return @c success() or @c modeling_errc error.
+     */
+    status copy(const generic_component& src) noexcept;
 
     /** Grow the children @a data_array and resize theq
      *  @a children_positions, @a children_names and @a children_parameters
@@ -575,13 +581,6 @@ public:
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
-    data_array<child, child_id>           cache;
-    data_array<connection, connection_id> cache_connections;
-    vector<name_str>                      cache_names;
-
-    //! clear the @c cache and @c cache_connection data_array.
-    void clear_cache() noexcept;
-
     //! build the @c cache and @c cache_connection data_array according to
     //! current attributes @c row, @c column, @c opts, @c connection_type and @c
     //! neighbors.
@@ -589,7 +588,11 @@ public:
     //! @param mod Necessary to read, check and build components and
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
-    status build_cache(modeling& mod) noexcept;
+    expected<void> build_cache(
+      const component_access&                      ids,
+      data_array<grid_component::child, child_id>& cache,
+      data_array<connection, connection_id>&       cache_connections,
+      vector<name_str>&                            cache_names) const noexcept;
 
     options      opts                = options::none;
     type         in_connection_type  = type::name;
@@ -816,17 +819,12 @@ public:
 
     philox_64 rng;
 
-    data_array<child, child_id>           cache;
-    data_array<connection, connection_id> cache_connections;
-    vector<name_str>                      cache_names;
-
     std::array<float, 2> top_left_limit{ +INFINITY, +INFINITY };
     std::array<float, 2> bottom_right_limit{ -INFINITY, -INFINITY };
 
     connection_type type = connection_type::name;
 
     graph_component() noexcept;
-    graph_component(const graph_component& other) noexcept = default;
 
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
@@ -869,16 +867,17 @@ public:
                                                   const graph_node_id v,
                                                   const port_id id) noexcept;
 
-    //! clear the @c cache and @c cache_connection data_array.
-    void clear_cache() noexcept;
-
     //! build the @c cache and @c cache_connection data_array according to
     //! current attributes @c children, @c edges and @c random_graph_param.
     //!
     //! @param mod Necessary to read, check and build components and
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
-    expected<void> build_cache(modeling& mod) noexcept;
+    expected<void> build_cache(
+      const component_access&                       ids,
+      data_array<graph_component::child, child_id>& cache,
+      data_array<connection, connection_id>&        cache_connections,
+      vector<name_str>&                             cache_names) const noexcept;
 };
 
 /// A connection pack makes a link between a X or Y port of a component to a
@@ -952,11 +951,9 @@ struct component {
      */
     port_id get_or_add_y(std::string_view str) noexcept;
 
-    description_id desc = undefined<description_id>();
-    file_path_id   file = undefined<file_path_id>();
-    name_str       name;
+    name_str name;
 
-    union id {
+    union sub_id {
         generic_component_id    generic_id;
         grid_component_id       grid_id;
         graph_component_id      graph_id;
@@ -1091,6 +1088,12 @@ struct file_path {
     file_type            type   = file_type::undefined_file;
     state                status = state::unread;
     bitflags<file_flags> flags;
+};
+
+struct component_file_path {
+    registred_path_id reg    = undefined<registred_path_id>();
+    dir_path_id       parent = undefined<dir_path_id>();
+    file_path_str path;
 };
 
 struct tree_node {
@@ -1416,20 +1419,19 @@ struct modeling_reserve_definition {
     constrained_value<int, 512, INT_MAX> files{};
 };
 
-class modeling
-{
-public:
-    /** Stores the description of a component in a text. A description is
-     * attached to only one component (@c description_id). The file name of
-     * the description is the same than the component except the extension
-     * ".desc".
-     * @attention The size of the buffer is static for now. */
-    id_data_array<void,
-                  description_id,
-                  allocator<new_delete_memory_resource>,
-                  description_str,
-                  description_status>
-      descriptions;
+struct component_access {
+    component_access() noexcept = default;
+
+    component_access(const modeling_reserve_definition& ret) noexcept;
+
+    using iterator       = typename id_array<component_id>::iterator;
+    using const_iterator = typename id_array<component_id>::const_iterator;
+
+    id_array<component_id>      ids;
+    vector<component>           components;
+    vector<component_color>     component_colors;
+    vector<component_file_path> component_file_paths;
+    vector<description_str>     component_descriptions;
 
     data_array<generic_component, generic_component_id> generic_components;
     data_array<grid_component, grid_component_id>       grid_components;
@@ -1437,145 +1439,154 @@ public:
     data_array<hsm_component, hsm_component_id>         hsm_components;
     data_array<simulation_component, simulation_component_id> sim_components;
 
-    vector<component>       components;
-    vector<component_color> component_colors;
-
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
 
-    struct component_access {
-        using iterator       = typename id_array<component_id>::iterator;
-        using const_iterator = typename id_array<component_id>::const_iterator;
+    component_id alloc() noexcept { return ids.alloc(); }
 
-        id_array<component_id> ids;
+    void free(const component_id id) noexcept;
+    void clear(const component_id id) noexcept;
 
-        component_id alloc() noexcept { return ids.alloc(); }
-        void         free(const component_id id) noexcept { ids.free(id); }
+    bool exists(const component_id id) const noexcept { return ids.exists(id); }
 
-        bool exists(const component_id id) const noexcept
-        {
-            return ids.exists(id);
-        }
+    bool can_alloc(int number) const noexcept { return ids.can_alloc(number); }
 
-        bool can_alloc(int number) const noexcept
-        {
-            return ids.can_alloc(number);
-        }
+    template<size_t Num, size_t Denum>
+    bool grow() noexcept
+    {
+        return ids.grow<Num, Denum>();
+    }
 
-        template<size_t Num, size_t Denum>
-        bool grow() noexcept
-        {
-            return ids.grow<Num, Denum>();
-        }
+    iterator       begin() noexcept { return ids.begin(); }
+    iterator       end() noexcept { return ids.end(); }
+    const_iterator begin() const noexcept { return ids.begin(); }
+    const_iterator end() const noexcept { return ids.end(); }
+    unsigned       capacity() const noexcept { return ids.capacity(); }
+    unsigned       size() const noexcept { return ids.size(); }
+    int            ssize() const noexcept { return ids.ssize(); }
 
-        iterator       begin() noexcept { return ids.begin(); }
-        iterator       end() noexcept { return ids.end(); }
-        const_iterator begin() const noexcept { return ids.begin(); }
-        const_iterator end() const noexcept { return ids.end(); }
-        unsigned       capacity() const noexcept { return ids.capacity(); }
-        unsigned       size() const noexcept { return ids.size(); }
-        int            ssize() const noexcept { return ids.ssize(); }
-    };
+    /// Try to copy component @c src and its specific data (grid, generic)
+    /// into a new component_id.
+    expected<component_id> copy(const component_id src) noexcept;
 
-    shared_buffer<component_access> ids;
+    status copy(const internal_component src, const component_id dst) noexcept;
 
-    struct file_access {
-        file_access() noexcept = default;
+    bool can_alloc_component(int count) noexcept;
+    bool can_alloc_grid_component(int count) noexcept;
+    bool can_alloc_generic_component(int count) noexcept;
+    bool can_alloc_graph_component(int count) noexcept;
+    bool can_alloc_hsm_component(int count) noexcept;
+    bool can_alloc_sim_component(int count) noexcept;
 
-        file_access(int r, int d, int f) noexcept
-          : registred_paths(r)
-          , dir_paths(d)
-          , file_paths(f)
-          , recorded_paths(r, reserve_tag)
-        {}
+    component_id alloc_component() noexcept;
+    component_id alloc_grid_component() noexcept;
+    component_id alloc_generic_component() noexcept;
+    component_id alloc_graph_component() noexcept;
+    component_id alloc_hsm_component() noexcept;
+    component_id alloc_sim_component() noexcept;
 
-        data_array<registred_path, registred_path_id> registred_paths;
-        data_array<dir_path, dir_path_id>             dir_paths;
-        data_array<file_path, file_path_id>           file_paths;
-        vector<registred_path_id>                     recorded_paths;
+    status import(const generic_component& grid,
+                  generic_component&       dst) noexcept;
+    status import(const graph_component& graph,
+                  generic_component&     dst) noexcept;
+    status import(const grid_component& grid, generic_component& dst) noexcept;
+};
 
-        int browse_registred(journal_handler&        jn,
-                             const registred_path_id id) noexcept;
-        int browse_registreds(journal_handler& jn) noexcept;
+struct file_access {
+    file_access() noexcept = default;
 
-        /// Removes the :;c file_path from :c file_paths and remove the file
-        /// from the filesystem.
-        void remove(const file_path_id id) noexcept;
+    file_access(int r, int d, int f) noexcept
+      : registred_paths(r)
+      , dir_paths(d)
+      , file_paths(f)
+      , recorded_paths(r, reserve_tag)
+    {}
 
-        /// Update the @c dir_path::children vector according to the
-        /// filesystem.
-        void refresh(const dir_path_id id) noexcept;
+    data_array<registred_path, registred_path_id> registred_paths;
+    data_array<dir_path, dir_path_id>             dir_paths;
+    data_array<file_path, file_path_id>           file_paths;
+    vector<registred_path_id>                     recorded_paths;
 
-        /// Search a existing filename in the @c dir_path::children and with
-        /// the type @c type. Use @c undefined_file to select any file with
-        /// the corresponding @c filename.
-        file_path_id find_file_in_directory(
-          const dir_path_id          id,
-          const std::string_view     filename,
-          const file_path::file_type type =
-            file_path::file_type::undefined_file) const noexcept;
+    int browse_registred(journal_handler&        jn,
+                         const registred_path_id id) noexcept;
+    int browse_registreds(journal_handler& jn) noexcept;
 
-        /// Search a directory name in the children directories of the @c
-        /// registred_path lists.
-        dir_path_id find_directory(const std::string_view name) const noexcept;
+    /// Removes the :;c file_path from :c file_paths and remove the file
+    /// from the filesystem.
+    void remove(const file_path_id id) noexcept;
 
-        /// Search a directory name in the @c registred_path_id
-        dir_path_id find_directory_in_registry(
-          const registred_path_id id,
-          std::string_view        name) const noexcept;
+    /// Update the @c dir_path::children vector according to the
+    /// filesystem.
+    void refresh(const dir_path_id id) noexcept;
 
-        registred_path_id find_registred_path_by_name(
-          const std::string_view name) const noexcept;
+    /// Search a existing filename in the @c dir_path::children and with
+    /// the type @c type. Use @c undefined_file to select any file with
+    /// the corresponding @c filename.
+    file_path_id find_file_in_directory(
+      const dir_path_id          id,
+      const std::string_view     filename,
+      const file_path::file_type type =
+        file_path::file_type::undefined_file) const noexcept;
 
-        file_path_id alloc_file(
-          const dir_path_id          id,
-          const std::string_view     name = std::string_view(),
-          const file_path::file_type type =
-            file_path::file_type::undefined_file,
-          const component_id component = undefined<component_id>(),
-          const project_id   pj_id     = undefined<project_id>()) noexcept;
+    /// Search a directory name in the children directories of the @c
+    /// registred_path lists.
+    dir_path_id find_directory(const std::string_view name) const noexcept;
 
-        dir_path_id alloc_dir(
-          const registred_path_id id,
-          const std::string_view  path = std::string_view()) noexcept;
+    /// Search a directory name in the @c registred_path_id
+    dir_path_id find_directory_in_registry(
+      const registred_path_id id,
+      std::string_view        name) const noexcept;
 
-        registred_path_id alloc_registred(const std::string_view name,
-                                          const int priority) noexcept;
+    registred_path_id find_registred_path_by_name(
+      const std::string_view name) const noexcept;
 
-        bool exists(const registred_path_id dir) const noexcept;
-        bool exists(const dir_path_id dir) const noexcept;
-        bool create_directories(const registred_path_id id) const noexcept;
-        bool create_directories(const dir_path_id id) const noexcept;
+    file_path_id alloc_file(
+      const dir_path_id          id,
+      const std::string_view     name = std::string_view(),
+      const file_path::file_type type = file_path::file_type::undefined_file,
+      const component_id         component = undefined<component_id>(),
+      const project_id           pj_id     = undefined<project_id>()) noexcept;
 
-        /// Removes @c dir_path_id and all @c file_id @c dir_path::children then
-        /// remove directory from filesystem.
-        void remove_directory(const dir_path_id id) noexcept;
+    dir_path_id alloc_dir(
+      const registred_path_id id,
+      const std::string_view  path = std::string_view()) noexcept;
 
-        /// Removes any files in the @c dir_path file system.
-        void remove_files(const dir_path_id id) noexcept;
+    registred_path_id alloc_registred(const std::string_view name,
+                                      const int              priority) noexcept;
 
-        /// Removes @c file_id from the file system.
-        void remove_file(const file_path_id file) noexcept;
+    bool exists(const registred_path_id dir) const noexcept;
+    bool exists(const dir_path_id dir) const noexcept;
+    bool create_directories(const registred_path_id id) const noexcept;
+    bool create_directories(const dir_path_id id) const noexcept;
 
-        /// Move a file from a file system to another.
-        void move_file(const dir_path_id to, const file_path_id file) noexcept;
+    /// Removes @c dir_path_id and all @c file_id @c dir_path::children then
+    /// remove directory from filesystem.
+    void remove_directory(const dir_path_id id) noexcept;
 
-        void free(const file_path_id file) noexcept;
-        void free(const dir_path_id dir) noexcept;
-        void free(const registred_path_id dir) noexcept;
+    /// Removes any files in the @c dir_path file system.
+    void remove_files(const dir_path_id id) noexcept;
 
-        expected<std::filesystem::path> get_fs_path(
-          const file_path_id id) const noexcept;
-        expected<std::filesystem::path> get_fs_path(
-          const dir_path_id id) const noexcept;
-        expected<std::filesystem::path> get_fs_path(
-          const registred_path_id id) const noexcept;
-    };
+    /// Removes @c file_id from the file system.
+    void remove_file(const file_path_id file) noexcept;
 
-    shared_buffer<file_access> files;
+    /// Move a file from a file system to another.
+    void move_file(const dir_path_id to, const file_path_id file) noexcept;
 
-    modeling_status state = modeling_status::unmodified;
+    void free(const file_path_id file) noexcept;
+    void free(const dir_path_id dir) noexcept;
+    void free(const registred_path_id dir) noexcept;
 
+    expected<std::filesystem::path> get_fs_path(
+      const file_path_id id) const noexcept;
+    expected<std::filesystem::path> get_fs_path(
+      const dir_path_id id) const noexcept;
+    expected<std::filesystem::path> get_fs_path(
+      const registred_path_id id) const noexcept;
+};
+
+class modeling
+{
+public:
     //! Ctor parameters are used to initialized the default stock of all
     //! data-array and observations objects.
     //!
@@ -1593,14 +1604,22 @@ public:
              const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
 
-    //! Reads all registered paths and search component files.
+    //! Reads the component @c compo and all dependencies recursively.
+    status load_component(const file_access&           files,
+                          component_access&            ids,
+                          const std::filesystem::path& path,
+                          const component_id           compo_id) noexcept;
+
+    /**
+     * Browse the file system then reads the content of all components.
+     */
     status fill_components() noexcept;
 
-    //! Reads the component @c compo and all dependencies recursively.
-    status load_component(const modeling::file_access&      files,
-                          const modeling::component_access& ids,
-                          const std::filesystem::path&      path,
-                          const component_id                compo_id) noexcept;
+    /**
+     * Browse the file system to search components, projects and data file in
+     * registred paths. The @c fill_components function use this function.
+     */
+    void browse_file_system() noexcept;
 
     /** Search a component from three string.
      *
@@ -1614,9 +1633,6 @@ public:
     /// component alive.
     void clear(component& c) noexcept;
 
-    /// Deletes the component, the file (@c file_path_id) and the
-    /// description
-    /// (@c description_id) objects attached.
     void free(component_id id) noexcept;
     void free(generic_component& c) noexcept;
     void free(graph_component& c) noexcept;
@@ -1639,57 +1655,26 @@ public:
     component_id alloc_hsm_component() noexcept;
     component_id alloc_sim_component() noexcept;
 
-private:
-    bool can_alloc_component(modeling::component_access& ids,
-                             int                         count) noexcept;
-    bool can_alloc_grid_component(modeling::component_access& ids,
-                                  int                         count) noexcept;
-    bool can_alloc_generic_component(modeling::component_access& ids,
-                                     int count) noexcept;
-    bool can_alloc_graph_component(modeling::component_access& ids,
-                                   int                         count) noexcept;
-    bool can_alloc_hsm_component(modeling::component_access& ids,
-                                 int                         count) noexcept;
-    bool can_alloc_sim_component(modeling::component_access& ids,
-                                 int                         count) noexcept;
-
-    component_id alloc_component(modeling::component_access& ids) noexcept;
-    component_id alloc_grid_component(modeling::component_access& ids) noexcept;
-    component_id alloc_generic_component(
-      modeling::component_access& ids) noexcept;
-    component_id alloc_graph_component(
-      modeling::component_access& ids) noexcept;
-    component_id alloc_hsm_component(modeling::component_access& ids) noexcept;
-    component_id alloc_sim_component(modeling::component_access& ids) noexcept;
-
 public:
+    shared_buffer<component_access> ids;
+    shared_buffer<file_access>      files;
+    modeling_status                 state = modeling_status::unmodified;
+
     /// Checks if the child can be added to the parent to avoid recursive
     /// loop (ie. a component child which need the same component in
     /// sub-child).
     bool can_add(const component_id parent,
                  const component_id other) const noexcept;
 
-    generic_component::child& alloc(generic_component& parent,
-                                    dynamics_type      type) noexcept;
-    generic_component::child& alloc(generic_component& parent,
-                                    component_id       id) noexcept;
-
-    status copy(const internal_component src,
-                component&               dst,
-                generic_component&       g) noexcept;
-    status copy(const component& src, component& dst) noexcept;
-
-    status copy(const generic_component& src, generic_component& dst) noexcept;
-    status copy(grid_component& grid, generic_component& s) noexcept;
-    status copy(graph_component& grid, generic_component& s) noexcept;
-
     status save(const component_id c) noexcept;
 
-    journal_handler& journal;
+    status import(const component_id         src,
+                  const component_id         dst,
+                  const std::span<position>  positions  = {},
+                  const std::span<name_str>  names      = {},
+                  const std::span<parameter> parameters = {}) noexcept;
 
-    spin_mutex reg_paths_mutex;
-    spin_mutex dir_paths_mutex;
-    spin_mutex file_paths_mutex;
+    journal_handler& journal;
 };
 
 class file_observers
@@ -1850,9 +1835,9 @@ public:
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling&                         mod,
-               const modeling::component_access& ids,
-               const component_id                compo_id) noexcept;
+    status set(modeling&               mod,
+               const component_access& ids,
+               const component_id      compo_id) noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.

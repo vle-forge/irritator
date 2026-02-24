@@ -545,7 +545,7 @@ static auto compute_automatic_layout(const project&        pj,
                                      auto&                 data) noexcept
 {
     struct node {
-        child_id id;
+        component_id id;
         float    width;
         float    height;
         float    x;
@@ -562,24 +562,24 @@ static auto compute_automatic_layout(const project&        pj,
              max_width_height.y * to_float(gen.row()));
     const auto grid_width_height_2 = grid_width_height / 2.f;
 
-    vector<node> nodes(gen.cache.ssize(), reserve_tag);
+    vector<node> nodes(gen.cells_number(), reserve_tag);
     rect_bound   bound;
-    for (const auto& c : gen.cache) {
-        const auto c_id = gen.cache.get_id(c);
+    for (auto x = 0; x < gen.column(); ++x) {
+        for (auto y = 0; y < gen.row(); ++y) {
+            nodes.push_back(
+              node{ .id     = gen.children()[gen.pos(x, y)],
+                    .width  = max_width_height.x,
+                    .height = max_width_height.y,
+                    .x      = (max_width_height.x * to_float(x + 1)) -
+                         max_width_height_2.x - grid_width_height_2.x,
+                    .y = (max_width_height.y * to_float(y + 1)) -
+                         max_width_height_2.y - grid_width_height_2.y });
 
-        nodes.push_back(node{ .id     = c_id,
-                              .width  = max_width_height.x,
-                              .height = max_width_height.y,
-                              .x = (max_width_height.x * to_float(c.col + 1)) -
-                                   max_width_height_2.x - grid_width_height_2.x,
-                              .y = (max_width_height.y * to_float(c.row + 1)) -
-                                   max_width_height_2.y -
-                                   grid_width_height_2.y });
-
-        bound.update(nodes.back().x - max_width_height_2.x,
-                     nodes.back().y - max_width_height_2.y);
-        bound.update(nodes.back().x + max_width_height_2.x,
-                     nodes.back().y + max_width_height_2.y);
+            bound.update(nodes.back().x - max_width_height_2.x,
+                         nodes.back().y - max_width_height_2.y);
+            bound.update(nodes.back().x + max_width_height_2.x,
+                         nodes.back().y + max_width_height_2.y);
+        }
     }
 
     for (auto& node : nodes) {
@@ -611,19 +611,18 @@ static auto max_point_in_vh_lines(const graph_component& g,
                                   const ImVec2           dist) noexcept
   -> max_point_in_vh_lines_result
 {
-    vector<float> hlines(g.cache.size(), reserve_tag);
-    vector<float> vlines(g.cache.size(), reserve_tag);
+    vector<float> hlines(g.g.nodes.size(), reserve_tag);
+    vector<float> vlines(g.g.nodes.size(), reserve_tag);
 
-    for (const auto& child : g.cache) {
-        const auto  graph_node_id = child.node_id;
-        const auto& pos           = g.g.node_positions[graph_node_id];
+    for (const auto& graph_node_id : g.g.nodes) {
+        const auto& pos = g.g.node_positions[graph_node_id];
 
         hlines.emplace_back(pos[0]);
         vlines.emplace_back(pos[1]);
     }
 
-    const auto cx = dist.x / to_float(g.cache.size());
-    const auto cy = dist.y / to_float(g.cache.size());
+    const auto cx = dist.x / to_float(g.g.nodes.size());
+    const auto cy = dist.y / to_float(g.g.nodes.size());
 
     std::ranges::sort(hlines);
     std::ranges::sort(vlines);
@@ -664,7 +663,7 @@ static void compute_automatic_layout(const project&         pj,
                                      auto&                  data) noexcept
 {
     struct node {
-        child_id id;
+        graph_node_id id;
         float    width;
         float    height;
         float    x;
@@ -684,20 +683,18 @@ static void compute_automatic_layout(const project&         pj,
              h_v_lines.vpoints * max_width_height.y);
     const auto graph_center = graph_width_height / 2.f;
 
-    vector<node> nodes(gen.cache.ssize(), reserve_tag);
+    vector<node> nodes(gen.g.nodes.size(), reserve_tag);
     rect_bound   bound;
-    for (const auto& c : gen.cache) {
-        const auto c_id = gen.cache.get_id(c);
-
+    for (const auto& c : gen.g.nodes) {
         nodes.push_back(
-          node{ .id     = c_id,
+          node{ .id     = c,
                 .width  = max_width_height.x,
                 .height = max_width_height.y,
                 .x      = (h_v_lines.hpoints * center_width_height.x *
-                      gen.g.node_positions[c.node_id][0] / width_height.x) -
+                      gen.g.node_positions[c][0] / width_height.x) -
                      graph_center.x,
                 .y = (h_v_lines.vpoints * center_width_height.y *
-                      gen.g.node_positions[c.node_id][1] / width_height.y) -
+                      gen.g.node_positions[c][1] / width_height.y) -
                      graph_center.y });
 
         bound.update(nodes.back().x - nodes.back().width,
@@ -831,25 +828,25 @@ static void compute_automatic_layout(const project&           pj,
     data.tn_centers[pj.tree_nodes.get_id(tn)] += bound.center();
 }
 
-static void compute_rect(auto&            data,
-                         const project&   pj,
-                         const modeling&  mod,
-                         const tree_node& tn,
-                         const component& compo) noexcept
+static void compute_rect(auto&                   data,
+                         const project&          pj,
+                         const component_access& ids,
+                         const tree_node&        tn,
+                         const component&        compo) noexcept
 {
     switch (compo.type) {
     case component_type::generic:
-        if (auto* g = mod.generic_components.try_to_get(compo.id.generic_id))
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id))
             compute_automatic_layout(pj, tn, *g, data);
         break;
 
     case component_type::graph:
-        if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id))
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id))
             compute_automatic_layout(pj, tn, *g, data);
         break;
 
     case component_type::grid:
-        if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id))
+        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
             compute_automatic_layout(pj, tn, *g, data);
         break;
 
@@ -870,30 +867,32 @@ void flat_simulation_editor::compute_rects(application&    app,
         bool             read_sibling = false;
     };
 
-    vector<stack_elem> stack(max_component_stack_size, reserve_tag);
-    stack.push_back(stack_elem{ .tn = pj_ed.pj.tn_head() });
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        vector<stack_elem> stack(max_component_stack_size, reserve_tag);
+        stack.push_back(stack_elem{ .tn = pj_ed.pj.tn_head() });
 
-    while (not stack.empty()) {
-        const auto cur = stack.back();
+        while (not stack.empty()) {
+            const stack_elem cur = stack.back();
 
-        if (cur.read_child) {
-            if (cur.read_sibling) {
-                stack.pop_back();
-                auto& c = app.mod.components[cur.tn->id];
-                compute_rect(d, pj_ed.pj, app.mod, *cur.tn, c);
+            if (cur.read_child) {
+                if (cur.read_sibling) {
+                    stack.pop_back();
+                    auto& c = ids.components[cur.tn->id];
+                    compute_rect(d, pj_ed.pj, ids, *cur.tn, c);
+                } else {
+                    stack.back().read_sibling = true;
+                    if (auto* sibling = cur.tn->tree.get_sibling(); sibling) {
+                        stack.push_back(stack_elem{ .tn = sibling });
+                    }
+                }
             } else {
-                stack.back().read_sibling = true;
-                if (auto* sibling = cur.tn->tree.get_sibling(); sibling) {
-                    stack.push_back(stack_elem{ .tn = sibling });
+                stack.back().read_child = true;
+                if (auto* child = cur.tn->tree.get_child()) {
+                    stack.push_back(stack_elem{ .tn = child });
                 }
             }
-        } else {
-            stack.back().read_child = true;
-            if (auto* child = cur.tn->tree.get_child()) {
-                stack.push_back(stack_elem{ .tn = child });
-            }
         }
-    }
+    });
 }
 
 void flat_simulation_editor::rebuild(application&    app,

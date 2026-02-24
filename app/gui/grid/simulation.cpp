@@ -21,8 +21,7 @@
 
 namespace irt {
 
-static bool display_grid_simulation(application& app,
-                                    project_editor& /*ed*/,
+static bool display_grid_simulation(application&            app,
                                     grid_simulation_editor& grid_sim,
                                     tree_node&              tn,
                                     const grid_component&   grid) noexcept
@@ -160,26 +159,31 @@ void grid_simulation_editor::reset() noexcept
     distance   = ImVec2{ 5.f, 5.f };
 }
 
-bool grid_simulation_editor::display(application&    app,
-                                     project_editor& ed,
-                                     tree_node&      tn,
-                                     component& /*compo*/,
-                                     grid_component& grid) noexcept
+bool grid_simulation_editor::display(application& app,
+                                     project_editor& /*ed*/,
+                                     tree_node&        tn,
+                                     grid_component_id grid_id) noexcept
 {
-    const auto grid_id = app.mod.grid_components.get_id(grid);
     if (grid_id != current_id) {
         reset();
         current_id = grid_id;
     }
 
-    return display_grid_simulation(app, ed, *this, tn, grid);
+    return app.mod.ids.read(
+      [&](const component_access& ids, auto) noexcept -> bool {
+          if (auto* g = ids.grid_components.try_to_get(grid_id))
+              return display_grid_simulation(app, *this, tn, *g);
+
+          return false;
+      });
 }
 
 bool show_local_observers(application&    app,
                           project_editor& ed,
-                          tree_node&      tn,
-                          component& /*compo*/,
-                          grid_component& /*grid*/) noexcept
+                          const component_access& /*ids*/,
+                          tree_node& tn,
+                          const component& /*compo*/,
+                          const grid_component& /*grid*/) noexcept
 {
     auto to_del      = std::optional<grid_observer_id>();
     auto is_modified = false;

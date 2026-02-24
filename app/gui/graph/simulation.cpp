@@ -23,9 +23,10 @@ namespace irt {
 
 bool show_local_observers(application&    app,
                           project_editor& ed,
-                          tree_node&      tn,
-                          component& /*compo*/,
-                          graph_component& cgraph) noexcept
+                          const component_access& /*ids*/,
+                          tree_node& tn,
+                          const component& /*compo*/,
+                          const graph_component& cgraph) noexcept
 {
     auto to_del      = std::optional<graph_observer_id>();
     bool is_modified = false;

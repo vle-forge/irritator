@@ -64,14 +64,20 @@ expected<child_id> generic_component::copy_to(
     return new_c_id;
 }
 
-status modeling::copy(const generic_component& src,
-                      generic_component&       dst) noexcept
+status generic_component::copy(const generic_component& src) noexcept
 {
-    table<child_id, child_id> mapping; // @TODO move this mapping variable into
-                                       // the modeling or cache class.
+    if (not children.can_alloc(src.children.size()) and
+        not children.reserve(src.children.size()))
+        return new_error(modeling_errc::component_container_full);
+
+    if (not connections.can_alloc(src.connections.size()) and
+        not connections.reserve(src.connections.size()))
+        return new_error(modeling_errc::component_container_full);
+
+    table<child_id, child_id> mapping;
 
     for (const auto& c : src.children) {
-        if (auto ret = src.copy_to(c, dst); ret.has_value()) {
+        if (auto ret = src.copy_to(c, *this); ret.has_value()) {
             const auto c_id = src.children.get_id(c);
             mapping.data.emplace_back(c_id, *ret);
         }
@@ -82,13 +88,56 @@ status modeling::copy(const generic_component& src,
     for (const auto& con : src.connections) {
         if (auto* child_src = mapping.get(con.src); child_src) {
             if (auto* child_dst = mapping.get(con.dst); child_dst) {
-                dst.connections.alloc(
+                connections.alloc(
                   *child_src, con.index_src, *child_dst, con.index_dst);
             }
         }
     }
 
     return success();
+}
+
+generic_component::child& generic_component::alloc(
+  const component_id id) noexcept
+{
+    debug::ensure(children.can_alloc());
+
+    auto&      child    = children.alloc(id);
+    const auto child_id = children.get_id(child);
+    const auto index    = get_index(child_id);
+    child.type          = child_type::component;
+    child.id.compo_id   = id;
+
+    children_names[index] = make_unique_name_id(child_id);
+    children_parameters[index].clear();
+    children_positions[index].x = 0.f;
+    children_positions[index].y = 0.f;
+
+    return child;
+}
+
+generic_component::child& generic_component::alloc(
+  const dynamics_type type) noexcept
+{
+    debug::ensure(children.can_alloc());
+
+    auto&      child  = children.alloc(type);
+    const auto id     = children.get_id(child);
+    const auto index  = get_index(id);
+    child.type        = child_type::model;
+    child.id.mdl_type = type;
+
+    debug::ensure(index < children_names.size());
+    debug::ensure(index < children_parameters.size());
+    debug::ensure(index < children_positions.size());
+    debug::ensure(index < children_positions.size());
+
+    children_names[index] = make_unique_name_id(id);
+    children_parameters[index].clear();
+    children_positions[index].x = 0.f;
+    children_positions[index].y = 0.f;
+
+    return child;
 }
 
 bool generic_component::exists_input_connection(
@@ -190,144 +239,6 @@ status generic_component::connect_output(const port_id          y,
     output_connections.alloc(y, children.get_id(src), port);
 
     return success();
-}
-
-template<typename Child>
-static status import_in_generic(
-  generic_component&                           gen,
-  const data_array<Child, child_id>&           children,
-  const data_array<connection, connection_id>& connections,
-  const std::span<position>  positions  = std::span<position>{},
-  const std::span<name_str>  names      = std::span<name_str>{},
-  const std::span<parameter> parameters = std::span<parameter>{}) noexcept
-{
-    table<child_id, child_id> src_to_this;
-
-    if (not gen.children.can_alloc(children.size())) {
-        gen.children.reserve(children.size());
-        if (not gen.children.can_alloc(children.size()))
-            return new_error(modeling_errc::generic_children_container_full);
-    }
-
-    for (const auto& c : children) {
-        auto new_c_id = undefined<child_id>();
-
-        if constexpr (std::is_same_v<std::decay_t<Child>,
-                                     generic_component::child>) {
-            auto& new_c = c.type == child_type::component
-                            ? gen.children.alloc(c.id.compo_id)
-                            : gen.children.alloc(c.id.mdl_type);
-            new_c_id    = gen.children.get_id(new_c);
-        } else {
-            auto& new_c = gen.children.alloc(c.compo_id);
-            new_c_id    = gen.children.get_id(new_c);
-        }
-
-        src_to_this.data.emplace_back(children.get_id(c), new_c_id);
-    }
-
-    src_to_this.sort();
-
-    for (const auto& con : connections) {
-        if (auto* child_src = src_to_this.get(con.src); child_src) {
-            if (auto* child_dst = src_to_this.get(con.dst); child_dst) {
-                gen.connections.alloc(
-                  *child_src, con.index_src, *child_dst, con.index_dst);
-            }
-        }
-    }
-
-    if (gen.children_positions.size() <= positions.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_positions[dst_idx] = positions[src_idx];
-            }
-        }
-    }
-
-    if (gen.children_names.size() <= names.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_names[dst_idx] =
-                  gen.exists_child(names[src_idx].sv())
-                    ? gen.make_unique_name_id(pair.value)
-                    : names[src_idx];
-            }
-        }
-    }
-
-    if (gen.children_parameters.size() < parameters.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_parameters[dst_idx] = parameters[src_idx];
-            }
-        }
-    }
-
-    return success();
-}
-
-status generic_component::import(const graph_component& graph) noexcept
-{
-    return import_in_generic(*this, graph.cache, graph.cache_connections);
-}
-
-status generic_component::import(const grid_component& grid) noexcept
-{
-    return import_in_generic(*this, grid.cache, grid.cache_connections);
-}
-
-status generic_component::import(const generic_component& generic) noexcept
-{
-    return import_in_generic(*this, generic.children, generic.connections);
-}
-
-status generic_component::import(
-  const modeling&  mod,
-  const component& compo,
-  const std::span<position> /*positions*/,
-  const std::span<name_str> /*names*/,
-  const std::span<parameter> /*parameters*/) noexcept
-{
-    switch (compo.type) {
-    case component_type::generic:
-        return import(mod.generic_components.get(compo.id.generic_id));
-
-    case component_type::graph:
-        return import(mod.graph_components.get(compo.id.graph_id));
-
-    case component_type::grid:
-        return import(mod.grid_components.get(compo.id.grid_id));
-
-    case component_type::hsm:
-        return success();
-
-    case component_type::none:
-        return success();
-
-    case component_type::simulation:
-        return success();
-    }
-
-    unreachable();
 }
 
 bool generic_component::exists_child(const std::string_view str) const noexcept

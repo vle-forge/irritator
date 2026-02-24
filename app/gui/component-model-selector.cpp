@@ -30,7 +30,7 @@ static void try_append(const application&                             app,
             if (ids.exists(tn.id)) {
                 out.emplace_back(
                   std::make_pair(pj.tree_nodes.get_id(tn), tn.id));
-                names.emplace_back(app.mod.components[tn.id].name.sv());
+                names.emplace_back(ids.components[tn.id].name.sv());
             }
         });
     }
@@ -108,7 +108,7 @@ void component_model_selector::observable_model_treenode(const project& pj,
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         if (ids.exists(tn.id)) {
-            const auto& compo = app.mod.components[tn.id];
+            const auto& compo = ids.components[tn.id];
             debug::ensure(ordinal(compo.type) < length(compo_fmt));
 
             const auto* fmt = compo_fmt[ordinal(compo.type)];

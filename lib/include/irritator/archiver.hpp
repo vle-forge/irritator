@@ -28,36 +28,38 @@ public:
     status set_buffer(const u32 buffer_size) noexcept;
 
     //! Load a component structure from a json file.
-    status operator()(modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      const component_id                compo_id,
-                      std::string_view                  path,
-                      file&                             io) noexcept;
+    status operator()(modeling&          mod,
+                      const file_access& files,
+                      component_access&  ids,
+                      std::string_view   path,
+                      const component_id compo_id,
+                      component&         compo,
+                      file&              io) noexcept;
 
     //! Load a project from a project json file.
-    status operator()(project&                          pj,
-                      modeling&                         mod,
-                      simulation&                       sim,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      std::string_view                  path,
-                      file&                             io) noexcept;
+    status operator()(project&                pj,
+                      modeling&               mod,
+                      simulation&             sim,
+                      const file_access&      files,
+                      const component_access& ids,
+                      std::string_view        path,
+                      file&                   io) noexcept;
 
     //! Load a component structure from a json file.
-    status operator()(modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      const component_id                compo_id,
-                      std::span<char>                   io) noexcept;
+    status operator()(modeling&          mod,
+                      const file_access& files,
+                      component_access&  ids,
+                      const component_id compo_id,
+                      component&         compo,
+                      std::span<char>    io) noexcept;
 
     //! Load a project from a project json file.
-    status operator()(project&                          pj,
-                      modeling&                         mod,
-                      simulation&                       sim,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      std::span<char>                   io) noexcept;
+    status operator()(project&                pj,
+                      modeling&               mod,
+                      simulation&             sim,
+                      const file_access&      files,
+                      const component_access& ids,
+                      std::span<char>         io) noexcept;
 
     void destroy() noexcept;
     void clear() noexcept;
@@ -83,35 +85,35 @@ public:
     };
 
     //! Save a component structure into a json file.
-    status operator()(modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      const component_id                compo_id,
-                      file&                             io,
+    status operator()(modeling&               mod,
+                      const file_access&      files,
+                      const component_access& ids,
+                      const component_id      compo_id,
+                      file&                   io,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a component structure into a json file.
-    status operator()(modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      const component_id                compo_id,
-                      vector<char>&                     out,
+    status operator()(modeling&               mod,
+                      const file_access&      files,
+                      const component_access& ids,
+                      const component_id      compo_id,
+                      vector<char>&           out,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a project from the current modeling.
-    status operator()(project&                          pj,
-                      modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      file&                             io,
+    status operator()(project&                pj,
+                      modeling&               mod,
+                      const file_access&      files,
+                      const component_access& ids,
+                      file&                   io,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a project from the current modeling.
-    status operator()(project&                          pj,
-                      modeling&                         mod,
-                      const modeling::file_access&      files,
-                      const modeling::component_access& ids,
-                      vector<char>&                     buffer,
+    status operator()(project&                pj,
+                      modeling&               mod,
+                      const file_access&      files,
+                      const component_access& ids,
+                      vector<char>&           buffer,
                       print_option print_options = print_option::off) noexcept;
 
     void destroy() noexcept;

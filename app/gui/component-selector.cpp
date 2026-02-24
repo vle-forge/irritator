@@ -41,7 +41,7 @@ void component_selector::data_type::update(const modeling& mod) noexcept
                                           return;
 
                                       auto  id    = file->component;
-                                      auto& compo = mod.components[id];
+                                      auto& compo = ids.components[id];
                                       auto  name  = compo.name.sv();
 
                                       by_names.emplace_back(id, name);
@@ -120,7 +120,7 @@ component_selector::result_t component_selector::combobox(
         if (is_defined(current)) {
             app.mod.ids.read([&](const auto& ids, auto) {
                 if (ids.exists(current)) {
-                    current_name = app.mod.components[current].name.c_str();
+                    current_name = ids.components[current].name.c_str();
                 } else {
                     current = undefined<component_id>();
                 }
@@ -219,8 +219,8 @@ component_selector::result_t component_selector::combobox(
         if (is_defined(current)) {
             app.mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (ids.exists(current)) {
-                    if (app.mod.components[current].type == type)
-                        current_name = app.mod.components[current].name.c_str();
+                    if (ids.components[current].type == type)
+                        current_name = ids.components[current].name.c_str();
                 } else {
                     current = undefined<component_id>();
                 }

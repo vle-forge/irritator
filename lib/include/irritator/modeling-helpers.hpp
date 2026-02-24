@@ -41,23 +41,24 @@ static_assert(split("m", '_').second == std::string_view{});
 static_assert(split("m_", '_').first == std::string_view("m"));
 static_assert(split("m_", '_').second == std::string_view{});
 
-inline file_path_id get_file_from_component(const modeling&        mod,
-                                            const component&       compo,
+inline file_path_id get_file_from_component(const component_access& ids,
+                                            const file_access&      fs,
+                                            const component_id      compo_id,
                                             const std::string_view str) noexcept
 {
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
-        if (const auto* f = fs.file_paths.try_to_get(compo.file)) {
-            if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
-                for (const auto f_id : d->children) {
-                    if (const auto* f = fs.file_paths.try_to_get(f_id))
-                        if (f->path.sv() == str)
-                            return f_id;
-                }
+    if (ids.exists(compo_id)) {
+        const auto& filepath = ids.component_file_paths[compo_id];
+
+        if (const auto* d = fs.dir_paths.try_to_get(filepath.parent)) {
+            for (const auto f_id : d->children) {
+                if (const auto* f = fs.file_paths.try_to_get(f_id))
+                    if (f->path.sv() == str)
+                        return f_id;
             }
         }
+    }
 
-        return undefined<file_path_id>();
-    });
+    return undefined<file_path_id>();
 }
 
 /// Check if a @c T with name @c name exists in the @c data_array @c data. Used
@@ -177,42 +178,48 @@ struct component_filenames {
     std::filesystem::path description;
 };
 
-inline std::optional<component_filenames> make_component_files(
-  const registred_path& r,
-  const dir_path&       d,
-  const file_path&      f) noexcept
+inline auto make_component_files(const file_access&      fs,
+                                 const component_access& ids,
+                                 const component_id      id) noexcept
+  -> std::optional<component_filenames>
 {
-    try {
-        std::filesystem::path base(r.path.sv());
-        base /= d.path.sv();
-        base /= f.path.sv();
-        base.replace_extension(".irt");
+    const auto& file_path = ids.component_file_paths[id];
 
-        std::filesystem::path desc(base);
-        desc.replace_extension(".desc");
+    if (const auto* dir = fs.dir_paths.try_to_get(file_path.parent)) {
+        if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
+            try {
+                std::filesystem::path base(reg->path.sv());
+                base /= dir->path.sv();
+                base /= file_path.path.sv();
+                base.replace_extension(".irt");
 
-        return component_filenames{ .component = base, .description = desc };
-    } catch (...) {
+                std::filesystem::path desc(base);
+                desc.replace_extension(".desc");
+
+                return component_filenames{ .component   = base,
+                                            .description = desc };
+            } catch (...) {
+            }
+        }
     }
 
     return std::nullopt;
 }
 
-inline std::optional<component_filenames> make_component_files(
-  const modeling&    mod,
-  const file_path_id f_id) noexcept
+inline std::optional<std::filesystem::path> make_file(
+  const file_access&         fs,
+  const component_file_path& c) noexcept
 {
-    return mod.files.read(
-      [&](const auto& fs,
-          const auto /*vers*/) noexcept -> std::optional<component_filenames> {
-          if (const auto* file = fs.file_paths.try_to_get(f_id))
-              if (const auto* dir = fs.dir_paths.try_to_get(file->parent))
-                  if (const auto* reg =
-                        fs.registred_paths.try_to_get(dir->parent))
-                      return make_component_files(*reg, *dir, *file);
+    if (auto* dir = fs.dir_paths.try_to_get(c.parent)) {
+        if (auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
+            std::filesystem::path file(reg->path.sv());
+            file /= dir->path.sv();
+            file /= c.path.sv();
+            return file;
+        }
+    }
 
-          return std::nullopt;
-      });
+    return std::nullopt;
 }
 
 inline std::optional<std::filesystem::path> make_file(
@@ -287,7 +294,7 @@ inline bool component_is_grid_or_graph(const modeling&  mod,
 {
     return mod.ids.read([&](const auto& ids, auto) noexcept {
         if (ids.exists(tn.id)) {
-            return any_equal(mod.components[tn.id].type,
+            return any_equal(ids.components[tn.id].type,
                              component_type::graph,
                              component_type::grid);
         }
@@ -313,92 +320,13 @@ void for_each_component(const modeling& mod, Function&& f) noexcept
                                           f(*reg,
                                             *dir,
                                             *file,
-                                            mod.components[file->component]);
+                                            ids.components[file->component]);
                                   });
                             }
                         }
                     }
                 }
             }
-        }
-    });
-}
-
-template<typename Function>
-void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
-{
-    switch (compo.type) {
-    case component_type::generic:
-        if_data_exists_do(mod.generic_components,
-                          compo.id.generic_id,
-                          [&](auto& generic) noexcept {
-                              for_each_child(
-                                mod, compo, generic, std::forward<Function>(f));
-                          });
-        break;
-
-    case component_type::grid:
-        if_data_exists_do(
-          mod.grid_components, compo.id.grid_id, [&](auto& grid) noexcept {
-              for_each_child(mod, compo, grid, std::forward<Function>(f));
-          });
-        break;
-
-    case component_type::graph:
-        if_data_exists_do(
-          mod.graph_components, compo.id.graph_id, [&](auto& graph) noexcept {
-              for_each_child(mod, compo, graph, std::forward<Function>(f));
-          });
-        break;
-
-    default:
-        unreachable();
-    }
-}
-
-template<typename Function>
-void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
-{
-    if_data_exists_do(mod.components, tn.id, [&](auto& compo) noexcept {
-        for_each_child(mod, compo, std::forward<Function>(f));
-    });
-}
-
-//! \brief if child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f a invokable with no const \c child and \c
-//! component references.
-template<typename Function>
-void if_child_is_component_do(
-  modeling&                                       mod,
-  data_array<generic_component::child, child_id>& data,
-  child_id                                        id,
-  Function&&                                      f) noexcept
-{
-    if_data_exists_do(data, id, [&](auto& child) noexcept {
-        if (child.type == child_type::component) {
-            if_data_exists_do(
-              mod.components, child.id.compo_id, [&](component& compo) {
-                  std::invoke(std::forward<Function>(f), child, compo);
-              });
-        }
-    });
-}
-
-//! \brief if child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f a invokable with no const \c child and \c
-//! component references.
-template<typename Function>
-void if_child_is_model_do(modeling&                                       mod,
-                          data_array<generic_component::child, child_id>& data,
-                          child_id                                        id,
-                          Function&& f) noexcept
-{
-    if_data_exists_do(data, id, [&](auto& child) noexcept {
-        if (child.type == child_type::component) {
-            if_data_exists_do(
-              mod.components, child.id.compo_id, [&](component& compo) {
-                  std::invoke(std::forward<Function>(f), child, compo);
-              });
         }
     });
 }
@@ -428,38 +356,6 @@ void for_each_model(const simulation& sim,
             std::invoke(std::forward<Function>(f),
                         tn.unique_id_to_model_id.data[i].id.sv(),
                         *mdl);
-    }
-}
-
-template<typename Function>
-void dispatch_component(const modeling&  mod,
-                        const component& compo,
-                        Function&&       f) noexcept
-{
-    switch (compo.type) {
-    case component_type::none:
-        break;
-    case component_type::generic:
-        if_data_exists_do(mod.generic_components,
-                          compo.id.generic_id,
-                          std::forward<Function>(f));
-        break;
-    case component_type::grid:
-        if_data_exists_do(
-          mod.grid_components, compo.id.grid_id, std::forward<Function>(f));
-        break;
-    case component_type::graph:
-        if_data_exists_do(
-          mod.graph_components, compo.id.graph_id, std::forward<Function>(f));
-        break;
-    case component_type::hsm:
-        if_data_exists_do(
-          mod.hsm_components, compo.id.hsm_id, std::forward<Function>(f));
-        break;
-    case component_type::simulation:
-        if_data_exists_do(
-          mod.sim_components, compo.id.sim_id, std::forward<Function>(f));
-        break;
     }
 }
 

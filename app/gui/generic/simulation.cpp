@@ -617,12 +617,15 @@ static auto get_state_name(application&       app,
                            project_editor&    pj_ed,
                            const hsm_wrapper& dyn) noexcept -> std::string_view
 {
-    if (const auto* sim_hsm = pj_ed.pj.sim.hsms.try_to_get(dyn.id))
-        if (const auto* mod_hsm = app.mod.hsm_components.try_to_get(
-              enum_cast<hsm_component_id>(sim_hsm->parent_id)))
-            return mod_hsm->names[dyn.exec.current_state].sv();
+    return app.mod.ids.read(
+      [&](const auto& ids, const auto /*v*/) noexcept -> std::string_view {
+          if (const auto* sim_hsm = pj_ed.pj.sim.hsms.try_to_get(dyn.id))
+              if (const auto* mod_hsm = ids.hsm_components.try_to_get(
+                    enum_cast<hsm_component_id>(sim_hsm->parent_id)))
+                  return mod_hsm->names[dyn.exec.current_state].sv();
 
-    return std::string_view();
+          return std::string_view();
+      });
 }
 
 static void show_dynamics_values(application&       app,
@@ -1331,8 +1334,8 @@ generic_simulation_editor::~generic_simulation_editor() noexcept
 void generic_simulation_editor::init(application&     app,
                                      project_editor&  pj_ed,
                                      const tree_node& tn,
-                                     component& /*compo*/,
-                                     generic_component& /*gen*/) noexcept
+                                     const component& /*compo*/,
+                                     const generic_component& /*gen*/) noexcept
 {
     enable_show = false;
 

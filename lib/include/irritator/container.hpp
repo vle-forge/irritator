@@ -1897,10 +1897,10 @@ private:
                   const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get() == nullptr);
-        debug::ensure(len > 0);
 
-        buffer.reset(
-          reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
+        if (std::cmp_less(0, len) and
+                std::cmp_less(len, std::numeric_limits<index_type>::max()))
+            buffer.reset(reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
     }
 
     /**
@@ -1911,8 +1911,6 @@ private:
     void do_alloc(const std::integral auto len,
                   std::index_sequence<Is...>) noexcept
     {
-        debug::ensure(len > 0);
-
         (do_alloc(std::get<Is>(m_col), len), ...);
     }
 
@@ -3779,9 +3777,11 @@ id_data_array<T, Identifier, A, Ts...>::id_data_array(
   const id_data_array& other) noexcept
   : m_ids(other.m_ids)
 {
-    do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
-    do_uninitialised_copy(
-      other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+    if (other.capacity() > 0) {
+        do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
+        do_uninitialised_copy(
+          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+    }
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -3798,7 +3798,7 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
   const id_data_array& other) noexcept -> id_data_array&
 {
     if (this != &other) {
-        do_destroy(std::index_sequence_for<Ts...>());
+        do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
         do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
         do_uninitialised_copy(
           other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
@@ -3812,8 +3812,8 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
   id_data_array&& other) noexcept -> id_data_array&
 {
     if (this != &other) {
+        do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
         m_ids.destroy();
-        do_destroy(std::index_sequence_for<Ts...>());
         m_ids = std::move(other.m_ids);
         std::swap(m_col, other.m_col);
         do_reset(other.m_col, std::index_sequence_for<Ts...>());
@@ -4256,12 +4256,12 @@ constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
 {
     clear();
 
-    m_items(std::exchange(other.m_items, nullptr));
-    m_max_size(std::exchange(other.m_max_size, 0));
-    m_max_used(std::exchange(other.m_max_used, 0));
-    m_capacity(std::exchange(other.m_capacity, 0));
-    m_next_key(std::exchange(other.m_next_key, 1));
-    m_free_head(std::exchange(other.m_free_head, none));
+    m_items = std::exchange(other.m_items, nullptr);
+    m_max_size = std::exchange(other.m_max_size, 0);
+    m_max_used = std::exchange(other.m_max_used, 0);
+    m_capacity = std::exchange(other.m_capacity, 0);
+    m_next_key = std::exchange(other.m_next_key, 1);
+    m_free_head = std::exchange(other.m_free_head, none);
 
     return *this;
 }

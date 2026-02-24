@@ -166,7 +166,10 @@ public:
 
     bool write(const std::string_view buffer) noexcept
     {
-        return write(buffer.data(), static_cast<i64>(buffer.size()));
+        if (buffer.size() > 0)
+            return write(buffer.data(), static_cast<i64>(buffer.size()));
+
+        return true;
     }
 
     //! Low level read function.

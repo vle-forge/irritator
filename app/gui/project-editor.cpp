@@ -61,11 +61,11 @@ void project_editor::select(application& app, tree_node_id id) noexcept
         if (auto* tree = pj.node(id); tree) {
             app.mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (ids.exists(tree->id)) {
-                    auto& compo          = app.mod.components[tree->id];
+                    auto& compo          = ids.components[tree->id];
                     m_selected_tree_node = id;
 
                     if (compo.type == component_type::generic) {
-                        if (auto* gen = app.mod.generic_components.try_to_get(
+                        if (auto* gen = ids.generic_components.try_to_get(
                               compo.id.generic_id)) {
                             app.generic_sim.init(
                               app, *this, *tree, compo, *gen);
@@ -128,9 +128,11 @@ static auto get_or_add_variable_observer(project&             pj,
     return v;
 }
 
-static bool show_local_simulation_plot_observers_table(application&    app,
-                                                       project_editor& ed,
-                                                       tree_node& tn) noexcept
+static bool show_local_simulation_plot_observers_table(
+  application&            app,
+  project_editor&         ed,
+  const component_access& ids,
+  tree_node&              tn) noexcept
 {
     debug::ensure(!component_is_grid_or_graph(app.mod, tn));
 
@@ -176,12 +178,11 @@ static bool show_local_simulation_plot_observers_table(application&    app,
                         sub_obs_id = vobs.push_back(tn_id, mdl_id);
                         tn.variable_observer_ids.set(uid, vobs_id);
 
-                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
                             if (ids.exists(tn.id)) {
-                                auto& c = app.mod.components[tn.id];
+                                auto& c = ids.components[tn.id];
                                 if (c.type == component_type::generic) {
                                     if (auto* g =
-                                          app.mod.generic_components.try_to_get(
+                                          ids.generic_components.try_to_get(
                                             c.id.generic_id);
                                         g) {
                                         for (auto& ch : g->children) {
@@ -201,7 +202,6 @@ static bool show_local_simulation_plot_observers_table(application&    app,
                                     }
                                 }
                             }
-                        });
 
                     } else {
                         auto& vobs =
@@ -345,22 +345,23 @@ static bool show_local_simulation_specific_observers(application&    app,
 {
     return app.mod.ids.read([&](const auto& ids, auto) noexcept {
         if (ids.exists(tn.id)) {
-            auto& compo = app.mod.components[tn.id];
+            const auto& compo = ids.components[tn.id];
+
             switch (compo.type) {
             case component_type::graph:
                 if (auto* g =
-                      app.mod.graph_components.try_to_get(compo.id.graph_id))
-                    return show_local_observers(app, ed, tn, compo, *g);
+                      ids.graph_components.try_to_get(compo.id.graph_id))
+                    return show_local_observers(app, ed, ids, tn, compo, *g);
                 break;
 
             case component_type::grid:
-                if (auto* g =
-                      app.mod.grid_components.try_to_get(compo.id.grid_id))
-                    return show_local_observers(app, ed, tn, compo, *g);
+                if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
+                    return show_local_observers(app, ed, ids, tn, compo, *g);
                 break;
 
             case component_type::generic:
-                return show_local_simulation_plot_observers_table(app, ed, tn);
+                return show_local_simulation_plot_observers_table(
+                  app, ed, ids, tn);
 
             default:
                 ImGui::TextFormat(
@@ -1009,27 +1010,44 @@ static void show_simulation_editor_treenode(application&    app,
                                             project_editor& ed,
                                             tree_node&      tn) noexcept
 {
-    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        if (ids.exists(tn.id)) {
-            auto& compo = app.mod.components[tn.id];
+    const auto ret = app.mod.ids.read(
+      [&](const auto& ids, auto) noexcept
+        -> std::optional<std::pair<component_type, component::sub_id>> {
+          if (ids.exists(tn.id)) {
+              const auto type   = ids.components[tn.id].type;
+              const auto sub_id = ids.components[tn.id].id;
+              return std::make_pair(type, sub_id);
+          } else {
+              return std::nullopt;
+          }
+      });
 
-            dispatch_component(app.mod, compo, [&](auto& c) noexcept {
-                using T = std::decay_t<decltype(c)>;
+    if (ret.has_value()) {
+        switch (ret->first) {
+        case component_type::none:
+            break;
 
-                if constexpr (std::is_same_v<T, grid_component>) {
-                    app.grid_sim.display(app, ed, tn, compo, c);
-                } else if constexpr (std::is_same_v<T, graph_component>) {
-                    ed.graph_ed.show(app, ed, tn);
-                } else if constexpr (std::is_same_v<T, generic_component>) {
-                    app.generic_sim.display(app, ed);
-                } else if constexpr (std::is_same_v<T, hsm_component>) {
-                    app.hsm_sim.show_observations(app, ed, tn, compo, c);
-                } else
-                    ImGui::TextFormatDisabled(
-                      "Undefined simulation editor for this component");
-            });
+        case component_type::generic:
+            app.generic_sim.display(app, ed);
+            break;
+
+        case component_type::grid:
+            app.grid_sim.display(app, ed, tn, ret->second.grid_id);
+            break;
+
+        case component_type::graph:
+            ed.graph_ed.show(app, ed, tn);
+            break;
+
+        case component_type::hsm:
+            app.hsm_sim.show_observations(app, ed, tn, ret->second.hsm_id);
+            break;
+
+        case component_type::simulation:
+            // app.sim_ed.show_observations(app, ed, tn, ret->second.sim_id);
+            break;
         }
-    });
+    }
 }
 
 auto project_editor::show(application& app) noexcept -> show_result_t
@@ -1080,10 +1098,10 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                     if (m_selected_tree_node != old_selected_tree_node) {
                         const auto compo_id = selected->id;
                         app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                            const auto& c = app.mod.components[compo_id];
+                            const auto& c = ids.components[compo_id];
                             if (c.type == component_type::graph) {
                                 auto& graph_compo =
-                                  app.mod.graph_components.get(c.id.graph_id);
+                                  ids.graph_components.get(c.id.graph_id);
                                 graph_ed.update(app, graph_compo.g);
                             }
                         });

@@ -18,8 +18,8 @@
 
 namespace irt {
 
-static auto dir_path_combobox(const modeling::file_access& fs,
-                              dir_path_id&                 dir_id) -> bool
+static auto dir_path_combobox(const file_access& fs, dir_path_id& dir_id)
+  -> bool
 {
     const auto* dir         = fs.dir_paths.try_to_get(dir_id);
     const auto* preview_dir = dir ? dir->path.c_str() : "-";
@@ -48,9 +48,9 @@ static auto dir_path_combobox(const modeling::file_access& fs,
     return dir_id != old_dir_id;
 }
 
-static auto dot_file_combobox(const modeling::file_access& fs,
-                              const dir_path&              dir,
-                              file_path_id& file_id) noexcept -> bool
+static auto dot_file_combobox(const file_access& fs,
+                              const dir_path&    dir,
+                              file_path_id&      file_id) noexcept -> bool
 {
     const auto* file         = fs.file_paths.try_to_get(file_id);
     const auto* preview_file = file ? file->path.c_str() : "-";
@@ -274,12 +274,13 @@ constexpr static bool is_line_intersects_box(ImVec2 p1,
     return not(a_miss or b_miss);
 };
 
-void graph_component_editor_data::show_graph(application& app,
+bool graph_component_editor_data::show_graph(application& app,
                                              component& /*compo*/,
                                              graph_component& data) noexcept
 {
     ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
     canvas_sz        = ImGui::GetContentRegionAvail();
+    auto u           = 0;
 
     if (canvas_sz.x < 50.0f)
         canvas_sz.x = 50.0f;
@@ -346,6 +347,7 @@ void graph_component_editor_data::show_graph(application& app,
                     };
 
                     selected_nodes.emplace_back(*id);
+                    ++u;
                 } else {
                     app.jn.push(
                       log_level::error,
@@ -365,6 +367,7 @@ void graph_component_editor_data::show_graph(application& app,
                 for (int i = 0; i < e; ++i) {
                     for (int j = i + 1; j < e; ++j) {
                         data.g.alloc_edge(selected_nodes[i], selected_nodes[j]);
+                        ++u;
                     }
                 }
                 selected_nodes.clear();
@@ -373,8 +376,10 @@ void graph_component_editor_data::show_graph(application& app,
             if (not selected_nodes.empty() and
                 ImGui::MenuItem("Delete nodes")) {
                 for (auto id : selected_nodes) {
-                    if (data.g.nodes.exists(id))
+                    if (data.g.nodes.exists(id)) {
                         data.g.nodes.free(id);
+                        ++u;
+                    }
                 }
                 selected_nodes.clear();
             }
@@ -382,8 +387,10 @@ void graph_component_editor_data::show_graph(application& app,
             if (not selected_edges.empty() and
                 ImGui::MenuItem("Delete edges")) {
                 for (auto id : selected_edges)
-                    if (data.g.edges.exists(id))
+                    if (data.g.edges.exists(id)) {
                         data.g.edges.free(id);
+                        ++u;
+                    }
                 selected_edges.clear();
             }
 
@@ -467,6 +474,8 @@ void graph_component_editor_data::show_graph(application& app,
                 }
             }
         }
+
+        return u > 0;
     }
 
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
@@ -603,6 +612,8 @@ void graph_component_editor_data::show_graph(application& app,
     }
 
     draw_list->PopClipRect();
+
+    return u > 0;
 }
 
 void graph_component_editor_data::center_camera(ImVec2 top_left,
@@ -641,10 +652,11 @@ void graph_component_editor_data::auto_fit_camera(ImVec2 top_left,
     st = graph_component_editor_data::job::none;
 }
 
-void graph_component_editor_data::show_scale_free_menu(
-  application&     app,
-  graph_component& graph) noexcept
+bool graph_component_editor_data::show_scale_free_menu(
+  application& app) noexcept
 {
+    auto u = 0;
+
     if (ImGui::BeginMenu("Generate scale free graph")) {
         HelpMarker("scale_free: graph typically has a very skewed degree "
                    "distribution, where few vertices have a very high "
@@ -653,202 +665,201 @@ void graph_component_editor_data::show_scale_free_menu(
                    "the World Wide Web, are scale-free graphs, making these "
                    "graphs a good model for certain networking.");
 
-        if (ImGui::InputInt("size", &psf.nodes))
+        if (ImGui::InputInt("size", &psf.nodes)) {
             psf.nodes = std::clamp(psf.nodes, 1, graph_component::children_max);
+            ++u;
+        }
 
-        if (ImGui::InputDouble("alpha", &psf.alpha))
+        if (ImGui::InputDouble("alpha", &psf.alpha)) {
             psf.alpha = std::clamp(psf.alpha, 0.0, 1000.0);
+            ++u;
+        }
 
-        if (ImGui::InputDouble("beta", &psf.beta))
+        if (ImGui::InputDouble("beta", &psf.beta)) {
             psf.beta = std::clamp(psf.beta, 0.0, 1000.0);
+            ++u;
+        }
 
-        if (auto r = app.component_sel.combobox("component", psf.id); r)
+        if (auto r = app.component_sel.combobox("component", psf.id); r) {
             psf.id = r.id;
+            ++u;
+        }
 
         if (ImGui::Button("generate")) {
             clear_selected_nodes();
-            graph.g.clear();
-            graph.g_type      = graph_component::graph_type::scale_free;
-            graph.param.scale = psf;
-            st                = job::build_scale_free_required;
+            m_graph.g.clear();
+            m_graph.g_type      = graph_component::graph_type::scale_free;
+            m_graph.param.scale = psf;
+            st                  = job::build_scale_free_required;
             ImGui::CloseCurrentPopup();
+            ++u;
         }
 
         ImGui::EndMenu();
     }
+
+    return u > 0;
 }
 
-void graph_component_editor_data::show_small_world_menu(
-  application&     app,
-  graph_component& graph) noexcept
+bool graph_component_editor_data::show_small_world_menu(
+  application& app) noexcept
 {
+    auto u = 0;
+
     if (ImGui::BeginMenu("Generate Small world graph")) {
         HelpMarker(
           "small_world: consists of a ring graph (where each vertex is "
           "connected to its k nearest neighbors).Edges in the graph are "
           "randomly rewired to different vertices with a probability p.");
 
-        if (ImGui::InputInt("size", &psw.nodes))
+        if (ImGui::InputInt("size", &psw.nodes)) {
+            ++u;
             psw.nodes = std::clamp(psw.nodes, 1, graph_component::children_max);
+        }
 
-        if (ImGui::InputDouble("probability", &psw.probability))
+        if (ImGui::InputDouble("probability", &psw.probability)) {
+            ++u;
             psw.probability = std::clamp(psw.probability, 0.0, 1.0);
+        }
 
-        if (ImGui::InputInt("k", &psw.k, 1, 2))
+        if (ImGui::InputInt("k", &psw.k, 1, 2)) {
+            ++u;
             psw.k = std::clamp(psw.k, 1, 8);
+        }
 
-        if (auto r = app.component_sel.combobox("component", psw.id); r)
+        if (auto r = app.component_sel.combobox("component", psw.id); r) {
+            ++u;
             psw.id = r.id;
+        }
 
         if (ImGui::Button("generate")) {
             clear_selected_nodes();
-            graph.g.clear();
-            graph.g_type      = graph_component::graph_type::small_world;
-            graph.param.small = psw;
-            st                = job::build_small_world_required;
+            m_graph.g.clear();
+            m_graph.g_type      = graph_component::graph_type::small_world;
+            m_graph.param.small = psw;
+            st                  = job::build_small_world_required;
             ImGui::CloseCurrentPopup();
+            ++u;
         }
 
         ImGui::EndMenu();
     }
+
+    return u > 0;
 }
 
-void graph_component_editor_data::show_dot_file_menu(
-  application&     app,
-  graph_component& graph) noexcept
+bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
 {
+    auto u = 0;
+
     if (ImGui::BeginMenu("Read Dot graph")) {
         HelpMarker("dot: consists of a file defining the graph "
                    "according to the dot file format.");
 
-        dot_combobox_selector(app.mod, pdf.dir, pdf.file);
+        if (dot_combobox_selector(app.mod, pdf.dir, pdf.file))
+            ++u;
 
         if (is_defined(pdf.dir) and is_defined(pdf.file)) {
             if (ImGui::Button("Load")) {
                 clear_selected_nodes();
-                graph.g.clear();
-                graph.g_type    = graph_component::graph_type::dot_file;
-                graph.param.dot = pdf;
-                st              = job::build_dot_graph_required;
+                m_graph.g.clear();
+                m_graph.g_type    = graph_component::graph_type::dot_file;
+                m_graph.param.dot = pdf;
+                st                = job::build_dot_graph_required;
                 ImGui::CloseCurrentPopup();
+                ++u;
             }
         }
 
         ImGui::EndMenu();
     }
+
+    return u > 0;
 }
 
 void graph_component_editor_data::graph_component_editor_data::show(
-  application& app) noexcept
+  application& app,
+  component&   compo) noexcept
 {
-    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        if (not ids.exists(m_id))
-            return;
+    read(app);
 
-        auto& compo = app.mod.components[m_id];
-        auto* graph = app.mod.graph_components.try_to_get(graph_id);
-        if (not graph)
-            return;
+    ImGui::BeginDisabled(running.test());
 
-        static bool show_save = false;
+    static bool show_save = false;
+    int         u         = 0;
 
-        ImGui::BeginDisabled(running.test());
-
-        if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("Model")) {
-                show_scale_free_menu(app, *graph);
-                show_small_world_menu(app, *graph);
-                show_dot_file_menu(app, *graph);
-                ImGui::Separator();
-                if (ImGui::MenuItem("Save")) {
-                    show_save = true;
-                }
-
-                ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                ImGui::SetNextWindowPos(
-                  center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-                ImGui::EndMenu();
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("Model")) {
+            u += show_scale_free_menu(app);
+            u += show_small_world_menu(app);
+            u += show_dot_file_menu(app);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Save")) {
+                show_save = true;
             }
 
-            if (ImGui::BeginMenu("Display##Menu")) {
-                if (ImGui::MenuItem("Center"))
-                    st = graph_component_editor_data::job::center_required;
-                if (ImGui::MenuItem("Auto-fit"))
-                    st = graph_component_editor_data::job::auto_fit_required;
+            ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+            ImGui::SetNextWindowPos(
+              center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-                float wzoom[2] = { zoom.x, zoom.y };
-                if (ImGui::MenuItem("Reset zoom")) {
-                    zoom.x = 1.0f;
-                    zoom.y = 1.0f;
-                }
-
-                if (ImGui::InputFloat2("Zoom x,y", wzoom)) {
-                    zoom.x = ImClamp(wzoom[0], 0.1f, 1000.f);
-                    zoom.y = ImClamp(wzoom[1], 0.1f, 1000.f);
-                }
-
-                if (ImGui::Checkbox("Automatic layout", &automatic_layout)) {
-                    if (automatic_layout)
-                        iteration = 0;
-                }
-
-                float wdistance[2] = { distance.x, distance.y };
-                if (ImGui::InputFloat2("Distance between node", wdistance)) {
-                    distance.x = ImClamp(wdistance[0], 0.1f, 100.f);
-                    distance.y = ImClamp(wdistance[0], 0.1f, 100.f);
-                }
-
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Connectivity")) {
-                show_project_params_menu(*graph);
-                ImGui::EndMenu();
-            }
-            ImGui::EndMenuBar();
+            ImGui::EndMenu();
         }
 
-        ImGui::EndDisabled();
+        if (ImGui::BeginMenu("Display##Menu")) {
+            if (ImGui::MenuItem("Center"))
+                st = graph_component_editor_data::job::center_required;
+            if (ImGui::MenuItem("Auto-fit"))
+                st = graph_component_editor_data::job::auto_fit_required;
 
-        if (show_save)
-            ImGui::OpenPopup("Save dot graph");
+            float wzoom[2] = { zoom.x, zoom.y };
+            if (ImGui::MenuItem("Reset zoom")) {
+                zoom.x = 1.0f;
+                zoom.y = 1.0f;
+            }
 
-        if (ImGui::BeginPopupModal("Save dot graph",
-                                   &show_save,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            const auto can_save =
-              file_path_selector(app,
-                                 file_path_selector_option::force_dot_extension,
-                                 reg,
-                                 dir,
-                                 file);
+            if (ImGui::InputFloat2("Zoom x,y", wzoom)) {
+                zoom.x = ImClamp(wzoom[0], 0.1f, 1000.f);
+                zoom.y = ImClamp(wzoom[1], 0.1f, 1000.f);
+            }
 
-            ImGui::BeginDisabled(can_save == false);
+            if (ImGui::Checkbox("Automatic layout", &automatic_layout)) {
+                if (automatic_layout)
+                    iteration = 0;
+            }
 
-            if (ImGui::Button("Save")) {
-                if (auto f = make_file(app.mod, file); f.has_value()) {
-                    if (write_dot_file(app.mod, graph->g, *f)) {
-                        graph->g_type = graph_component::graph_type::dot_file;
-                        graph->param  = { .dot = { .dir = dir, .file = file } };
-                    } else {
-                        app.add_gui_task([&app, id = file]() {
-                            app.mod.files.write(
-                              [&](auto& fs) { fs.remove_file(id); });
-                        });
+            float wdistance[2] = { distance.x, distance.y };
+            if (ImGui::InputFloat2("Distance between node", wdistance)) {
+                distance.x = ImClamp(wdistance[0], 0.1f, 100.f);
+                distance.y = ImClamp(wdistance[0], 0.1f, 100.f);
+            }
 
-                        clear_file_access();
+            ImGui::EndMenu();
+        }
 
-                        app.jn.push(
-                          log_level::error,
-                          [](auto& t, auto& m, const auto& f) {
-                              t = "Fail to save dot file";
-                              format(m,
-                                     "{}",
-                                     reinterpret_cast<const char*>(f.c_str()));
-                          },
-                          *f);
-                    }
+        if (ImGui::BeginMenu("Connectivity")) {
+            show_project_params_menu(m_graph);
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenuBar();
+    }
+
+    ImGui::EndDisabled();
+
+    if (show_save)
+        ImGui::OpenPopup("Save dot graph");
+
+    if (ImGui::BeginPopupModal(
+          "Save dot graph", &show_save, ImGuiWindowFlags_AlwaysAutoResize)) {
+        const auto can_save = file_path_selector(
+          app, file_path_selector_option::force_dot_extension, reg, dir, file);
+
+        ImGui::BeginDisabled(can_save == false);
+
+        if (ImGui::Button("Save")) {
+            if (auto f = make_file(app.mod, file); f.has_value()) {
+                if (write_dot_file(app.mod, m_graph.g, *f)) {
+                    m_graph.g_type = graph_component::graph_type::dot_file;
+                    m_graph.param  = { .dot = { .dir = dir, .file = file } };
                 } else {
                     app.add_gui_task([&app, id = file]() {
                         app.mod.files.write(
@@ -856,31 +867,49 @@ void graph_component_editor_data::graph_component_editor_data::show(
                     });
 
                     clear_file_access();
+
+                    app.jn.push(
+                      log_level::error,
+                      [](auto& t, auto& m, const auto& f) {
+                          t = "Fail to save dot file";
+                          format(
+                            m, "{}", reinterpret_cast<const char*>(f.c_str()));
+                      },
+                      *f);
                 }
-                show_save = false;
-                ImGui::CloseCurrentPopup();
-            }
+            } else {
+                app.add_gui_task([&app, id = file]() {
+                    app.mod.files.write([&](auto& fs) { fs.remove_file(id); });
+                });
 
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-
-            if (ImGui::Button("Close")) {
-                show_save = false;
-                ImGui::CloseCurrentPopup();
+                clear_file_access();
             }
-            ImGui::EndPopup();
+            show_save = false;
+            ImGui::CloseCurrentPopup();
         }
 
-        if (automatic_layout and not graph->g.nodes.empty()) {
-            bool again = compute_automatic_layout(*graph);
-            if (not again) {
-                iteration        = 0;
-                automatic_layout = false;
-            }
-        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
 
-        show_graph(app, compo, *graph);
-    });
+        if (ImGui::Button("Close")) {
+            show_save = false;
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    if (automatic_layout and not m_graph.g.nodes.empty()) {
+        bool again = compute_automatic_layout(m_graph);
+        if (not again) {
+            iteration        = 0;
+            automatic_layout = false;
+        }
+    }
+
+    u += show_graph(app, compo, m_graph);
+
+    if (u > 0)
+        write(app);
 }
 
 void graph_component_editor_data::update_position_to_grid(
@@ -913,47 +942,41 @@ void graph_component_editor_data::clear() noexcept
     m_id     = undefined<component_id>();
 }
 
-void graph_component_editor_data::show(component_editor& ed) noexcept
+bool graph_component_editor_data::show(component_editor& ed,
+                                       component&        compo) noexcept
 {
+    auto& app = container_of(&ed, &application::component_ed);
+    int   u   = 0;
+
+    read(app);
+
     if (ImGui::BeginChild("##graph-ed",
                           ImVec2(0, 0),
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_MenuBar)) {
-        auto& app = container_of(&ed, &application::component_ed);
-
-        show(app);
+        show(app, compo);
 
         if (st != job::none) {
             scoped_flag_run(running, [&]() {
-                const auto g_id = graph_id;
-
                 switch (st) {
                 case job::none:
                     break;
 
                 case job::center_required:
-                    if (auto* graph_compo =
-                          app.mod.graph_components.try_to_get(g_id)) {
-                        center_camera(
-                          ImVec2(graph_compo->top_left_limit[0],
-                                 graph_compo->top_left_limit[1]),
-                          ImVec2(graph_compo->bottom_right_limit[0],
-                                 graph_compo->bottom_right_limit[1]),
-                          canvas_sz);
-                    }
+                    center_camera(ImVec2(m_graph.top_left_limit[0],
+                                         m_graph.top_left_limit[1]),
+                                  ImVec2(m_graph.bottom_right_limit[0],
+                                         m_graph.bottom_right_limit[1]),
+                                  canvas_sz);
                     st = job::none;
                     break;
 
                 case job::auto_fit_required:
-                    if (auto* graph_compo =
-                          app.mod.graph_components.try_to_get(g_id)) {
-                        auto_fit_camera(
-                          ImVec2(graph_compo->top_left_limit[0],
-                                 graph_compo->top_left_limit[1]),
-                          ImVec2(graph_compo->bottom_right_limit[0],
-                                 graph_compo->bottom_right_limit[1]),
-                          canvas_sz);
-                    }
+                    auto_fit_camera(ImVec2(m_graph.top_left_limit[0],
+                                           m_graph.top_left_limit[1]),
+                                    ImVec2(m_graph.bottom_right_limit[0],
+                                           m_graph.bottom_right_limit[1]),
+                                    canvas_sz);
                     st = job::none;
                     break;
 
@@ -962,99 +985,109 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                                            .graph_ed = this,
                                            .g_id     = graph_id };
 
-                    app.add_gui_task([&builder = scale_free_builder]() {
-                        auto& app =
-                          container_of(builder.ed, &application::component_ed);
-                        auto& graph_compo =
-                          app.mod.graph_components.get(builder.g_id);
+                    app.add_gui_task([&app, builder = scale_free_builder]() {
+                        app.mod.ids.write([&](auto& ids) {
+                            const auto c_id = builder.graph_ed->get_id();
+                            if (not ids.exists(c_id))
+                                return;
 
-                        if (builder.graph_ed->g.init_scale_free_graph(
-                              builder.graph_ed->psf.alpha,
-                              builder.graph_ed->psf.beta,
-                              builder.graph_ed->psf.id,
-                              builder.graph_ed->psf.nodes,
-                              graph_compo.rng)) {
-                            std::scoped_lock lock(builder.graph_ed->mutex);
-                            builder.graph_ed->g.swap(graph_compo.g);
-                            graph_compo.param.scale = builder.graph_ed->psf;
-                            graph_compo.g_type =
-                              graph_component::graph_type::scale_free;
+                            auto& compo = ids.components[c_id];
+                            auto& graph =
+                              ids.graph_components.get(compo.id.graph_id);
 
-                            if (not graph_compo.g.nodes.empty()) {
-                                builder.graph_ed->update_position_to_grid(
-                                  graph_compo);
-                                graph_compo.update_position();
-                                builder.graph_ed->psf.reset();
+                            if (graph.g.init_scale_free_graph(
+                                  builder.graph_ed->psf.alpha,
+                                  builder.graph_ed->psf.beta,
+                                  builder.graph_ed->psf.id,
+                                  builder.graph_ed->psf.nodes,
+                                  graph.rng)) {
+                                graph.param.scale = builder.graph_ed->psf;
+                                graph.g_type =
+                                  graph_component::graph_type::scale_free;
+
+                                if (not graph.g.nodes.empty()) {
+                                    builder.graph_ed->update_position_to_grid(
+                                      graph);
+                                    graph.update_position();
+                                    builder.graph_ed->psf.reset();
+                                }
+                                builder.graph_ed->st = job::auto_fit_required;
                             }
-                            builder.graph_ed->st = job::auto_fit_required;
-                        }
+                        });
                     });
                     break;
 
                 case job::build_small_world_required:
-                    app.add_gui_task([&builder = scale_free_builder]() {
-                        auto& app =
-                          container_of(builder.ed, &application::component_ed);
-                        auto& graph_compo =
-                          app.mod.graph_components.get(builder.g_id);
+                    app.add_gui_task([&app, builder = scale_free_builder]() {
+                        app.mod.ids.write([&](auto& ids) {
+                            const auto c_id = builder.graph_ed->get_id();
+                            if (not ids.exists(c_id))
+                                return;
 
-                        if (builder.graph_ed->g.init_small_world_graph(
-                              builder.graph_ed->psw.probability,
-                              builder.graph_ed->psw.k,
-                              builder.graph_ed->psw.id,
-                              builder.graph_ed->psw.nodes,
-                              graph_compo.rng)) {
+                            auto& compo = ids.components[c_id];
+                            auto& graph =
+                              ids.graph_components.get(compo.id.graph_id);
 
-                            std::scoped_lock lock(builder.graph_ed->mutex);
-                            builder.graph_ed->g.swap(graph_compo.g);
-                            graph_compo.param.small = builder.graph_ed->psw;
-                            graph_compo.g_type =
-                              graph_component::graph_type::small_world;
+                            if (graph.g.init_small_world_graph(
+                                  builder.graph_ed->psw.probability,
+                                  builder.graph_ed->psw.k,
+                                  builder.graph_ed->psw.id,
+                                  builder.graph_ed->psw.nodes,
+                                  builder.graph_ed->m_graph.rng)) {
 
-                            if (not graph_compo.g.nodes.empty()) {
-                                builder.graph_ed->update_position_to_grid(
-                                  graph_compo);
-                                graph_compo.update_position();
-                                builder.graph_ed->psw.reset();
+                                graph.param.small = builder.graph_ed->psw;
+                                graph.g_type =
+                                  graph_component::graph_type::small_world;
+
+                                if (not graph.g.nodes.empty()) {
+                                    builder.graph_ed->update_position_to_grid(
+                                      graph);
+                                    graph.update_position();
+                                    builder.graph_ed->psw.reset();
+                                }
                             }
-                        }
-                        builder.graph_ed->st = job::auto_fit_required;
+                            builder.graph_ed->st = job::auto_fit_required;
+                        });
                     });
                     break;
 
                 case job::build_dot_graph_required:
-                    app.add_gui_task([&builder = scale_free_builder]() {
-                        auto& app =
-                          container_of(builder.ed, &application::component_ed);
-                        auto& graph_compo =
-                          app.mod.graph_components.get(builder.g_id);
-                        auto id = app.mod.files.read(
-                          [&](const auto& fs,
-                              const auto /*vers*/) -> irt::graph_id {
-                              if (const auto* f = fs.file_paths.try_to_get(
-                                    builder.graph_ed->pdf.file)) {
-                                  return f->g_id;
-                              }
+                    app.add_gui_task([&app, builder = scale_free_builder]() {
+                        app.mod.ids.write([&](auto& ids) {
+                            const auto c_id = builder.graph_ed->get_id();
+                            if (not ids.exists(c_id))
+                                return;
 
-                              return undefined<irt::graph_id>();
-                          });
+                            auto& compo = ids.components[c_id];
+                            auto& graph =
+                              ids.graph_components.get(compo.id.graph_id);
 
-                        if (const auto* g_glob =
-                              app.mod.graphs.try_to_get(id)) {
-                            std::scoped_lock lock(builder.graph_ed->mutex);
-                            builder.graph_ed->g.swap(graph_compo.g);
-                            graph_compo.g         = *g_glob;
-                            graph_compo.param.dot = builder.graph_ed->pdf;
-                            graph_compo.g_type =
-                              graph_component::graph_type::dot_file;
-                            builder.graph_ed->pdf.reset();
+                            auto id = app.mod.files.read(
+                              [&](const auto& fs,
+                                  const auto /*vers*/) -> irt::graph_id {
+                                  if (const auto* f = fs.file_paths.try_to_get(
+                                        builder.graph_ed->pdf.file)) {
+                                      return f->g_id;
+                                  }
 
-                            if (not graph_compo.g.nodes.empty()) {
-                                graph_compo.update_position();
+                                  return undefined<irt::graph_id>();
+                              });
+
+                            if (const auto* g_glob =
+                                  ids.graphs.try_to_get(id)) {
+                                graph.g         = *g_glob;
+                                graph.param.dot = builder.graph_ed->pdf;
+                                graph.g_type =
+                                  graph_component::graph_type::dot_file;
+                                builder.graph_ed->pdf.reset();
+
+                                if (not graph.g.nodes.empty()) {
+                                    graph.update_position();
+                                }
                             }
-                        }
 
-                        builder.graph_ed->st = job::auto_fit_required;
+                            builder.graph_ed->st = job::auto_fit_required;
+                        });
                     });
                     break;
                 }
@@ -1063,106 +1096,131 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
 
         ImGui::EndChild();
     }
+
+    if (u > 0) {
+        write(app);
+        return true;
+    }
+
+    return false;
 }
 
-void graph_component_editor_data::show_selected_nodes(
-  component_editor& ed) noexcept
+bool graph_component_editor_data::show_selected_nodes(
+  component_editor& ed,
+  component& /*compo*/) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
-        if (ImGui::TreeNodeEx("selected nodes")) {
-            for (const auto id : selected_nodes) {
-                if (graph->g.nodes.exists(id)) {
-                    const auto idx = get_index(id);
-                    ImGui::PushID(idx);
+    read(app);
 
-                    name_str name = graph->g.node_names[idx];
-                    if (ImGui::InputFilteredString("name", name)) {
-                        graph->g.node_names[idx] =
-                          graph->g.buffer.append(name.sv());
-                    }
+    int u = 0;
+    if (ImGui::TreeNodeEx("selected nodes")) {
+        for (const auto id : selected_nodes) {
+            if (m_graph.g.nodes.exists(id)) {
+                const auto idx = get_index(id);
+                ImGui::PushID(idx);
 
-                    name_str id_str = graph->g.node_ids[idx];
-                    if (ImGui::InputFilteredString("id", id_str)) {
-                        graph->g.node_ids[idx] =
-                          graph->g.buffer.append(id_str.sv());
-                    }
-
-                    ImGui::LabelFormat("position",
-                                       "{}x{}",
-                                       graph->g.node_positions[idx][0],
-                                       graph->g.node_positions[idx][1]);
-
-                    if (auto area = graph->g.node_areas[idx];
-                        ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
-                        graph->g.node_areas[idx] = area;
-                    }
-
-                    if (auto r = app.component_sel.combobox(
-                          "component", graph->g.node_components[idx]);
-                        r)
-                        graph->g.node_components[idx] = r.id;
-
-                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                        if (not ids.exists(graph->g.node_components[idx]))
-                            return;
-
-                        auto& compo =
-                          app.mod.components[graph->g.node_components[idx]];
-                        if (not compo.x.empty()) {
-                            if (ImGui::TreeNodeEx("input ports")) {
-                                const auto& xnames = compo.x.get<port_str>();
-                                for (const auto id : compo.x) {
-                                    ImGui::TextFormat("{}", xnames[id].sv());
-                                }
-                                ImGui::TreePop();
-                            }
-                        }
-
-                        if (not compo.y.empty()) {
-                            if (ImGui::TreeNodeEx("output ports")) {
-                                const auto& ynames = compo.y.get<port_str>();
-                                for (const auto id : compo.y) {
-                                    ImGui::TextFormat("{}", ynames[id].sv());
-                                }
-                                ImGui::TreePop();
-                            }
-                        }
-                    });
+                name_str name = m_graph.g.node_names[idx];
+                if (ImGui::InputFilteredString("name", name)) {
+                    ++u;
+                    m_graph.g.node_names[idx] =
+                      m_graph.g.buffer.append(name.sv());
                 }
+
+                name_str id_str = m_graph.g.node_ids[idx];
+                if (ImGui::InputFilteredString("id", id_str)) {
+                    ++u;
+                    m_graph.g.node_ids[idx] =
+                      m_graph.g.buffer.append(id_str.sv());
+                }
+
+                ImGui::LabelFormat("position",
+                                   "{}x{}",
+                                   m_graph.g.node_positions[idx][0],
+                                   m_graph.g.node_positions[idx][1]);
+
+                if (auto area = m_graph.g.node_areas[idx];
+                    ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
+                    m_graph.g.node_areas[idx] = area;
+                    ++u;
+                }
+
+                if (auto r = app.component_sel.combobox(
+                      "component", m_graph.g.node_components[idx]);
+                    r) {
+                    m_graph.g.node_components[idx] = r.id;
+                    ++u;
+                }
+
+                app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                    if (not ids.exists(m_graph.g.node_components[idx]))
+                        return;
+
+                    auto& compo =
+                      ids.components[m_graph.g.node_components[idx]];
+                    if (not compo.x.empty()) {
+                        if (ImGui::TreeNodeEx("input ports")) {
+                            const auto& xnames =
+                              compo.x.template get<port_str>();
+                            for (const auto id : compo.x) {
+                                ImGui::TextFormat("{}", xnames[id].sv());
+                            }
+                            ImGui::TreePop();
+                        }
+                    }
+
+                    if (not compo.y.empty()) {
+                        if (ImGui::TreeNodeEx("output ports")) {
+                            const auto& ynames =
+                              compo.y.template get<port_str>();
+                            for (const auto id : compo.y) {
+                                ImGui::TextFormat("{}", ynames[id].sv());
+                            }
+                            ImGui::TreePop();
+                        }
+                    }
+                });
 
                 ImGui::PopID();
             }
-
-            ImGui::TreePop();
         }
 
-        ImGui::Spacing();
-
-        if (ImGui::TreeNodeEx("apply for all selected")) {
-            if (auto r = app.component_sel.combobox("component",
-                                                    undefined<component_id>());
-                r) {
-                for (const auto id : selected_nodes) {
-                    if (graph->g.nodes.exists(id)) {
-                        graph->g.node_components[id] = r.id;
-                    }
-                }
-            }
-
-            static auto area = 1.f;
-            if (ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
-                for (const auto id : selected_nodes) {
-                    if (graph->g.nodes.exists(id)) {
-                        graph->g.node_areas[id] = area;
-                    }
-                }
-            }
-
-            ImGui::TreePop();
-        }
+        ImGui::TreePop();
     }
+
+    ImGui::Spacing();
+
+    if (ImGui::TreeNodeEx("apply for all selected")) {
+        if (auto r = app.component_sel.combobox("component",
+                                                undefined<component_id>());
+            r) {
+            for (const auto id : selected_nodes) {
+                if (m_graph.g.nodes.exists(id)) {
+                    m_graph.g.node_components[id] = r.id;
+                    ++u;
+                }
+            }
+        }
+
+        static auto area = 1.f;
+        if (ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
+            for (const auto id : selected_nodes) {
+                if (m_graph.g.nodes.exists(id)) {
+                    m_graph.g.node_areas[id] = area;
+                    ++u;
+                }
+            }
+        }
+
+        ImGui::TreePop();
+    }
+
+    if (u > 0) {
+        write(app);
+        return true;
+    }
+
+    return false;
 }
 
 bool graph_component_editor_data::need_show_selected_nodes(
@@ -1175,6 +1233,41 @@ void graph_component_editor_data::clear_selected_nodes() noexcept
 {
     selected_edges.clear();
     selected_nodes.clear();
+}
+
+void graph_component_editor_data::read(application& app) noexcept
+{
+    app.mod.ids.read([&](const auto& ids, auto version) noexcept {
+        if (not ids.exists(m_id))
+            return;
+
+        const auto& compo = ids.components[m_id];
+        debug::ensure(compo.type == component_type::graph);
+
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
+            if (version != m_version) {
+                m_graph     = *g;
+                m_version   = version;
+            }
+        }
+    });
+}
+
+void graph_component_editor_data::write(application& app) noexcept
+{
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) {
+            if (not ids.exists(m_id))
+                return;
+
+            auto& compo = ids.components[m_id];
+            debug::ensure(compo.type == component_type::graph);
+
+            if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
+                *g    = m_graph;
+            }
+        });
+    });
 }
 
 } // namespace irt

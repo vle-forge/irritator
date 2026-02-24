@@ -52,9 +52,9 @@ concept has_store_function = requires(T t, component_editor& ed) {
     { t.store(ed) } -> std::same_as<void>;
 };
 
-bool push_back_if_not_find(application&          app,
-                           vector<component_id>& vec,
-                           const component_id    id) noexcept
+static bool push_back_if_not_find(application&          app,
+                                  vector<component_id>& vec,
+                                  const component_id    id) noexcept
 {
     if (std::ranges::none_of(vec,
                              [id](const auto other) { return id == other; })) {
@@ -77,45 +77,54 @@ bool push_back_if_not_find(application&          app,
     return true;
 };
 
-static void update_component_list(application&      app,
-                                  component_editor& ed,
-                                  const component&  compo) noexcept
+static void update_component_list(application& app,
+                                  const component_access& /*ids*/,
+                                  component_editor&  ed,
+                                  const component_id compo_id) noexcept
 {
     app.add_gui_task([&]() noexcept {
         ed.component_list.write([&](auto& vec) noexcept {
             vec.clear();
 
-            switch (compo.type) {
-            case component_type::generic:
-                for (const auto& c :
-                     app.mod.generic_components.get(compo.id.generic_id)
-                       .children)
-                    if (c.type == child_type::component)
-                        if (not push_back_if_not_find(app, vec, c.id.compo_id))
+            app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (not ids.exists(compo_id))
+                    return;
+
+                const auto& compo = ids.components[compo_id];
+
+                switch (compo.type) {
+                case component_type::generic:
+                    for (const auto& c :
+                         ids.generic_components.get(compo.id.generic_id)
+                           .children)
+                        if (c.type == child_type::component)
+                            if (not push_back_if_not_find(
+                                  app, vec, c.id.compo_id))
+                                break;
+                    break;
+
+                case component_type::grid:
+                    for (const auto id :
+                         ids.grid_components.get(compo.id.grid_id).children())
+                        if (not push_back_if_not_find(app, vec, id))
                             break;
-                break;
+                    break;
 
-            case component_type::grid:
-                for (const auto id :
-                     app.mod.grid_components.get(compo.id.grid_id).children())
-                    if (not push_back_if_not_find(app, vec, id))
-                        break;
-                break;
+                case component_type::graph:
+                    for (const auto id :
+                         ids.graph_components.get(compo.id.graph_id).g.nodes) {
+                        const auto c_id =
+                          ids.graph_components.get(compo.id.graph_id)
+                            .g.node_components[id];
+                        if (not push_back_if_not_find(app, vec, c_id))
+                            break;
+                    }
+                    break;
 
-            case component_type::graph:
-                for (const auto id :
-                     app.mod.graph_components.get(compo.id.graph_id).g.nodes) {
-                    const auto c_id =
-                      app.mod.graph_components.get(compo.id.graph_id)
-                        .g.node_components[id];
-                    if (not push_back_if_not_find(app, vec, c_id))
-                        break;
+                default:
+                    break;
                 }
-                break;
-
-            default:
-                break;
-            }
+            });
         });
     });
 }
@@ -148,40 +157,38 @@ static auto combobox_port_id(const auto* label,
     return p_id;
 }
 
-static auto combobox_component_id(const modeling&             mod,
+static auto combobox_component_id(const component_access&     ids,
                                   const char*                 label,
                                   const vector<component_id>& component_list,
                                   component_id                c_id,
                                   port_id                     p_id) noexcept
   -> std::pair<component_id, port_id>
 {
-    return mod.ids.read([&](const auto& ids, auto) noexcept {
-        const char* preview =
-          ids.exists(c_id) ? mod.components[c_id].name.c_str() : "-";
+    const char* preview =
+      ids.exists(c_id) ? ids.components[c_id].name.c_str() : "-";
 
-        if (ImGui::BeginCombo(label, preview)) {
-            if (ImGui::Selectable("-", is_undefined(c_id))) {
-                c_id = undefined<component_id>();
-                p_id = undefined<port_id>();
-            }
-
-            for (const auto id : component_list) {
-                if (ids.exists(id)) {
-                    ImGui::PushID(ordinal(id));
-                    if (ImGui::Selectable(mod.components[id].name.c_str(),
-                                          id == c_id)) {
-                        c_id = id;
-                        p_id = undefined<port_id>();
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            ImGui::EndCombo();
+    if (ImGui::BeginCombo(label, preview)) {
+        if (ImGui::Selectable("-", is_undefined(c_id))) {
+            c_id = undefined<component_id>();
+            p_id = undefined<port_id>();
         }
 
-        return std::make_pair(c_id, p_id);
-    });
+        for (const auto id : component_list) {
+            if (ids.exists(id)) {
+                ImGui::PushID(ordinal(id));
+                if (ImGui::Selectable(ids.components[id].name.c_str(),
+                                      id == c_id)) {
+                    c_id = id;
+                    p_id = undefined<port_id>();
+                }
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return std::make_pair(c_id, p_id);
 }
 
 static auto combobox_component_port_id_empty(const auto* label) noexcept
@@ -225,10 +232,10 @@ static auto combobox_component_port_id(const auto* label,
 }
 
 template<typename PortGetter>
-static void show_connection_pack(const modeling&               mod,
-                                 const modeling::component_access& ids,
-                                 component&                    compo,
-                                 vector<connection_pack>&      pack,
+static void show_connection_pack(const modeling& /*mod*/,
+                                 const component_access&  ids,
+                                 component&               compo,
+                                 vector<connection_pack>& pack,
                                  PortGetter&& port_getter_fn) noexcept
 {
     auto& port_x_or_y = port_getter_fn(compo);
@@ -238,11 +245,11 @@ static void show_connection_pack(const modeling&               mod,
     while (it != pack.end()) {
         if (not port_x_or_y.exists(it->parent_port) or
             not ids.exists(it->child_component) or
-            not port_getter_fn(mod.components[it->child_component])
+            not port_getter_fn(ids.components[it->child_component])
                   .exists(it->child_port)) {
             it = pack.erase(it);
         } else {
-            const auto& child  = mod.components[it->child_component];
+            const auto& child  = ids.components[it->child_component];
             auto        to_del = false;
 
             ImGui::PushID(push_id++);
@@ -266,30 +273,101 @@ static void show_connection_pack(const modeling&               mod,
     }
 }
 
-static bool display_constant_source(
-  name_str&                                    name,
-  external_source_definition::constant_source& cst) noexcept
+static auto get_source_element(const component&                     compo,
+                               const external_source_definition::id id) noexcept
+  -> const external_source_definition::source_element&
 {
+    fatal::ensure(compo.srcs.data.exists(id));
+
+    return compo.srcs.data
+      .get<external_source_definition::source_element>()[id];
+}
+
+static auto get_name(const component&                     compo,
+                     const external_source_definition::id id) noexcept
+  -> const name_str&
+{
+    return compo.srcs.data.get<name_str>()[id];
+}
+
+static auto get_cst_source(const component&                     compo,
+                           const external_source_definition::id id) noexcept
+  -> const external_source_definition::constant_source&
+{
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>();
+    fatal::ensure(elems[id].index() == 0);
+
+    return *std::get_if<external_source_definition::constant_source>(
+      &elems[id]);
+}
+
+static auto get_bin_source(const component&                     compo,
+                           const external_source_definition::id id) noexcept
+  -> const external_source_definition::binary_source&
+{
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>();
+    fatal::ensure(elems[id].index() == 1);
+
+    return *std::get_if<external_source_definition::binary_source>(&elems[id]);
+}
+
+static auto get_txt_source(const component&                     compo,
+                           const external_source_definition::id id) noexcept
+  -> const external_source_definition::text_source&
+{
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>();
+    fatal::ensure(elems[id].index() == 2);
+
+    return *std::get_if<external_source_definition::text_source>(&elems[id]);
+}
+
+static auto get_rnd_source(const component&                     compo,
+                           const external_source_definition::id id) noexcept
+  -> const external_source_definition::random_source&
+{
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>();
+    fatal::ensure(elems[id].index() == 3);
+
+    return *std::get_if<external_source_definition::random_source>(&elems[id]);
+}
+
+static bool display_constant_source(
+  application&                         app,
+  const component&                     compo,
+  const component_id                   compo_id,
+  const external_source_definition::id id) noexcept
+{
+    const auto& elem = get_source_element(compo, id);
+    name_str    name = get_name(compo, id);
+    external_source_definition::constant_source cst = get_cst_source(compo, id);
+
     auto keep_element = true;
+    auto update       = false;
 
     if (ImGui::TreeNodeEx(
-          &cst, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x"))
             keep_element = false;
 
-        auto copy_name = name;
-        if (ImGui::InputFilteredString("name", copy_name))
-            name = copy_name;
+        if (ImGui::InputFilteredString("name", name))
+            update = true;
 
         auto size = cst.data.ssize();
-        if (ImGui::InputScalar("length", ImGuiDataType_S32, &size))
-            if (size < cst.data.capacity())
+        if (ImGui::InputScalar("length", ImGuiDataType_S32, &size)) {
+            size = size < 1                     ? 1
+                   : size < cst.data.capacity() ? size
+                                                : cst.data.capacity();
+            if (size != cst.data.ssize()) {
                 cst.data.resize(size);
-
-        if (cst.data.empty())
-            cst.data.resize(1);
+                update = true;
+            }
+        }
 
         const auto columns = 3 < cst.data.ssize() ? 3 : cst.data.ssize();
         const auto rows    = (cst.data.ssize() / columns) +
@@ -312,7 +390,8 @@ static bool display_constant_source(
                         ImGui::TableSetColumnIndex(j);
                         ImGui::PushID(i * columns + j);
                         ImGui::PushItemWidth(-1);
-                        ImGui::InputDouble("", &cst.data[i * columns + j]);
+                        if (ImGui::InputDouble("", &cst.data[i * columns + j]))
+                            update = true;
                         ImGui::PopItemWidth();
                         ImGui::PopID();
                     }
@@ -324,255 +403,373 @@ static bool display_constant_source(
         ImGui::TreePop();
     }
 
+    if (update) {
+        app.add_gui_task([&app, compo_id, id, cst, name]() noexcept {
+            app.mod.ids.write([&](auto& ids) noexcept {
+                auto& compo = ids.components[compo_id];
+                if (compo.srcs.data.exists(id)) {
+                    auto& elem = compo.srcs.data.template get<
+                      external_source_definition::source_element>()[id];
+                    if (elem.index() == 0) {
+                        auto& cst_elem = *std::get_if<
+                          external_source_definition::constant_source>(&elem);
+                        cst_elem                            = cst;
+                        compo.srcs.data.template get<name_str>()[id] = name;
+                    }
+                }
+            });
+        });
+    }
+
     return keep_element;
 }
 
 static bool display_binary_source(
-  const application&                         app,
-  const component&                           compo,
-  name_str&                                  name,
-  external_source_definition::binary_source& bin) noexcept
+  application&                         app,
+  const component_access&              ids,
+  const component&                     compo,
+  const component_id                   compo_id,
+  const external_source_definition::id id) noexcept
 {
+    const auto& elem = get_source_element(compo, id);
+    name_str    name = get_name(compo, id);
+    external_source_definition::binary_source bin = get_bin_source(compo, id);
+
     auto keep_element = true;
+    auto update       = false;
 
     if (ImGui::TreeNodeEx(
-          &bin, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x"))
             keep_element = false;
 
-        auto copy_name = name;
-        if (ImGui::InputFilteredString("name", copy_name))
-            name = copy_name;
+        if (ImGui::InputFilteredString("name", name))
+            update = true;
 
-        bin.file = app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-            if (const auto* f = fs.file_paths.try_to_get(compo.file))
-                return show_data_file_input(app.mod, f->parent, bin.file);
-            else
-                return undefined<file_path_id>();
+        const auto& file = ids.component_file_paths[compo_id];
+
+        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            if (fs.dir_paths.try_to_get(file.parent)) {
+                bin.file = show_data_file_input(app.mod, file.parent, bin.file);
+            } else {
+                bin.file = undefined<file_path_id>();
+            }
         });
+
         ImGui::TreePop();
+    }
+
+    if (update) {
+        app.add_gui_task([&app, compo_id, id, bin, name]() noexcept {
+            app.mod.ids.write([&](auto& ids) noexcept {
+                auto& compo = ids.components[compo_id];
+                if (compo.srcs.data.exists(id)) {
+                    auto& elem = compo.srcs.data.template get<
+                      external_source_definition::source_element>()[id];
+                    if (elem.index() == 1) {
+                        auto& bin_elem = *std::get_if<
+                          external_source_definition::binary_source>(&elem);
+                        bin_elem                            = bin;
+                        compo.srcs.data.template get<name_str>()[id] = name;
+                    }
+                }
+            });
+        });
     }
 
     return keep_element;
 }
 
 static bool display_text_source(
-  const application&                       app,
-  const component&                         compo,
-  name_str&                                name,
-  external_source_definition::text_source& text) noexcept
+  application&                         app,
+  const component_access&              ids,
+  const component&                     compo,
+  const component_id                   compo_id,
+  const external_source_definition::id id) noexcept
 {
+    const auto& elem                            = get_source_element(compo, id);
+    name_str    name                            = get_name(compo, id);
+    external_source_definition::text_source txt = get_txt_source(compo, id);
+
     auto keep_element = true;
+    auto update       = false;
 
     if (ImGui::TreeNodeEx(
-          &text, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x"))
             keep_element = false;
 
-        auto copy_name = name;
-        if (ImGui::InputFilteredString("name", copy_name))
-            name = copy_name;
+        if (ImGui::InputFilteredString("name", name))
+            update = true;
 
-        text.file =
-          app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-              if (const auto* f = fs.file_paths.try_to_get(compo.file))
-                  return show_data_file_input(app.mod, f->parent, text.file);
-              else
-                  return undefined<file_path_id>();
-          });
+        const auto& file = ids.component_file_paths[compo_id];
+
+        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+            if (fs.dir_paths.try_to_get(file.parent)) {
+                txt.file = show_data_file_input(app.mod, file.parent, txt.file);
+            } else {
+                txt.file = undefined<file_path_id>();
+            }
+        });
+
         ImGui::TreePop();
+    }
+
+    if (update) {
+        app.add_gui_task([&app, compo_id, id, txt, name]() noexcept {
+            app.mod.ids.write([&](auto& ids) noexcept {
+                auto& compo = ids.components[compo_id];
+                if (compo.srcs.data.exists(id)) {
+                    auto& elem = compo.srcs.data.template get<
+                      external_source_definition::source_element>()[id];
+                    if (elem.index() == 2) {
+                        auto& txt_elem =
+                          *std::get_if<external_source_definition::text_source>(
+                            &elem);
+                        txt_elem                            = txt;
+                        compo.srcs.data.template get<name_str>()[id] = name;
+                    }
+                }
+            });
+        });
     }
 
     return keep_element;
 }
 
 static bool display_random_source(
-  name_str&                                  name,
-  external_source_definition::random_source& rnd) noexcept
+  application&                         app,
+  const component&                     compo,
+  const component_id                   compo_id,
+  const external_source_definition::id id) noexcept
 {
+    const auto& elem = get_source_element(compo, id);
+    name_str    name = get_name(compo, id);
+    external_source_definition::random_source rnd = get_rnd_source(compo, id);
+
     auto keep_element = true;
+    auto update       = false;
 
     if (ImGui::TreeNodeEx(
-          &rnd, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x"))
             keep_element = false;
 
-        auto copy_name = name;
-        if (ImGui::InputFilteredString("name", copy_name))
-            name = copy_name;
+        if (ImGui::InputFilteredString("name", name))
+            update = true;
 
-        auto copy_rnd = rnd;
-        if (show_random_distribution_input(copy_rnd)) {
-            rnd = copy_rnd;
-        }
+        if (show_random_distribution_input(rnd))
+            update = true;
 
         ImGui::TreePop();
+    }
+
+    if (update) {
+        app.add_gui_task([&app, compo_id, id, rnd, name]() noexcept {
+            app.mod.ids.write([&](auto& ids) noexcept {
+                auto& compo = ids.components[compo_id];
+                if (compo.srcs.data.exists(id)) {
+                    auto& elem = compo.srcs.data.template get<
+                      external_source_definition::source_element>()[id];
+                    if (elem.index() == 0) {
+                        auto& cst_elem = *std::get_if<
+                          external_source_definition::random_source>(&elem);
+                        cst_elem                            = rnd;
+                        compo.srcs.data.template get<name_str>()[id] = name;
+                    }
+                }
+            });
+        });
     }
 
     return keep_element;
 }
 
-static void display_external_source(const application& app,
-                                    component&         compo) noexcept
+static void display_external_source(application&       app,
+                                    const component_id compo_id) noexcept
 {
-    if (compo.srcs.data.empty())
-        return;
+    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+        if (ids.exists(compo_id))
+            return;
 
-    if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
-        std::optional<external_source_definition::id> to_del;
-        auto& names = compo.srcs.data.get<name_str>();
-        auto& elem =
-          compo.srcs.data.get<external_source_definition::source_element>();
+        const auto& compo = ids.components[compo_id];
+        if (compo.srcs.data.empty())
+            return;
 
-        for (const auto id : compo.srcs.data) {
-            auto keep_element = true;
-            switch (elem[id].index()) {
-            case 0:
-                keep_element = display_constant_source(
-                  names[id],
-                  *std::get_if<external_source_definition::constant_source>(
-                    &elem[id]));
-                break;
+        if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
+            std::optional<external_source_definition::id> to_del;
+            for (const auto id : compo.srcs.data) {
+                auto keep_element = true;
+                switch (get_source_element(compo, id).index()) {
+                case 0:
+                    keep_element =
+                      display_constant_source(app, compo, compo_id, id);
+                    break;
 
-            case 1:
-                keep_element = display_binary_source(
-                  app,
-                  compo,
-                  names[id],
-                  *std::get_if<external_source_definition::binary_source>(
-                    &elem[id]));
-                break;
+                case 1:
+                    keep_element =
+                      display_binary_source(app, ids, compo, compo_id, id);
+                    break;
 
-            case 2:
-                keep_element = display_text_source(
-                  app,
-                  compo,
-                  names[id],
-                  *std::get_if<external_source_definition::text_source>(
-                    &elem[id]));
-                break;
+                case 2:
+                    keep_element =
+                      display_text_source(app, ids, compo, compo_id, id);
+                    break;
 
-            case 3:
-                keep_element = display_random_source(
-                  names[id],
-                  *std::get_if<external_source_definition::random_source>(
-                    &elem[id]));
-                break;
+                case 3:
+                    keep_element =
+                      display_random_source(app, compo, compo_id, id);
+                    break;
+                }
+
+                if (not keep_element)
+                    to_del = id;
             }
 
-            if (not keep_element)
-                to_del = id;
+            if (to_del.has_value()) {
+                app.add_gui_task([&app, compo_id, id = *to_del]() noexcept {
+                    app.mod.ids.write([&](auto& ids) noexcept {
+                        auto& compo = ids.components[compo_id];
+                        if (compo.srcs.data.exists(id)) {
+                            compo.srcs.data.free(id);
+                        }
+                    });
+                });
+            }
+
+            ImGui::TreePop();
         }
-
-        if (to_del.has_value())
-            compo.srcs.data.free(*to_del);
-
-        ImGui::TreePop();
-    }
+    });
 }
 
-static auto select_registred_path(const modeling&         mod,
-                                  const registred_path_id id) noexcept
-  -> registred_path_id
+static auto select_registred_path(const modeling& mod,
+                                  const component_access& /*ids*/,
+                                  component_editor::tab& tab) noexcept -> bool
 {
     return mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        static constexpr const char* empty = "";
+        static constexpr const char* empty = "-";
 
-        const auto* r       = fs.registred_paths.try_to_get(id);
+        const auto* r       = fs.registred_paths.try_to_get(tab.file.reg);
         const auto* preview = r ? r->path.c_str() : empty;
-        auto        ret     = id;
+
+        if (not r)
+            tab.file.reg = undefined<registred_path_id>();
+
+        auto u = 0;
 
         if (ImGui::BeginCombo("Path", preview)) {
             const registred_path* list = nullptr;
+
+            if (ImGui::Selectable(empty, r == nullptr)) {
+                if (is_defined(tab.file.reg)) {
+                    tab.file.reg    = undefined<registred_path_id>();
+                    tab.file.parent = undefined<dir_path_id>();
+                    ++u;
+                }
+            }
+
             while (fs.registred_paths.next(list)) {
                 if (list->status == registred_path::state::error)
                     continue;
 
+                ImGui::PushID(list);
                 if (ImGui::Selectable(list->path.c_str(),
                                       r == list,
                                       ImGuiSelectableFlags_None)) {
-                    ret = fs.registred_paths.get_id(list);
+                    const auto r_id = fs.registred_paths.get_id(list);
+                    if (r_id != tab.file.reg) {
+                        tab.file.reg    = r_id;
+                        tab.file.parent = undefined<dir_path_id>();
+                        ++u;
+                    }
                 }
+                ImGui::PopID();
             }
             ImGui::EndCombo();
         }
 
-        return ret;
+        return u > 0;
     });
 }
 
-static auto select_dir_path(const modeling&         mod,
-                            const registred_path_id r_id,
-                            const dir_path_id d_id) noexcept -> dir_path_id
+static auto select_dir_path(const modeling&        mod,
+                            component_editor::tab& tab) noexcept -> bool
 {
-    debug::ensure(is_defined(r_id));
+    debug::ensure(is_defined(tab.file.reg));
 
-    static constexpr const char* empty = "";
+    return mod.files.read([&](const auto& fs, const auto /*vers*/) {
+        static constexpr const char* empty = "-";
 
-    const auto dir_id =
-      mod.files.read([&](const auto& fs, const auto /*vers*/) {
-          const auto& r        = fs.registred_paths.get(r_id);
-          const auto* d        = fs.dir_paths.try_to_get(d_id);
-          const auto* preview  = d ? d->path.c_str() : empty;
-          auto        ret_d_id = d ? d_id : undefined<dir_path_id>();
+        const auto& r       = fs.registred_paths.get(tab.file.reg);
+        const auto* d       = fs.dir_paths.try_to_get(tab.file.parent);
+        const auto* preview = d ? d->path.c_str() : empty;
 
-          if (ImGui::BeginCombo("Directory", preview)) {
-              if (ImGui::Selectable("##empty-dir", d == nullptr)) {
-                  ret_d_id = undefined<dir_path_id>();
-              }
+        if (not d)
+            tab.file.parent = undefined<dir_path_id>();
 
-              for (const auto id : r.children) {
-                  if (const auto* dir = fs.dir_paths.try_to_get(id)) {
-                      if (ImGui::Selectable(dir->path.c_str(), d == dir)) {
-                          ret_d_id = fs.dir_paths.get_id(*dir);
-                      }
-                  }
-              }
+        auto u = 0;
 
-              ImGui::EndCombo();
-          }
+        if (ImGui::BeginCombo("Directory", preview)) {
+            if (ImGui::Selectable(empty, d == nullptr)) {
+                tab.file.parent = undefined<dir_path_id>();
+                ++u;
+            }
 
-          return ret_d_id;
-      });
+            for (const auto id : r.children) {
+                if (const auto* dir = fs.dir_paths.try_to_get(id)) {
+                    ImGui::PushID(dir);
+                    if (ImGui::Selectable(dir->path.c_str(), d == dir)) {
+                        const auto d_id = fs.dir_paths.get_id(*dir);
+                        if (d_id != tab.file.parent) {
+                            tab.file.parent = d_id;
+                            ++u;
+                        }
+                    }
+                    ImGui::PopID();
+                }
+            }
 
-    return dir_id;
+            ImGui::EndCombo();
+        }
+
+        return u > 0;
+    });
 }
 
-static auto create_dir_path(application&                        app,
-                            atomic_request_buffer<dir_path_id>& newdir,
-                            const registred_path_id r_id) noexcept -> void
+static void create_dir_path(application& app,
+                            const component_access& /*ids*/,
+                            component_editor::tab& tab) noexcept
 {
-    small_string<63> new_dir_name;
-
-    if (ImGui::InputFilteredString("New dir.##dir", new_dir_name)) {
-        const auto dir_exist =
+    if (ImGui::InputFilteredString("New dir.##dir", tab.dir_name)) {
+        const auto exists =
           app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-              const auto& r = fs.registred_paths.get(r_id);
+              const auto& r = fs.registred_paths.get(tab.file.reg);
 
               for (const auto id : r.children)
                   if (const auto* dir = fs.dir_paths.try_to_get(id))
-                      if (dir->path.sv() == new_dir_name.sv())
+                      if (dir->path.sv() == tab.dir_name.sv())
                           return true;
 
               return false;
           });
 
-        if (not dir_exist and newdir.should_request()) {
-            app.add_gui_task([&app, r_id, &newdir, new_dir_name]() {
+        if (not exists and tab.new_dir.should_request()) {
+            app.add_gui_task([&app, &tab]() {
                 const auto dir_id = app.mod.files.write([&](auto& fs) {
-                    const auto id = fs.alloc_dir(r_id, new_dir_name.sv());
+                    const auto id =
+                      fs.alloc_dir(tab.file.reg, tab.dir_name.sv());
                     if (is_undefined(id)) {
                         app.jn.push(log_level::error,
                                     [&](auto& title, auto& /*msg*/) noexcept {
                                         format(title,
                                                "Fail to create directory {}",
-                                               new_dir_name.sv());
+                                               tab.dir_name.sv());
                                     });
                     } else {
                         if (not fs.create_directories(id)) {
@@ -581,182 +778,103 @@ static auto create_dir_path(application&                        app,
                               [&](auto& title, auto& /*msg*/) noexcept {
                                   format(title,
                                          "Fail to create directory {}",
-                                         new_dir_name.sv());
+                                         tab.dir_name.sv());
                               });
+                            fs.free(id);
                         }
                     }
 
                     return id;
                 });
 
-                newdir.fulfill(dir_id);
+                tab.new_dir.fulfill(dir_id);
             });
         }
     }
 }
 
-static auto select_file_path(application&                         app,
-                             const modeling::component_access&        ids,
-                             const component_id                   compo_id,
-                             atomic_request_buffer<file_path_id>& newfile,
-                             const registred_path_id              r_id,
-                             const dir_path_id                    d_id,
-                             const file_path_id                   f_id) noexcept
-  -> std::pair<file_path_id, bool>
+static auto select_file_path(application& /*app*/,
+                             const component_access& ids,
+                             component_editor::tab&  tab) noexcept -> bool
 {
-    debug::ensure(is_defined(r_id));
-    debug::ensure(is_defined(d_id));
+    debug::ensure(is_defined(tab.file.reg));
+    debug::ensure(is_defined(tab.file.parent));
 
-    // If file_path_id is undefined, we need to spawn a new file_path in a
-    // gui task using atomic_request_buffer and leave while f_id is
-    // undefined.
+    auto u = 0;
 
-    if (is_undefined(f_id)) {
-        if (const auto file_id_opt = newfile.try_take()) {
-            debug::ensure(is_undefined(app.mod.components[compo_id].file));
-            app.mod.components[compo_id].file = *file_id_opt;
-            return std::make_pair(*file_id_opt, false);
-        } else {
-            if (newfile.should_request()) {
-                app.add_gui_task([&app, compo_id, d_id, &newfile]() noexcept {
-                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                        if (ids.exists(compo_id)) {
-                            app.mod.files.write([&](auto& fs) noexcept {
-                                const auto file_id = fs.alloc_file(
-                                  d_id,
-                                  app.mod.components[compo_id].name.sv(),
-                                  file_path::file_type::component_file);
+    if (ImGui::InputFilteredString("File##text", tab.file.path)) {
+        if (not has_extension(tab.file.path.sv(),
+                              file_path::file_type::component_file))
+            add_extension(tab.file.path, file_path::file_type::component_file);
 
-                                newfile.fulfill(file_id);
-                            });
-                        }
-                    });
-                });
-            }
-
-            return std::make_pair(undefined<file_path_id>(), false);
-        }
+        if (is_valid_irt_filename(tab.file.path.sv()))
+            u +=
+              tab.file.path.sv() != ids.component_file_paths[tab.id].path.sv();
     }
 
-    const auto valid =
-      app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-          auto&         file = fs.file_paths.get(f_id);
-          file_path_str tmp{ file.path };
+    if (ImGui::InputSmallStringMultiline(
+          "##source",
+          tab.desc,
+          ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+          ImGuiInputTextFlags_AllowTabInput)) {
+        u += tab.desc.sv() != ids.component_descriptions[tab.id].sv();
+    }
 
-          if (ImGui::InputFilteredString("File##text", tmp)) {
-              if (not has_extension(tmp.sv(),
-                                    file_path::file_type::component_file))
-                  add_extension(tmp, file_path::file_type::component_file);
-
-              app.add_gui_task([&app, f_id, tmp]() {
-                  app.mod.files.write([&](auto& fs) {
-                      if (auto* f = fs.file_paths.try_to_get(f_id)) {
-                          f->path = tmp;
-                      }
-                  });
-              });
-
-              if (ids.exists(compo_id)) {
-                  auto& compo = app.mod.components[compo_id];
-
-                  if (not app.mod.descriptions.exists(compo.desc)) {
-                      if (app.mod.descriptions.can_alloc(1) &&
-                          ImGui::Button("Add description")) {
-                          compo.desc = app.mod.descriptions.alloc_id();
-                          app.mod.descriptions.get<description_str>(compo.desc)
-                            .clear();
-                          app.mod.descriptions.get<description_status>(
-                            compo.desc) = description_status::modified;
-                      }
-                  } else {
-                      constexpr ImGuiInputTextFlags flags =
-                        ImGuiInputTextFlags_AllowTabInput;
-                      auto& str = app.mod.descriptions.get<0>(compo.desc);
-
-                      ImGui::InputSmallStringMultiline(
-                        "##source",
-                        str,
-                        ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-                        flags);
-
-                      if (ImGui::Button("Remove")) {
-                          app.mod.descriptions.free(compo.desc);
-                          compo.desc = undefined<description_id>();
-                      }
-                  }
-              }
-          }
-
-          return is_valid_irt_filename(file.path.sv());
-      });
-
-    return std::make_pair(f_id, valid);
+    return u;
 }
 
 template<typename ComponentEditor>
-static void show_file_access(application&                  app,
-                             const modeling::component_access& ids,
-                             ComponentEditor&              ed,
-                             const component_id            compo_id,
-                             component_editor::tab&        tab) noexcept
+static bool show_file_access(application&            app,
+                             const component_access& ids,
+                             ComponentEditor&        ed,
+                             component_editor::tab&  tab) noexcept
 {
-    debug::ensure(ids.exists(compo_id));
+    debug::ensure(ids.exists(tab.id));
 
-    if (const auto reg = select_registred_path(app.mod, tab.reg);
-        reg != tab.reg) {
-        tab.reg = reg;
-        tab.dir = undefined<dir_path_id>();
-    }
+    auto u = 0;
 
-    if (is_defined(tab.reg)) {
-        const auto dir = select_dir_path(app.mod, tab.reg, tab.dir);
+    u += select_registred_path(app.mod, ids, tab);
 
-        if (is_undefined(dir)) {
-            if (const auto newdir = tab.new_dir.try_take()) {
-                tab.dir = *newdir;
-            } else {
-                create_dir_path(app, tab.new_dir, tab.reg);
-            }
-        } else {
-            tab.dir = dir;
+    if (is_defined(tab.file.reg)) {
+        u += select_dir_path(app.mod, tab);
+
+        if (const auto dir_id_opt = tab.new_dir.try_take();
+            dir_id_opt.has_value()) {
+            tab.file.parent = *dir_id_opt;
+        }
+
+        if (is_undefined(tab.file.parent)) {
+            create_dir_path(app, ids, tab);
         }
     }
 
-    if (is_defined(tab.reg) and is_defined(tab.dir)) {
-        const auto [newf_id, valid] = select_file_path(
-          app, ids, compo_id, tab.new_file, tab.reg, tab.dir, tab.file);
+    if (is_defined(tab.file.reg) and is_defined(tab.file.parent)) {
+        u += select_file_path(app, ids, tab);
 
-        if (is_defined(newf_id)) {
-            if (tab.file != newf_id) {
-                tab.file        = newf_id;
-                const auto d_id = tab.dir;
-
-                app.add_gui_task([&app, &ed, newf_id, d_id, compo_id]() {
-                    app.mod.files.write([&](auto& fs) {
-                        app.mod.ids.write([&](auto& ids) noexcept {
-                            if (ids.exists(compo_id)) {
-                                auto& compo = app.mod.components[compo_id];
-                                compo.file  = newf_id;
-                                fs.file_paths.get(newf_id).parent    = d_id;
-                                fs.file_paths.get(newf_id).component = compo_id;
-                            }
-                        });
-                    });
+        if (u > 0) {
+            app.add_gui_task([&app, &tab]() {
+                app.mod.ids.write([&](auto& ids) noexcept {
+                    if (ids.exists(tab.id)) {
+                        auto& file  = ids.component_file_paths[tab.id];
+                        file.parent = tab.file.parent;
+                        file.path   = tab.file.path;
+                    }
                 });
-            }
+            });
+        }
 
-            if constexpr (has_store_function<ComponentEditor>) {
-                ed.store(app.component_ed);
-            }
+        if constexpr (has_store_function<ComponentEditor>) {
+            ed.store(app.component_ed);
+        }
 
-            if (valid and ImGui::Button("Save")) {
-                app.start_save_component(compo_id);
+        if (u > 0 and ImGui::Button("Save")) {
+            app.start_save_component(tab.id);
 
-                app.add_gui_task(
-                  [&app]() noexcept { app.component_sel.update(); });
-            }
+            app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
         }
     }
+
+    return u > 0;
 }
 
 static port_id show_input_port(component& gcompo, port_id g_port_id) noexcept
@@ -910,10 +1028,10 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
     return selected;
 }
 
-static void show_input_connections_new(application&                  app,
-                                       const modeling::component_access& ids,
-                                       grid_component&               grid,
-                                       component& gcompo) noexcept
+static void show_input_connections_new(application&            app,
+                                       const component_access& ids,
+                                       grid_component&         grid,
+                                       component&              gcompo) noexcept
 {
     static port_id     g_port_id  = undefined<port_id>();
     static int         selected   = 0;
@@ -950,7 +1068,7 @@ static void show_input_connections_new(application&                  app,
         const auto ch_id = grid.children()[selected];
 
         if (ids.exists(ch_id)) {
-            auto& ch = app.mod.components[ch_id];
+            auto& ch = ids.components[ch_id];
             temp = ch.x.exists(p_selected) ? ch.x.get<port_str>(p_selected).sv()
                                            : "-";
 
@@ -1001,10 +1119,10 @@ static void show_input_connections_new(application&                  app,
     }
 }
 
-static void show_output_connections_new(application&                  app,
-                                        const modeling::component_access& ids,
-                                        grid_component&               grid,
-                                        component& gcompo) noexcept
+static void show_output_connections_new(application&            app,
+                                        const component_access& ids,
+                                        grid_component&         grid,
+                                        component&              gcompo) noexcept
 {
     static port_id     g_port_id  = undefined<port_id>();
     static int         selected   = 0;
@@ -1041,7 +1159,7 @@ static void show_output_connections_new(application&                  app,
         const auto ch_id = grid.children()[selected];
 
         if (ids.exists(ch_id)) {
-            auto& ch = app.mod.components[ch_id];
+            auto& ch = ids.components[ch_id];
             temp = ch.y.exists(p_selected) ? ch.y.get<port_str>(p_selected).sv()
                                            : "-";
 
@@ -1106,10 +1224,10 @@ static bool connect_output(const port_id      g_port_id,
                            generic_component& g,
                            application&       app);
 
-static void show_input_connections_new(application&                  app,
-                                       const modeling::component_access& ids,
-                                       generic_component&            g,
-                                       component& gcompo) noexcept
+static void show_input_connections_new(application&            app,
+                                       const component_access& ids,
+                                       generic_component&      g,
+                                       component&              gcompo) noexcept
 {
     static ImGuiTextFilter filter;
     static port_id         g_port_id   = undefined<port_id>();
@@ -1132,7 +1250,7 @@ static void show_input_connections_new(application&                  app,
     if (auto* ch = g.children.try_to_get(selected)) {
         if (ch->type == child_type::component) {
             if (ids.exists(ch->id.compo_id)) {
-                auto& sel_compo = app.mod.components[ch->id.compo_id];
+                auto& sel_compo = ids.components[ch->id.compo_id];
 
                 temp = sel_compo.x.exists(p_selected)
                          ? sel_compo.x.get<port_str>(p_selected).sv()
@@ -1242,10 +1360,10 @@ static bool connect_input(const port_id      g_port_id,
     return true;
 }
 
-static void show_output_connections_new(application&                  app,
-                                        const modeling::component_access& ids,
-                                        generic_component&            g,
-                                        component& gcompo) noexcept
+static void show_output_connections_new(application&            app,
+                                        const component_access& ids,
+                                        generic_component&      g,
+                                        component&              gcompo) noexcept
 {
     static ImGuiTextFilter filter;
     static port_id         g_port_id   = undefined<port_id>();
@@ -1268,7 +1386,7 @@ static void show_output_connections_new(application&                  app,
     if (auto* ch = g.children.try_to_get(selected)) {
         if (ch->type == child_type::component) {
             if (ids.exists(ch->id.compo_id)) {
-                auto& sel_compo = app.mod.components[ch->id.compo_id];
+                auto& sel_compo = ids.components[ch->id.compo_id];
 
                 temp = sel_compo.y.exists(p_selected)
                          ? sel_compo.y.get<port_str>(p_selected).sv()
@@ -1381,10 +1499,10 @@ static bool connect_output(const port_id      g_port_id,
     return true;
 }
 
-static void show_input_connections_new(application&                  app,
-                                       const modeling::component_access& ids,
-                                       graph_component&              graph,
-                                       component& gcompo) noexcept
+static void show_input_connections_new(application&            app,
+                                       const component_access& ids,
+                                       graph_component&        graph,
+                                       component&              gcompo) noexcept
 {
     static ImGuiTextFilter filter;
     static port_id         g_port_id  = undefined<port_id>();
@@ -1405,7 +1523,7 @@ static void show_input_connections_new(application&                  app,
     if (is_defined(selected)) {
         const auto sel_compo_id = graph.g.node_components[get_index(selected)];
         if (ids.exists(sel_compo_id)) {
-            auto& sel_compo = app.mod.components[sel_compo_id];
+            auto& sel_compo = ids.components[sel_compo_id];
             temp            = sel_compo.x.exists(p_selected)
                                 ? sel_compo.x.get<port_str>(p_selected).sv()
                                 : "-";
@@ -1458,10 +1576,10 @@ static void show_input_connections_new(application&                  app,
     }
 }
 
-static void show_output_connections_new(application&                  app,
-                                        const modeling::component_access& ids,
-                                        graph_component&              graph,
-                                        component& gcompo) noexcept
+static void show_output_connections_new(application&            app,
+                                        const component_access& ids,
+                                        graph_component&        graph,
+                                        component&              gcompo) noexcept
 {
     static ImGuiTextFilter filter;
     static port_id         g_port_id  = undefined<port_id>();
@@ -1482,7 +1600,7 @@ static void show_output_connections_new(application&                  app,
     if (is_defined(selected)) {
         const auto sel_compo_id = graph.g.node_components[get_index(selected)];
         if (ids.exists(sel_compo_id)) {
-            auto& sel_compo = app.mod.components[sel_compo_id];
+            auto& sel_compo = ids.components[sel_compo_id];
             temp            = sel_compo.y.exists(p_selected)
                                 ? sel_compo.y.get<port_str>(p_selected).sv()
                                 : "-";
@@ -1537,10 +1655,10 @@ static void show_output_connections_new(application&                  app,
     }
 }
 
-static void show_input_connections(application&                  app,
-                                   const modeling::component_access& ids,
-                                   generic_component&            g,
-                                   component&                    c) noexcept
+static void show_input_connections(application&            app,
+                                   const component_access& ids,
+                                   generic_component&      g,
+                                   component&              c) noexcept
 {
     std::optional<input_connection_id> to_del;
 
@@ -1556,7 +1674,7 @@ static void show_input_connections(application&                  app,
 
             if (child->type == child_type::component) {
                 if (ids.exists(child->id.compo_id)) {
-                    auto& sub_compo = app.mod.components[child->id.compo_id];
+                    auto& sub_compo = ids.components[child->id.compo_id];
                     if (sub_compo.x.exists(con.port.compo)) {
                         ImGui::TextFormat(
                           "{} connected to component {} ({}) "
@@ -1589,10 +1707,10 @@ static void show_input_connections(application&                  app,
     show_input_connections_new(app, ids, g, c);
 }
 
-static void show_output_connections(application&                  app,
-                                    const modeling::component_access& ids,
-                                    generic_component&            g,
-                                    component&                    c) noexcept
+static void show_output_connections(application&            app,
+                                    const component_access& ids,
+                                    generic_component&      g,
+                                    component&              c) noexcept
 {
     std::optional<output_connection_id> to_del;
 
@@ -1609,7 +1727,7 @@ static void show_output_connections(application&                  app,
 
             if (child->type == child_type::component) {
                 if (ids.exists(child->id.compo_id)) {
-                    auto& sub_compo = app.mod.components[child->id.compo_id];
+                    auto& sub_compo = ids.components[child->id.compo_id];
                     if (sub_compo.x.exists(con.port.compo)) {
                         ImGui::TextFormat(
                           "{} connected to component {} ({}) "
@@ -1642,10 +1760,10 @@ static void show_output_connections(application&                  app,
     show_output_connections_new(app, ids, g, c);
 }
 
-static void show_input_connections(application&                  app,
-                                   const modeling::component_access& ids,
-                                   grid_component&               g,
-                                   component&                    c) noexcept
+static void show_input_connections(application&            app,
+                                   const component_access& ids,
+                                   grid_component&         g,
+                                   component&              c) noexcept
 {
     std::optional<input_connection_id> to_del;
 
@@ -1661,7 +1779,7 @@ static void show_input_connections(application&                  app,
             auto       sub_compo_id = g.children()[pos];
 
             if (ids.exists(sub_compo_id)) {
-                auto& sub_compo = app.mod.components[sub_compo_id];
+                auto& sub_compo = ids.components[sub_compo_id];
                 if (sub_compo.x.exists(con.id)) {
                     ImGui::SetNextItemAllowOverlap();
 
@@ -1686,10 +1804,10 @@ static void show_input_connections(application&                  app,
     show_input_connections_new(app, ids, g, c);
 }
 
-static void show_output_connections(application&                  app,
-                                    const modeling::component_access& ids,
-                                    grid_component&               g,
-                                    component&                    c) noexcept
+static void show_output_connections(application&            app,
+                                    const component_access& ids,
+                                    grid_component&         g,
+                                    component&              c) noexcept
 {
     std::optional<output_connection_id> to_del;
 
@@ -1705,7 +1823,7 @@ static void show_output_connections(application&                  app,
             auto       sub_compo_id = g.children()[pos];
 
             if (ids.exists(sub_compo_id)) {
-                auto& sub_compo = app.mod.components[sub_compo_id];
+                auto& sub_compo = ids.components[sub_compo_id];
 
                 if (sub_compo.y.exists(con.id)) {
                     ImGui::SetNextItemAllowOverlap();
@@ -1732,10 +1850,10 @@ static void show_output_connections(application&                  app,
     show_output_connections_new(app, ids, g, c);
 }
 
-static void show_input_connections(application&                  app,
-                                   const modeling::component_access& ids,
-                                   graph_component&              g,
-                                   component&                    c) noexcept
+static void show_input_connections(application&            app,
+                                   const component_access& ids,
+                                   graph_component&        g,
+                                   component&              c) noexcept
 {
     std::optional<input_connection_id> to_del;
 
@@ -1749,7 +1867,7 @@ static void show_input_connections(application&                  app,
         if (g.g.nodes.exists(con.v)) {
             auto sub_compo_id = g.g.node_components[get_index(con.v)];
             if (ids.exists(sub_compo_id)) {
-                auto& sub_compo = app.mod.components[sub_compo_id];
+                auto& sub_compo = ids.components[sub_compo_id];
 
                 if (sub_compo.x.exists(con.id) and c.x.exists(con.x)) {
                     ImGui::SetNextItemAllowOverlap();
@@ -1776,10 +1894,10 @@ static void show_input_connections(application&                  app,
     show_input_connections_new(app, ids, g, c);
 }
 
-static void show_output_connections(application&                  app,
-                                    const modeling::component_access& ids,
-                                    graph_component&              g,
-                                    component&                    c) noexcept
+static void show_output_connections(application&            app,
+                                    const component_access& ids,
+                                    graph_component&        g,
+                                    component&              c) noexcept
 {
     std::optional<output_connection_id> to_del;
 
@@ -1793,7 +1911,7 @@ static void show_output_connections(application&                  app,
         if (g.g.nodes.exists(con.v)) {
             auto sub_compo_id = g.g.node_components[get_index(con.v)];
             if (ids.exists(sub_compo_id)) {
-                auto& sub_compo = app.mod.components[sub_compo_id];
+                auto& sub_compo = ids.components[sub_compo_id];
                 if (sub_compo.y.exists(con.id) and c.y.exists(con.y)) {
                     ImGui::SetNextItemAllowOverlap();
 
@@ -1819,27 +1937,26 @@ static void show_output_connections(application&                  app,
     show_output_connections_new(app, ids, g, c);
 }
 
-static void show_input_connections(application&                  app,
-                                   const modeling::component_access& ids,
-                                   component&                    compo) noexcept
+static void show_input_connections(application&            app,
+                                   const component_access& ids,
+                                   component&              compo) noexcept
 {
     switch (compo.type) {
     case component_type::none:
         break;
 
     case component_type::generic:
-        if (auto* g =
-              app.mod.generic_components.try_to_get(compo.id.generic_id))
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id))
             show_input_connections(app, ids, *g, compo);
         break;
 
     case component_type::grid:
-        if (auto* g = app.mod.grid_components.try_to_get(compo.id.grid_id))
+        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
             show_input_connections(app, ids, *g, compo);
         break;
 
     case component_type::graph:
-        if (auto* g = app.mod.graph_components.try_to_get(compo.id.graph_id))
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id))
             show_input_connections(app, ids, *g, compo);
         break;
 
@@ -1851,27 +1968,26 @@ static void show_input_connections(application&                  app,
     }
 }
 
-static void show_output_connections(application&                  app,
-                                    const modeling::component_access& ids,
-                                    component& compo) noexcept
+static void show_output_connections(application&            app,
+                                    const component_access& ids,
+                                    component&              compo) noexcept
 {
     switch (compo.type) {
     case component_type::none:
         break;
 
     case component_type::generic:
-        if (auto* g =
-              app.mod.generic_components.try_to_get(compo.id.generic_id))
+        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id))
             show_output_connections(app, ids, *g, compo);
         break;
 
     case component_type::grid:
-        if (auto* g = app.mod.grid_components.try_to_get(compo.id.grid_id))
+        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
             show_output_connections(app, ids, *g, compo);
         break;
 
     case component_type::graph:
-        if (auto* g = app.mod.graph_components.try_to_get(compo.id.graph_id))
+        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id))
             show_output_connections(app, ids, *g, compo);
         break;
 
@@ -1963,9 +2079,9 @@ static void show_output_ports(component& compo) noexcept
         compo.y.free(*to_del);
 }
 
-static void show_input_connection_packs(application&                  app,
-                                        const modeling::component_access& ids,
-                                        component& compo) noexcept
+static void show_input_connection_packs(application&            app,
+                                        const component_access& ids,
+                                        component&              compo) noexcept
 {
     auto& ed = app.component_ed;
 
@@ -1983,12 +2099,11 @@ static void show_input_connection_packs(application&                  app,
 
     ed.component_list.read([&](const auto& vec, auto /*version*/) noexcept {
         const auto child =
-          combobox_component_id(app.mod, "child component", vec, c, c_p);
+          combobox_component_id(ids, "child component", vec, c, c_p);
         c   = child.first;
-        c_p = ids.exists(c)
-                ? combobox_component_port_id(
-                    "child port", app.mod.components[c].x, child.second)
-                : combobox_component_port_id_empty("child port");
+        c_p = ids.exists(c) ? combobox_component_port_id(
+                                "child port", ids.components[c].x, child.second)
+                            : combobox_component_port_id_empty("child port");
 
         if (is_defined(p) and is_defined(c_p) and is_defined(c) and
             std::ranges::none_of(
@@ -2005,9 +2120,9 @@ static void show_input_connection_packs(application&                  app,
     });
 }
 
-static void show_output_connection_packs(application&                  app,
-                                         const modeling::component_access& ids,
-                                         component& compo) noexcept
+static void show_output_connection_packs(application&            app,
+                                         const component_access& ids,
+                                         component&              compo) noexcept
 {
     auto& ed = app.component_ed;
 
@@ -2023,41 +2138,40 @@ static void show_output_connection_packs(application&                  app,
 
     p = combobox_port_id("output port", compo.y, p);
 
-    ed.component_list.read(
-      [&](const auto& vec, const auto /*version*/) noexcept {
-          const auto child =
-            combobox_component_id(app.mod, "child component", vec, c, c_p);
-          c   = child.first;
-          c_p = ids.exists(c)
-                  ? combobox_component_port_id(
-                      "child port", app.mod.components[c].y, child.second)
-                  : combobox_component_port_id_empty("child port");
+    ed.component_list.read([&](const auto& vec,
+                               const auto /*version*/) noexcept {
+        const auto child =
+          combobox_component_id(ids, "child component", vec, c, c_p);
+        c   = child.first;
+        c_p = ids.exists(c) ? combobox_component_port_id(
+                                "child port", ids.components[c].y, child.second)
+                            : combobox_component_port_id_empty("child port");
 
-          if (is_defined(p) and is_defined(c_p) and is_defined(c) and
-              std::ranges::none_of(
-                compo.output_connection_pack, [&](const auto& con) {
-                    return con.parent_port == p and con.child_port == c_p and
-                           con.child_component == c;
-                })) {
-              compo.output_connection_pack.push_back(connection_pack{
-                .parent_port = p, .child_port = c_p, .child_component = c });
-              p   = undefined<port_id>();
-              c_p = undefined<port_id>();
-              c   = undefined<component_id>();
-          }
-      });
+        if (is_defined(p) and is_defined(c_p) and is_defined(c) and
+            std::ranges::none_of(
+              compo.output_connection_pack, [&](const auto& con) {
+                  return con.parent_port == p and con.child_port == c_p and
+                         con.child_component == c;
+              })) {
+            compo.output_connection_pack.push_back(connection_pack{
+              .parent_port = p, .child_port = c_p, .child_component = c });
+            p   = undefined<port_id>();
+            c_p = undefined<port_id>();
+            c   = undefined<component_id>();
+        }
+    });
 }
 
 template<typename ComponentEditor>
 static void display_component_editor_subtable(
-  application&                  app,
-  const modeling::component_access& ids,
-  ComponentEditor&              element,
-  const component_id            compo_id,
-  component_editor::tab&        tab) noexcept
+  application&            app,
+  const component_access& ids,
+  ComponentEditor&        element,
+  component_editor::tab&  tab) noexcept
 {
     auto& ed    = app.component_ed;
-    auto& compo = app.mod.components[compo_id];
+    auto& compo = tab.compo;
+    auto  u     = 0;
 
     if (ImGui::BeginTable("##ed", 2)) {
         ImGui::TableSetupColumn(
@@ -2075,42 +2189,77 @@ static void display_component_editor_subtable(
                           ImGuiWindowFlags_MenuBar);
 
         if (ImGui::BeginMenuBar()) {
-
             if (ImGui::BeginMenu("Save")) {
-                show_file_access(app, ids, element, compo_id, tab);
+                if (show_file_access(app, ids, element, tab)) {
+                    app.add_gui_task([&app, &tab]() {
+                        app.mod.ids.write([&](auto& ids) noexcept {
+                            ids.component_file_paths[tab.id].parent =
+                              tab.file.parent;
+                            ids.component_file_paths[tab.id].path =
+                              tab.file.path;
+                            ids.component_descriptions[tab.id] = tab.desc;
+                        });
+                    });
+                }
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Sources")) {
-
                 if (ImGui::BeginMenu("New")) {
                     const auto size =
                       ImVec2(ImGui::CalcTextSize("new binary file").x +
                                ImGui::GetStyle().FramePadding.x * 2.0f,
                              0);
 
-                    if (not compo.srcs.data.can_alloc(1) and
-                        not compo.srcs.data.grow<2, 1>())
+                    if (not compo.srcs.data.can_alloc(1))
                         ImGui::TextUnformatted("Not Enough memor");
 
                     if (ImGui::Button("new constant", size))
-                        compo.srcs.alloc_constant_source();
+                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
+                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
+                                if (not ids.exists(compo_id))
+                                    return;
+                                auto& compo = ids.components[compo_id];
+                                compo.srcs.alloc_constant_source();
+                            });
+                        });
 
                     if (ImGui::Button("new binary file", size))
-                        compo.srcs.alloc_binary_source();
+                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
+                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
+                                if (not ids.exists(compo_id))
+                                    return;
+                                auto& compo = ids.components[compo_id];
+                                compo.srcs.alloc_constant_source();
+                            });
+                        });
 
                     if (ImGui::Button("new text file", size))
-                        compo.srcs.alloc_text_source();
+                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
+                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
+                                if (not ids.exists(compo_id))
+                                    return;
+                                auto& compo = ids.components[compo_id];
+                                compo.srcs.alloc_constant_source();
+                            });
+                        });
 
                     if (ImGui::Button("new random", size))
-                        compo.srcs.alloc_random_source();
+                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
+                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
+                                if (not ids.exists(compo_id))
+                                    return;
+                                auto& compo = ids.components[compo_id];
+                                compo.srcs.alloc_constant_source();
+                            });
+                        });
 
                     ImGui::EndMenu();
                 }
 
                 if (not compo.srcs.data.empty()) {
                     ImGui::Separator();
-                    display_external_source(app, compo);
+                    display_external_source(app, tab.id);
                 }
                 ImGui::EndMenu();
             }
@@ -2131,25 +2280,40 @@ static void display_component_editor_subtable(
 
                     if (compo.x.can_alloc(1) and
                         ImGui::Button("Input port", size)) {
-                        auto id                      = compo.x.alloc_id();
-                        compo.x.get<port_str>(id)    = "in";
-                        compo.x.get<port_option>(id) = port_option::classic;
-                        compo.x.get<position>(id).reset();
+                        app.add_gui_task([&app, cid = tab.id]() {
+                            app.mod.ids.write([&](auto& ids) noexcept {
+                                if (not ids.exists(cid))
+                                    return;
+
+                                auto& compo = ids.components[cid];
+                                auto  id    = compo.x.alloc_id();
+                                compo.x.template get<port_str>(id) = "in";
+                                compo.x.template get<port_option>(id) =
+                                  port_option::classic;
+                                compo.x.template get<position>(id).reset();
+                            });
+                        });
                     }
 
                     if (compo.y.can_alloc(1) and
                         ImGui::Button("Output port", size)) {
-                        auto id                      = compo.y.alloc_id();
-                        compo.y.get<port_str>(id)    = "out";
-                        compo.y.get<port_option>(id) = port_option::classic;
-                        compo.y.get<position>(id).reset();
+                        app.add_gui_task([&app, cid = tab.id]() {
+                            app.mod.ids.write([&](auto& ids) noexcept {
+                                if (not ids.exists(cid))
+                                    return;
+
+                                auto& compo = ids.components[cid];
+                                auto  id    = compo.y.alloc_id();
+                                compo.y.template get<port_str>(id) = "out";
+                                compo.y.template get<port_option>(id) =
+                                  port_option::classic;
+                                compo.y.template get<position>(id).reset();
+                            });
+                        });
                     }
 
                     if (ImGui::Button("refresh i/o", size))
-                        update_component_list(app,
-                                              ed,
-
-                                              compo);
+                        update_component_list(app, ids, ed, tab.id);
 
                     if (not compo.x.empty() or not compo.y.empty()) {
                         if (ImGui::TreeNode("Ports")) {
@@ -2203,17 +2367,32 @@ static void display_component_editor_subtable(
 
         name_str copy_name = compo.name;
         if (ImGui::InputFilteredString("Name", copy_name)) {
-            app.component_ed.request_to_open(compo_id);
+            app.component_ed.request_to_open(tab.id);
             compo.name = copy_name;
         }
 
-        element.show_selected_nodes(ed);
+        if (element.show_selected_nodes(ed, compo))
+            ++u;
         ImGui::EndChild();
 
         ImGui::TableSetColumnIndex(1);
-        element.show(ed);
+        if (element.show(ed, compo))
+            ++u;
 
         ImGui::EndTable();
+    }
+
+    if (u > 0) {
+        app.add_gui_task([&app, &tab]() {
+            app.mod.ids.write([&](auto& ids) {
+                if (not ids.exists(tab.id))
+                    return;
+
+                ids.components[tab.id]             = tab.compo;
+                ids.component_file_paths[tab.id]   = tab.file;
+                ids.component_descriptions[tab.id] = tab.desc;
+            });
+        });
     }
 }
 
@@ -2224,53 +2403,68 @@ static auto display_component_editor(application&           app,
                                      component_editor::tab& tab) noexcept
   -> component_editor::show_result_t
 {
-    return app.mod.ids.read(
-      [&](const auto& ids, auto) noexcept -> component_editor::show_result_t {
-          if (not ids.exists(tab.id))
-              return component_editor::show_result_t::request_to_close;
+    return app.mod.ids.read([&](const auto& ids, const auto version) noexcept
+                              -> component_editor::show_result_t {
+        if (not ids.exists(tab.id))
+            return component_editor::show_result_t::request_to_close;
 
-          auto& compo   = app.mod.components[tab.id];
-          auto* element = data.try_to_get(id);
-          if (not element)
-              return component_editor::show_result_t::request_to_close;
+        const auto& compo   = ids.components[tab.id];
+        const auto& file    = ids.component_file_paths[tab.id];
+        const auto& desc    = ids.component_descriptions[tab.id];
+        auto*       element = data.try_to_get(id);
 
-          auto& ed = app.component_ed;
+        if (not element)
+            return component_editor::show_result_t::request_to_close;
 
-          if (ed.need_to_open(tab.id)) {
-              ed.clear_request_to_open();
-          }
+        if (tab.version != version) {
+            tab.version = version;
+            tab.desc    = desc;
+            tab.file     = file;
+            tab.file.reg = undefined<registred_path_id>();
+            if (is_defined(tab.file.parent)) {
+                tab.file.reg = app.mod.files.read(
+                  [&](const auto& files, auto) noexcept -> registred_path_id {
+                      if (auto* d = files.dir_paths.try_to_get(tab.file.parent))
+                          return d->parent;
+                      return undefined<registred_path_id>();
+                  });
+            }
+        }
 
-          if (not tab.is_dock_init) {
-              ImGui::SetNextWindowDockID(app.get_main_dock_id());
-              tab.is_dock_init = true;
-          }
+        if (app.component_ed.need_to_open(tab.id))
+            app.component_ed.clear_request_to_open();
 
-          bool              is_open = true;
-          small_string<127> title;
+        if (not tab.is_dock_init) {
+            ImGui::SetNextWindowDockID(app.get_main_dock_id());
+            tab.is_dock_init = true;
+        }
 
-          if (not ImGui::Begin(make_title(title, compo.name.sv(), tab.id),
-                               &is_open)) {
-              ImGui::End();
-              return is_open
-                       ? component_editor::show_result_t::success
+        bool              is_open = true;
+        small_string<127> title;
+
+        if (not ImGui::Begin(make_title(title, compo.name.sv(), tab.id),
+                             &is_open)) {
+            ImGui::End();
+            return is_open ? component_editor::show_result_t::success
+                           : component_editor::show_result_t::request_to_close;
+        }
+
+        if (not tab.file.path.empty() and is_defined(tab.file.parent)) {
+            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+                if constexpr (has_store_function<T>) {
+                    element->store(app.component_ed);
+                }
+                app.start_save_component(tab.id);
+            }
+        }
+
+        display_component_editor_subtable(app, ids, *element, tab);
+
+        ImGui::End();
+
+        return is_open ? component_editor::show_result_t::success
                        : component_editor::show_result_t::request_to_close;
-          }
-
-          if (is_defined(compo.file) and
-              ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
-              if constexpr (has_store_function<T>) {
-                  element->store(ed);
-              }
-              app.start_save_component(tab.id);
-          }
-
-          display_component_editor_subtable(app, ids, *element, tab.id, tab);
-
-          ImGui::End();
-
-          return is_open ? component_editor::show_result_t::success
-                         : component_editor::show_result_t::request_to_close;
-      });
+    });
 }
 
 auto component_editor::display_tab_content(tab& t) noexcept -> show_result_t
@@ -2399,17 +2593,15 @@ void component_editor::request_to_open(const component_id id) noexcept
     auto& app = container_of(this, &application::component_ed);
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        auto& compo = app.mod.components[id];
+        const auto& compo = ids.components[id];
+        const auto& file  = ids.component_file_paths[id];
 
         if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
-            auto reg_id  = undefined<registred_path_id>();
-            auto dir_id  = undefined<dir_path_id>();
-            auto file_id = undefined<file_path_id>();
+            auto reg_id = undefined<registred_path_id>();
+            auto dir_id = undefined<dir_path_id>();
 
             app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                file_id          = compo.file;
-                const auto* file = fs.file_paths.try_to_get(file_id);
-                dir_id = file ? file->parent : undefined<dir_path_id>();
+                dir_id          = file.parent;
                 const auto* dir = fs.dir_paths.try_to_get(dir_id);
                 reg_id = dir ? dir->parent : undefined<registred_path_id>();
                 const auto* reg = fs.registred_paths.try_to_get(reg_id);
@@ -2417,19 +2609,19 @@ void component_editor::request_to_open(const component_id id) noexcept
             });
 
             switch (compo.type) {
-            case component_type::generic:
+            case component_type::generic:               
                 if (app.generics.can_alloc(1)) {
                     auto& t           = tabs.emplace_back();
                     t.id              = id;
                     t.type            = component_type::generic;
-                    t.reg             = reg_id;
-                    t.dir             = dir_id;
-                    t.file            = file_id;
+                    t.file.reg        = reg_id;
+                    t.file.parent     = dir_id;
+                    t.file.path       = file.path;
                     t.data.generic    = app.generics.get_id(app.generics.alloc(
                       id,
                       compo,
                       compo.id.generic_id,
-                      app.mod.generic_components.get(compo.id.generic_id)));
+                      ids.generic_components.get(compo.id.generic_id)));
                     m_request_to_open = id;
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
@@ -2437,12 +2629,12 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::grid:
                 if (app.grids.can_alloc(1)) {
-                    auto& t = tabs.emplace_back();
-                    t.id    = id;
-                    t.type  = component_type::grid;
-                    t.reg   = reg_id;
-                    t.dir   = dir_id;
-                    t.file  = file_id;
+                    auto& t       = tabs.emplace_back();
+                    t.id          = id;
+                    t.type        = component_type::grid;
+                    t.file.reg    = reg_id;
+                    t.file.parent = dir_id;
+                    t.file.path   = file.path;
                     t.data.grid =
                       app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
                     m_request_to_open = id;
@@ -2452,10 +2644,13 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::graph:
                 if (app.graphs.can_alloc(1)) {
-                    auto& t = tabs.emplace_back();
-                    t.id = id, t.type = component_type::graph, t.reg = reg_id,
-                    t.dir = dir_id, t.file = file_id,
-                    t.data.graph = app.graphs.get_id(
+                    auto& t       = tabs.emplace_back();
+                    t.id          = id;
+                    t.type        = component_type::graph;
+                    t.file.reg    = reg_id;
+                    t.file.parent = dir_id;
+                    t.file.path   = file.path;
+                    t.data.graph  = app.graphs.get_id(
                       app.graphs.alloc(id, compo.id.graph_id));
                     m_request_to_open = id;
                 } else
@@ -2464,13 +2659,16 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::hsm:
                 if (app.hsms.can_alloc(1)) {
-                    auto& t = tabs.emplace_back();
-                    t.id = id, t.type = component_type::hsm, t.reg = reg_id,
-                    t.dir = dir_id, t.file = file_id,
-                    t.data.hsm        = app.hsms.get_id(app.hsms.alloc(
-                      id,
-                      compo.id.hsm_id,
-                      app.mod.hsm_components.get(compo.id.hsm_id)));
+                    auto& t       = tabs.emplace_back();
+                    t.id          = id;
+                    t.type        = component_type::hsm;
+                    t.file.reg    = reg_id;
+                    t.file.parent = dir_id;
+                    t.file.path   = file.path;
+                    t.data.hsm    = app.hsms.get_id(
+                      app.hsms.alloc(id,
+                                     compo.id.hsm_id,
+                                     ids.hsm_components.get(compo.id.hsm_id)));
                     m_request_to_open = id;
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
@@ -2478,16 +2676,16 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::simulation:
                 if (app.sims.can_alloc(1)) {
-                    auto& t           = tabs.emplace_back();
-                    t.id              = id;
-                    t.type            = component_type::simulation;
-                    t.reg             = reg_id;
-                    t.dir             = dir_id;
-                    t.file            = file_id;
-                    t.data.sim        = app.sims.get_id(app.sims.alloc(
-                      id,
-                      compo.id.sim_id,
-                      app.mod.sim_components.get(compo.id.sim_id)));
+                    auto& t       = tabs.emplace_back();
+                    t.id          = id;
+                    t.type        = component_type::simulation;
+                    t.file.reg    = reg_id;
+                    t.file.parent = dir_id;
+                    t.file.path   = file.path;
+                    t.data.sim    = app.sims.get_id(
+                      app.sims.alloc(id,
+                                     compo.id.sim_id,
+                                     ids.sim_components.get(compo.id.sim_id)));
                     m_request_to_open = id;
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);

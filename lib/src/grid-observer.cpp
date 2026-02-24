@@ -117,9 +117,9 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
             mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (ids.exists(tn->id)) {
-                    if (mod.components[tn->id].type == component_type::grid) {
-                        if (auto* grid = mod.grid_components.try_to_get(
-                              mod.components[tn->id].id.grid_id)) {
+                    if (ids.components[tn->id].type == component_type::grid) {
+                        if (auto* grid = ids.grid_components.try_to_get(
+                              ids.components[tn->id].id.grid_id)) {
 
                             const auto len = grid->cells_number();
 

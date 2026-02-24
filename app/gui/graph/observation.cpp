@@ -229,7 +229,7 @@ void graph_editor::center_camera() noexcept
     });
 }
 
-void graph_editor::reset_camera(application& app, graph& g) noexcept
+void graph_editor::reset_camera(application& app, const graph& g) noexcept
 {
     nodes_locker.read([&](auto& d, const auto /*version*/) noexcept {
         scrolling.x = d.center[0];
@@ -488,9 +488,9 @@ void graph_editor::draw_grid(ImVec2 top_left,
                            color);
 }
 
-bool graph_editor::draw_popup(application&                  app,
-                              graph&                        g,
-                              const ImVec2                  top_left,
+bool graph_editor::draw_popup(application& app,
+                              const graph& g,
+                              const ImVec2 /*top_left*/,
                               const bitflags<popup_options> opt) noexcept
 {
     const auto drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
@@ -501,8 +501,52 @@ bool graph_editor::draw_popup(application&                  app,
                                     ImGuiPopupFlags_MouseButtonRight);
 
     if (ImGui::BeginPopup("Graph-Editor#Popup")) {
-        const auto origin = top_left + scrolling;
-        const auto click  = ImGui::GetMousePosOnOpeningCurrentPopup();
+        // const auto origin = top_left + scrolling;
+        // const auto click  = ImGui::GetMousePosOnOpeningCurrentPopup();
+
+        if (ImGui::BeginMenu("Display")) {
+            if (ImGui::MenuItem("Center camera"))
+                center_camera();
+            if (ImGui::MenuItem("Automatic zoom and center"))
+                auto_fit_camera();
+            if (ImGui::MenuItem("Reset camera"))
+                reset_camera(app, g);
+            if (opt[popup_options::show_make_project_global_window])
+                if (ImGui::MenuItem("Clone display"))
+                    ret = true;
+
+            ImGui::Separator();
+
+            {
+                auto show_grid = flags[option::show_grid];
+                if (ImGui::MenuItem("Show grid", nullptr, &show_grid))
+                    flags.set(option::show_grid, show_grid);
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndPopup();
+    }
+
+    return ret;
+}
+
+bool graph_editor::draw_popup(application& app,
+                              graph&       g,
+                              const ImVec2 /*top_left*/,
+                              const bitflags<popup_options> opt) noexcept
+{
+    const auto drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+    auto       ret        = false;
+
+    if (drag_delta.x == 0.0f and drag_delta.y == 0.0f)
+        ImGui::OpenPopupOnItemClick("Graph-Editor#Popup",
+                                    ImGuiPopupFlags_MouseButtonRight);
+
+    if (ImGui::BeginPopup("Graph-Editor#Popup")) {
+        // const auto origin = top_left + scrolling;
+        // const auto click  = ImGui::GetMousePosOnOpeningCurrentPopup();
 
         if (ImGui::BeginMenu("Display")) {
             if (ImGui::MenuItem("Center camera"))
@@ -529,27 +573,30 @@ bool graph_editor::draw_popup(application&                  app,
         if (opt[popup_options::show_graph_modication]) {
             if (ImGui::BeginMenu("Actions")) {
                 if (ImGui::MenuItem("New node")) {
-                    if (auto id = g.alloc_node(); id.has_value()) {
-                        const auto idx = get_index(*id);
+                    debug::breakpoint();
 
-                        g.node_positions[idx] = {
-                            (click.x - origin.x) / zoom,
-                            (click.y - origin.y) / zoom,
-                        };
+                    // if (auto id = g.alloc_node(); id.has_value()) {
+                    //     const auto idx = get_index(*id);
 
-                        selected_nodes.emplace_back(*id);
-                    } else {
-                        app.jn.push(
-                          log_level::error,
-                          [](auto& t, auto& m, auto& id) {
-                              t = "Failed to add new node.";
-                              format(m,
-                                     "Error: category {} value {}",
-                                     ordinal(id.error().cat()),
-                                     id.error().value());
-                          },
-                          id);
-                    }
+                    //    g.node_positions[idx] = {
+                    //        (click.x - origin.x) / zoom,
+                    //        (click.y - origin.y) / zoom,
+                    //                              (origin.z)
+                    //    };
+
+                    //    selected_nodes.emplace_back(*id);
+                    //} else {
+                    //    app.jn.push(
+                    //      log_level::error,
+                    //      [](auto& t, auto& m, auto& id) {
+                    //          t = "Failed to add new node.";
+                    //          format(m,
+                    //                 "Error: category {} value {}",
+                    //                 ordinal(id.error().cat()),
+                    //                 id.error().value());
+                    //      },
+                    //      id);
+                    //}
                 }
 
                 if (not selected_nodes.empty() and ImGui::MenuItem("Connect")) {
@@ -711,81 +758,82 @@ auto graph_editor::show(const char*     name,
                        : show_result_type::request_to_close;
     }
 
-    return app.mod.ids.read([&](const auto& ids, auto) noexcept
-                              -> graph_editor::show_result_type {
-        debug::ensure(ids.exists(tn.id));
-        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
+    return app.mod.ids.read(
+      [&](const auto& ids, auto) noexcept -> graph_editor::show_result_type {
+          debug::ensure(ids.exists(tn.id));
+          debug::ensure(ids.components[tn.id].type == component_type::graph);
 
-        if (not ids.exists(tn.id))
-            return show_result_type::request_to_close;
+          if (not ids.exists(tn.id))
+              return show_result_type::request_to_close;
 
-        auto& compo = app.mod.components[tn.id];
-        if (compo.type != component_type::graph)
-            return show_result_type::request_to_close;
+          auto& compo = ids.components[tn.id];
+          if (compo.type != component_type::graph)
+              return show_result_type::request_to_close;
 
-        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
-        const auto canvas_p0 = ImGui::GetCursorScreenPos();
-        canvas_sz            = ImGui::GetContentRegionAvail();
+          auto&      graph     = ids.graph_components.get(compo.id.graph_id).g;
+          const auto canvas_p0 = ImGui::GetCursorScreenPos();
+          canvas_sz            = ImGui::GetContentRegionAvail();
 
-        if (canvas_sz.x < 50.0f)
-            canvas_sz.x = 50.0f;
-        if (canvas_sz.y < 50.0f)
-            canvas_sz.y = 50.0f;
+          if (canvas_sz.x < 50.0f)
+              canvas_sz.x = 50.0f;
+          if (canvas_sz.y < 50.0f)
+              canvas_sz.y = 50.0f;
 
-        const auto canvas_p1 = canvas_p0 + canvas_sz;
+          const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-        u32 outer_border_c         = 0u;
-        u32 inner_border_c         = 0u;
-        u32 edge_c                 = 0u;
-        u32 node_active_c          = 0u;
-        u32 edge_active_c          = 0u;
-        u32 background_selection_c = 0u;
+          u32 outer_border_c         = 0u;
+          u32 inner_border_c         = 0u;
+          u32 edge_c                 = 0u;
+          u32 node_active_c          = 0u;
+          u32 edge_active_c          = 0u;
+          u32 background_selection_c = 0u;
 
-        app.config.vars.colors.read(
-          [&](const auto& colors, const auto /*v*/) noexcept {
-              outer_border_c = to_ImU32(colors[style_color::outer_border]);
-              inner_border_c = to_ImU32(colors[style_color::inner_border]);
-              edge_c         = to_ImU32(colors[style_color::edge]);
-              node_active_c  = to_ImU32(colors[style_color::node_active]);
-              edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-              background_selection_c =
-                to_ImU32(colors[style_color::background_selection]);
-          });
+          app.config.vars.colors.read(
+            [&](const auto& colors, const auto /*v*/) noexcept {
+                outer_border_c = to_ImU32(colors[style_color::outer_border]);
+                inner_border_c = to_ImU32(colors[style_color::inner_border]);
+                edge_c         = to_ImU32(colors[style_color::edge]);
+                node_active_c  = to_ImU32(colors[style_color::node_active]);
+                edge_active_c  = to_ImU32(colors[style_color::edge_active]);
+                background_selection_c =
+                  to_ImU32(colors[style_color::background_selection]);
+            });
 
-        if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
-            update(app, graph);
+          if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
+              update(app, graph);
 
-        if (flags[option::show_grid])
-            draw_grid(canvas_p0, canvas_p1, inner_border_c);
+          if (flags[option::show_grid])
+              draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-        draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
+          draw_graph(
+            graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
-        if (draw_popup(app,
-                       graph,
-                       canvas_p0,
-                       bitflags<popup_options>{
-                         popup_options::show_make_project_global_window })) {
-            if (app.graph_eds.can_alloc()) {
-                auto& new_g = app.graph_eds.alloc();
-                new_g.update(app, graph);
+          if (draw_popup(app,
+                         graph,
+                         canvas_p0,
+                         bitflags<popup_options>{
+                           popup_options::show_make_project_global_window })) {
+              if (app.graph_eds.can_alloc()) {
+                  auto& new_g = app.graph_eds.alloc();
+                  new_g.update(app, graph);
 
-                app.sim_wnds.push_back(global_simulation_window{
-                  .pj_id        = app.pjs.get_id(ed),
-                  .tn_id        = ed.pj.tree_nodes.get_id(tn),
-                  .graph_ed_id  = app.graph_eds.get_id(new_g),
-                  .graph_obs_id = ed.pj.graph_observers.get_id(obs),
-                });
-            }
-        }
+                  app.sim_wnds.push_back(global_simulation_window{
+                    .pj_id        = app.pjs.get_id(ed),
+                    .tn_id        = ed.pj.tree_nodes.get_id(tn),
+                    .graph_ed_id  = app.graph_eds.get_id(new_g),
+                    .graph_obs_id = ed.pj.graph_observers.get_id(obs),
+                  });
+              }
+          }
 
-        draw_selection(graph, canvas_p0, background_selection_c);
+          draw_selection(graph, canvas_p0, background_selection_c);
 
-        ImGui::GetWindowDrawList()->PopClipRect();
-        ImGui::End();
+          ImGui::GetWindowDrawList()->PopClipRect();
+          ImGui::End();
 
-        return is_open ? show_result_type::none
-                       : show_result_type::request_to_close;
-    });
+          return is_open ? show_result_type::none
+                         : show_result_type::request_to_close;
+      });
 }
 
 void graph_editor::show(application&    app,
@@ -802,16 +850,16 @@ void graph_editor::show(application&    app,
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         debug::ensure(ids.exists(tn.id));
-        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
+        debug::ensure(ids.components[tn.id].type == component_type::graph);
 
         if (not ids.exists(tn.id))
             return;
 
-        auto& compo = app.mod.components[tn.id];
+        auto& compo = ids.components[tn.id];
         if (compo.type != component_type::graph)
             return;
 
-        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
+        const auto& graph     = ids.graph_components.get(compo.id.graph_id).g;
         const auto canvas_p0 = ImGui::GetCursorScreenPos();
         canvas_sz            = ImGui::GetContentRegionAvail();
 
@@ -872,16 +920,16 @@ void graph_editor::show(application&    app,
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         debug::ensure(ids.exists(tn.id));
-        debug::ensure(app.mod.components[tn.id].type == component_type::graph);
+        debug::ensure(ids.components[tn.id].type == component_type::graph);
 
         if (not ids.exists(tn.id))
             return;
 
-        auto& compo = app.mod.components[tn.id];
+        auto& compo = ids.components[tn.id];
         if (compo.type != component_type::graph)
             return;
 
-        auto&      graph = app.mod.graph_components.get(compo.id.graph_id).g;
+        auto&      graph     = ids.graph_components.get(compo.id.graph_id).g;
         const auto canvas_p0 = ImGui::GetCursorScreenPos();
         canvas_sz            = ImGui::GetContentRegionAvail();
 
