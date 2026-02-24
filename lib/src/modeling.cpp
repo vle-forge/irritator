@@ -452,10 +452,10 @@ status modeling::fill_components() noexcept
     return success();
 }
 
-status modeling::load_component(const modeling::file_access&  files,
-                                const id_array<component_id>& ids,
-                                const std::filesystem::path&  filename,
-                                const component_id            compo_id) noexcept
+status modeling::load_component(const modeling::file_access&      files,
+                                const modeling::component_access& ids,
+                                const std::filesystem::path&      filename,
+                                const component_id compo_id) noexcept
 {
     if (not ids.exists(compo_id))
         return new_error(modeling_errc::component_load_error);
@@ -997,29 +997,29 @@ expected<std::filesystem::path> modeling::file_access::get_fs_path(
     }
 }
 
-bool modeling::can_alloc_component(id_array<component_id>& ids,
-                                   int                     count) noexcept
+bool modeling::can_alloc_component(modeling::component_access& ids,
+                                   int                         count) noexcept
 {
     return (ids.can_alloc(count) or ids.grow<3, 2>()) and
            (components.resize(ids.capacity())) and
            (component_colors.resize(ids.capacity()));
 }
 
-bool modeling::can_alloc_grid_component(id_array<component_id>& ids,
-                                        int                     count) noexcept
+bool modeling::can_alloc_grid_component(modeling::component_access& ids,
+                                        int count) noexcept
 {
     return can_alloc_component(ids, count) and
            (grid_components.can_alloc(count) or grid_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_graph_component(id_array<component_id>& ids,
-                                         int                     count) noexcept
+bool modeling::can_alloc_graph_component(modeling::component_access& ids,
+                                         int count) noexcept
 {
     return can_alloc_component(ids, count) and
            (graph_components.can_alloc(count) or graph_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_generic_component(id_array<component_id>& ids,
+bool modeling::can_alloc_generic_component(modeling::component_access& ids,
                                            int count) noexcept
 {
     return can_alloc_component(ids, count) and
@@ -1027,15 +1027,15 @@ bool modeling::can_alloc_generic_component(id_array<component_id>& ids,
             generic_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_hsm_component(id_array<component_id>& ids,
-                                       int                     count) noexcept
+bool modeling::can_alloc_hsm_component(modeling::component_access& ids,
+                                       int count) noexcept
 {
     return can_alloc_component(ids, count) and
            (hsm_components.can_alloc(count) or hsm_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_sim_component(id_array<component_id>& ids,
-                                       int                     count) noexcept
+bool modeling::can_alloc_sim_component(modeling::component_access& ids,
+                                       int count) noexcept
 {
     return can_alloc_component(ids, count) and
            (sim_components.can_alloc(count) or sim_components.grow<3, 2>());
@@ -1085,7 +1085,7 @@ unsigned modeling::component_count() const noexcept
       [&](const auto& ids, auto) noexcept -> unsigned { return ids.size(); });
 }
 
-component_id modeling::alloc_component(id_array<component_id>& ids) noexcept
+component_id modeling::alloc_component(modeling::component_access& ids) noexcept
 {
     if (not can_alloc_component(ids, 1))
         return undefined<component_id>();
@@ -1103,7 +1103,7 @@ component_id modeling::alloc_component(id_array<component_id>& ids) noexcept
 }
 
 component_id modeling::alloc_grid_component(
-  id_array<component_id>& ids) noexcept
+  modeling::component_access& ids) noexcept
 {
     if (not can_alloc_grid_component(ids, 1))
         return undefined<component_id>();
@@ -1121,7 +1121,7 @@ component_id modeling::alloc_grid_component(
 }
 
 component_id modeling::alloc_generic_component(
-  id_array<component_id>& ids) noexcept
+  modeling::component_access& ids) noexcept
 {
     if (not can_alloc_generic_component(ids, 1))
         return undefined<component_id>();
@@ -1138,7 +1138,7 @@ component_id modeling::alloc_generic_component(
 }
 
 component_id modeling::alloc_graph_component(
-  id_array<component_id>& ids) noexcept
+  modeling::component_access& ids) noexcept
 {
     if (not can_alloc_graph_component(ids, 1))
         return undefined<component_id>();
@@ -1154,7 +1154,8 @@ component_id modeling::alloc_graph_component(
     return new_compo_id;
 }
 
-component_id modeling::alloc_hsm_component(id_array<component_id>& ids) noexcept
+component_id modeling::alloc_hsm_component(
+  modeling::component_access& ids) noexcept
 {
     if (not can_alloc_hsm_component(ids, 1))
         return undefined<component_id>();
@@ -1173,7 +1174,8 @@ component_id modeling::alloc_hsm_component(id_array<component_id>& ids) noexcept
     return new_compo_id;
 }
 
-component_id modeling::alloc_sim_component(id_array<component_id>& ids) noexcept
+component_id modeling::alloc_sim_component(
+  modeling::component_access& ids) noexcept
 {
     if (not can_alloc_sim_component(ids, 1))
         return undefined<component_id>();
@@ -1220,10 +1222,10 @@ component_id modeling::alloc_component() noexcept
       [&](auto& ids) noexcept -> component_id { return alloc_component(ids); });
 }
 
-static bool can_add_component(const id_array<component_id>& ids,
-                              const component_id            c,
-                              vector<component_id>&         out,
-                              component_id                  search) noexcept
+static bool can_add_component(const modeling::component_access& ids,
+                              const component_id                c,
+                              vector<component_id>&             out,
+                              component_id                      search) noexcept
 {
     if (c == search)
         return false;
@@ -1234,11 +1236,11 @@ static bool can_add_component(const id_array<component_id>& ids,
     return true;
 }
 
-static bool can_add_component(const modeling&               mod,
-                              const id_array<component_id>& ids,
-                              const component&              compo,
-                              vector<component_id>&         out,
-                              component_id                  search) noexcept
+static bool can_add_component(const modeling&                   mod,
+                              const modeling::component_access& ids,
+                              const component&                  compo,
+                              vector<component_id>&             out,
+                              component_id                      search) noexcept
 {
     switch (compo.type) {
     case component_type::grid: {

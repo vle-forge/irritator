@@ -252,7 +252,7 @@ static bool delete_link(generic_component& gen, int link_id) noexcept
 }
 
 static bool remove_nodes(modeling&                      mod,
-                         const id_array<component_id>&  ids,
+                         const modeling::component_access&  ids,
                          generic_component_editor_data& data,
                          const component_id             parent_id) noexcept
 {
@@ -1207,7 +1207,7 @@ static bool is_link_destroyed(generic_component& s_parent) noexcept
 
 static void show_component_editor(component_editor&              ed,
                                   generic_component_editor_data& data,
-                                  const id_array<component_id>&  ids,
+                                  const modeling::component_access&  ids,
                                   component_id                   compo_id,
                                   component&                     compo,
                                   generic_component& s_compo) noexcept

@@ -226,7 +226,7 @@ static auto combobox_component_port_id(const auto* label,
 
 template<typename PortGetter>
 static void show_connection_pack(const modeling&               mod,
-                                 const id_array<component_id>& ids,
+                                 const modeling::component_access& ids,
                                  component&                    compo,
                                  vector<connection_pack>&      pack,
                                  PortGetter&& port_getter_fn) noexcept
@@ -596,7 +596,7 @@ static auto create_dir_path(application&                        app,
 }
 
 static auto select_file_path(application&                         app,
-                             const id_array<component_id>&        ids,
+                             const modeling::component_access&        ids,
                              const component_id                   compo_id,
                              atomic_request_buffer<file_path_id>& newfile,
                              const registred_path_id              r_id,
@@ -695,7 +695,7 @@ static auto select_file_path(application&                         app,
 
 template<typename ComponentEditor>
 static void show_file_access(application&                  app,
-                             const id_array<component_id>& ids,
+                             const modeling::component_access& ids,
                              ComponentEditor&              ed,
                              const component_id            compo_id,
                              component_editor::tab&        tab) noexcept
@@ -911,7 +911,7 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
 }
 
 static void show_input_connections_new(application&                  app,
-                                       const id_array<component_id>& ids,
+                                       const modeling::component_access& ids,
                                        grid_component&               grid,
                                        component& gcompo) noexcept
 {
@@ -1002,7 +1002,7 @@ static void show_input_connections_new(application&                  app,
 }
 
 static void show_output_connections_new(application&                  app,
-                                        const id_array<component_id>& ids,
+                                        const modeling::component_access& ids,
                                         grid_component&               grid,
                                         component& gcompo) noexcept
 {
@@ -1107,7 +1107,7 @@ static bool connect_output(const port_id      g_port_id,
                            application&       app);
 
 static void show_input_connections_new(application&                  app,
-                                       const id_array<component_id>& ids,
+                                       const modeling::component_access& ids,
                                        generic_component&            g,
                                        component& gcompo) noexcept
 {
@@ -1243,7 +1243,7 @@ static bool connect_input(const port_id      g_port_id,
 }
 
 static void show_output_connections_new(application&                  app,
-                                        const id_array<component_id>& ids,
+                                        const modeling::component_access& ids,
                                         generic_component&            g,
                                         component& gcompo) noexcept
 {
@@ -1382,7 +1382,7 @@ static bool connect_output(const port_id      g_port_id,
 }
 
 static void show_input_connections_new(application&                  app,
-                                       const id_array<component_id>& ids,
+                                       const modeling::component_access& ids,
                                        graph_component&              graph,
                                        component& gcompo) noexcept
 {
@@ -1459,7 +1459,7 @@ static void show_input_connections_new(application&                  app,
 }
 
 static void show_output_connections_new(application&                  app,
-                                        const id_array<component_id>& ids,
+                                        const modeling::component_access& ids,
                                         graph_component&              graph,
                                         component& gcompo) noexcept
 {
@@ -1538,7 +1538,7 @@ static void show_output_connections_new(application&                  app,
 }
 
 static void show_input_connections(application&                  app,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    generic_component&            g,
                                    component&                    c) noexcept
 {
@@ -1590,7 +1590,7 @@ static void show_input_connections(application&                  app,
 }
 
 static void show_output_connections(application&                  app,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     generic_component&            g,
                                     component&                    c) noexcept
 {
@@ -1643,7 +1643,7 @@ static void show_output_connections(application&                  app,
 }
 
 static void show_input_connections(application&                  app,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    grid_component&               g,
                                    component&                    c) noexcept
 {
@@ -1687,7 +1687,7 @@ static void show_input_connections(application&                  app,
 }
 
 static void show_output_connections(application&                  app,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     grid_component&               g,
                                     component&                    c) noexcept
 {
@@ -1733,7 +1733,7 @@ static void show_output_connections(application&                  app,
 }
 
 static void show_input_connections(application&                  app,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    graph_component&              g,
                                    component&                    c) noexcept
 {
@@ -1777,7 +1777,7 @@ static void show_input_connections(application&                  app,
 }
 
 static void show_output_connections(application&                  app,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     graph_component&              g,
                                     component&                    c) noexcept
 {
@@ -1820,7 +1820,7 @@ static void show_output_connections(application&                  app,
 }
 
 static void show_input_connections(application&                  app,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    component&                    compo) noexcept
 {
     switch (compo.type) {
@@ -1852,7 +1852,7 @@ static void show_input_connections(application&                  app,
 }
 
 static void show_output_connections(application&                  app,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     component& compo) noexcept
 {
     switch (compo.type) {
@@ -1964,7 +1964,7 @@ static void show_output_ports(component& compo) noexcept
 }
 
 static void show_input_connection_packs(application&                  app,
-                                        const id_array<component_id>& ids,
+                                        const modeling::component_access& ids,
                                         component& compo) noexcept
 {
     auto& ed = app.component_ed;
@@ -2006,7 +2006,7 @@ static void show_input_connection_packs(application&                  app,
 }
 
 static void show_output_connection_packs(application&                  app,
-                                         const id_array<component_id>& ids,
+                                         const modeling::component_access& ids,
                                          component& compo) noexcept
 {
     auto& ed = app.component_ed;
@@ -2051,7 +2051,7 @@ static void show_output_connection_packs(application&                  app,
 template<typename ComponentEditor>
 static void display_component_editor_subtable(
   application&                  app,
-  const id_array<component_id>& ids,
+  const modeling::component_access& ids,
   ComponentEditor&              element,
   const component_id            compo_id,
   component_editor::tab&        tab) noexcept

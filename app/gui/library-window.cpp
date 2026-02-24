@@ -285,7 +285,7 @@ void library_window::show_file_project(const modeling::file_access& fs,
 }
 
 void library_window::show_file_component(const modeling::file_access&  fs,
-                                         const id_array<component_id>& ids,
+                                         const modeling::component_access& ids,
                                          const file_path&              file,
                                          const component_id id) noexcept
 {
@@ -358,7 +358,7 @@ void library_window::show_file_component(const modeling::file_access&  fs,
 
 void library_window::show_notsaved_content(
   const modeling::file_access&  fs,
-  const id_array<component_id>& ids,
+  const modeling::component_access& ids,
   const bitflags<file_type>     flags) noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
@@ -539,7 +539,7 @@ void library_window::try_set_component_as_project(
 }
 
 static auto is_component_used_in_components(const modeling&               mod,
-                                            const id_array<component_id>& ids,
+                                            const modeling::component_access& ids,
                                             const component_id id) noexcept
   -> bool
 {
@@ -619,7 +619,7 @@ static auto is_component_used_in_projects(const application&  app,
 }
 
 auto library_window::is_component_deletable(const application&            app,
-                                            const id_array<component_id>& ids,
+                                            const modeling::component_access& ids,
                                             const component_id id) noexcept
   -> is_component_deletable_t
 {

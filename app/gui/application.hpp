@@ -1485,7 +1485,7 @@ private:
 
     is_component_deletable_t is_component_deletable(
       const application&            app,
-      const id_array<component_id>& ids,
+      const modeling::component_access& ids,
       const component_id            id) noexcept;
 
     void show_menu() noexcept;
@@ -1497,10 +1497,10 @@ private:
                               const dir_path&,
                               const bitflags<file_type>) noexcept;
     void show_notsaved_content(const modeling::file_access&,
-                               const id_array<component_id>&,
+                               const modeling::component_access&,
                                const bitflags<file_type>) noexcept;
     void show_file_component(const modeling::file_access&,
-                             const id_array<component_id>&,
+                             const modeling::component_access&,
                              const file_path&,
                              const component_id) noexcept;
     void show_file_project(const modeling::file_access&,

@@ -301,7 +301,7 @@ struct simulation_copy {
 };
 
 static auto make_tree_recursive(simulation_copy&              sc,
-                                const id_array<component_id>& ids,
+                                const modeling::component_access& ids,
                                 tree_node&                    parent,
                                 const component_id            compo_id,
                                 const std::string_view        uid) noexcept
@@ -328,7 +328,7 @@ static auto get_incoming_connection(const generic_component& gen,
 }
 
 static auto get_incoming_connection(const modeling&               mod,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     const tree_node&              tn,
                                     const port_id id) noexcept -> expected<int>
 {
@@ -349,7 +349,7 @@ static auto get_incoming_connection(const modeling&               mod,
 }
 
 static auto get_incoming_connection(const modeling&               mod,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     const tree_node&              tn) noexcept
   -> expected<int>
 {
@@ -386,7 +386,7 @@ static auto get_outcoming_connection(const generic_component& gen,
 }
 
 static auto get_outcoming_connection(const modeling&               mod,
-                                     const id_array<component_id>& ids,
+                                     const modeling::component_access& ids,
                                      const tree_node&              tn,
                                      const port_id id) noexcept -> expected<int>
 {
@@ -407,7 +407,7 @@ static auto get_outcoming_connection(const modeling&               mod,
 }
 
 static auto get_outcoming_connection(const modeling&               mod,
-                                     const id_array<component_id>& ids,
+                                     const modeling::component_access& ids,
                                      const tree_node&              tn) noexcept
   -> expected<int>
 {
@@ -429,7 +429,7 @@ static auto get_outcoming_connection(const modeling&               mod,
 }
 
 static auto make_tree_hsm_leaf(const simulation_copy&        sc,
-                               const id_array<component_id>& ids,
+                               const modeling::component_access& ids,
                                const parameter&              mod_parameter,
                                parameter&                    sim_parameter,
                                hsm_wrapper& dyn) noexcept -> status
@@ -460,7 +460,7 @@ static auto make_tree_hsm_leaf(const simulation_copy&        sc,
 }
 
 static auto make_tree_constant_leaf(simulation_copy&              sc,
-                                    const id_array<component_id>& ids,
+                                    const modeling::component_access& ids,
                                     tree_node&                    parent,
                                     const parameter&              mod_parameter,
                                     parameter&                    sim_parameter,
@@ -543,7 +543,7 @@ static auto make_tree_constant_leaf(simulation_copy&              sc,
 }
 
 static auto make_tree_leaf(simulation_copy&                sc,
-                           const id_array<component_id>&   ids,
+                           const modeling::component_access&   ids,
                            tree_node&                      parent,
                            const generic_component&        gen,
                            const std::string_view          uid,
@@ -666,7 +666,7 @@ static auto make_tree_leaf(simulation_copy&                sc,
 }
 
 static status make_tree_recursive(simulation_copy&              sc,
-                                  const id_array<component_id>& ids,
+                                  const modeling::component_access& ids,
                                   tree_node&                    new_tree,
                                   generic_component&            src) noexcept
 {
@@ -719,7 +719,7 @@ static status make_tree_recursive(simulation_copy&              sc,
 }
 
 static status make_tree_recursive(simulation_copy&              sc,
-                                  const id_array<component_id>& ids,
+                                  const modeling::component_access& ids,
                                   tree_node&                    new_tree,
                                   grid_component&               src) noexcept
 {
@@ -747,7 +747,7 @@ static status make_tree_recursive(simulation_copy&              sc,
 }
 
 static status make_tree_recursive(simulation_copy&              sc,
-                                  const id_array<component_id>& ids,
+                                  const modeling::component_access& ids,
                                   tree_node&                    new_tree,
                                   graph_component&              src) noexcept
 {
@@ -871,7 +871,7 @@ static status external_source_copy(const modeling&                   mod,
 
 static status make_tree_recursive(
   [[maybe_unused]] simulation_copy& sc,
-  [[maybe_unused]] const id_array<component_id>&,
+  [[maybe_unused]] const modeling::component_access&,
   [[maybe_unused]] tree_node&     new_tree,
   [[maybe_unused]] hsm_component& src) noexcept
 {
@@ -881,7 +881,7 @@ static status make_tree_recursive(
 }
 
 static status update_external_source(simulation_copy&              sc,
-                                     const id_array<component_id>& ids,
+                                     const modeling::component_access& ids,
                                      const component_id compo_id) noexcept
 {
     if (const auto* exist = sc.srcs_mod_to_sim.get(compo_id); not exist) {
@@ -908,7 +908,7 @@ static status update_external_source(simulation_copy&              sc,
 }
 
 static auto make_tree_recursive(simulation_copy&              sc,
-                                const id_array<component_id>& ids,
+                                const modeling::component_access& ids,
                                 tree_node&                    parent,
                                 const component_id            compo_id,
                                 const std::string_view unique_id) noexcept
@@ -1178,14 +1178,14 @@ static void get_input_models(vector<model_port>& inputs,
 static void get_output_models(vector<model_port>&           outputs,
                               const simulation&             sim,
                               const modeling&               mod,
-                              const id_array<component_id>& ids,
+                              const modeling::component_access& ids,
                               const tree_node&              tn,
                               const port_id                 p) noexcept;
 
 static void get_output_models(vector<model_port>&           outputs,
                               const simulation&             sim,
                               const modeling&               mod,
-                              const id_array<component_id>& ids,
+                              const modeling::component_access& ids,
                               const tree_node&              tn,
                               const generic_component&      gen,
                               const port_id                 p) noexcept
@@ -1213,7 +1213,7 @@ static void get_output_models(vector<model_port>&           outputs,
 static void get_output_models(vector<model_port>&           outputs,
                               const simulation&             sim,
                               const modeling&               mod,
-                              const id_array<component_id>& ids,
+                              const modeling::component_access& ids,
                               const tree_node&              tn,
                               const graph_component&        graph,
                               const port_id                 p) noexcept
@@ -1234,7 +1234,7 @@ static void get_output_models(vector<model_port>&           outputs,
 static void get_output_models(vector<model_port>&           outputs,
                               const simulation&             sim,
                               const modeling&               mod,
-                              const id_array<component_id>& ids,
+                              const modeling::component_access& ids,
                               const tree_node&              tn,
                               const grid_component&         grid,
                               const port_id                 p) noexcept
@@ -1256,7 +1256,7 @@ static void get_output_pack_models(
   vector<model_port>&                                   outputs,
   const simulation&                                     sim,
   const modeling&                                       mod,
-  const id_array<component_id>&                         ids,
+  const modeling::component_access&                         ids,
   const tree_node&                                      tn,
   const component&                                      compo,
   const port_id                                         p,
@@ -1282,7 +1282,7 @@ static void get_output_pack_models(
   vector<model_port>&                                 outputs,
   const simulation&                                   sim,
   const modeling&                                     mod,
-  const id_array<component_id>&                       ids,
+  const modeling::component_access&                       ids,
   const tree_node&                                    tn,
   const component&                                    compo,
   const port_id                                       p,
@@ -1307,7 +1307,7 @@ static void get_output_pack_models(
   vector<model_port>&                                outputs,
   const simulation&                                  sim,
   const modeling&                                    mod,
-  const id_array<component_id>&                      ids,
+  const modeling::component_access&                      ids,
   const tree_node&                                   tn,
   const component&                                   compo,
   const port_id                                      p,
@@ -1331,7 +1331,7 @@ static void get_output_pack_models(
 static void get_output_models(vector<model_port>&           outputs,
                               const simulation&             sim,
                               const modeling&               mod,
-                              const id_array<component_id>& ids,
+                              const modeling::component_access& ids,
                               const tree_node&              tn,
                               const port_id                 p) noexcept
 {
@@ -1380,7 +1380,7 @@ static auto prepare_sum_connections(
   tree_node&                                   tree,
   const data_array<connection, connection_id>& connections,
   simulation_copy&                             sc,
-  const id_array<component_id>& /*ids*/) -> status
+  const modeling::component_access& /*ids*/) -> status
 {
     sc.sum_input_connections.clear();
     sc.sum_output_connections.clear();
@@ -1439,7 +1439,7 @@ static auto prepare_sum_connections(
 /** Get the @a port_option of the @a p_id port of the @a compo_id
  * component. */
 static auto get_input_connection_type(const modeling&               mod,
-                                      const id_array<component_id>& ids,
+                                      const modeling::component_access& ids,
                                       const component_id            compo_id,
                                       const port_id& p_id) noexcept
   -> port_option
@@ -1452,7 +1452,7 @@ static auto get_input_connection_type(const modeling&               mod,
 /** Get the @a port_option of the @a p_id port of the @a compo_id
  * component. */
 static auto get_output_connection_type(const modeling&               mod,
-                                       const id_array<component_id>& ids,
+                                       const modeling::component_access& ids,
                                        const component_id            compo_id,
                                        const port_id& p_id) noexcept
   -> port_option
@@ -1534,7 +1534,7 @@ static status simulation_copy_sum_connections(
 template<typename Child>
 static status simulation_copy_connections(
   simulation_copy&                             sc,
-  const id_array<component_id>&                ids,
+  const modeling::component_access&                ids,
   tree_node&                                   tree,
   const data_array<Child, child_id>&           children,
   const data_array<connection, connection_id>& connections) noexcept
@@ -1633,7 +1633,7 @@ static status simulation_copy_connections(
 }
 
 static status simulation_copy_connections(simulation_copy&              sc,
-                                          const id_array<component_id>& ids,
+                                          const modeling::component_access& ids,
                                           tree_node&                    tree,
                                           const component_id compo_id)
 {
@@ -1674,7 +1674,7 @@ static status simulation_copy_connections(simulation_copy&              sc,
 }
 
 static status simulation_copy_connections(simulation_copy&              sc,
-                                          const id_array<component_id>& ids,
+                                          const modeling::component_access& ids,
                                           tree_node& head) noexcept
 {
     sc.stack.clear();
@@ -1711,7 +1711,7 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 }
 
 static auto make_tree_from(simulation_copy&                     sc,
-                           const id_array<component_id>&        ids,
+                           const modeling::component_access&        ids,
                            data_array<tree_node, tree_node_id>& data,
                            const component_id                   parent) noexcept
   -> expected<tree_node_id>
@@ -1858,7 +1858,7 @@ public:
     table<component_id, project::required_data> map;
 
     project::required_data compute(const modeling&               mod,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    const generic_component&      g) noexcept
     {
         project::required_data ret;
@@ -1877,7 +1877,7 @@ public:
     }
 
     project::required_data compute(const modeling&               mod,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    const grid_component&         g) noexcept
     {
         project::required_data ret;
@@ -1894,7 +1894,7 @@ public:
     }
 
     project::required_data compute(const modeling&               mod,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    const graph_component&        g) noexcept
     {
         project::required_data ret;
@@ -1911,7 +1911,7 @@ public:
 
 public:
     project::required_data compute(const modeling&               mod,
-                                   const id_array<component_id>& ids,
+                                   const modeling::component_access& ids,
                                    const component_id            c_id) noexcept
     {
         project::required_data ret{ .tree_node_nb = 1 };
@@ -2017,7 +2017,7 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
 }
 
 status project::set(modeling&                     mod,
-                    const id_array<component_id>& ids,
+                    const modeling::component_access& ids,
                     const component_id            compo_id) noexcept
 {
     clear();

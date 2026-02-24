@@ -34,7 +34,7 @@ name_str graph_component::make_unique_name_id(
 }
 
 static auto build_graph_children(modeling&                     mod,
-                                 const id_array<component_id>& ids,
+                                 const modeling::component_access& ids,
                                  graph_component&              graph) noexcept
   -> table<graph_node_id, child_id>
 {
@@ -73,7 +73,7 @@ struct get_edges_result {
 };
 
 static auto get_edges(const modeling&                       mod,
-                      const id_array<component_id>&         ids,
+                      const modeling::component_access&         ids,
                       graph_component&                      graph,
                       const table<graph_node_id, child_id>& vertex,
                       const u16                             index) noexcept
@@ -208,7 +208,7 @@ static connection_add_result connection_add(graph_component& compo,
 
 static connection_add_result in_out_connection_add(
   const modeling&               mod,
-  const id_array<component_id>& ids,
+  const modeling::component_access& ids,
   graph_component&              compo,
   const get_edges_result&       edge) noexcept
 {
@@ -226,7 +226,7 @@ static connection_add_result in_out_connection_add(
 
 static connection_add_result named_connection_add(
   const modeling&               mod,
-  const id_array<component_id>& ids,
+  const modeling::component_access& ids,
   graph_component&              compo,
   const get_edges_result&       edge) noexcept
 {
@@ -284,7 +284,7 @@ static connection_add_result named_connection_add(
 
 static connection_add_result named_suffix_connection_add(
   const modeling&               mod,
-  const id_array<component_id>& ids,
+  const modeling::component_access& ids,
   graph_component&              compo,
   const get_edges_result&       edge) noexcept
 {
@@ -328,7 +328,7 @@ static connection_add_result named_suffix_connection_add(
 
 static status build_graph_connections(
   const modeling&                       mod,
-  const id_array<component_id>&         ids,
+  const modeling::component_access&         ids,
   graph_component&                      graph,
   const table<graph_node_id, child_id>& vertex) noexcept
 {

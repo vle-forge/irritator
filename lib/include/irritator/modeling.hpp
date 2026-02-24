@@ -1437,12 +1437,47 @@ public:
     data_array<hsm_component, hsm_component_id>         hsm_components;
     data_array<simulation_component, simulation_component_id> sim_components;
 
-    shared_buffer<id_array<component_id>> ids;
-    vector<component>                     components;
-    vector<component_color>               component_colors;
+    vector<component>       components;
+    vector<component_color> component_colors;
 
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
+
+    struct component_access {
+        using iterator       = typename id_array<component_id>::iterator;
+        using const_iterator = typename id_array<component_id>::const_iterator;
+
+        id_array<component_id> ids;
+
+        component_id alloc() noexcept { return ids.alloc(); }
+        void         free(const component_id id) noexcept { ids.free(id); }
+
+        bool exists(const component_id id) const noexcept
+        {
+            return ids.exists(id);
+        }
+
+        bool can_alloc(int number) const noexcept
+        {
+            return ids.can_alloc(number);
+        }
+
+        template<size_t Num, size_t Denum>
+        bool grow() noexcept
+        {
+            return ids.grow<Num, Denum>();
+        }
+
+        iterator       begin() noexcept { return ids.begin(); }
+        iterator       end() noexcept { return ids.end(); }
+        const_iterator begin() const noexcept { return ids.begin(); }
+        const_iterator end() const noexcept { return ids.end(); }
+        unsigned       capacity() const noexcept { return ids.capacity(); }
+        unsigned       size() const noexcept { return ids.size(); }
+        int            ssize() const noexcept { return ids.ssize(); }
+    };
+
+    shared_buffer<component_access> ids;
 
     struct file_access {
         file_access() noexcept = default;
@@ -1562,10 +1597,10 @@ public:
     status fill_components() noexcept;
 
     //! Reads the component @c compo and all dependencies recursively.
-    status load_component(const modeling::file_access&  files,
-                          const id_array<component_id>& ids,
-                          const std::filesystem::path&  path,
-                          const component_id            compo_id) noexcept;
+    status load_component(const modeling::file_access&      files,
+                          const modeling::component_access& ids,
+                          const std::filesystem::path&      path,
+                          const component_id                compo_id) noexcept;
 
     /** Search a component from three string.
      *
@@ -1605,24 +1640,27 @@ public:
     component_id alloc_sim_component() noexcept;
 
 private:
-    bool can_alloc_component(id_array<component_id>& ids, int count) noexcept;
-    bool can_alloc_grid_component(id_array<component_id>& ids,
-                                  int                     count) noexcept;
-    bool can_alloc_generic_component(id_array<component_id>& ids,
-                                     int                     count) noexcept;
-    bool can_alloc_graph_component(id_array<component_id>& ids,
-                                   int                     count) noexcept;
-    bool can_alloc_hsm_component(id_array<component_id>& ids,
-                                 int                     count) noexcept;
-    bool can_alloc_sim_component(id_array<component_id>& ids,
-                                 int                     count) noexcept;
+    bool can_alloc_component(modeling::component_access& ids,
+                             int                         count) noexcept;
+    bool can_alloc_grid_component(modeling::component_access& ids,
+                                  int                         count) noexcept;
+    bool can_alloc_generic_component(modeling::component_access& ids,
+                                     int count) noexcept;
+    bool can_alloc_graph_component(modeling::component_access& ids,
+                                   int                         count) noexcept;
+    bool can_alloc_hsm_component(modeling::component_access& ids,
+                                 int                         count) noexcept;
+    bool can_alloc_sim_component(modeling::component_access& ids,
+                                 int                         count) noexcept;
 
-    component_id alloc_component(id_array<component_id>& ids) noexcept;
-    component_id alloc_grid_component(id_array<component_id>& ids) noexcept;
-    component_id alloc_generic_component(id_array<component_id>& ids) noexcept;
-    component_id alloc_graph_component(id_array<component_id>& ids) noexcept;
-    component_id alloc_hsm_component(id_array<component_id>& ids) noexcept;
-    component_id alloc_sim_component(id_array<component_id>& ids) noexcept;
+    component_id alloc_component(modeling::component_access& ids) noexcept;
+    component_id alloc_grid_component(modeling::component_access& ids) noexcept;
+    component_id alloc_generic_component(
+      modeling::component_access& ids) noexcept;
+    component_id alloc_graph_component(
+      modeling::component_access& ids) noexcept;
+    component_id alloc_hsm_component(modeling::component_access& ids) noexcept;
+    component_id alloc_sim_component(modeling::component_access& ids) noexcept;
 
 public:
     /// Checks if the child can be added to the parent to avoid recursive
@@ -1812,9 +1850,9 @@ public:
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling&                     mod,
-               const id_array<component_id>& ids,
-               const component_id            compo_id) noexcept;
+    status set(modeling&                         mod,
+               const modeling::component_access& ids,
+               const component_id                compo_id) noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
