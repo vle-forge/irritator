@@ -698,6 +698,7 @@ static bool show_graph(const component_access& ids,
 }
 
 static void add_popup_menuitem(application&             app,
+                               const component_access&  ids,
                                const component_id       parent_id,
                                const generic_component& s_parent,
                                const dynamics_type      type,
@@ -712,11 +713,8 @@ static void add_popup_menuitem(application&             app,
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
-        const auto s_id = app.mod.ids.read(
-          [&](const auto& ids, auto) noexcept -> generic_component_id {
-              const auto& c = ids.components[parent_id];
-              return c.id.generic_id;
-          });
+        const auto& c    = ids.components[parent_id];
+        const auto  s_id = c.id.generic_id;
 
         app.add_gui_task([&app, s_id, type, click_pos]() noexcept {
             app.mod.ids.write([&](auto& ids) noexcept {
@@ -743,13 +741,14 @@ static void add_popup_menuitem(application&             app,
 }
 
 static void add_popup_menuitem(application&             app,
+                               const component_access&  ids,
                                const component_id       parent_id,
                                const generic_component& s_parent,
                                const u8                 type,
                                const ImVec2             click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
-    add_popup_menuitem(app, parent_id, s_parent, d_type, click_pos);
+    add_popup_menuitem(app, ids, parent_id, s_parent, d_type, click_pos);
 }
 
 static bool compute_grid_layout(generic_component& s_compo,
@@ -888,7 +887,7 @@ static bool show_popup_menuitem(const component_access&        ids,
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_exp) + 1;
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
+                add_popup_menuitem(app, ids, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -897,7 +896,7 @@ static bool show_popup_menuitem(const component_access&        ids,
             const auto e = ordinal(dynamics_type::qss2_exp) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
+                add_popup_menuitem(app, ids, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -906,56 +905,80 @@ static bool show_popup_menuitem(const component_access&        ids,
             const auto e = ordinal(dynamics_type::qss3_exp) + 1;
 
             for (; i != e; ++i)
-                add_popup_menuitem(app, parent_id, s_parent, i, click_pos);
+                add_popup_menuitem(app, ids, parent_id, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(app,
-                                    parent_id,
-                                    s_parent,
-                                    dynamics_type::logical_and_2,
-                                    click_pos);
-            add_popup_menuitem(
-              app, parent_id, s_parent, dynamics_type::logical_or_2, click_pos);
+                               ids,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_and_2,
+                               click_pos);
             add_popup_menuitem(app,
-                                    parent_id,
-                                    s_parent,
-                                    dynamics_type::logical_and_3,
-                                    click_pos);
-            add_popup_menuitem(
-              app, parent_id, s_parent, dynamics_type::logical_or_3, click_pos);
+                               ids,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_or_2,
+                               click_pos);
             add_popup_menuitem(app,
-                                    parent_id,
-                                    s_parent,
-                                    dynamics_type::logical_invert,
-                                    click_pos);
+                               ids,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_and_3,
+                               click_pos);
+            add_popup_menuitem(app,
+                               ids,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_or_3,
+                               click_pos);
+            add_popup_menuitem(app,
+                               ids,
+                               parent_id,
+                               s_parent,
+                               dynamics_type::logical_invert,
+                               click_pos);
             ImGui::EndMenu();
         }
 
         add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::counter, click_pos);
+          app, ids, parent_id, s_parent, dynamics_type::counter, click_pos);
         add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::queue, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::dynamic_queue, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::priority_queue, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::generator, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::constant, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::time_func, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::accumulator_2, click_pos);
-        add_popup_menuitem(
-          app, parent_id, s_parent, dynamics_type::hsm_wrapper, click_pos);
+          app, ids, parent_id, s_parent, dynamics_type::queue, click_pos);
         add_popup_menuitem(app,
-                                parent_id,
-                                s_parent,
-                                dynamics_type::simulation_wrapper,
-                                click_pos);
+                           ids,
+                           parent_id,
+                           s_parent,
+                           dynamics_type::dynamic_queue,
+                           click_pos);
+        add_popup_menuitem(app,
+                           ids,
+                           parent_id,
+                           s_parent,
+                           dynamics_type::priority_queue,
+                           click_pos);
+        add_popup_menuitem(
+          app, ids, parent_id, s_parent, dynamics_type::generator, click_pos);
+        add_popup_menuitem(
+          app, ids, parent_id, s_parent, dynamics_type::constant, click_pos);
+        add_popup_menuitem(
+          app, ids, parent_id, s_parent, dynamics_type::time_func, click_pos);
+        add_popup_menuitem(app,
+                           ids,
+                           parent_id,
+                           s_parent,
+                           dynamics_type::accumulator_2,
+                           click_pos);
+        add_popup_menuitem(
+          app, ids, parent_id, s_parent, dynamics_type::hsm_wrapper, click_pos);
+        add_popup_menuitem(app,
+                           ids,
+                           parent_id,
+                           s_parent,
+                           dynamics_type::simulation_wrapper,
+                           click_pos);
 
         ImGui::EndPopup();
     }
@@ -1464,8 +1487,8 @@ void generic_component_editor_data::read(application& app) noexcept
 
         if (auto* g = ids.generic_components.try_to_get(src.id.generic_id)) {
             if (version != m_version) {
-                m_generic   = *g;
-                m_version   = version;
+                m_generic = *g;
+                m_version = version;
             }
         }
     });
