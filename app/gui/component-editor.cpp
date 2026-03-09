@@ -294,45 +294,40 @@ static auto get_cst_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::constant_source&
 {
-    const auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>();
-    fatal::ensure(elems[id].index() == 0);
+    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    fatal::ensure(elems.type == source_type::constant);
 
-    return *std::get_if<external_source_definition::constant_source>(
-      &elems[id]);
+    return elems.cst;
 }
 
 static auto get_bin_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::binary_source&
 {
-    const auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>();
-    fatal::ensure(elems[id].index() == 1);
+    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    fatal::ensure(elems.type == source_type::binary_file);
 
-    return *std::get_if<external_source_definition::binary_source>(&elems[id]);
+    return elems.bin;
 }
 
 static auto get_txt_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::text_source&
 {
-    const auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>();
-    fatal::ensure(elems[id].index() == 2);
+    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    fatal::ensure(elems.type == source_type::text_file);
 
-    return *std::get_if<external_source_definition::text_source>(&elems[id]);
+    return elems.txt;
 }
 
 static auto get_rnd_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::random_source&
 {
-    const auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>();
-    fatal::ensure(elems[id].index() == 3);
+    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    fatal::ensure(elems.type == source_type::random);
 
-    return *std::get_if<external_source_definition::random_source>(&elems[id]);
+    return elems.rnd;
 }
 
 static bool display_constant_source(
@@ -410,9 +405,8 @@ static bool display_constant_source(
                 if (compo.srcs.data.exists(id)) {
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
-                    if (elem.index() == 0) {
-                        auto& cst_elem = *std::get_if<
-                          external_source_definition::constant_source>(&elem);
+                    if (elem.type == source_type::constant) {
+                        auto& cst_elem = elem.cst;
                         cst_elem                            = cst;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
@@ -468,9 +462,8 @@ static bool display_binary_source(
                 if (compo.srcs.data.exists(id)) {
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
-                    if (elem.index() == 1) {
-                        auto& bin_elem = *std::get_if<
-                          external_source_definition::binary_source>(&elem);
+                    if (elem.type == source_type::binary_file) {
+                        auto& bin_elem = elem.bin;
                         bin_elem                            = bin;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
@@ -526,10 +519,8 @@ static bool display_text_source(
                 if (compo.srcs.data.exists(id)) {
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
-                    if (elem.index() == 2) {
-                        auto& txt_elem =
-                          *std::get_if<external_source_definition::text_source>(
-                            &elem);
+                    if (elem.type == source_type::text_file) {
+                        auto& txt_elem = elem.txt;
                         txt_elem                            = txt;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
@@ -577,9 +568,8 @@ static bool display_random_source(
                 if (compo.srcs.data.exists(id)) {
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
-                    if (elem.index() == 0) {
-                        auto& cst_elem = *std::get_if<
-                          external_source_definition::random_source>(&elem);
+                    if (elem.type == source_type::random) {
+                        auto& cst_elem = elem.rnd;
                         cst_elem                            = rnd;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
@@ -606,23 +596,23 @@ static void display_external_source(application&       app,
             std::optional<external_source_definition::id> to_del;
             for (const auto id : compo.srcs.data) {
                 auto keep_element = true;
-                switch (get_source_element(compo, id).index()) {
-                case 0:
+                switch (get_source_element(compo, id).type) {
+                case source_type::constant:
                     keep_element =
                       display_constant_source(app, compo, compo_id, id);
                     break;
 
-                case 1:
+                case source_type::binary_file:
                     keep_element =
                       display_binary_source(app, ids, compo, compo_id, id);
                     break;
 
-                case 2:
+                case source_type::text_file:
                     keep_element =
                       display_text_source(app, ids, compo, compo_id, id);
                     break;
 
-                case 3:
+                case source_type::random:
                     keep_element =
                       display_random_source(app, compo, compo_id, id);
                     break;

@@ -175,21 +175,30 @@ int main()
                 const auto prio_src_id  = component.srcs.data.alloc_id();
                 const auto dyn_src_id   = component.srcs.data.alloc_id();
 
-                auto& gen_src_1 = component.srcs.template emplace<
-                  irt::external_source_definition::constant_source>(
-                  gen_src_1_id, "generator-1");
+                component.srcs.emplace(gen_src_1_id, irt::source_type::constant, "generator-1");
 
-                auto& gen_src_2 = component.srcs.template emplace<
-                  irt::external_source_definition::constant_source>(
-                  gen_src_2_id, "generator-2");
+                component.srcs.emplace(gen_src_2_id, irt::source_type::constant, "generator-2");
 
-                auto& prio_src = component.srcs.template emplace<
-                  irt::external_source_definition::constant_source>(
-                  prio_src_id, "priority-queue");
+                component.srcs.emplace(prio_src_id, irt::source_type::constant, "priority-queue");
 
-                auto& dyn_src = component.srcs.template emplace<
-                  irt::external_source_definition::constant_source>(
-                  dyn_src_id, "dynamic-queue");
+                component.srcs.emplace(dyn_src_id, irt::source_type::constant, "dynamic-queue");
+
+                auto& gen_src_1 = component.srcs.data
+                                      .template get<irt::external_source_definition::source_element>(
+                                          gen_src_1_id)
+                                      .cst;
+                auto& gen_src_2 = component.srcs.data
+                                      .template get<irt::external_source_definition::source_element>(
+                                          gen_src_2_id)
+                                      .cst;
+                auto& prio_src = component.srcs.data
+                                     .template get<irt::external_source_definition::source_element>(
+                                         prio_src_id)
+                                     .cst;
+                auto& dyn_src = component.srcs.data
+                                    .template get<irt::external_source_definition::source_element>(
+                                        dyn_src_id)
+                                    .cst;
 
                 gen_src_1.data.resize(3, 1.0);
                 gen_src_2.data.resize(3, 2.0);

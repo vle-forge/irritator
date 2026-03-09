@@ -442,8 +442,64 @@ struct external_source_definition {
         distribution_type   type;
     };
 
-    using source_element =
-      std::variant<constant_source, binary_source, text_source, random_source>;
+    struct source_element {
+        source_type type = source_type::constant;
+
+        source_element() noexcept = default;
+
+        source_element(const source_element& src) noexcept
+        {
+            do_destroy();
+
+            type = src.type;
+
+            switch (type) {
+            case source_type::constant:
+                std::construct_at(std::addressof(cst), src.cst);
+                break;
+            case source_type::binary_file:
+                std::construct_at(std::addressof(bin), src.bin);
+                break;
+            case source_type::text_file:
+                std::construct_at(std::addressof(txt), src.txt);
+                break;
+            case source_type::random:
+                std::construct_at(std::addressof(rnd), src.rnd);
+                break;
+            }
+        }
+
+        ~source_element() noexcept
+        {
+            do_destroy();
+        }
+
+        union {
+            constant_source cst = constant_source{};
+            binary_source bin;
+            text_source txt;
+            random_source rnd;
+        };
+
+    private:
+        void do_destroy() noexcept
+        {
+            switch (type) {
+            case source_type::constant:
+                std::destroy_at(std::addressof(cst));
+                break;
+            case source_type::binary_file:
+                std::destroy_at(std::addressof(bin));
+                break;
+            case source_type::text_file:
+                std::destroy_at(std::addressof(txt));
+                break;
+            case source_type::random:
+                std::destroy_at(std::addressof(rnd));
+                break;
+            }
+        }
+    };
 
     id_data_array<void,
                   id,
@@ -452,15 +508,35 @@ struct external_source_definition {
                   name_str>
       data;
 
-    template<typename T>
-    T& emplace(const external_source_definition::id id,
-               std::string_view                     name = "") noexcept
+    void emplace(const external_source_definition::id i, const source_type type,
+                 const std::string_view name = std::string_view()) noexcept
     {
-        debug::ensure(data.exists(id));
+        debug::ensure(data.exists(i));
 
-        data.get<name_str>(id) = name;
-        return data.get<external_source_definition::source_element>(id)
-          .emplace<T>();
+        if (data.get<source_element>(i).type != type) {
+            std::destroy_at(std::addressof(data.get<external_source_definition::source_element>(i)));
+        }
+
+        data.get<source_element>(i).type = type;
+        data.get<name_str>(i) = name;
+
+        switch (type) {
+        case source_type::constant:
+            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).cst));
+            break;
+
+        case source_type::binary_file:
+            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).bin));
+            break;
+
+        case source_type::text_file:
+            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).txt));
+            break;
+
+        case source_type::random:
+            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).rnd));
+            break;
+        }
     }
 
     constant_source& alloc_constant_source(std::string_view name = "") noexcept;

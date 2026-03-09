@@ -861,12 +861,10 @@ static bool external_sources_reserve_add(const external_source_definition& src,
                                          external_source& dst) noexcept
 {
     std::array<unsigned, 4> more_reserve{};
-
-    const auto& src_elems =
-      src.data.get<external_source_definition::source_element>();
+    const auto& srcs = src.data.get<external_source_definition::source_element>();
 
     for (const auto id : src.data)
-        ++more_reserve[src_elems[id].index()];
+        ++more_reserve[ordinal(srcs[id].type)];
 
     return data_array_reserve_add(dst.constant_sources, more_reserve[0]) and
            data_array_reserve_add(dst.binary_file_sources, more_reserve[1]) and
@@ -888,12 +886,10 @@ static status external_source_copy(const modeling&                   mod,
     const auto& src_names = src.data.get<name_str>();
 
     for (const auto id : src.data) {
-        switch (src_elems[id].index()) {
-        case 0: {
-            auto& n_src =
-              *std::get_if<external_source_definition::constant_source>(
-                &src_elems[id]);
-            auto& n_res   = dst.constant_sources.alloc(n_src.data);
+        switch (src_elems[id].type) {
+        case source_type::constant: {
+            auto& n_src = src_elems[id].cst;
+            auto& n_res = dst.constant_sources.alloc(n_src.data);
             n_res.name    = src_names[id];
             auto n_res_id = dst.constant_sources.get_id(n_res);
 
@@ -904,10 +900,8 @@ static status external_source_copy(const modeling&                   mod,
             v.emplace_back(id, n_res_id);
         } break;
 
-        case 1: {
-            auto& n_src =
-              *std::get_if<external_source_definition::binary_source>(
-                &src_elems[id]);
+        case source_type::binary_file: {
+            auto& n_src = src_elems[id].bin;
 
             const auto p =
               make_file(mod, n_src.file).value_or(std::filesystem::path{});
@@ -920,9 +914,8 @@ static status external_source_copy(const modeling&                   mod,
 
         } break;
 
-        case 2: {
-            auto& n_src = *std::get_if<external_source_definition::text_source>(
-              &src_elems[id]);
+        case source_type::text_file: {
+            auto& n_src = src_elems[id].txt;
 
             const auto p =
               make_file(mod, n_src.file).value_or(std::filesystem::path{});
@@ -934,10 +927,8 @@ static status external_source_copy(const modeling&                   mod,
             v.emplace_back(id, n_res_id);
         } break;
 
-        case 3: {
-            auto& n_src =
-              *std::get_if<external_source_definition::random_source>(
-                &src_elems[id]);
+        case source_type::random: {
+            auto& n_src = src_elems[id].rnd;
             auto& n_res =
               dst.random_sources.alloc(n_src.type, n_src.reals, n_src.ints);
             n_res.name    = src_names[id];

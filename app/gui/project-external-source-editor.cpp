@@ -1053,7 +1053,7 @@ static void build_source_element_name(
 {
     static const char* names[] = { "(cst)", "(bin)", "(txt)", "(rnd)" };
 
-    format(out, "{} {}", str.sv(), names[src.index()]);
+    format(out, "{} {}", str.sv(), names[ordinal(src.type)]);
 }
 
 static void get_source_element(const external_source_definition&    srcs,

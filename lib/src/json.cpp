@@ -2367,15 +2367,15 @@ struct json_dearchiver::impl {
     }
 
     bool read_constant_source(const rapidjson::Value&                     value,
-                              external_source_definition::id              id,
-                              external_source_definition::source_element& src,
-                              name_str& s_name) noexcept
+                              component& compo,
+                              external_source_definition::id              id) noexcept
     {
         auto_stack s(this, "srcs constant source");
 
         std::optional<u64> id_in_file;
 
-        auto& cst = src.emplace<external_source_definition::constant_source>();
+        compo.srcs.emplace(id, source_type::constant);
+        auto& s_name = compo.srcs.data.get<name_str>(id);
 
         return for_each_member(
                  value,
@@ -2388,7 +2388,8 @@ struct json_dearchiver::impl {
                                 copy_string_to(s_name);
 
                      if ("parameters"sv == name)
-                         return read_constant_parameters(value, cst);
+                         return read_constant_parameters(value,
+                                                         compo.srcs.data.get<external_source_definition::source_element>(id).cst);
 
                      return true;
                  }) &&
@@ -2414,21 +2415,21 @@ struct json_dearchiver::impl {
 
         auto& compo = ids.components[compo_id];
         auto  id    = compo.srcs.data.alloc_id();
-        auto& selem =
-          compo.srcs.data.get<external_source_definition::source_element>();
-        auto& names = compo.srcs.data.get<name_str>();
 
         switch (type) {
         case source_type::constant:
-            return read_constant_source(value, id, selem[id], names[id]);
+            return read_constant_source(value, compo, id);
+
         case source_type::binary_file:
             return read_binary_source(
-              value, files, ids, compo_id, id, selem[id], names[id]);
+              value, files, ids, compo_id, compo, id);
+
         case source_type::text_file:
             return read_text_source(
-              value, files, ids, compo_id, id, selem[id], names[id]);
+              value, files, ids, compo_id, compo, id);
+
         case source_type::random:
-            return read_random_source(value, id, selem[id], names[id]);
+            return read_random_source(value, compo, id);
         }
 
         return true;
@@ -2521,15 +2522,15 @@ struct json_dearchiver::impl {
                             const file_access&             files,
                             component_access&              ids,
                             const component_id             compo_id,
-                            external_source_definition::id id,
-                            external_source_definition::source_element& src,
-                            name_str& s_name) noexcept
+                            component& compo,
+                            external_source_definition::id id) noexcept
     {
         auto_stack s(this, "srcs binary file sources");
 
         std::optional<u64> id_in_file;
 
-        auto& bin = src.emplace<external_source_definition::binary_source>();
+        compo.srcs.emplace(id, source_type::binary_file);
+        auto& s_name = compo.srcs.data.get<name_str>(id);
 
         return for_each_member(
                  value,
@@ -2544,7 +2545,8 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids, files, compo_id, bin.file);
+                                  ids, files, compo_id,
+                                     compo.srcs.data.get<external_source_definition::source_element>(id).bin.file);
 
                      return true;
                  }) &&
@@ -2556,15 +2558,15 @@ struct json_dearchiver::impl {
                           const file_access&                          files,
                           component_access&                           ids,
                           const component_id                          compo_id,
-                          external_source_definition::id              id,
-                          external_source_definition::source_element& src,
-                          name_str& s_name) noexcept
+                          component& compo,
+                          external_source_definition::id              id) noexcept
     {
         auto_stack s(this, "srcs text file sources");
 
         std::optional<u64> id_in_file;
 
-        auto& txt = src.emplace<external_source_definition::text_source>();
+        compo.srcs.emplace(id, source_type::text_file);
+        auto& s_name = compo.srcs.data.get<name_str>(id);
 
         return for_each_member(
                  value,
@@ -2579,7 +2581,8 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids, files, compo_id, txt.file);
+                                  ids, files, compo_id,
+                                     compo.srcs.data.get<external_source_definition::source_element>(id).txt.file);
 
                      return true;
                  }) &&
@@ -2757,15 +2760,15 @@ struct json_dearchiver::impl {
     }
 
     bool read_random_source(const rapidjson::Value&                     value,
-                            external_source_definition::id              id,
-                            external_source_definition::source_element& src,
-                            name_str& s_name) noexcept
+                            component& compo,
+                            external_source_definition::id              id) noexcept
     {
         auto_stack s(this, "srcs random sources");
 
         std::optional<u64> id_in_file;
 
-        auto& rnd = src.emplace<external_source_definition::random_source>();
+        compo.srcs.emplace(id, source_type::random);
+        auto& s_name = compo.srcs.data.get<name_str>(id);
 
         return for_each_member(
                  value,
@@ -2778,6 +2781,8 @@ struct json_dearchiver::impl {
                                 copy_string_to(s_name);
 
                      if ("type"sv == name) {
+                         auto& rnd = compo.srcs.data.get<external_source_definition::source_element>(id).rnd;
+
                          return read_temp_string(value) &&
                                 copy_string_to(rnd.type) &&
                                 read_distribution_type(value, rnd);
@@ -6530,48 +6535,44 @@ struct json_archiver::impl {
             w.StartArray();
 
             const auto& names = compo.srcs.data.get<name_str>();
-            const auto& src =
-              compo.srcs.data.get<external_source_definition::source_element>();
 
             for (const auto id : compo.srcs.data) {
                 w.StartObject();
                 w.Key("id");
                 w.Uint64(get_index(id));
                 w.Key("name");
-                w.String(names[get_index(id)].c_str());
+                w.String(names[id].c_str());
                 w.Key("type");
-                w.String(external_source_type_string[src[id].index()]);
 
-                switch (src[id].index()) {
-                case 0:
+                const auto type = compo.srcs.data.get<external_source_definition::source_element>(id).type;
+                w.String(external_source_type_string[ordinal(type)]);
+
+                switch (type) {
+                case source_type::constant:
                     write_constant_source(
-                      *std::get_if<external_source_definition::constant_source>(
-                        &src[id]),
+                            compo.srcs.data.get<external_source_definition::source_element>(id).cst,
                       w);
                     break;
 
-                case 1:
+                case source_type::binary_file:
                     write_binary_source(
                       mod,
                       files,
-                      *std::get_if<external_source_definition::binary_source>(
-                        &src[id]),
+                      compo.srcs.data.get<external_source_definition::source_element>(id).bin,
                       w);
                     break;
 
-                case 2:
+                case source_type::text_file:
                     write_text_source(
                       mod,
                       files,
-                      *std::get_if<external_source_definition::text_source>(
-                        &src[id]),
+                      compo.srcs.data.get<external_source_definition::source_element>(id).txt,
                       w);
                     break;
 
-                case 3:
+                case source_type::random:
                     write_random_source(
-                      *std::get_if<external_source_definition::random_source>(
-                        &src[id]),
+                                compo.srcs.data.get<external_source_definition::source_element>(id).rnd,
                       w);
                     break;
 

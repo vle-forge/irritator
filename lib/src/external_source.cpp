@@ -21,10 +21,11 @@ external_source_definition::alloc_constant_source(
     debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type = source_type::constant;
     data.get<name_str>(id) = name;
-    auto& cst = data.get<external_source_definition::source_element>(id);
+    data.get<external_source_definition::source_element>(id).cst = constant_source{};
 
-    return cst.emplace<external_source_definition::constant_source>();
+    return data.get<external_source_definition::source_element>(id).cst;
 }
 
 external_source_definition::binary_source&
@@ -33,9 +34,11 @@ external_source_definition::alloc_binary_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type = source_type::binary_file;
     data.get<name_str>(id) = name;
-    return data.get<external_source_definition::source_element>(id)
-      .emplace<external_source_definition::binary_source>();
+    data.get<external_source_definition::source_element>(id).bin = binary_source{};
+
+    return data.get<external_source_definition::source_element>(id).bin;
 }
 
 external_source_definition::text_source&
@@ -44,9 +47,11 @@ external_source_definition::alloc_text_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type = source_type::text_file;
     data.get<name_str>(id) = name;
-    return data.get<external_source_definition::source_element>(id)
-      .emplace<external_source_definition::text_source>();
+    data.get<external_source_definition::source_element>(id).txt = text_source{};
+
+    return data.get<external_source_definition::source_element>(id).txt;
 }
 
 external_source_definition::random_source&
@@ -55,9 +60,11 @@ external_source_definition::alloc_random_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id          = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type = source_type::random;
     data.get<name_str>(id) = name;
-    return data.get<external_source_definition::source_element>(id)
-      .emplace<external_source_definition::random_source>();
+    data.get<external_source_definition::source_element>(id).rnd = random_source{};
+
+    return data.get<external_source_definition::source_element>(id).rnd;
 }
 
 constant_source::constant_source(const constant_source& other) noexcept
