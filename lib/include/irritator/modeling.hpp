@@ -1093,7 +1093,7 @@ struct file_path {
 struct component_file_path {
     registred_path_id reg    = undefined<registred_path_id>();
     dir_path_id       parent = undefined<dir_path_id>();
-    file_path_str path;
+    file_path_str     path;
 };
 
 struct tree_node {
@@ -1471,6 +1471,12 @@ struct component_access {
 
     status copy(const internal_component src, const component_id dst) noexcept;
 
+    /// Checks if the child can be added to the parent to avoid recursive
+    /// loop (ie. a component child which need the same component in
+    /// sub-child).
+    bool can_add(const component_id parent,
+                 const component_id other) const noexcept;
+
     bool can_alloc_component(int count) noexcept;
     bool can_alloc_grid_component(int count) noexcept;
     bool can_alloc_generic_component(int count) noexcept;
@@ -1659,12 +1665,6 @@ public:
     shared_buffer<component_access> ids;
     shared_buffer<file_access>      files;
     modeling_status                 state = modeling_status::unmodified;
-
-    /// Checks if the child can be added to the parent to avoid recursive
-    /// loop (ie. a component child which need the same component in
-    /// sub-child).
-    bool can_add(const component_id parent,
-                 const component_id other) const noexcept;
 
     status save(const component_id c) noexcept;
 

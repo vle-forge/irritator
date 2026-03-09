@@ -793,7 +793,7 @@ static bool add_component_to_current(application&            app,
                                      const component_id      compo_to_add_id,
                                      ImVec2 click_pos = ImVec2())
 {
-    if (not app.mod.can_add(parent_id, compo_to_add_id)) {
+    if (not ids.can_add(parent_id, compo_to_add_id)) {
         app.jn.push(
           log_level::error, [&ids, compo_to_add_id](auto& t, auto& m) {
               t = "Fail to add component";

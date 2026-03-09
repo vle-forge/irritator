@@ -1352,31 +1352,28 @@ static bool can_add_component(const component_access& ids,
     return true;
 }
 
-bool modeling::can_add(const component_id parent_id,
-                       const component_id other_id) const noexcept
+bool component_access::can_add(const component_id parent_id,
+                               const component_id other_id) const noexcept
 {
-    return ids.read([&](const auto& ids, auto) {
-        vector<component_id> stack;
+    vector<component_id> stack;
 
-        if (parent_id == other_id)
-            return false;
+    if (parent_id == other_id)
+        return false;
 
-        if (not can_add_component(ids, other_id, stack, parent_id))
-            return false;
+    if (not can_add_component(*this, other_id, stack, parent_id))
+        return false;
 
-        while (!stack.empty()) {
-            auto id = stack.back();
-            stack.pop_back();
+    while (!stack.empty()) {
+        auto id = stack.back();
+        stack.pop_back();
 
-            if (ids.exists(id)) {
-                if (not can_add_component(
-                      ids, ids.components[id], stack, parent_id))
-                    return false;
-            }
+        if (exists(id)) {
+            if (not can_add_component(*this, components[id], stack, parent_id))
+                return false;
         }
+    }
 
-        return true;
-    });
+    return true;
 }
 
 void component_access::clear(const component_id compo_id) noexcept
