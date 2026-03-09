@@ -25,83 +25,78 @@ void component_selector::data_type::clear() noexcept
 
 void component_selector::data_type::update(const modeling& mod) noexcept
 {
-    clear();
+    mod.files.read([&](const auto& fs, auto) noexcept {
+        mod.ids.read([&](const auto& ids, const auto version) noexcept {
+            if (version == ids_version)
+                return;
 
-    mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
-        for (const auto reg_id : fs.recorded_paths) {
-            if (const auto* reg = fs.registred_paths.try_to_get(reg_id)) {
-                for (const auto dir_id : reg->children) {
-                    if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
-                        for (const auto file_id : dir->children) {
-                            if (const auto* file =
-                                  fs.file_paths.try_to_get(file_id)) {
-                                mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      if (ids.exists(file->component))
-                                          return;
+            clear();
 
-                                      auto  id    = file->component;
-                                      auto& compo = ids.components[id];
-                                      auto  name  = compo.name.sv();
+            ids_version = version;
 
-                                      by_names.emplace_back(id, name);
-                                      by_files.emplace_back(id,
-                                                            std::string_view());
-                                      format(by_files.back().second,
-                                             "{}/{}/{} {}",
-                                             reg->name.sv(),
-                                             dir->path.sv(),
-                                             file->path.sv(),
-                                             name);
+            for (const auto c_id : ids) {
+                const auto  type   = ids.components[c_id].type;
+                const auto  name   = ids.components[c_id].name.sv();
+                const auto& file   = ids.component_file_paths[c_id];
+                const auto  dir_id = file.parent;
 
-                                      switch (compo.type) {
-                                      case component_type::generic:
-                                          by_generics.emplace_back(id, name);
-                                          break;
+                if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
+                    if (const auto* reg =
+                          fs.registred_paths.try_to_get(dir->parent)) {
 
-                                      case component_type::grid:
-                                          by_grids.emplace_back(id, name);
-                                          break;
+                        by_names.emplace_back(c_id, name);
+                        by_files.emplace_back(c_id, file.path.sv());
 
-                                      case component_type::graph:
-                                          by_graphs.emplace_back(id, name);
-                                          break;
+                        format(by_files.back().second,
+                               "{}/{}",
+                               dir->path.sv(),
+                               name);
 
-                                      case component_type::hsm:
-                                          by_hsms.emplace_back(id, name);
-                                          break;
+                        switch (type) {
+                        case component_type::generic:
+                            by_generics.emplace_back(c_id, name);
+                            break;
 
-                                      case component_type::simulation:
-                                          by_sims.emplace_back(id, name);
-                                          break;
+                        case component_type::grid:
+                            by_grids.emplace_back(c_id, name);
+                            break;
 
-                                      case component_type::none:
-                                          break;
-                                      }
-                                  });
-                            }
+                        case component_type::graph:
+                            by_graphs.emplace_back(c_id, name);
+                            break;
+
+                        case component_type::hsm:
+                            by_hsms.emplace_back(c_id, name);
+                            break;
+
+                        case component_type::simulation:
+                            by_sims.emplace_back(c_id, name);
+                            break;
+
+                        case component_type::none:
+                            break;
                         }
                     }
                 }
             }
-        }
-    });
 
-    std::ranges::sort(by_names);
-    std::ranges::sort(by_files);
-    std::ranges::sort(by_generics);
-    std::ranges::sort(by_grids);
-    std::ranges::sort(by_graphs);
-    std::ranges::sort(by_hsms);
+            std::ranges::sort(by_names);
+            std::ranges::sort(by_files);
+            std::ranges::sort(by_generics);
+            std::ranges::sort(by_grids);
+            std::ranges::sort(by_graphs);
+            std::ranges::sort(by_hsms);
+        });
+    });
 }
 
 void component_selector::update() noexcept
 {
-    data.write([&](auto& vecs) noexcept {
-        const auto& mod = container_of(this, &application::component_sel).mod;
+    auto& app = container_of(this, &application::component_sel);
 
-        vecs.clear();
-        vecs.update(mod);
+    app.add_gui_task([&app]() noexcept {
+        app.component_sel.data.write(
+          [&](auto& vecs) noexcept { vecs.update(app.mod); });
     });
 }
 

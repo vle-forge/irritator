@@ -656,10 +656,10 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    ImVec2     distance{ 5.f, 5.f };
-    ImVec2     size{ 30.f, 30.f };
-    ImVec2     scrolling{ 0.f, 0.f };
-    float      zoom[2]{ 1.f, 1.f };
+    ImVec2           distance{ 5.f, 5.f };
+    ImVec2           size{ 30.f, 30.f };
+    ImVec2           scrolling{ 0.f, 0.f };
+    float            zoom[2]{ 1.f, 1.f };
     const component* hovered_component = nullptr;
 
     int row = 10;
@@ -1588,7 +1588,9 @@ class component_selector
 public:
     component_selector() noexcept = default;
 
-    /** Update the components cache with added/renamed/removed component. */
+    /// Update the components cache with added/renamed/removed component.
+    ///
+    /// This function do the job into a internal GUI task.
     void update() noexcept;
 
     struct result_t {
@@ -1647,6 +1649,8 @@ private:
 
         void clear() noexcept;
         void update(const modeling& mod) noexcept;
+
+        u64 ids_version = std::numeric_limits<u64>::max();
     };
 
     shared_buffer<data_type> data;
