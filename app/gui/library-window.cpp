@@ -292,10 +292,6 @@ void library_window::show_file_component(const file_access&      fs,
         ImGui::SameLine();
         ImGui::TextUnformatted(" (unread)");
         break;
-    case component_status::read_only:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (read-only)");
-        break;
     case component_status::modified:
         ImGui::SameLine();
         ImGui::TextUnformatted(" (not-saved)");

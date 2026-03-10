@@ -383,10 +383,6 @@ status modeling::fill_components() noexcept
                                 have_unread_component = true;
                                 break;
 
-                            case component_status::read_only:
-                                have_unread_component = true;
-                                break;
-
                             case component_status::modified:
                                 have_unread_component = true;
                                 break;

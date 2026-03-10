@@ -17,7 +17,6 @@ namespace irt {
 
 static inline constexpr const std::string_view component_status_string[] = {
     "unread",
-    "read_only",
     "modified",
     "unmodified",
     "unreadable"

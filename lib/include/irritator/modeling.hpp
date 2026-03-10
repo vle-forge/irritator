@@ -109,7 +109,6 @@ constexpr int component_type_count = ordinal(component_type::simulation) + 1;
 enum class component_status : u8 {
     unread,     ///< The component is not read (It is referenced by another
                 ///< component).
-    read_only,  ///< The component file is in read-only.
     modified,   ///< The component is not saved.
     unmodified, ///< or you show an internal component.
     unreadable  ///< When an error occurred during load-component.
