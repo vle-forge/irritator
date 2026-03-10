@@ -903,7 +903,6 @@ int main()
         });
 
         expect(buffer.size() > 0u);
-        fmt::print("Buffer: {:{}}\n", buffer.data(), buffer.size());
 
         {
             irt::journal_handler jn;
@@ -916,7 +915,6 @@ int main()
                 reg.path          = temp_path;
 
                 fs.create_directories(reg_id);
-                fs.browse_registreds(jn);
             });
 
             auto old_cb = std::exchange(irt::on_error_callback, nullptr);
@@ -1519,7 +1517,7 @@ int main()
         expect(eq(nb_unknown_model, 0));
     };
 
-    "grid-5x5-8-neighbors-input-port-type"_test = [] {
+    "grid-5x5-8-neighbors-input-port-type-connetion-pack"_test = [] {
         irt::vector<char> buffer;
 
         /* The component in a 5x5 grid:

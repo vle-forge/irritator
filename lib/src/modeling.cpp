@@ -280,84 +280,53 @@ int file_access::browse_registreds(journal_handler& jn) noexcept
 
 status modeling::fill_components() noexcept
 {
-    enum class file_to_component_type { component = 0, project, graph };
+    return ids.write([&](auto& ids) noexcept -> status {
+        const auto file_read_status = files.write(
+            [&](auto& fs) noexcept -> status {
+                fs.browse_registreds(journal);
 
-    struct f_to_c {
-        f_to_c(file_path_id f_id_, component_id c_id_) noexcept
-          : f_id{ f_id_ }
-          , to{ c_id_ }
-        {}
+                for (auto& f : fs.file_paths) {
+                    if (f.type == file_path::file_type::dot_file) {
+                        if (not(ids.graphs.can_alloc(1) or ids.graphs.template grow<3, 2>()))
+                            return new_error(modeling_errc::memory_error);
 
-        f_to_c(file_path_id f_id_, project_id pj_id_) noexcept
-          : f_id{ f_id_ }
-          , to{ pj_id_ }
-        {}
-
-        f_to_c(file_path_id f_id_, graph_id g_id) noexcept
-          : f_id{ f_id_ }
-          , to{ g_id }
-        {}
-
-        file_path_id                                     f_id;
-        std::variant<component_id, project_id, graph_id> to;
-    };
-
-    return files.write([&](auto& fs) noexcept -> status {
-        fs.browse_registreds(journal);
-
-        return ids.write([&](auto& ids) noexcept -> status {
-            vector<f_to_c> file_id_to_compo_id;
-            file_id_to_compo_id.reserve(fs.file_paths.size());
-
-            for (auto& f : fs.file_paths) {
-                if (f.type == file_path::file_type::dot_file) {
-                    if (not(ids.graphs.can_alloc(1) or
-                            ids.graphs.template grow<3, 2>()))
-                        return new_error(modeling_errc::memory_error);
-
-                    auto&      g        = ids.graphs.alloc();
-                    const auto graph_id = ids.graphs.get_id(g);
-                    const auto file_id  = fs.file_paths.get_id(f);
-                    g.file              = fs.file_paths.get_id(f);
-                    f.g_id              = graph_id;
-
-                    file_id_to_compo_id.emplace_back(file_id, graph_id);
-                }
-            }
-
-            for (auto& f : fs.file_paths) {
-                if (f.type == file_path::file_type::project_file) {
-                }
-            }
-
-            for (auto& f : fs.file_paths) {
-                if (f.type == file_path::file_type::component_file) {
-                    if (not ids.exists(f.component)) {
-                        const auto compo_id = ids.alloc_component();
-                        const auto file_id  = fs.file_paths.get_id(f);
-                        f.component         = compo_id;
-                        file_id_to_compo_id.emplace_back(file_id, compo_id);
+                        auto& g = ids.graphs.alloc();
+                        const auto graph_id = ids.graphs.get_id(g);
+                        g.file = fs.file_paths.get_id(f);
+                        f.g_id = graph_id;
                     }
+                }
 
-                    ids.component_file_paths[f.component].path   = f.path;
-                    ids.component_file_paths[f.component].parent = f.parent;
+                for (auto& f : fs.file_paths) {
+                    if (f.type == file_path::file_type::project_file) {
+                    }
+                }
 
-                    if (const auto* dir = fs.dir_paths.try_to_get(f.parent)) {
-                        if (const auto* reg =
-                              fs.registred_paths.try_to_get(dir->parent)) {
-                            ids.component_file_paths[f.component].reg =
-                              dir->parent;
+                for (auto& f : fs.file_paths) {
+                    if (f.type == file_path::file_type::component_file) {
+                        if (not ids.exists(f.component)) {
+                            if (not ids.can_alloc_component(1)) {
+                                return new_error(modeling_errc::memory_error);
+                            }
+
+                            const auto compo_id = ids.alloc_component();
+                            f.component = compo_id;
+                        }
+
+                        ids.component_file_paths[f.component].path = f.path;
+                        ids.component_file_paths[f.component].parent = f.parent;
+
+                        if (const auto* dir = fs.dir_paths.try_to_get(f.parent)) {
+                            if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
+                                ids.component_file_paths[f.component].reg = dir->parent;
+                            }
                         }
                     }
                 }
-            }
 
-            bool have_unread_component = ids.size() > 0u;
+                for (auto& g : ids.graphs) {
+                    const auto file_id = g.file;
 
-            for (auto& g : ids.graphs) {
-                const auto file_id = g.file;
-
-                files.read([&](const auto& fs, const auto /*vers*/) {
                     if (const auto file = fs.get_fs_path(file_id)) {
                         if (auto ret = parse_dot_file(*this, *file);
                             ret.has_value()) {
@@ -378,10 +347,19 @@ status modeling::fill_components() noexcept
                               *file);
                         }
                     }
-                });
-            }
+                }
+
+                return success();
+            });
+
+        if (file_read_status.has_error())
+            return file_read_status.error();
+
+        return files.read([&](const auto& fs, auto) noexcept -> status {
+            auto have_unread_component = ids.ssize() > 0;
 
             while (have_unread_component) {
+                auto component_read = 0;
                 have_unread_component = false;
 
                 for (auto id : ids) {
@@ -391,35 +369,49 @@ status modeling::fill_components() noexcept
 
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
-                        if (auto ret = load_component(fs, ids, *f, id); !ret) {
-                            if (compo.state == component_status::unread) {
-                                journal.push(
-                                  log_level::warning,
-                                  [&](auto& t, auto& m) noexcept {
-                                      t = "Modeling initialization error";
-                                      format(m,
-                                             "Need to read dependency for "
-                                             "component {} ({})",
-                                             compo.name.sv(),
-                                             ordinal(id));
-                                  });
-
+                        if (const auto ret = load_component(fs, ids, *f, id); ret.has_error()) {
+                            switch (compo.state) {
+                            case component_status::unread:
+                                journal.push(log_level::warning, [&](auto& t, auto& m) noexcept {
+                                    t = "Modeling initialization error";
+                                    format(m,
+                                           "Need to read dependency for "
+                                           "component {} ({})",
+                                           compo.name.sv(),
+                                           ordinal(id));
+                                });
                                 have_unread_component = true;
-                            }
+                                break;
 
-                            if (compo.state == component_status::unreadable) {
-                                journal.push(
-                                  log_level::warning,
-                                  [&](auto& t, auto& m) noexcept {
-                                      t = "Modeling initialization error";
-                                      format(m,
-                                             "Fail to read component `{}'",
-                                             compo.name.sv());
-                                  });
+                            case component_status::read_only:
+                                have_unread_component = true;
+                                break;
+
+                            case component_status::modified:
+                                have_unread_component = true;
+                                break;
+
+                            case component_status::unmodified:
+                                have_unread_component = true;
+                                break;
+
+                            case component_status::unreadable:
+                                journal.push(log_level::warning, [&](auto& t, auto& m) noexcept {
+                                    t = "Modeling initialization error";
+                                    format(m, "Fail to read component `{}'", compo.name.sv());
+                                });
+                                break;
                             }
+                        } else {
+                            ++component_read;
                         }
+                    } else {
+                        have_unread_component = true;
                     }
                 }
+
+                if (component_read == 0)
+                    return success();
             }
 
             return success();
@@ -454,7 +446,6 @@ status modeling::load_component(const file_access&           files,
 
             if (not j(
                   *this, files, ids, filename.string(), compo_id, compo, *f)) {
-                compo.state = component_status::unreadable;
                 return error_code(modeling_errc::component_load_error);
             }
 

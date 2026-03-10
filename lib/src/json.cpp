@@ -49,6 +49,7 @@ struct json_dearchiver::impl {
     modeling*        m_mod = nullptr;
     simulation*      m_sim = nullptr;
     project*         m_pj  = nullptr;
+
     std::string_view m_path;
 
     i64         temp_i64    = 0;
@@ -60,6 +61,7 @@ struct json_dearchiver::impl {
     small_vector<std::string_view, 16> stack;
 
     bool has_error = false;
+    bool has_missing_dependent_component = false;
 
     bool have_error() const noexcept { return has_error; }
 
@@ -111,8 +113,8 @@ struct json_dearchiver::impl {
     template<typename... T>
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        if (on_error_callback)
-            on_error_callback();
+        // if (on_error_callback)
+        //     on_error_callback();
 
         if (m_mod) {
             m_mod->journal.push(
@@ -171,6 +173,7 @@ struct json_dearchiver::impl {
         temp_string.clear();
         stack.clear();
         has_error = false;
+        has_missing_dependent_component = false;
     }
 
     modeling& mod() const noexcept
@@ -1772,43 +1775,30 @@ struct json_dearchiver::impl {
                                 : files.find_directory(dir);
         const auto  file_id = files.find_file_in_directory(dir_id, file);
         const auto* f       = files.file_paths.try_to_get(file_id);
+        auto  compo_id_from_compo = undefined<component_id>();
 
-        if (not f) {
-            warning("unknown component file in {} / {} / {}", reg, dir, file);
-            return true;
+        for (const auto id : ids) {
+            const auto& fp = ids.component_file_paths[id];
+            if (fp.parent == dir_id and fp.reg == reg_id and fp.path == file) {
+                compo_id_from_compo = id;
+                break;
+            }
         }
 
-        const auto compo_id = f->component;
-        if (not ids.exists(compo_id)) {
-            warning("unknown component in {} / {} / {}", reg, dir, file);
-            return true;
+        if (not f and is_undefined(compo_id_from_compo))
+            return error("unknown component file in {} / {} / {}", reg, dir, file);
+
+        const auto compo_id = ids.exists(f->component) ? f->component : compo_id_from_compo;
+        if (not ids.exists(compo_id))
+            return error("unknown component in {} / {} / {}", reg, dir, file);
+
+        const auto& c = ids.components[compo_id];
+        if (c.state != component_status::unmodified) {
+            has_missing_dependent_component = true;
+            return error("need to read the component in {} / {} / {}", reg, dir, file);
         }
 
-        auto& c = ids.components[compo_id];
-        if (c.state == component_status::unmodified) {
-            c_id = compo_id;
-            return true;
-        }
-
-        // const auto filepath = files.get_fs_path(c.file);
-        // if (filepath.has_error()) {
-        //     warning(
-        //       "fail to build component path in {} / {} / {}", reg, dir,
-        //       file);
-        //     return compo_id;
-        // }
-
-        // if (mod().load_component(*filepath, c_id).has_error())
-        //     warning("fail to load component {}", filepath->string());
-
-        // return compo_id;
-
-        // if (is_defined(ret)) {
-        //     c_id = ret;
-        //     return true;
-        // }
-
-        warning("@TODO need to read {} / {} / {}", reg, dir, file);
+        c_id = compo_id;
         return true;
     }
 
@@ -4765,8 +4755,7 @@ struct json_dearchiver::impl {
             compo.state = component_status::unmodified;
             return success();
         } else {
-            compo.state = component_status::unreadable;
-            ids.free(compo_id);
+            compo.state = component_status::unread;
             return error_code(json_errc::invalid_component_format);
         }
     }
@@ -6932,12 +6921,22 @@ status json_dearchiver::operator()(modeling&          mod,
 
     if (auto ret =
           parse_json_data(std::span(buffer.data(), buffer.size()), doc);
-        ret.has_error())
+        ret.has_error()) {
+        compo.state = component_status::unreadable;
         return ret.error();
+    }
 
     json_dearchiver::impl i(*this, mod, path);
+    if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
+            ret.has_error()) {
+        if (i.has_missing_dependent_component) {
+            compo.state = component_status::unread;
+        }
 
-    return i.parse_component(doc, files, ids, compo_id, compo);
+        return ret.error();
+    }
+
+    return success();
 }
 
 status json_dearchiver::operator()(project&                pj,
@@ -6955,14 +6954,14 @@ status json_dearchiver::operator()(project&                pj,
 
     rapidjson::Document doc;
 
-    return read_file_to_buffer(buffer, io)
-      .and_then([&]() {
-          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
-      })
-      .and_then([&]() {
-          json_dearchiver::impl i(*this, mod, sim, pj, path);
-          return i.parse_project(doc, files, ids);
-      });
+    if (const auto ret = read_file_to_buffer(buffer, io); ret.has_error())
+        return ret.error();
+
+    if (const auto ret = parse_json_data(std::span(buffer.data(), buffer.size()), doc))
+        return ret.error();
+
+    json_dearchiver::impl i(*this, mod, sim, pj, path);
+    return i.parse_project(doc, files, ids);
 }
 
 status json_dearchiver::operator()(modeling&          mod,
@@ -6975,12 +6974,23 @@ status json_dearchiver::operator()(modeling&          mod,
     clear();
     rapidjson::Document doc;
 
-    if (auto ret = parse_json_data(io, doc); ret.has_error())
+    if (auto ret = parse_json_data(io, doc); ret.has_error()) {
+        compo.state = component_status::unreadable;
         return ret.error();
+    }
 
     json_dearchiver::impl i(*this, mod);
 
-    return i.parse_component(doc, files, ids, compo_id, compo);
+    if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
+            ret.has_error()) {
+        if (i.has_missing_dependent_component) {
+            compo.state = component_status::unread;
+        }
+
+        return ret.error();
+    }
+
+    return success();
 }
 
 status json_dearchiver::operator()(project&                pj,
