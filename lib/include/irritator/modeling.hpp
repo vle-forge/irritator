@@ -1597,15 +1597,7 @@ public:
     //! data-array and observations objects.
     //!
     //! \param jnl
-    //! \param components
-    //! \param grid
-    //! \param graph
-    //! \param generic
-    //! \param hsms
-    //! \param regs
-    //! \param dirs
-    //! \param files
-    //!
+    //! \param res
     modeling(journal_handler&                   jnl,
              const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
@@ -1635,36 +1627,13 @@ public:
                                           std::string_view dir,
                                           std::string_view file) const noexcept;
 
-    /// Clear and free all dependencies of the component but let the
-    /// component alive.
-    void clear(component& c) noexcept;
-
-    void free(component_id id) noexcept;
-    void free(generic_component& c) noexcept;
-    void free(graph_component& c) noexcept;
-    void free(grid_component& c) noexcept;
-    void free(hsm_component& c) noexcept;
-
-    bool can_alloc_component(int count = 1) noexcept;
-    bool can_alloc_grid_component(int count = 1) noexcept;
-    bool can_alloc_generic_component(int count = 1) noexcept;
-    bool can_alloc_graph_component(int count = 1) noexcept;
-    bool can_alloc_hsm_component(int count = 1) noexcept;
-    bool can_alloc_sim_component(int count = 1) noexcept;
-
-    unsigned component_count() const noexcept;
-
-    component_id alloc_component() noexcept;
-    component_id alloc_grid_component() noexcept;
-    component_id alloc_generic_component() noexcept;
-    component_id alloc_graph_component() noexcept;
-    component_id alloc_hsm_component() noexcept;
-    component_id alloc_sim_component() noexcept;
-
 public:
     shared_buffer<component_access> ids;
     shared_buffer<file_access>      files;
-    modeling_status                 state = modeling_status::unmodified;
+
+    journal_handler& journal;
+
+    modeling_status state = modeling_status::unmodified;
 
     status save(const component_id c) noexcept;
 
@@ -1674,7 +1643,6 @@ public:
                   const std::span<name_str>  names      = {},
                   const std::span<parameter> parameters = {}) noexcept;
 
-    journal_handler& journal;
 };
 
 class file_observers

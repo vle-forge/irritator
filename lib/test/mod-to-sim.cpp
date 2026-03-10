@@ -237,9 +237,9 @@ int main()
             });
 
             expect(mod.save(compo_id).has_value());
-            expect(eq(mod.component_count(), 1u));
 
             mod.ids.read([&](const auto& ids, auto) {
+                expect(eq(ids.size(), 1u));
                 expect(eq(ids.generic_components.size(), 1u));
             });
 
@@ -261,16 +261,15 @@ int main()
                 fs.browse_registreds(jn);
             });
 
-            expect(eq(mod.component_count(), 0u));
-
             mod.ids.read([&](const auto& ids, auto) {
+                expect(eq(ids.size(), 0u));
                 expect(eq(ids.generic_components.size(), 0u));
             });
 
             expect(fatal(mod.fill_components().has_value()));
 
             mod.ids.read([&](auto& ids, auto) {
-                expect(ge(mod.component_count(), 1u));
+                expect(ge(ids.size(), 1u));
                 expect(ge(ids.generic_components.size(), 1u));
 
                 const auto p_id =
@@ -1061,8 +1060,6 @@ int main()
                 expect(fs.registred_paths.can_alloc(8));
                 expect(fs.dir_paths.can_alloc(32));
                 expect(fs.file_paths.can_alloc(256));
-
-                expect(mod.can_alloc_component(irt::internal_component_count));
 
                 const auto reg_id = fs.alloc_registred("temp", 0);
                 auto&      reg    = fs.registred_paths.get(reg_id);

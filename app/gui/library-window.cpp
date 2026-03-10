@@ -11,32 +11,6 @@
 
 namespace irt {
 
-// static void remove_component_and_file_task(application&       app,
-//                                            const file_path_id id) noexcept
-// {
-//     app.add_gui_task([&app, id]() noexcept {
-//         app.mod.files.write([&](auto& fs) noexcept {
-//             if (const auto* f = fs.file_paths.try_to_get(id)) {
-//                 fs.remove_file(id);
-
-//                 app.jn.push(log_level::notice,
-//                             [&](auto& title, auto& msg) noexcept {
-//                                 title = "Remove component file";
-//                                 format(msg, "File `{}' removed",
-//                                 f->path.sv());
-//                             });
-//             }
-//         });
-//     });
-
-//     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-// }
-
-// static void refresh_component_list_task(application& app) noexcept
-// {
-//     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-// }
-
 static bool can_delete_component(application& app, component_id id) noexcept
 {
     switch (app.library_wnd.is_component_deletable(app, id)) {
@@ -62,9 +36,10 @@ static bool can_delete_component(application& app, component_id id) noexcept
 }
 
 static void show_component_popup_menu(application& app,
+                                      const component_access& /*ids*/,
                                       const file_access& /*fs*/,
                                       const component_id compo_id,
-                                      const component&   sel) noexcept
+                                      const component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component"))
@@ -85,28 +60,31 @@ static void show_component_popup_menu(application& app,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Copy")) {
-            if (app.mod.can_alloc_component(1)) {
-                app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
-                    app.mod.ids.write([&](auto& ids) noexcept {
+            app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
+                app.mod.ids.write(
+                    [&](auto& ids) noexcept {
+                        if (not ids.can_alloc_component(1)) {
+                            app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+                                title = "Library";
+                                msg = "Fail to copy model: too many component";
+                            });
+
+                            return;
+                        }
+
                         const auto c = ids.copy(compo_id);
-                        if (c.has_error())
+                        if (c.has_error()) {
                             app.jn.push(log_level::error,
                                         [](auto& title, auto& msg) noexcept {
                                             title = "Library";
                                             msg   = "Fail to copy model";
                                         });
+                            return;
+                        }
                     });
-                });
+            });
 
-                app.add_gui_task(
-                  [&app]() noexcept { app.component_sel.update(); });
-            } else {
-                app.jn.push(log_level::error,
-                            [&](auto& title, auto& msg) noexcept {
-                                title = "Library";
-                                format(msg, "Can not alloc a new component");
-                            });
-            }
+            app.component_sel.task_update();
         }
 
         if (ImGui::MenuItem("Set as main project model")) {
@@ -147,10 +125,10 @@ static void show_component_popup_menu(application& app,
 
                         ids.free(compo_id);
                     });
+
                 });
 
-                app.add_gui_task(
-                  [&app, compo_id]() { app.component_sel.update(); });
+                app.component_sel.task_update();
             }
         }
 
@@ -303,7 +281,7 @@ void library_window::show_file_component(const file_access&      fs,
             app.component_ed.request_to_open(id);
     }
 
-    show_component_popup_menu(app, fs, id, c);
+    show_component_popup_menu(app, ids, fs, id, c);
     ImGui::PopID();
 
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -377,7 +355,7 @@ void library_window::show_notsaved_content(
                 }
                 ImGui::PopID();
 
-                show_component_popup_menu(app, fs, id, compo);
+                show_component_popup_menu(app, ids, fs, id, compo);
             }
         }
     }
@@ -700,8 +678,7 @@ void library_window::show_menu() noexcept
                         });
                     });
 
-                    app.add_gui_task(
-                      [&app]() noexcept { app.component_sel.update(); });
+                    app.component_sel.task_update();
                 }
             }
             ImGui::EndMenu();

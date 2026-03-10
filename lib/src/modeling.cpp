@@ -1116,49 +1116,6 @@ bool component_access::can_alloc_sim_component(int count) noexcept
            (sim_components.can_alloc(count) or sim_components.grow<3, 2>());
 }
 
-bool modeling::can_alloc_component(int count) noexcept
-{
-    return ids.write(
-      [&](auto& ids) noexcept { return ids.can_alloc_component(count); });
-}
-
-bool modeling::can_alloc_grid_component(int count) noexcept
-{
-    return ids.write(
-      [&](auto& ids) noexcept { return ids.can_alloc_grid_component(count); });
-}
-
-bool modeling::can_alloc_graph_component(int count) noexcept
-{
-    return ids.write(
-      [&](auto& ids) noexcept { return ids.can_alloc_graph_component(count); });
-}
-
-bool modeling::can_alloc_generic_component(int count) noexcept
-{
-    return ids.write([&](auto& ids) noexcept {
-        return ids.can_alloc_generic_component(count);
-    });
-}
-
-bool modeling::can_alloc_hsm_component(int count) noexcept
-{
-    return ids.write(
-      [&](auto& ids) noexcept { return ids.can_alloc_hsm_component(count); });
-}
-
-bool modeling::can_alloc_sim_component(int count) noexcept
-{
-    return ids.write(
-      [&](auto& ids) noexcept { return ids.can_alloc_sim_component(count); });
-}
-
-unsigned modeling::component_count() const noexcept
-{
-    return ids.read(
-      [&](const auto& ids, auto) noexcept -> unsigned { return ids.size(); });
-}
-
 component_id component_access::alloc_component() noexcept
 {
     if (not can_alloc_component(1))
@@ -1261,38 +1218,6 @@ component_id component_access::alloc_sim_component() noexcept
     new_compo.id.sim_id = sim_components.get_id(h);
 
     return new_compo_id;
-}
-
-component_id modeling::alloc_grid_component() noexcept
-{
-    return ids.write([&](auto& ids) { return ids.alloc_grid_component(); });
-}
-
-component_id modeling::alloc_graph_component() noexcept
-{
-    return ids.write([&](auto& ids) { return ids.alloc_graph_component(); });
-}
-
-component_id modeling::alloc_hsm_component() noexcept
-{
-    return ids.write([&](auto& ids) { return ids.alloc_hsm_component(); });
-}
-
-component_id modeling::alloc_sim_component() noexcept
-{
-    return ids.write([&](auto& ids) { return ids.alloc_sim_component(); });
-}
-
-component_id modeling::alloc_generic_component() noexcept
-{
-    return ids.write([&](auto& ids) { return ids.alloc_generic_component(); });
-}
-
-component_id modeling::alloc_component() noexcept
-{
-    return ids.write([&](auto& ids) noexcept -> component_id {
-        return ids.alloc_component();
-    });
 }
 
 static bool can_add_component(const component_access& ids,

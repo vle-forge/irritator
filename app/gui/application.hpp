@@ -1589,9 +1589,12 @@ public:
     component_selector() noexcept = default;
 
     /// Update the components cache with added/renamed/removed component.
-    ///
-    /// This function do the job into a internal GUI task.
+    /// This function run the update process in the current thread.
     void update() noexcept;
+
+    /// Update the components cache with added/renamed/removed component.
+    /// The function run the update in a @c task from the gui @c task_list.
+    void task_update() noexcept;
 
     struct result_t {
         component_id id;
@@ -1638,7 +1641,9 @@ public:
 
 private:
     struct data_type {
-        vector<std::pair<component_id, name_str>>      by_names;
+        data_type() noexcept = default;
+
+        vector<std::pair<component_id, name_str>> by_names;
         vector<std::pair<component_id, file_path_str>> by_files;
 
         vector<std::pair<component_id, name_str>> by_generics;

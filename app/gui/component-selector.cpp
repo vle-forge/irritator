@@ -94,9 +94,15 @@ void component_selector::update() noexcept
 {
     auto& app = container_of(this, &application::component_sel);
 
+    data.write([&](auto& vecs) noexcept { vecs.update(app.mod); });
+}
+
+void component_selector::task_update() noexcept
+{
+    auto& app = container_of(this, &application::component_sel);
+
     app.add_gui_task([&app]() noexcept {
-        app.component_sel.data.write(
-          [&](auto& vecs) noexcept { vecs.update(app.mod); });
+        app.component_sel.data.write([&](auto& vecs) noexcept { vecs.update(app.mod); });
     });
 }
 

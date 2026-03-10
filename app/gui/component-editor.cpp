@@ -860,7 +860,7 @@ static bool show_file_access(application&            app,
         if (u > 0 and ImGui::Button("Save")) {
             app.start_save_component(tab.id);
 
-            app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+            app.component_sel.task_update();
         }
     }
 
@@ -2710,55 +2710,70 @@ void component_editor::add_generic_component_data() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (const auto compo_id = app.mod.alloc_generic_component();
-        is_defined(compo_id)) {
-        request_to_open(compo_id);
-        app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-    }
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) noexcept {
+            if (const auto compo_id = ids.alloc_generic_component(); is_defined(compo_id)) {
+                request_to_open(compo_id);
+                app.component_sel.update();
+            }
+        });
+    });
 }
 
 void component_editor::add_grid_component_data() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (const auto compo_id = app.mod.alloc_grid_component();
-        is_defined(compo_id)) {
-        request_to_open(compo_id);
-        app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-    }
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) noexcept {
+            if (const auto compo_id = ids.alloc_grid_component(); is_defined(compo_id)) {
+                request_to_open(compo_id);
+                app.component_sel.update();
+            }
+        });
+    });
 }
 
 void component_editor::add_graph_component_data() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (const auto compo_id = app.mod.alloc_graph_component();
-        is_defined(compo_id)) {
-        request_to_open(compo_id);
-        app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-    }
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) noexcept {
+            if (const auto compo_id = ids.alloc_graph_component(); is_defined(compo_id)) {
+                request_to_open(compo_id);
+                app.component_sel.update();
+            }
+        });
+    });
 }
 
 void component_editor::add_hsm_component_data() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (const auto compo_id = app.mod.alloc_hsm_component();
-        is_defined(compo_id)) {
-        request_to_open(compo_id);
-        app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-    }
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) noexcept {
+            if (const auto compo_id = ids.alloc_hsm_component(); is_defined(compo_id)) {
+                request_to_open(compo_id);
+                app.component_sel.update();
+            }
+        });
+    });
 }
 
 void component_editor::add_simulation_component_data() noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if (const auto compo_id = app.mod.alloc_sim_component();
-        is_defined(compo_id)) {
-        request_to_open(compo_id);
-        app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-    }
+    app.add_gui_task([&]() {
+        app.mod.ids.write([&](auto& ids) noexcept {
+            if (const auto compo_id = ids.alloc_sim_component(); is_defined(compo_id)) {
+                request_to_open(compo_id);
+                app.component_sel.update();
+            }
+        });
+    });
 }
 
 } // namespace irt
