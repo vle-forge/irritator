@@ -3800,8 +3800,10 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
     if (this != &other) {
         do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
         do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
-        do_uninitialised_copy(
-          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+
+        if (other.capacity() > 0)
+            do_uninitialised_copy(
+            other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
     }
 
     return *this;
