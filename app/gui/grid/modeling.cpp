@@ -824,7 +824,7 @@ void grid_component_editor_data::write(application& app) noexcept
                 return;
 
             auto& compo = ids.components[m_id];
-            debug::ensure(compo.type == component_type::graph);
+            debug::ensure(compo.type == component_type::grid);
 
             if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
                 *g = m_grid;
