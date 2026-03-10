@@ -2361,12 +2361,12 @@ static void display_component_editor_subtable(
             compo.name = copy_name;
         }
 
-        if (element.show_selected_nodes(ed, compo))
+        if (element.show_selected_nodes(ed, ids, compo))
             ++u;
         ImGui::EndChild();
 
         ImGui::TableSetColumnIndex(1);
-        if (element.show(ed, compo))
+        if (element.show(ed, ids, compo))
             ++u;
 
         ImGui::EndTable();
@@ -2387,14 +2387,16 @@ static void display_component_editor_subtable(
 }
 
 template<typename T, typename ID>
-static auto display_component_editor(application&           app,
-                                     data_array<T, ID>&     data,
-                                     const ID               id,
+static auto display_component_editor(component_editor& ed,
+                                     data_array<T, ID>& data,
+                                     const ID id,
                                      component_editor::tab& tab) noexcept
-  -> component_editor::show_result_t
+    -> component_editor::show_result_t
 {
-    return app.mod.ids.read([&](const auto& ids, const auto version) noexcept
-                              -> component_editor::show_result_t {
+    auto& app = container_of(&ed, &application::component_ed);
+
+    return app.mod.ids.read([&](const auto& ids,
+                                const auto version) noexcept -> component_editor::show_result_t {
         if (not ids.exists(tab.id))
             return component_editor::show_result_t::request_to_close;
 
@@ -2406,11 +2408,12 @@ static auto display_component_editor(application&           app,
         if (not element)
             return component_editor::show_result_t::request_to_close;
 
-        if (tab.version != version) {
-            tab.version = version;
-            tab.desc    = desc;
+        if (ed.version != version) {
+            ed.version = version;
+            tab.desc = desc;
             tab.file     = file;
             tab.file.reg = undefined<registred_path_id>();
+
             if (is_defined(tab.file.parent)) {
                 tab.file.reg = app.mod.files.read(
                   [&](const auto& files, auto) noexcept -> registred_path_id {
@@ -2465,36 +2468,35 @@ auto component_editor::display_tab_content(tab& t) noexcept -> show_result_t
 
     switch (t.type) {
     case component_type::generic:
-        if (ret =
-              display_component_editor(app, app.generics, t.data.generic, t);
+        if (ret = display_component_editor(*this, app.generics, t.data.generic, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.generics.free(t.data.generic);
         }
         break;
 
     case component_type::grid:
-        if (ret = display_component_editor(app, app.grids, t.data.grid, t);
+        if (ret = display_component_editor(*this, app.grids, t.data.grid, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.grids.free(t.data.grid);
         }
         break;
 
     case component_type::graph:
-        if (ret = display_component_editor(app, app.graphs, t.data.graph, t);
+        if (ret = display_component_editor(*this, app.graphs, t.data.graph, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.graphs.free(t.data.graph);
         }
         break;
 
     case component_type::hsm:
-        if (ret = display_component_editor(app, app.hsms, t.data.hsm, t);
+        if (ret = display_component_editor(*this, app.hsms, t.data.hsm, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.hsms.free(t.data.hsm);
         }
         break;
 
     case component_type::simulation:
-        if (ret = display_component_editor(app, app.sims, t.data.sim, t);
+        if (ret = display_component_editor(*this, app.sims, t.data.sim, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.sims.free(t.data.sim);
         }

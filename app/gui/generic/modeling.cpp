@@ -680,19 +680,14 @@ static bool show_graph(const component_access& ids,
         }
     }
 
-    u += remove_data_if(s_parent.connections, [&](auto& con) noexcept -> bool {
-        return show_connection(s_parent, con);
-    });
+    for (const auto& con : s_parent.connections)
+        show_connection(s_parent, con);
 
-    u += remove_data_if(s_parent.input_connections,
-                        [&](auto& con) noexcept -> bool {
-                            return show_connection(parent, s_parent, con);
-                        });
+    for (const auto& con : s_parent.input_connections)
+        show_connection(parent, s_parent, con);
 
-    u += remove_data_if(s_parent.output_connections,
-                        [&](auto& con) noexcept -> bool {
-                            return show_connection(parent, s_parent, con);
-                        });
+    for (const auto& con : s_parent.output_connections)
+        show_connection(parent, s_parent, con);
 
     return u > 0;
 }
@@ -1209,10 +1204,11 @@ static bool is_link_destroyed(generic_component& s_parent) noexcept
     return false;
 }
 
-static bool show_component_editor(component_editor&              ed,
+static bool show_component_editor(component_editor& ed,
+                                  const component_access& ids,
                                   generic_component_editor_data& data,
-                                  component_id                   compo_id,
-                                  component&                     compo,
+                                  component_id compo_id,
+                                  component& compo,
                                   generic_component& s_compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
@@ -1226,10 +1222,8 @@ static bool show_component_editor(component_editor&              ed,
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
       ImNodes::IsEditorHovered();
 
-    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        u += show_popup_menuitem(ids, app, data, compo_id, s_compo);
-        u += show_graph(ids, ed, compo_id, compo, s_compo);
-    });
+    u += show_popup_menuitem(ids, app, data, compo_id, s_compo);
+    u += show_graph(ids, ed, compo_id, compo, s_compo);
 
     if (data.show_minimap)
         ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -1245,7 +1239,6 @@ static bool show_component_editor(component_editor&              ed,
         data.selected_nodes.resize(num_selected_nodes);
         ImNodes::GetSelectedNodes(data.selected_nodes.begin());
         remove_component_input_output(data.selected_nodes);
-        ++u;
     } else {
         data.selected_nodes.clear();
     }
@@ -1253,7 +1246,6 @@ static bool show_component_editor(component_editor&              ed,
     if (num_selected_links > 0) {
         data.selected_links.resize(num_selected_links);
         ImNodes::GetSelectedLinks(data.selected_links.begin());
-        ++u;
     } else {
         data.selected_links.clear();
     }
@@ -1325,12 +1317,13 @@ generic_component_editor_data::~generic_component_editor_data() noexcept
 }
 
 bool generic_component_editor_data::show(component_editor& ed,
-                                         component&        compo) noexcept
+                                         const component_access& ids,
+                                         component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
     read(app);
-    if (show_component_editor(ed, *this, m_id, compo, m_generic)) {
+    if (show_component_editor(ed, ids, *this, m_id, compo, m_generic)) {
         write(app);
         return true;
     }
@@ -1351,8 +1344,8 @@ static void update_unique_id(generic_component&        gen,
         gen.children_names[ch_idx] = gen.make_unique_name_id(ch_id);
 }
 
-static bool show_selected_node(component&                compo,
-                               generic_component&        gen,
+static bool show_selected_node(component& compo,
+                               generic_component& gen,
                                generic_component::child& c) noexcept
 {
     const auto id          = gen.children.get_id(c);
@@ -1388,9 +1381,9 @@ static bool show_selected_node(component&                compo,
     return is_modified;
 }
 
-bool generic_component_editor_data::show_selected_nodes(
-  component_editor& ed,
-  component&        compo) noexcept
+bool generic_component_editor_data::show_selected_nodes(component_editor& ed,
+                                                        const component_access& /*ids*/,
+                                                        component& compo) noexcept
 {
     if (selected_nodes.empty())
         return false;
@@ -1479,6 +1472,9 @@ void generic_component_editor_data::store(component_editor& ed) noexcept
 void generic_component_editor_data::read(application& app) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
+        if (m_version != version)
+            m_version = version;
+
         if (not ids.exists(m_id))
             return;
 
@@ -1486,10 +1482,7 @@ void generic_component_editor_data::read(application& app) noexcept
         debug::ensure(src.type == component_type::generic);
 
         if (auto* g = ids.generic_components.try_to_get(src.id.generic_id)) {
-            if (version != m_version) {
-                m_generic = *g;
-                m_version = version;
-            }
+            m_generic = *g;
         }
     });
 }

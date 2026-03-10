@@ -1155,6 +1155,7 @@ bool hsm_component_editor_data::valid() noexcept
 }
 
 bool hsm_component_editor_data::show(component_editor& ed,
+                                     const component_access& /*ids*/,
                                      component& /*compo*/) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
@@ -1193,6 +1194,7 @@ bool hsm_component_editor_data::show(component_editor& ed,
 }
 
 bool hsm_component_editor_data::show_selected_nodes(component_editor& ed,
+                                                    const component_access& /*ids*/,
                                                     component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
@@ -1244,14 +1246,14 @@ void hsm_component_editor_data::store(component_editor& ed) noexcept
 void hsm_component_editor_data::read(application& app) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
+        if (m_version != version)
+            m_version = version;
+
         if (not ids.exists(m_id))
             return;
 
         if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {
-            if (version != m_version) {
-                m_hsm       = *hsm;
-                m_version   = version;
-            }
+            m_hsm = *hsm;
         }
     });
 }

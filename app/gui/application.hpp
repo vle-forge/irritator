@@ -648,8 +648,10 @@ public:
 
     void clear() noexcept;
 
-    bool show(component_editor& ed, component& compo) noexcept;
-    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
+    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed,
+                             const component_access&,
+                             component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -686,8 +688,10 @@ public:
 
     void clear() noexcept;
 
-    bool show(component_editor& ed, component& compo) noexcept;
-    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
+    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed,
+                             const component_access&,
+                             component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -777,8 +781,8 @@ public:
       const simulation_component_id sid,
       const simulation_component& /*sim*/) noexcept;
 
-    bool show_selected_nodes(component_editor&, component&) noexcept;
-    bool show(component_editor&, component&) noexcept;
+    bool show_selected_nodes(component_editor&, const component_access&, component&) noexcept;
+    bool show(component_editor&, const component_access&, component&) noexcept;
 
     component_id            m_id     = undefined<component_id>();
     simulation_component_id m_sim_id = undefined<simulation_component_id>();
@@ -810,8 +814,10 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    bool show(component_editor& ed, component& compo) noexcept;
-    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
+    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed,
+                             const component_access&,
+                             component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -868,8 +874,10 @@ public:
                                   const generic_component&   gen) noexcept;
     ~generic_component_editor_data() noexcept;
 
-    bool show(component_editor& ed, component& compo) noexcept;
-    bool show_selected_nodes(component_editor& ed, component& compo) noexcept;
+    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show_selected_nodes(component_editor& ed,
+                             const component_access&,
+                             component& compo) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
@@ -1436,7 +1444,6 @@ public:
 
         directory_path_str dir_name;
 
-        u64 version = std::numeric_limits<u64>::max();
 
         bool is_dock_init = false;
 
@@ -1455,6 +1462,7 @@ public:
 
     /// List of tabulation opened in the @a ImGui::BeginTabBar.
     vector<tab> tabs;
+    u64 version = std::numeric_limits<u64>::max();
 
     /// Stores the list of component_id opened in the editor.
     shared_buffer<vector<component_id>> component_list;

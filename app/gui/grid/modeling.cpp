@@ -337,38 +337,27 @@ static bool show_grid_editor_options(application&                app,
 
     ImGui::SameLine();
     if (ImGui::Button("+ generic")) {
-        app.mod.ids.write([&](auto& ids) noexcept {
-            auto  compo_id = ids.alloc_generic_component();
-            auto& compo    = ids.components[compo_id];
-            assign_name(grid, compo);
-        });
+        app.component_ed.add_generic_component_data();
     }
 
     ImGui::SameLine();
     if (ImGui::Button("+ grid")) {
-        app.mod.ids.write([&](auto& ids) noexcept {
-            auto  compo_id = ids.alloc_grid_component();
-            auto& compo    = ids.components[compo_id];
-            assign_name(grid, compo);
-        });
+        app.component_ed.add_grid_component_data();
     }
 
     ImGui::SameLine();
     if (ImGui::Button("+ graph")) {
-        app.mod.ids.write([&](auto& ids) noexcept {
-            auto  compo_id = ids.alloc_graph_component();
-            auto& compo    = ids.components[compo_id];
-            assign_name(grid, compo);
-        });
+        app.component_ed.add_graph_component_data();
     }
 
     return u > 0;
 }
 
-static bool show_grid(application&                app,
-                      component&                  compo,
+static bool show_grid(const component_access& ids,
+                      application& app,
+                      component& compo,
                       grid_component_editor_data& ed,
-                      grid_component&             data) noexcept
+                      grid_component& data) noexcept
 {
     auto u = 0;
 
@@ -475,17 +464,12 @@ static bool show_grid(application&                app,
           std::lround((click_pos.y - origin.y) /
                       ((ed.distance.y + ed.size.y) * ed.zoom[1])));
 
-        if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and
-            ed.col < data.column())
-            ed.hovered_component = app.mod.ids.read(
-              [&](const auto& ids, auto) noexcept -> const component* {
-                  const auto pos = data.pos(ed.row, ed.col);
-                  const auto id  = data.children()[pos];
-                  if (ids.exists(id))
-                      return &ids.components[id];
-                  else
-                      return nullptr;
-              });
+        if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and ed.col < data.column()) {
+            const auto pos = data.pos(ed.row, ed.col);
+            const auto id = data.children()[pos];
+
+            ed.hovered_component = ids.exists(id) ? &ids.components[id] : nullptr;
+        }
 
         if (ed.hovered_component) {
             small_string<32> ss;
@@ -590,7 +574,8 @@ void grid_component_editor_data::clear() noexcept
 }
 
 bool grid_component_editor_data::show(component_editor& ed,
-                                      component&        compo) noexcept
+                                      const component_access& ids,
+                                      component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     auto  u   = 0;
@@ -624,7 +609,7 @@ bool grid_component_editor_data::show(component_editor& ed,
             ImGui::EndMenuBar();
         }
 
-        u += show_grid(app, compo, *this, m_grid);
+        u += show_grid(ids, app, compo, *this, m_grid);
     }
 
     ImGui::EndChild();
@@ -637,8 +622,8 @@ bool grid_component_editor_data::show(component_editor& ed,
     return false;
 }
 
-static bool display_input_output_connections(modeling&       mod,
-                                             component&      compo,
+static bool display_input_output_connections(const component_access& ids,
+                                             component& compo,
                                              grid_component& grid) noexcept
 {
     auto u = 0;
@@ -665,17 +650,13 @@ static bool display_input_output_connections(modeling&       mod,
                           compo.x.get<port_str>()[get_index(con.x)].sv();
 
                     auto id = grid.children()[grid.pos(con.row, con.col)];
-                    mod.ids.read([&](const auto& ids, auto) noexcept {
-                        if (not ids.exists(id))
-                            return;
+                    if (not ids.exists(id))
+                        break;
 
-                        auto& c = ids.components[id];
-                        if (c.x.exists(con.id)) {
-                            child_port =
-                              c.x.template get<port_str>()[get_index(con.id)]
-                                .sv();
-                        }
-                    });
+                    auto& c = ids.components[id];
+                    if (c.x.exists(con.id)) {
+                        child_port = c.x.template get<port_str>()[get_index(con.id)].sv();
+                    }
 
                     if (not(grid_port.has_value() and child_port.has_value())) {
                         to_del = con_id;
@@ -730,17 +711,13 @@ static bool display_input_output_connections(modeling&       mod,
                           compo.y.get<port_str>()[get_index(con.y)].sv();
 
                     auto id = grid.children()[grid.pos(con.row, con.col)];
-                    mod.ids.read([&](const auto& ids, auto) noexcept {
-                        if (not ids.exists(id))
-                            return;
+                    if (not ids.exists(id))
+                        break;
 
-                        auto& c = ids.components[id];
-                        if (c.y.exists(con.id)) {
-                            child_port =
-                              c.y.template get<port_str>()[get_index(con.id)]
-                                .sv();
-                        }
-                    });
+                    auto& c = ids.components[id];
+                    if (c.y.exists(con.id)) {
+                        child_port = c.y.template get<port_str>()[get_index(con.id)].sv();
+                    }
 
                     if (not(grid_port.has_value() and child_port.has_value())) {
                         to_del = con_id;
@@ -777,12 +754,13 @@ static bool display_input_output_connections(modeling&       mod,
 }
 
 bool grid_component_editor_data::show_selected_nodes(component_editor& ed,
+                                                     const component_access& ids,
                                                      component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
     read(app);
-    if (display_input_output_connections(app.mod, compo, m_grid)) {
+    if (display_input_output_connections(ids, compo, m_grid)) {
         write(app);
         return true;
     }
@@ -801,6 +779,9 @@ void grid_component_editor_data::clear_selected_nodes() noexcept {}
 void grid_component_editor_data::read(application& app) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
+        if (m_version != version)
+            m_version = version;
+
         if (not ids.exists(m_id))
             return;
 
@@ -808,10 +789,7 @@ void grid_component_editor_data::read(application& app) noexcept
         debug::ensure(compo.type == component_type::grid);
 
         if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
-            if (version != m_version) {
-                m_grid    = *g;
-                m_version = version;
-            }
+            m_grid = *g;
         }
     });
 }

@@ -943,7 +943,8 @@ void graph_component_editor_data::clear() noexcept
 }
 
 bool graph_component_editor_data::show(component_editor& ed,
-                                       component&        compo) noexcept
+                                       const component_access& /*ids*/,
+                                       component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     int   u   = 0;
@@ -1105,9 +1106,9 @@ bool graph_component_editor_data::show(component_editor& ed,
     return false;
 }
 
-bool graph_component_editor_data::show_selected_nodes(
-  component_editor& ed,
-  component& /*compo*/) noexcept
+bool graph_component_editor_data::show_selected_nodes(component_editor& ed,
+                                                      const component_access& ids,
+                                                      component& /*compo*/) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
@@ -1152,12 +1153,8 @@ bool graph_component_editor_data::show_selected_nodes(
                     ++u;
                 }
 
-                app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                    if (not ids.exists(m_graph.g.node_components[idx]))
-                        return;
-
-                    auto& compo =
-                      ids.components[m_graph.g.node_components[idx]];
+                if (ids.exists(m_graph.g.node_components[idx])) {
+                    auto& compo = ids.components[m_graph.g.node_components[idx]];
                     if (not compo.x.empty()) {
                         if (ImGui::TreeNodeEx("input ports")) {
                             const auto& xnames =
@@ -1179,7 +1176,7 @@ bool graph_component_editor_data::show_selected_nodes(
                             ImGui::TreePop();
                         }
                     }
-                });
+                }
 
                 ImGui::PopID();
             }
@@ -1238,6 +1235,9 @@ void graph_component_editor_data::clear_selected_nodes() noexcept
 void graph_component_editor_data::read(application& app) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
+        if (m_version != version)
+            m_version = version;
+
         if (not ids.exists(m_id))
             return;
 
@@ -1245,10 +1245,7 @@ void graph_component_editor_data::read(application& app) noexcept
         debug::ensure(compo.type == component_type::graph);
 
         if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
-            if (version != m_version) {
-                m_graph     = *g;
-                m_version   = version;
-            }
+            m_graph = *g;
         }
     });
 }
