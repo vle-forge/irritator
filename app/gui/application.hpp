@@ -648,7 +648,9 @@ public:
 
     void clear() noexcept;
 
-    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show(component_editor& ed,
+              const component_access&,
+              component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
@@ -673,8 +675,8 @@ public:
 private:
     component_id m_id = undefined<component_id>();
 
-    void read(application& app) noexcept;
-    void write(application& app) noexcept;
+    void read(application& app, component&) noexcept;
+    void write(application& app, component&) noexcept;
 
     grid_component m_grid;
     u64            m_version = std::numeric_limits<u64>::max();
@@ -688,7 +690,9 @@ public:
 
     void clear() noexcept;
 
-    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show(component_editor& ed,
+              const component_access&,
+              component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
@@ -766,8 +770,8 @@ private:
                     graph_component& data) noexcept;
 
 private:
-    void read(application& app) noexcept;
-    void write(application& app) noexcept;
+    void read(application& app, component&) noexcept;
+    void write(application& app, component&) noexcept;
 
     graph_component m_graph;
     u64             m_version = std::numeric_limits<u64>::max();
@@ -781,7 +785,9 @@ public:
       const simulation_component_id sid,
       const simulation_component& /*sim*/) noexcept;
 
-    bool show_selected_nodes(component_editor&, const component_access&, component&) noexcept;
+    bool show_selected_nodes(component_editor&,
+                             const component_access&,
+                             component&) noexcept;
     bool show(component_editor&, const component_access&, component&) noexcept;
 
     component_id            m_id     = undefined<component_id>();
@@ -791,8 +797,8 @@ public:
     file_path_id            m_file   = undefined<file_path_id>();
 
 private:
-    void read(application& app) noexcept;
-    void write(application& app) noexcept;
+    void read(application& app, component&) noexcept;
+    void write(application& app, component&) noexcept;
 
     simulation_component m_sim;
     u64                  m_version = std::numeric_limits<u64>::max();
@@ -814,7 +820,9 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show(component_editor& ed,
+              const component_access&,
+              component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
@@ -837,8 +845,8 @@ private:
     void clear() noexcept;
     bool valid() noexcept;
 
-    void read(application& app) noexcept;
-    void write(application& app) noexcept;
+    void read(application& app, component&) noexcept;
+    void write(application& app, component&) noexcept;
 
     ImNodesEditorContext* m_context = nullptr;
 
@@ -874,7 +882,9 @@ public:
                                   const generic_component&   gen) noexcept;
     ~generic_component_editor_data() noexcept;
 
-    bool show(component_editor& ed, const component_access&, component& compo) noexcept;
+    bool show(component_editor& ed,
+              const component_access&,
+              component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
@@ -918,8 +928,8 @@ public:
     std::bitset<6> options;
 
 private:
-    void read(application& app) noexcept;
-    void write(application& app) noexcept;
+    void read(application&, component&) noexcept;
+    void write(application&, component&) noexcept;
 
     generic_component m_generic;
     u64               m_version = std::numeric_limits<u64>::max();
@@ -1444,6 +1454,7 @@ public:
 
         directory_path_str dir_name;
 
+        u64 version = std::numeric_limits<u64>::max();
 
         bool is_dock_init = false;
 
@@ -1462,7 +1473,6 @@ public:
 
     /// List of tabulation opened in the @a ImGui::BeginTabBar.
     vector<tab> tabs;
-    u64 version = std::numeric_limits<u64>::max();
 
     /// Stores the list of component_id opened in the editor.
     shared_buffer<vector<component_id>> component_list;
@@ -1651,7 +1661,7 @@ private:
     struct data_type {
         data_type() noexcept = default;
 
-        vector<std::pair<component_id, name_str>> by_names;
+        vector<std::pair<component_id, name_str>>      by_names;
         vector<std::pair<component_id, file_path_str>> by_files;
 
         vector<std::pair<component_id, name_str>> by_generics;

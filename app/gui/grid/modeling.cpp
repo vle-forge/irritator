@@ -308,7 +308,7 @@ static bool show_grid_editor_options(application&                app,
 
     {
         if (auto r = app.component_sel.combobox("Default component", id); r) {
-            id      = r.id;
+            id = r.id;
             ++u;
         }
 
@@ -353,11 +353,11 @@ static bool show_grid_editor_options(application&                app,
     return u > 0;
 }
 
-static bool show_grid(const component_access& ids,
-                      application& app,
-                      component& compo,
+static bool show_grid(const component_access&     ids,
+                      application&                app,
+                      component&                  compo,
                       grid_component_editor_data& ed,
-                      grid_component& data) noexcept
+                      grid_component&             data) noexcept
 {
     auto u = 0;
 
@@ -464,11 +464,13 @@ static bool show_grid(const component_access& ids,
           std::lround((click_pos.y - origin.y) /
                       ((ed.distance.y + ed.size.y) * ed.zoom[1])));
 
-        if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and ed.col < data.column()) {
+        if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and
+            ed.col < data.column()) {
             const auto pos = data.pos(ed.row, ed.col);
-            const auto id = data.children()[pos];
+            const auto id  = data.children()[pos];
 
-            ed.hovered_component = ids.exists(id) ? &ids.components[id] : nullptr;
+            ed.hovered_component =
+              ids.exists(id) ? &ids.components[id] : nullptr;
         }
 
         if (ed.hovered_component) {
@@ -573,14 +575,14 @@ void grid_component_editor_data::clear() noexcept
     m_id    = undefined<component_id>();
 }
 
-bool grid_component_editor_data::show(component_editor& ed,
+bool grid_component_editor_data::show(component_editor&       ed,
                                       const component_access& ids,
-                                      component& compo) noexcept
+                                      component&              compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     auto  u   = 0;
 
-    read(app);
+    read(app, compo);
 
     if (ImGui::BeginChild("##grid-ed",
                           ImVec2(0, 0),
@@ -615,7 +617,7 @@ bool grid_component_editor_data::show(component_editor& ed,
     ImGui::EndChild();
 
     if (u > 0) {
-        write(app);
+        write(app, compo);
         return true;
     }
 
@@ -623,7 +625,7 @@ bool grid_component_editor_data::show(component_editor& ed,
 }
 
 static bool display_input_output_connections(const component_access& ids,
-                                             component& compo,
+                                             component&              compo,
                                              grid_component& grid) noexcept
 {
     auto u = 0;
@@ -655,7 +657,8 @@ static bool display_input_output_connections(const component_access& ids,
 
                     auto& c = ids.components[id];
                     if (c.x.exists(con.id)) {
-                        child_port = c.x.template get<port_str>()[get_index(con.id)].sv();
+                        child_port =
+                          c.x.template get<port_str>()[get_index(con.id)].sv();
                     }
 
                     if (not(grid_port.has_value() and child_port.has_value())) {
@@ -716,7 +719,8 @@ static bool display_input_output_connections(const component_access& ids,
 
                     auto& c = ids.components[id];
                     if (c.y.exists(con.id)) {
-                        child_port = c.y.template get<port_str>()[get_index(con.id)].sv();
+                        child_port =
+                          c.y.template get<port_str>()[get_index(con.id)].sv();
                     }
 
                     if (not(grid_port.has_value() and child_port.has_value())) {
@@ -753,15 +757,16 @@ static bool display_input_output_connections(const component_access& ids,
     return u > 0;
 }
 
-bool grid_component_editor_data::show_selected_nodes(component_editor& ed,
-                                                     const component_access& ids,
-                                                     component& compo) noexcept
+bool grid_component_editor_data::show_selected_nodes(
+  component_editor&       ed,
+  const component_access& ids,
+  component&              compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    read(app);
+    read(app, compo);
     if (display_input_output_connections(ids, compo, m_grid)) {
-        write(app);
+        write(app, compo);
         return true;
     }
 
@@ -776,7 +781,8 @@ bool grid_component_editor_data::need_show_selected_nodes(
 
 void grid_component_editor_data::clear_selected_nodes() noexcept {}
 
-void grid_component_editor_data::read(application& app) noexcept
+void grid_component_editor_data::read(application& app,
+                                      component&   compo) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
         if (m_version != version)
@@ -785,7 +791,7 @@ void grid_component_editor_data::read(application& app) noexcept
         if (not ids.exists(m_id))
             return;
 
-        const auto& compo = ids.components[m_id];
+        compo = ids.components[m_id];
         debug::ensure(compo.type == component_type::grid);
 
         if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
@@ -794,14 +800,15 @@ void grid_component_editor_data::read(application& app) noexcept
     });
 }
 
-void grid_component_editor_data::write(application& app) noexcept
+void grid_component_editor_data::write(application& app,
+                                       component&   compo) noexcept
 {
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) {
             if (not ids.exists(m_id))
                 return;
 
-            auto& compo = ids.components[m_id];
+            ids.components[m_id] = compo;
             debug::ensure(compo.type == component_type::grid);
 
             if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {

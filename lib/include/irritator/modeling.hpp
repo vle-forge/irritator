@@ -902,7 +902,13 @@ struct component {
                                     port_str,
                                     position>;
 
-    component() noexcept;
+    component() noexcept  = default;
+    ~component() noexcept = default;
+
+    component(const component& other) noexcept;
+    component(component&& other) noexcept;
+    component& operator=(const component& other) noexcept;
+    component& operator=(component&& other) noexcept;
 
     /** Stores input ports with names and positions. */
     port_type x;
@@ -1641,7 +1647,6 @@ public:
                   const std::span<position>  positions  = {},
                   const std::span<name_str>  names      = {},
                   const std::span<parameter> parameters = {}) noexcept;
-
 };
 
 class file_observers
@@ -1940,62 +1945,6 @@ private:
 /* ------------------------------------------------------------------
    Child part
  */
-
-inline component::component() noexcept
-{
-    x.reserve(16);
-    y.reserve(16);
-}
-
-inline port_id component::get_x(std::string_view str) const noexcept
-{
-    const auto& vec_name = x.get<port_str>();
-    for (const auto elem : x)
-        if (str == vec_name[elem].sv())
-            return elem;
-
-    return undefined<port_id>();
-}
-
-inline port_id component::get_y(std::string_view str) const noexcept
-{
-    const auto& vec_name = y.get<port_str>();
-    for (const auto elem : y)
-        if (str == vec_name[elem].sv())
-            return elem;
-
-    return undefined<port_id>();
-}
-
-inline port_id component::get_or_add_x(std::string_view str) noexcept
-{
-    auto port_id = get_x(str);
-
-    if (is_undefined(port_id)) {
-        if (x.can_alloc(1)) {
-            port_id                  = x.alloc_id();
-            x.get<port_str>(port_id) = str;
-            x.get<position>(port_id).reset();
-        }
-    }
-
-    return port_id;
-}
-
-inline port_id component::get_or_add_y(std::string_view str) noexcept
-{
-    auto port_id = get_y(str);
-
-    if (is_undefined(port_id)) {
-        if (y.can_alloc(1)) {
-            port_id                  = y.alloc_id();
-            y.get<port_str>(port_id) = str;
-            y.get<position>(port_id).reset();
-        }
-    }
-
-    return port_id;
-}
 
 inline connection::connection(child_id src_,
                               port     p_src_,

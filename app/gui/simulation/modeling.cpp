@@ -18,21 +18,28 @@ simulation_component_editor_data::simulation_component_editor_data(
   , m_sim(sim)
 {}
 
-bool simulation_component_editor_data::show_selected_nodes(component_editor& /*ed*/,
-                                                           const component_access& /*ids*/,
-                                                           component& /*compo*/) noexcept
+bool simulation_component_editor_data::show_selected_nodes(
+  component_editor& ed,
+  const component_access& /*ids*/,
+  component& compo) noexcept
 {
+    auto& app = container_of(&ed, &application::component_ed);
+
+    read(app, compo);
+
     ImGui::TextUnformatted("empty node");
 
     return false;
 }
 
-bool simulation_component_editor_data::show(component_editor& ed,
+bool simulation_component_editor_data::show(component_editor&       ed,
                                             const component_access& ids,
-                                            component& /*compo*/) noexcept
+                                            component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     auto& mod = app.mod;
+
+    read(app, compo);
 
     if (ImGui::CollapsingHeader("simulation-components")) {
         for (const auto& c : ids.sim_components) {
@@ -54,7 +61,8 @@ bool simulation_component_editor_data::show(component_editor& ed,
     return false;
 }
 
-void simulation_component_editor_data::read(application& app) noexcept
+void simulation_component_editor_data::read(application& app,
+                                            component&   compo) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
         if (m_version != version)
@@ -63,8 +71,8 @@ void simulation_component_editor_data::read(application& app) noexcept
         if (not ids.exists(m_id))
             return;
 
-        const auto& compo = ids.components[m_id];
-        debug::ensure(compo.type == component_type::graph);
+        compo = ids.components[m_id];
+        debug::ensure(compo.type == component_type::simulation);
 
         if (auto* s = ids.sim_components.try_to_get(compo.id.sim_id)) {
             m_sim = *s;
@@ -72,14 +80,15 @@ void simulation_component_editor_data::read(application& app) noexcept
     });
 }
 
-void simulation_component_editor_data::write(application& app) noexcept
+void simulation_component_editor_data::write(application& app,
+                                             component&   compo) noexcept
 {
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) {
             if (not ids.exists(m_id))
                 return;
 
-            auto& compo = ids.components[m_id];
+            ids.components[m_id] = compo;
             debug::ensure(compo.type == component_type::simulation);
 
             if (auto* s = ids.sim_components.try_to_get(compo.id.sim_id)) {

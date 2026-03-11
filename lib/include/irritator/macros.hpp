@@ -107,6 +107,44 @@ irt_force_inline_attribute constexpr void ensure(
 //! application when a @c new_error function is called.
 void breakpoint() noexcept;
 
+//! @brief A c++ function to override if with breakpoint on failure.
+//!
+//! If the @c assertion is false, this function adds a breakpoint otherwise do
+//! nothing. This function is disabled if the boolean @c
+//! variables::enable_ensure_simulation is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+//! @retrun true or false according to the assertion.
+template<typename T>
+    requires(::irt::debug::enable_ensure == true)
+inline constexpr bool check(T&& assertion) noexcept
+{
+    if (static_cast<bool>(assertion)) {
+        return true;
+    } else {
+        breakpoint();
+        return false;
+    }
+}
+
+//! @brief A c++ function to override if with breakpoint on failure.
+//!
+//! If the @c assertion is false, this function adds a breakpoint otherwise do
+//! nothing. This function is disabled if the boolean @c
+//! variables::enable_ensure_simulation is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+//! @retrun true or false according to the assertion.
+template<typename T>
+    requires(::irt::debug::enable_ensure == false)
+irt_force_inline_attribute constexpr bool check(
+  [[maybe_unused]] T&& assertion) noexcept
+{
+    return static_cast<bool>(assertion);
+}
+
 } // namespace debug
 
 [[noreturn]] inline void unreachable() noexcept

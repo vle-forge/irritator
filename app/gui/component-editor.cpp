@@ -294,7 +294,8 @@ static auto get_cst_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::constant_source&
 {
-    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::constant);
 
     return elems.cst;
@@ -304,7 +305,8 @@ static auto get_bin_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::binary_source&
 {
-    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::binary_file);
 
     return elems.bin;
@@ -314,7 +316,8 @@ static auto get_txt_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::text_source&
 {
-    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::text_file);
 
     return elems.txt;
@@ -324,7 +327,8 @@ static auto get_rnd_source(const component&                     compo,
                            const external_source_definition::id id) noexcept
   -> const external_source_definition::random_source&
 {
-    const auto& elems = compo.srcs.data.get<external_source_definition::source_element>(id);
+    const auto& elems =
+      compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::random);
 
     return elems.rnd;
@@ -406,8 +410,8 @@ static bool display_constant_source(
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
                     if (elem.type == source_type::constant) {
-                        auto& cst_elem = elem.cst;
-                        cst_elem                            = cst;
+                        auto& cst_elem                               = elem.cst;
+                        cst_elem                                     = cst;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
                 }
@@ -463,8 +467,8 @@ static bool display_binary_source(
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
                     if (elem.type == source_type::binary_file) {
-                        auto& bin_elem = elem.bin;
-                        bin_elem                            = bin;
+                        auto& bin_elem                               = elem.bin;
+                        bin_elem                                     = bin;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
                 }
@@ -520,8 +524,8 @@ static bool display_text_source(
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
                     if (elem.type == source_type::text_file) {
-                        auto& txt_elem = elem.txt;
-                        txt_elem                            = txt;
+                        auto& txt_elem                               = elem.txt;
+                        txt_elem                                     = txt;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
                 }
@@ -569,8 +573,8 @@ static bool display_random_source(
                     auto& elem = compo.srcs.data.template get<
                       external_source_definition::source_element>()[id];
                     if (elem.type == source_type::random) {
-                        auto& cst_elem = elem.rnd;
-                        cst_elem                            = rnd;
+                        auto& cst_elem                               = elem.rnd;
+                        cst_elem                                     = rnd;
                         compo.srcs.data.template get<name_str>()[id] = name;
                     }
                 }
@@ -2159,9 +2163,8 @@ static void display_component_editor_subtable(
   ComponentEditor&        element,
   component_editor::tab&  tab) noexcept
 {
-    auto& ed    = app.component_ed;
-    auto& compo = tab.compo;
-    auto  u     = 0;
+    auto& ed = app.component_ed;
+    auto  u  = 0;
 
     if (ImGui::BeginTable("##ed", 2)) {
         ImGui::TableSetupColumn(
@@ -2201,7 +2204,7 @@ static void display_component_editor_subtable(
                                ImGui::GetStyle().FramePadding.x * 2.0f,
                              0);
 
-                    if (not compo.srcs.data.can_alloc(1))
+                    if (not tab.compo.srcs.data.can_alloc(1))
                         ImGui::TextUnformatted("Not Enough memor");
 
                     if (ImGui::Button("new constant", size))
@@ -2247,7 +2250,7 @@ static void display_component_editor_subtable(
                     ImGui::EndMenu();
                 }
 
-                if (not compo.srcs.data.empty()) {
+                if (not tab.compo.srcs.data.empty()) {
                     ImGui::Separator();
                     display_external_source(app, tab.id);
                 }
@@ -2255,7 +2258,7 @@ static void display_component_editor_subtable(
             }
 
             if (ImGui::BeginMenu("i/o")) {
-                if (compo.type == component_type::hsm) {
+                if (tab.compo.type == component_type::hsm) {
                     ImGui::TextWrapped(
                       "HSM component have four input and four "
                       "output ports. You can select input ports from "
@@ -2268,7 +2271,7 @@ static void display_component_editor_subtable(
                                 ImGui::GetStyle().FramePadding.x * 2.0f,
                               0 };
 
-                    if (compo.x.can_alloc(1) and
+                    if (tab.compo.x.can_alloc(1) and
                         ImGui::Button("Input port", size)) {
                         app.add_gui_task([&app, cid = tab.id]() {
                             app.mod.ids.write([&](auto& ids) noexcept {
@@ -2285,7 +2288,7 @@ static void display_component_editor_subtable(
                         });
                     }
 
-                    if (compo.y.can_alloc(1) and
+                    if (tab.compo.y.can_alloc(1) and
                         ImGui::Button("Output port", size)) {
                         app.add_gui_task([&app, cid = tab.id]() {
                             app.mod.ids.write([&](auto& ids) noexcept {
@@ -2305,44 +2308,46 @@ static void display_component_editor_subtable(
                     if (ImGui::Button("refresh i/o", size))
                         update_component_list(app, ids, ed, tab.id);
 
-                    if (not compo.x.empty() or not compo.y.empty()) {
+                    if (not tab.compo.x.empty() or not tab.compo.y.empty()) {
                         if (ImGui::TreeNode("Ports")) {
-                            if (not compo.x.empty() and
+                            if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input port")) {
-                                show_input_ports(compo);
+                                show_input_ports(tab.compo);
                                 ImGui::TreePop();
                             }
 
-                            if (not compo.y.empty() and
+                            if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output port")) {
-                                show_output_ports(compo);
+                                show_output_ports(tab.compo);
                                 ImGui::TreePop();
                             }
                             ImGui::TreePop();
                         }
 
                         if (ImGui::TreeNode("Connections")) {
-                            if (not compo.x.empty() and
+                            if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input connection")) {
-                                show_input_connections(app, ids, compo);
+                                show_input_connections(app, ids, tab.compo);
                                 ImGui::TreePop();
                             }
 
-                            if (not compo.y.empty() and
+                            if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output connection")) {
-                                show_output_connections(app, ids, compo);
+                                show_output_connections(app, ids, tab.compo);
                                 ImGui::TreePop();
                             }
 
-                            if (not compo.x.empty() and
+                            if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input Connection pack")) {
-                                show_input_connection_packs(app, ids, compo);
+                                show_input_connection_packs(
+                                  app, ids, tab.compo);
                                 ImGui::TreePop();
                             }
 
-                            if (not compo.y.empty() and
+                            if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output Connection pack")) {
-                                show_output_connection_packs(app, ids, compo);
+                                show_output_connection_packs(
+                                  app, ids, tab.compo);
                                 ImGui::TreePop();
                             }
 
@@ -2355,18 +2360,18 @@ static void display_component_editor_subtable(
             ImGui::EndMenuBar();
         }
 
-        name_str copy_name = compo.name;
+        name_str copy_name = tab.compo.name;
         if (ImGui::InputFilteredString("Name", copy_name)) {
             app.component_ed.request_to_open(tab.id);
-            compo.name = copy_name;
+            tab.compo.name = copy_name;
         }
 
-        if (element.show_selected_nodes(ed, ids, compo))
+        if (element.show_selected_nodes(ed, ids, tab.compo))
             ++u;
         ImGui::EndChild();
 
         ImGui::TableSetColumnIndex(1);
-        if (element.show(ed, ids, compo))
+        if (element.show(ed, ids, tab.compo))
             ++u;
 
         ImGui::EndTable();
@@ -2387,16 +2392,16 @@ static void display_component_editor_subtable(
 }
 
 template<typename T, typename ID>
-static auto display_component_editor(component_editor& ed,
-                                     data_array<T, ID>& data,
-                                     const ID id,
+static auto display_component_editor(component_editor&      ed,
+                                     data_array<T, ID>&     data,
+                                     const ID               id,
                                      component_editor::tab& tab) noexcept
-    -> component_editor::show_result_t
+  -> component_editor::show_result_t
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    return app.mod.ids.read([&](const auto& ids,
-                                const auto version) noexcept -> component_editor::show_result_t {
+    return app.mod.ids.read([&](const auto& ids, const auto version) noexcept
+                              -> component_editor::show_result_t {
         if (not ids.exists(tab.id))
             return component_editor::show_result_t::request_to_close;
 
@@ -2408,9 +2413,9 @@ static auto display_component_editor(component_editor& ed,
         if (not element)
             return component_editor::show_result_t::request_to_close;
 
-        if (ed.version != version) {
-            ed.version = version;
-            tab.desc = desc;
+        if (tab.version != version) {
+            tab.version  = version;
+            tab.desc     = desc;
             tab.file     = file;
             tab.file.reg = undefined<registred_path_id>();
 
@@ -2468,7 +2473,8 @@ auto component_editor::display_tab_content(tab& t) noexcept -> show_result_t
 
     switch (t.type) {
     case component_type::generic:
-        if (ret = display_component_editor(*this, app.generics, t.data.generic, t);
+        if (ret =
+              display_component_editor(*this, app.generics, t.data.generic, t);
             ret == component_editor::show_result_t::request_to_close) {
             app.generics.free(t.data.generic);
         }
@@ -2601,7 +2607,7 @@ void component_editor::request_to_open(const component_id id) noexcept
             });
 
             switch (compo.type) {
-            case component_type::generic:               
+            case component_type::generic:
                 if (app.generics.can_alloc(1)) {
                     auto& t           = tabs.emplace_back();
                     t.id              = id;
@@ -2714,7 +2720,8 @@ void component_editor::add_generic_component_data() noexcept
 
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) noexcept {
-            if (const auto compo_id = ids.alloc_generic_component(); is_defined(compo_id)) {
+            if (const auto compo_id = ids.alloc_generic_component();
+                is_defined(compo_id)) {
                 request_to_open(compo_id);
                 app.component_sel.update();
             }
@@ -2728,7 +2735,8 @@ void component_editor::add_grid_component_data() noexcept
 
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) noexcept {
-            if (const auto compo_id = ids.alloc_grid_component(); is_defined(compo_id)) {
+            if (const auto compo_id = ids.alloc_grid_component();
+                is_defined(compo_id)) {
                 request_to_open(compo_id);
                 app.component_sel.update();
             }
@@ -2742,7 +2750,8 @@ void component_editor::add_graph_component_data() noexcept
 
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) noexcept {
-            if (const auto compo_id = ids.alloc_graph_component(); is_defined(compo_id)) {
+            if (const auto compo_id = ids.alloc_graph_component();
+                is_defined(compo_id)) {
                 request_to_open(compo_id);
                 app.component_sel.update();
             }
@@ -2756,7 +2765,8 @@ void component_editor::add_hsm_component_data() noexcept
 
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) noexcept {
-            if (const auto compo_id = ids.alloc_hsm_component(); is_defined(compo_id)) {
+            if (const auto compo_id = ids.alloc_hsm_component();
+                is_defined(compo_id)) {
                 request_to_open(compo_id);
                 app.component_sel.update();
             }
@@ -2770,7 +2780,8 @@ void component_editor::add_simulation_component_data() noexcept
 
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) noexcept {
-            if (const auto compo_id = ids.alloc_sim_component(); is_defined(compo_id)) {
+            if (const auto compo_id = ids.alloc_sim_component();
+                is_defined(compo_id)) {
                 request_to_open(compo_id);
                 app.component_sel.update();
             }

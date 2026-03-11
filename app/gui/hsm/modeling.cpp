@@ -1156,12 +1156,12 @@ bool hsm_component_editor_data::valid() noexcept
 
 bool hsm_component_editor_data::show(component_editor& ed,
                                      const component_access& /*ids*/,
-                                     component& /*compo*/) noexcept
+                                     component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     auto  u   = 0;
 
-    read(app);
+    read(app, compo);
 
     const auto region_height = ImGui::GetContentRegionAvail().y;
     const auto table_heigth  = region_height -
@@ -1172,7 +1172,7 @@ bool hsm_component_editor_data::show(component_editor& ed,
         if (ImGui::BeginTabBar("##hsm-editor")) {
             if (ImGui::BeginTabItem("Editor")) {
                 if (show_graph()) {
-                    write(app);
+                    write(app, compo);
                     ++u;
                 }
                 ImGui::EndTabItem();
@@ -1193,16 +1193,17 @@ bool hsm_component_editor_data::show(component_editor& ed,
     return u > 0;
 }
 
-bool hsm_component_editor_data::show_selected_nodes(component_editor& ed,
-                                                    const component_access& /*ids*/,
-                                                    component& compo) noexcept
+bool hsm_component_editor_data::show_selected_nodes(
+  component_editor& ed,
+  const component_access& /*ids*/,
+  component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
     auto  u   = 0;
 
-    read(app);
+    read(app, compo);
     if (show_panel(compo)) {
-        write(app);
+        write(app, compo);
         ++u;
     }
 
@@ -1243,7 +1244,8 @@ void hsm_component_editor_data::store(component_editor& ed) noexcept
     });
 }
 
-void hsm_component_editor_data::read(application& app) noexcept
+void hsm_component_editor_data::read(application& app,
+                                     component&   compo) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
         if (m_version != version)
@@ -1252,21 +1254,28 @@ void hsm_component_editor_data::read(application& app) noexcept
         if (not ids.exists(m_id))
             return;
 
+        compo = ids.components[m_id];
+        debug::ensure(compo.type == component_type::hsm);
+
         if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {
             m_hsm = *hsm;
         }
     });
 }
 
-void hsm_component_editor_data::write(application& app) noexcept
+void hsm_component_editor_data::write(application& app,
+                                      component&   compo) noexcept
 {
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) {
             if (not ids.exists(m_id))
                 return;
 
+            ids.components[m_id] = compo;
+            debug::ensure(compo.type == component_type::hsm);
+
             if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {
-                *hsm                 = m_hsm;
+                *hsm = m_hsm;
             }
         });
     });
@@ -1303,22 +1312,22 @@ hsm_component_editor_data::hsm_component_editor_data(
         if (m_hsm.machine.states[i].if_transition !=
             hierarchical_state_machine::invalid_state_id) {
             m_enabled[m_hsm.machine.states[i].if_transition] = true;
-            m_enabled[i]                                   = true;
+            m_enabled[i]                                     = true;
         }
         if (m_hsm.machine.states[i].else_transition !=
             hierarchical_state_machine::invalid_state_id) {
             m_enabled[m_hsm.machine.states[i].else_transition] = true;
-            m_enabled[i]                                     = true;
+            m_enabled[i]                                       = true;
         }
         if (m_hsm.machine.states[i].super_id !=
             hierarchical_state_machine::invalid_state_id) {
             m_enabled[m_hsm.machine.states[i].super_id] = true;
-            m_enabled[i]                              = true;
+            m_enabled[i]                                = true;
         }
         if (m_hsm.machine.states[i].sub_id !=
             hierarchical_state_machine::invalid_state_id) {
             m_enabled[m_hsm.machine.states[i].sub_id] = true;
-            m_enabled[i]                            = true;
+            m_enabled[i]                              = true;
         }
     }
 

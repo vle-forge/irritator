@@ -19,6 +19,118 @@
 
 namespace irt {
 
+component::component(const component& other) noexcept
+  : x{ other.x }
+  , y{ other.y }
+  , input_connection_pack{ other.input_connection_pack }
+  , output_connection_pack{ other.output_connection_pack }
+  , name{ other.name }
+  , id{ other.id }
+  , type{ other.type }
+  , state{ other.state }
+  , srcs{ other.srcs }
+{}
+
+component::component(component&& other) noexcept
+  : x{ std::exchange(other.x, port_type{}) }
+  , y{ std::exchange(other.y, port_type{}) }
+  , input_connection_pack{ std::exchange(other.input_connection_pack,
+                                         vector<connection_pack>{}) }
+  , output_connection_pack{ std::exchange(other.output_connection_pack,
+                                          vector<connection_pack>{}) }
+  , name{ other.name }
+  , id{ other.id }
+  , type{ other.type }
+  , state{ other.state }
+  , srcs{ std::exchange(other.srcs, external_source_definition{}) }
+{}
+
+component& component::operator=(const component& other) noexcept
+{
+    if (this != &other) {
+        x                      = other.x;
+        y                      = other.y;
+        input_connection_pack  = other.input_connection_pack;
+        output_connection_pack = other.output_connection_pack;
+        name                   = other.name;
+        id                     = other.id;
+        type                   = other.type;
+        state                  = other.state;
+        srcs                   = other.srcs;
+    }
+
+    return *this;
+}
+
+component& component::operator=(component&& other) noexcept
+{
+    if (this != &other) {
+        x = std::exchange(other.x, port_type{});
+        y = std::exchange(other.y, port_type{});
+        input_connection_pack =
+          std::exchange(other.input_connection_pack, vector<connection_pack>{});
+        output_connection_pack = std::exchange(other.output_connection_pack,
+                                               vector<connection_pack>{});
+        name                   = other.name;
+        id                     = other.id;
+        type                   = other.type;
+        state                  = other.state;
+        srcs = std::exchange(other.srcs, external_source_definition{});
+    }
+
+    return *this;
+}
+
+port_id component::get_x(std::string_view str) const noexcept
+{
+    const auto& vec_name = x.get<port_str>();
+    for (const auto elem : x)
+        if (str == vec_name[elem].sv())
+            return elem;
+
+    return undefined<port_id>();
+}
+
+port_id component::get_y(std::string_view str) const noexcept
+{
+    const auto& vec_name = y.get<port_str>();
+    for (const auto elem : y)
+        if (str == vec_name[elem].sv())
+            return elem;
+
+    return undefined<port_id>();
+}
+
+port_id component::get_or_add_x(std::string_view str) noexcept
+{
+    auto port_id = get_x(str);
+
+    if (is_undefined(port_id)) {
+        if (x.can_alloc(1)) {
+            port_id                  = x.alloc_id();
+            x.get<port_str>(port_id) = str;
+            x.get<position>(port_id).reset();
+        }
+    }
+
+    return port_id;
+}
+
+port_id component::get_or_add_y(std::string_view str) noexcept
+{
+    auto port_id = get_y(str);
+
+    if (is_undefined(port_id)) {
+        if (y.can_alloc(1)) {
+            port_id                  = y.alloc_id();
+            y.get<port_str>(port_id) = str;
+            y.get<position>(port_id).reset();
+        }
+    }
+
+    return port_id;
+}
+
 component_access::component_access(
   const modeling_reserve_definition& res) noexcept
   : ids(res.components.value())
@@ -281,76 +393,78 @@ int file_access::browse_registreds(journal_handler& jn) noexcept
 status modeling::fill_components() noexcept
 {
     return ids.write([&](auto& ids) noexcept -> status {
-        const auto file_read_status = files.write(
-            [&](auto& fs) noexcept -> status {
-                fs.browse_registreds(journal);
+        const auto file_read_status =
+          files.write([&](auto& fs) noexcept -> status {
+              fs.browse_registreds(journal);
 
-                for (auto& f : fs.file_paths) {
-                    if (f.type == file_path::file_type::dot_file) {
-                        if (not(ids.graphs.can_alloc(1) or ids.graphs.template grow<3, 2>()))
-                            return new_error(modeling_errc::memory_error);
+              for (auto& f : fs.file_paths) {
+                  if (f.type == file_path::file_type::dot_file) {
+                      if (not(ids.graphs.can_alloc(1) or
+                              ids.graphs.template grow<3, 2>()))
+                          return new_error(modeling_errc::memory_error);
 
-                        auto& g = ids.graphs.alloc();
-                        const auto graph_id = ids.graphs.get_id(g);
-                        g.file = fs.file_paths.get_id(f);
-                        f.g_id = graph_id;
-                    }
-                }
+                      auto&      g        = ids.graphs.alloc();
+                      const auto graph_id = ids.graphs.get_id(g);
+                      g.file              = fs.file_paths.get_id(f);
+                      f.g_id              = graph_id;
+                  }
+              }
 
-                for (auto& f : fs.file_paths) {
-                    if (f.type == file_path::file_type::project_file) {
-                    }
-                }
+              for (auto& f : fs.file_paths) {
+                  if (f.type == file_path::file_type::project_file) {
+                  }
+              }
 
-                for (auto& f : fs.file_paths) {
-                    if (f.type == file_path::file_type::component_file) {
-                        if (not ids.exists(f.component)) {
-                            if (not ids.can_alloc_component(1)) {
-                                return new_error(modeling_errc::memory_error);
-                            }
+              for (auto& f : fs.file_paths) {
+                  if (f.type == file_path::file_type::component_file) {
+                      if (not ids.exists(f.component)) {
+                          if (not ids.can_alloc_component(1)) {
+                              return new_error(modeling_errc::memory_error);
+                          }
 
-                            const auto compo_id = ids.alloc_component();
-                            f.component = compo_id;
-                        }
+                          const auto compo_id = ids.alloc_component();
+                          f.component         = compo_id;
+                      }
 
-                        ids.component_file_paths[f.component].path = f.path;
-                        ids.component_file_paths[f.component].parent = f.parent;
+                      ids.component_file_paths[f.component].path   = f.path;
+                      ids.component_file_paths[f.component].parent = f.parent;
 
-                        if (const auto* dir = fs.dir_paths.try_to_get(f.parent)) {
-                            if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
-                                ids.component_file_paths[f.component].reg = dir->parent;
-                            }
-                        }
-                    }
-                }
+                      if (const auto* dir = fs.dir_paths.try_to_get(f.parent)) {
+                          if (const auto* reg =
+                                fs.registred_paths.try_to_get(dir->parent)) {
+                              ids.component_file_paths[f.component].reg =
+                                dir->parent;
+                          }
+                      }
+                  }
+              }
 
-                for (auto& g : ids.graphs) {
-                    const auto file_id = g.file;
+              for (auto& g : ids.graphs) {
+                  const auto file_id = g.file;
 
-                    if (const auto file = fs.get_fs_path(file_id)) {
-                        if (auto ret = parse_dot_file(*this, *file);
-                            ret.has_value()) {
-                            g      = std::move(*ret);
-                            g.file = file_id;
-                        } else {
-                            journal.push(
-                              log_level::warning,
-                              [&](auto& t, auto& m, const auto& f) noexcept {
-                                  t = "Modeling initialization error";
-                                  format(
-                                    m,
-                                    "Fail to read dot graph `{}' ({}:{})",
-                                    reinterpret_cast<const char*>(f.c_str()),
-                                    ordinal(ret.error().cat()),
-                                    ret.error().value());
-                              },
-                              *file);
-                        }
-                    }
-                }
+                  if (const auto file = fs.get_fs_path(file_id)) {
+                      if (auto ret = parse_dot_file(*this, *file);
+                          ret.has_value()) {
+                          g      = std::move(*ret);
+                          g.file = file_id;
+                      } else {
+                          journal.push(
+                            log_level::warning,
+                            [&](auto& t, auto& m, const auto& f) noexcept {
+                                t = "Modeling initialization error";
+                                format(m,
+                                       "Fail to read dot graph `{}' ({}:{})",
+                                       reinterpret_cast<const char*>(f.c_str()),
+                                       ordinal(ret.error().cat()),
+                                       ret.error().value());
+                            },
+                            *file);
+                      }
+                  }
+              }
 
-                return success();
-            });
+              return success();
+          });
 
         if (file_read_status.has_error())
             return file_read_status.error();
@@ -359,7 +473,7 @@ status modeling::fill_components() noexcept
             auto have_unread_component = ids.ssize() > 0;
 
             while (have_unread_component) {
-                auto component_read = 0;
+                auto component_read   = 0;
                 have_unread_component = false;
 
                 for (auto id : ids) {
@@ -369,17 +483,20 @@ status modeling::fill_components() noexcept
 
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
-                        if (const auto ret = load_component(fs, ids, *f, id); ret.has_error()) {
+                        if (const auto ret = load_component(fs, ids, *f, id);
+                            ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
-                                journal.push(log_level::warning, [&](auto& t, auto& m) noexcept {
-                                    t = "Modeling initialization error";
-                                    format(m,
-                                           "Need to read dependency for "
-                                           "component {} ({})",
-                                           compo.name.sv(),
-                                           ordinal(id));
-                                });
+                                journal.push(
+                                  log_level::warning,
+                                  [&](auto& t, auto& m) noexcept {
+                                      t = "Modeling initialization error";
+                                      format(m,
+                                             "Need to read dependency for "
+                                             "component {} ({})",
+                                             compo.name.sv(),
+                                             ordinal(id));
+                                  });
                                 have_unread_component = true;
                                 break;
 
@@ -392,10 +509,14 @@ status modeling::fill_components() noexcept
                                 break;
 
                             case component_status::unreadable:
-                                journal.push(log_level::warning, [&](auto& t, auto& m) noexcept {
-                                    t = "Modeling initialization error";
-                                    format(m, "Fail to read component `{}'", compo.name.sv());
-                                });
+                                journal.push(
+                                  log_level::warning,
+                                  [&](auto& t, auto& m) noexcept {
+                                      t = "Modeling initialization error";
+                                      format(m,
+                                             "Fail to read component `{}'",
+                                             compo.name.sv());
+                                  });
                                 break;
                             }
                         } else {

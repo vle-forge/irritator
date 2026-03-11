@@ -781,7 +781,7 @@ void graph_component_editor_data::graph_component_editor_data::show(
   application& app,
   component&   compo) noexcept
 {
-    read(app);
+    read(app, compo);
 
     ImGui::BeginDisabled(running.test());
 
@@ -909,7 +909,7 @@ void graph_component_editor_data::graph_component_editor_data::show(
     u += show_graph(app, compo, m_graph);
 
     if (u > 0)
-        write(app);
+        write(app, compo);
 }
 
 void graph_component_editor_data::update_position_to_grid(
@@ -949,7 +949,7 @@ bool graph_component_editor_data::show(component_editor& ed,
     auto& app = container_of(&ed, &application::component_ed);
     int   u   = 0;
 
-    read(app);
+    read(app, compo);
 
     if (ImGui::BeginChild("##graph-ed",
                           ImVec2(0, 0),
@@ -1099,20 +1099,21 @@ bool graph_component_editor_data::show(component_editor& ed,
     }
 
     if (u > 0) {
-        write(app);
+        write(app, compo);
         return true;
     }
 
     return false;
 }
 
-bool graph_component_editor_data::show_selected_nodes(component_editor& ed,
-                                                      const component_access& ids,
-                                                      component& /*compo*/) noexcept
+bool graph_component_editor_data::show_selected_nodes(
+  component_editor&       ed,
+  const component_access& ids,
+  component&              compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    read(app);
+    read(app, compo);
 
     int u = 0;
     if (ImGui::TreeNodeEx("selected nodes")) {
@@ -1154,7 +1155,8 @@ bool graph_component_editor_data::show_selected_nodes(component_editor& ed,
                 }
 
                 if (ids.exists(m_graph.g.node_components[idx])) {
-                    auto& compo = ids.components[m_graph.g.node_components[idx]];
+                    auto& compo =
+                      ids.components[m_graph.g.node_components[idx]];
                     if (not compo.x.empty()) {
                         if (ImGui::TreeNodeEx("input ports")) {
                             const auto& xnames =
@@ -1213,7 +1215,7 @@ bool graph_component_editor_data::show_selected_nodes(component_editor& ed,
     }
 
     if (u > 0) {
-        write(app);
+        write(app, compo);
         return true;
     }
 
@@ -1232,7 +1234,8 @@ void graph_component_editor_data::clear_selected_nodes() noexcept
     selected_nodes.clear();
 }
 
-void graph_component_editor_data::read(application& app) noexcept
+void graph_component_editor_data::read(application& app,
+                                       component&   compo) noexcept
 {
     app.mod.ids.read([&](const auto& ids, auto version) noexcept {
         if (m_version != version)
@@ -1241,7 +1244,7 @@ void graph_component_editor_data::read(application& app) noexcept
         if (not ids.exists(m_id))
             return;
 
-        const auto& compo = ids.components[m_id];
+        compo = ids.components[m_id];
         debug::ensure(compo.type == component_type::graph);
 
         if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
@@ -1250,18 +1253,19 @@ void graph_component_editor_data::read(application& app) noexcept
     });
 }
 
-void graph_component_editor_data::write(application& app) noexcept
+void graph_component_editor_data::write(application& app,
+                                        component&   compo) noexcept
 {
     app.add_gui_task([&]() {
         app.mod.ids.write([&](auto& ids) {
             if (not ids.exists(m_id))
                 return;
 
-            auto& compo = ids.components[m_id];
+            ids.components[m_id] = compo;
             debug::ensure(compo.type == component_type::graph);
 
             if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
-                *g    = m_graph;
+                *g = m_graph;
             }
         });
     });
