@@ -594,12 +594,6 @@ int main(int, char**)
         }
     }
 
-    if (io.IniFilename) {
-        auto* str = const_cast<char*>(io.IniFilename);
-        std::free(str);
-        io.IniFilename = nullptr;
-    }
-
     WaitForLastSubmittedFrame();
 
     // Cleanup
