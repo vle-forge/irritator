@@ -145,13 +145,15 @@ static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
 }
 
 static void copy_file_task(application&       app,
-                           const file_path&   file,
+                           file_path&         file,
                            const file_path_id dst) noexcept
 {
-    app.add_gui_task([&app, file, dst]() noexcept {
+    auto file_ptr = std::make_unique<file_path>(std::move(file));
+
+    app.add_gui_task([&app, file = std::move(file_ptr), dst]() noexcept {
         app.mod.files.write([&](auto& fs) noexcept {
             if (auto* file_dst = fs.file_paths.try_to_get(dst)) {
-                *file_dst = file;
+                *file_dst = *file;
             }
         });
     });
