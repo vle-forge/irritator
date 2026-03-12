@@ -1874,33 +1874,39 @@ private:
     }
 
     template<typename SubT>
-    void do_construct(buffer_view<SubT>&       buffer,
-                      const std::integral auto len) noexcept
+    void do_uninitialised_construct_buffer_view(
+      buffer_view<SubT>&       buffer,
+      const std::integral auto from,
+      const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get());
         debug::ensure(len > 0);
 
-        std::uninitialized_default_construct_n(buffer.get(), len);
+        std::uninitialized_default_construct_n(buffer.get() + from, len);
     }
 
     template<std::size_t... Is>
-    void do_construct(const std::integral auto len,
-                      std::index_sequence<Is...>) noexcept
+    void do_uninitialised_construct_buffer_views(
+      const std::integral auto from,
+      const std::integral auto len,
+      std::index_sequence<Is...>) noexcept
     {
         debug::ensure(len > 0);
 
-        (do_construct(std::get<Is>(m_col), len), ...);
+        (do_uninitialised_construct_buffer_view(std::get<Is>(m_col), from, len),
+         ...);
     }
 
     template<typename SubT>
     void do_alloc_buffer_view(buffer_view<SubT>&       buffer,
-                  const std::integral auto len) noexcept
+                              const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get() == nullptr);
 
         if (std::cmp_less(0, len) and
-                std::cmp_less(len, std::numeric_limits<index_type>::max()))
-            buffer.reset(reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
+            std::cmp_less(len, std::numeric_limits<index_type>::max()))
+            buffer.reset(
+              reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
     }
 
     /**
@@ -1908,18 +1914,15 @@ private:
      * @a m_col.
      */
     template<std::size_t... Is>
-    void do_alloc(const std::integral auto len,
-                  std::index_sequence<Is...>) noexcept
+    void do_alloc_buffer_views(const std::integral auto len,
+                               std::index_sequence<Is...>) noexcept
     {
-        debug::ensure(m_ids.capacity() == 0);
-
-        m_ids.reserve(len);
         (do_alloc_buffer_view(std::get<Is>(m_col), len), ...);
     }
 
     template<typename SubT>
     void do_destroy_buffer_view(const std::integral auto len,
-                    buffer_view<SubT>&       buffer) noexcept
+                                buffer_view<SubT>&       buffer) noexcept
     {
         if (buffer.get()) {
             std::destroy_n(buffer.get(), len);
@@ -1933,17 +1936,36 @@ private:
      * and deallocate the memory used.
      */
     template<std::size_t... Is>
-    void do_destroy(const std::integral auto len,
-                    std::index_sequence<Is...>) noexcept
+    void do_destroy_buffer_views(const std::integral auto len,
+                                 std::index_sequence<Is...>) noexcept
     {
         (do_destroy_buffer_view(len, std::get<Is>(m_col)), ...);
-        m_ids.destroy();
+    }
+
+    template<typename SubT>
+    void do_copy_buffer_view(const buffer_view<SubT>& src,
+                             buffer_view<SubT>&       dst,
+                             std::integral auto       len) noexcept
+    {
+        debug::ensure(src.get() and dst.get());
+
+        std::copy_n(src.get(), len, dst.get());
+    }
+
+    template<std::size_t... Is>
+    void do_copy_buffer_views(const auto& other_m_col,
+                              const auto  len,
+                              std::index_sequence<Is...>) noexcept
+    {
+        (do_copy_buffer_view(
+           std::get<Is>(other_m_col), std::get<Is>(m_col), len),
+         ...);
     }
 
     template<typename SubT>
     void do_uninitialised_copy_buffer_view(const buffer_view<SubT>& src,
-                               buffer_view<SubT>&       dst,
-                               std::integral auto       len) noexcept
+                                           buffer_view<SubT>&       dst,
+                                           std::integral auto len) noexcept
     {
         debug::ensure(src.get() and dst.get());
 
@@ -1951,9 +1973,9 @@ private:
     }
 
     template<std::size_t... Is>
-    void do_uninitialised_copy(const auto& other_m_col,
-                               const auto  len,
-                               std::index_sequence<Is...>) noexcept
+    void do_uninitialised_copy_buffer_views(const auto& other_m_col,
+                                            const auto  len,
+                                            std::index_sequence<Is...>) noexcept
     {
         (do_uninitialised_copy_buffer_view(
            std::get<Is>(other_m_col), std::get<Is>(m_col), len),
@@ -1965,15 +1987,16 @@ private:
      * @param other_m_col
      */
     template<std::size_t... Is>
-    void do_reset(auto& other_m_col, std::index_sequence<Is...>) noexcept
+    void do_reset_buffer_views(auto& other_m_col,
+                               std::index_sequence<Is...>) noexcept
     {
         ((std::get<Is>(other_m_col).reset(nullptr)), ...);
     }
 
     template<typename SubT>
     void do_resize_buffer_view(std::integral auto old,
-                   std::integral auto req,
-                   buffer_view<SubT>& buffer) noexcept
+                               std::integral auto req,
+                               buffer_view<SubT>& buffer) noexcept
     {
         auto* ptr =
           reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * req));
@@ -1996,9 +2019,9 @@ private:
     }
 
     template<std::size_t... Is>
-    bool do_resize(std::integral auto old,
-                   std::integral auto req,
-                   std::index_sequence<Is...>) noexcept
+    bool do_resize_buffer_views(std::integral auto old,
+                                std::integral auto req,
+                                std::index_sequence<Is...>) noexcept
     {
         (do_resize_buffer_view(old, req, std::get<Is>(m_col)), ...);
         return ((std::get<Is>(m_col).get() != nullptr) and ... and true);
@@ -3774,7 +3797,7 @@ id_data_array<T, Identifier, A, Ts...>::id_data_array(
 template<typename T, typename Identifier, typename A, class... Ts>
 id_data_array<T, Identifier, A, Ts...>::~id_data_array() noexcept
 {
-    do_destroy(capacity(), std::index_sequence_for<Ts...>());
+    do_destroy_buffer_views(capacity(), std::index_sequence_for<Ts...>());
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -3782,10 +3805,22 @@ id_data_array<T, Identifier, A, Ts...>::id_data_array(
   const id_data_array& other) noexcept
   : m_ids(other.m_ids)
 {
+    const auto size = other.capacity();
+
     if (other.capacity() > 0) {
-        do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
-        do_uninitialised_copy(
-          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+        do_alloc_buffer_views(other.capacity(),
+                              std::index_sequence_for<Ts...>());
+
+        const auto to_copy      = other.m_ids.max_used();
+        const auto to_construct = size - to_copy;
+
+        if (to_copy > 0)
+            do_uninitialised_copy_buffer_views(
+              other.m_col, to_copy, std::index_sequence_for<Ts...>());
+
+        if (to_construct > 0)
+            do_uninitialised_construct_buffer_views(
+              to_copy, to_construct, std::index_sequence_for<Ts...>());
     }
 }
 
@@ -3794,24 +3829,38 @@ id_data_array<T, Identifier, A, Ts...>::id_data_array(
   id_data_array&& other) noexcept
   : m_ids(std::move(other.m_ids))
   , m_col(std::move(other.m_col))
-{
-    do_reset(other.m_col, std::index_sequence_for<Ts...>());
-}
+{}
 
 template<typename T, typename Identifier, typename A, class... Ts>
 auto id_data_array<T, Identifier, A, Ts...>::operator=(
   const id_data_array& other) noexcept -> id_data_array&
 {
-    if (this != &other) {
-        if (capacity() > 0) {
-            do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
+    if (this == &other)
+        return *this;
+
+    if (other.m_ids.capacity() == 0) {
+        do_destroy_buffer_views(m_ids.capacity(),
+                                std::index_sequence_for<Ts...>());
+        m_ids.destroy();
+        return *this;
+    }
+
+    if (capacity() < other.capacity()) { // nullptr or too small we delete.
+        if (capacity() > 0) {            // not nullptr we delete
+            do_destroy_buffer_views(m_ids.capacity(),
+                                    std::index_sequence_for<Ts...>());
+            m_ids.destroy();
         }
 
-        if (other.capacity() > 0) {
-            do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
-            do_uninitialised_copy(other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
-            m_ids = other.m_ids;
-        }
+        m_ids = other.m_ids;
+        do_alloc_buffer_views(other.capacity(),
+                              std::index_sequence_for<Ts...>());
+        do_uninitialised_copy_buffer_views(
+          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+    } else { // no need to destroy and realloc buffers.
+        m_ids = other.m_ids;
+        do_copy_buffer_views(
+          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
     }
 
     return *this;
@@ -3823,13 +3872,14 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
 {
     if (this != &other) {
         if (capacity() > 0) {
-            do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
+            do_destroy_buffer_views(capacity(),
+                                    std::index_sequence_for<Ts...>());
             m_ids.destroy();
         }
 
         m_ids = std::move(other.m_ids);
-        std::swap(m_col, other.m_col);
-        do_reset(other.m_col, std::index_sequence_for<Ts...>());
+        m_col = std::move(other.m_col);
+        do_reset_buffer_views(other.m_col, std::index_sequence_for<Ts...>());
     }
 
     return *this;
@@ -4107,13 +4157,12 @@ template<typename T, typename Identifier, typename A, class... Ts>
 bool id_data_array<T, Identifier, A, Ts...>::reserve(
   std::integral auto len) noexcept
 {
-    if (std::cmp_less(capacity(), len)) {
-        if (not do_resize(capacity(), len, std::index_sequence_for<Ts...>()))
-            return false;
-        return m_ids.reserve(len);
-    }
+    if (std::cmp_less(capacity(), len))
+        if (do_resize_buffer_views(
+              capacity(), len, std::index_sequence_for<Ts...>()))
+            return m_ids.reserve(len);
 
-    return true;
+    return false;
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -4276,11 +4325,11 @@ constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
 {
     clear();
 
-    m_items = std::exchange(other.m_items, nullptr);
-    m_max_size = std::exchange(other.m_max_size, 0);
-    m_max_used = std::exchange(other.m_max_used, 0);
-    m_capacity = std::exchange(other.m_capacity, 0);
-    m_next_key = std::exchange(other.m_next_key, 1);
+    m_items     = std::exchange(other.m_items, nullptr);
+    m_max_size  = std::exchange(other.m_max_size, 0);
+    m_max_used  = std::exchange(other.m_max_used, 0);
+    m_capacity  = std::exchange(other.m_capacity, 0);
+    m_next_key  = std::exchange(other.m_next_key, 1);
     m_free_head = std::exchange(other.m_free_head, none);
 
     return *this;
