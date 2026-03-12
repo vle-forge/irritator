@@ -4997,8 +4997,6 @@ public:
     };
 
     hierarchical_state_machine() noexcept = default;
-    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
-      default;
 
     //! Initialize the @c execution object from the HSM and start
     //! the automate. During the handle of the automate, @c srcs
