@@ -1893,7 +1893,7 @@ private:
     }
 
     template<typename SubT>
-    void do_alloc(buffer_view<SubT>&       buffer,
+    void do_alloc_buffer_view(buffer_view<SubT>&       buffer,
                   const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get() == nullptr);
@@ -1911,11 +1911,14 @@ private:
     void do_alloc(const std::integral auto len,
                   std::index_sequence<Is...>) noexcept
     {
-        (do_alloc(std::get<Is>(m_col), len), ...);
+        debug::ensure(m_ids.capacity() == 0);
+
+        m_ids.reserve(len);
+        (do_alloc_buffer_view(std::get<Is>(m_col), len), ...);
     }
 
     template<typename SubT>
-    void do_destroy(const std::integral auto len,
+    void do_destroy_buffer_view(const std::integral auto len,
                     buffer_view<SubT>&       buffer) noexcept
     {
         if (buffer.get()) {
@@ -1933,11 +1936,12 @@ private:
     void do_destroy(const std::integral auto len,
                     std::index_sequence<Is...>) noexcept
     {
-        (do_destroy(len, std::get<Is>(m_col)), ...);
+        (do_destroy_buffer_view(len, std::get<Is>(m_col)), ...);
+        m_ids.destroy();
     }
 
     template<typename SubT>
-    void do_uninitialised_copy(const buffer_view<SubT>& src,
+    void do_uninitialised_copy_buffer_view(const buffer_view<SubT>& src,
                                buffer_view<SubT>&       dst,
                                std::integral auto       len) noexcept
     {
@@ -1951,7 +1955,7 @@ private:
                                const auto  len,
                                std::index_sequence<Is...>) noexcept
     {
-        (do_uninitialised_copy(
+        (do_uninitialised_copy_buffer_view(
            std::get<Is>(other_m_col), std::get<Is>(m_col), len),
          ...);
     }
@@ -1967,7 +1971,7 @@ private:
     }
 
     template<typename SubT>
-    void do_resize(std::integral auto old,
+    void do_resize_buffer_view(std::integral auto old,
                    std::integral auto req,
                    buffer_view<SubT>& buffer) noexcept
     {
@@ -1996,7 +2000,7 @@ private:
                    std::integral auto req,
                    std::index_sequence<Is...>) noexcept
     {
-        (do_resize(old, req, std::get<Is>(m_col)), ...);
+        (do_resize_buffer_view(old, req, std::get<Is>(m_col)), ...);
         return ((std::get<Is>(m_col).get() != nullptr) and ... and true);
     }
 
@@ -2162,6 +2166,7 @@ public:
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
+    bool     can_alloc(std::integral auto nb = 1) noexcept;
     bool     empty() const noexcept;
     unsigned size() const noexcept;
     int      ssize() const noexcept;
@@ -3798,12 +3803,15 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
   const id_data_array& other) noexcept -> id_data_array&
 {
     if (this != &other) {
-        do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
-        do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
+        if (capacity() > 0) {
+            do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
+        }
 
-        if (other.capacity() > 0)
-            do_uninitialised_copy(
-            other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+        if (other.capacity() > 0) {
+            do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
+            do_uninitialised_copy(other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+            m_ids = other.m_ids;
+        }
     }
 
     return *this;
@@ -3814,8 +3822,11 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
   id_data_array&& other) noexcept -> id_data_array&
 {
     if (this != &other) {
-        do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
-        m_ids.destroy();
+        if (capacity() > 0) {
+            do_destroy(m_ids.capacity(), std::index_sequence_for<Ts...>());
+            m_ids.destroy();
+        }
+
         m_ids = std::move(other.m_ids);
         std::swap(m_col, other.m_col);
         do_reset(other.m_col, std::index_sequence_for<Ts...>());
@@ -4137,6 +4148,13 @@ bool id_data_array<T, Identifier, A, Ts...>::can_alloc(
   std::integral auto nb) const noexcept
 {
     return m_ids.can_alloc(nb);
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
+bool id_data_array<T, Identifier, A, Ts...>::can_alloc(
+  std::integral auto nb) noexcept
+{
+    return m_ids.can_alloc(nb) or grow<2, 1>();
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
