@@ -105,39 +105,36 @@ static void display_allocate_external_source(application&    app,
     }
 }
 
-auto show_data_file_input(const modeling&    mod,
+auto show_data_file_input(const file_access& fs,
                           const dir_path_id  dir_id,
                           const file_path_id file_id) noexcept -> file_path_id
 {
     auto ret = undefined<file_path_id>();
 
-    mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        if (auto* dir = fs.dir_paths.try_to_get(dir_id)) {
-            const auto preview = [](file_path* f) noexcept -> const char* {
-                return f ? f->path.c_str() : "-";
-            }(fs.file_paths.try_to_get(file_id));
-            ret = file_id;
+    if (auto* dir = fs.dir_paths.try_to_get(dir_id)) {
+        const auto preview = [](file_path* f) noexcept -> const char* {
+            return f ? f->path.c_str() : "-";
+        }(fs.file_paths.try_to_get(file_id));
+        ret = file_id;
 
-            if (ImGui::BeginCombo("Select file", preview)) {
-                for (const auto f_id : dir->children) {
-                    if (const auto* file = fs.file_paths.try_to_get(f_id)) {
-                        const auto sv = file->path.sv();
+        if (ImGui::BeginCombo("Select file", preview)) {
+            for (const auto f_id : dir->children) {
+                if (const auto* file = fs.file_paths.try_to_get(f_id)) {
+                    const auto sv = file->path.sv();
 
-                        if (has_extension(sv,
-                                          file_path::file_type::data_file)) {
-                            if (ImGui::Selectable(file->path.c_str(),
-                                                  file_id == f_id)) {
-                                ret = f_id;
-                            }
+                    if (has_extension(sv, file_path::file_type::data_file)) {
+                        if (ImGui::Selectable(file->path.c_str(),
+                                              file_id == f_id)) {
+                            ret = f_id;
                         }
                     }
                 }
-                ImGui::EndCombo();
             }
-        } else {
-            ImGui::TextFormatDisabled("This component is not saved");
+            ImGui::EndCombo();
         }
-    });
+    } else {
+        ImGui::TextFormatDisabled("This component is not saved");
+    }
 
     return ret;
 }

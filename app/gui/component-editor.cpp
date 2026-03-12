@@ -273,9 +273,9 @@ static void show_connection_pack(const modeling& /*mod*/,
     }
 }
 
-static auto get_source_element(const component&                     compo,
-                               const external_source_definition::id id) noexcept
-  -> const external_source_definition::source_element&
+static auto get_source_element(component&                     compo,
+                               external_source_definition::id id) noexcept
+  -> external_source_definition::source_element&
 {
     fatal::ensure(compo.srcs.data.exists(id));
 
@@ -283,51 +283,50 @@ static auto get_source_element(const component&                     compo,
       .get<external_source_definition::source_element>()[id];
 }
 
-static auto get_name(const component&                     compo,
-                     const external_source_definition::id id) noexcept
-  -> const name_str&
+static auto get_name(component&                     compo,
+                     external_source_definition::id id) noexcept -> name_str&
 {
     return compo.srcs.data.get<name_str>()[id];
 }
 
-static auto get_cst_source(const component&                     compo,
-                           const external_source_definition::id id) noexcept
-  -> const external_source_definition::constant_source&
+static auto get_cst_source(component&                     compo,
+                           external_source_definition::id id) noexcept
+  -> external_source_definition::constant_source&
 {
-    const auto& elems =
+    auto& elems =
       compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::constant);
 
     return elems.cst;
 }
 
-static auto get_bin_source(const component&                     compo,
-                           const external_source_definition::id id) noexcept
-  -> const external_source_definition::binary_source&
+static auto get_bin_source(component&                     compo,
+                           external_source_definition::id id) noexcept
+  -> external_source_definition::binary_source&
 {
-    const auto& elems =
+    auto& elems =
       compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::binary_file);
 
     return elems.bin;
 }
 
-static auto get_txt_source(const component&                     compo,
-                           const external_source_definition::id id) noexcept
-  -> const external_source_definition::text_source&
+static auto get_txt_source(component&                     compo,
+                           external_source_definition::id id) noexcept
+  -> external_source_definition::text_source&
 {
-    const auto& elems =
+    auto& elems =
       compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::text_file);
 
     return elems.txt;
 }
 
-static auto get_rnd_source(const component&                     compo,
-                           const external_source_definition::id id) noexcept
-  -> const external_source_definition::random_source&
+static auto get_rnd_source(component&                     compo,
+                           external_source_definition::id id) noexcept
+  -> external_source_definition::random_source&
 {
-    const auto& elems =
+    auto& elems =
       compo.srcs.data.get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::random);
 
@@ -335,311 +334,218 @@ static auto get_rnd_source(const component&                     compo,
 }
 
 static bool display_constant_source(
-  application&                         app,
-  const component&                     compo,
-  const component_id                   compo_id,
+  component_editor::tab&               tab,
   const external_source_definition::id id) noexcept
 {
-    const auto& elem = get_source_element(compo, id);
-    name_str    name = get_name(compo, id);
-    external_source_definition::constant_source cst = get_cst_source(compo, id);
+    auto& elem = get_source_element(tab.compo, id);
+    auto& name = get_name(tab.compo, id);
+    auto& cst  = get_cst_source(tab.compo, id);
 
-    auto keep_element = true;
-    auto update       = false;
+    auto u = 0;
 
     if (ImGui::TreeNodeEx(
           &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("x"))
-            keep_element = false;
+        if (ImGui::SmallButton("x")) {
+            tab.compo.srcs.data.free(id);
+            ++u;
+        } else {
+            u += ImGui::InputFilteredString("name", name);
 
-        if (ImGui::InputFilteredString("name", name))
-            update = true;
-
-        auto size = cst.data.ssize();
-        if (ImGui::InputScalar("length", ImGuiDataType_S32, &size)) {
-            size = size < 1                     ? 1
-                   : size < cst.data.capacity() ? size
-                                                : cst.data.capacity();
-            if (size != cst.data.ssize()) {
-                cst.data.resize(size);
-                update = true;
-            }
-        }
-
-        const auto columns = 3 < cst.data.ssize() ? 3 : cst.data.ssize();
-        const auto rows    = (cst.data.ssize() / columns) +
-                          ((cst.data.ssize() % columns) > 0 ? 1 : 0);
-
-        if (ImGui::BeginChild(
-              "##zone",
-              ImVec2(ImGui::GetContentRegionAvail().x,
-                     ImGui::GetFrameHeightWithSpacing() * rows))) {
-            if (ImGui::BeginTable("Values", columns)) {
-                for (int j = 0; j < columns; ++j)
-                    ImGui::TableSetupColumn("",
-                                            ImGuiTableColumnFlags_WidthFixed,
-                                            ImGui::GetContentRegionAvail().x /
-                                              3.f);
-
-                for (int i = 0; i < rows; ++i) {
-                    ImGui::TableNextRow();
-                    for (int j = 0; j < columns; ++j) {
-                        ImGui::TableSetColumnIndex(j);
-                        ImGui::PushID(i * columns + j);
-                        ImGui::PushItemWidth(-1);
-                        if (ImGui::InputDouble("", &cst.data[i * columns + j]))
-                            update = true;
-                        ImGui::PopItemWidth();
-                        ImGui::PopID();
-                    }
+            auto size = cst.data.ssize();
+            if (ImGui::InputScalar("length", ImGuiDataType_S32, &size)) {
+                size = size < 1                     ? 1
+                       : size < cst.data.capacity() ? size
+                                                    : cst.data.capacity();
+                if (size != cst.data.ssize()) {
+                    cst.data.resize(size);
+                    ++u;
                 }
-                ImGui::EndTable();
+            }
+
+            const auto columns = 3 < cst.data.ssize() ? 3 : cst.data.ssize();
+            const auto rows    = (cst.data.ssize() / columns) +
+                              ((cst.data.ssize() % columns) > 0 ? 1 : 0);
+
+            if (ImGui::BeginChild(
+                  "##zone",
+                  ImVec2(ImGui::GetContentRegionAvail().x,
+                         ImGui::GetFrameHeightWithSpacing() * rows))) {
+                if (ImGui::BeginTable("Values", columns)) {
+                    for (int j = 0; j < columns; ++j)
+                        ImGui::TableSetupColumn(
+                          "",
+                          ImGuiTableColumnFlags_WidthFixed,
+                          ImGui::GetContentRegionAvail().x / 3.f);
+
+                    for (int i = 0; i < rows; ++i) {
+                        ImGui::TableNextRow();
+                        for (int j = 0; j < columns; ++j) {
+                            ImGui::TableSetColumnIndex(j);
+                            ImGui::PushID(i * columns + j);
+                            ImGui::PushItemWidth(-1);
+                            if (ImGui::InputDouble("",
+                                                   &cst.data[i * columns + j]))
+                                ++u;
+                            ImGui::PopItemWidth();
+                            ImGui::PopID();
+                        }
+                    }
+                    ImGui::EndTable();
+                }
             }
         }
         ImGui::EndChild();
         ImGui::TreePop();
     }
 
-    if (update) {
-        app.add_gui_task([&app, compo_id, id, cst, name]() noexcept {
-            app.mod.ids.write([&](auto& ids) noexcept {
-                auto& compo = ids.components[compo_id];
-                if (compo.srcs.data.exists(id)) {
-                    auto& elem = compo.srcs.data.template get<
-                      external_source_definition::source_element>()[id];
-                    if (elem.type == source_type::constant) {
-                        auto& cst_elem                               = elem.cst;
-                        cst_elem                                     = cst;
-                        compo.srcs.data.template get<name_str>()[id] = name;
-                    }
-                }
-            });
-        });
-    }
-
-    return keep_element;
+    return u > 0;
 }
 
 static bool display_binary_source(
   application&                         app,
-  const component_access&              ids,
-  const component&                     compo,
-  const component_id                   compo_id,
+  component_editor::tab&               tab,
   const external_source_definition::id id) noexcept
 {
-    const auto& elem = get_source_element(compo, id);
-    name_str    name = get_name(compo, id);
-    external_source_definition::binary_source bin = get_bin_source(compo, id);
+    auto& elem = get_source_element(tab.compo, id);
+    auto& name = get_name(tab.compo, id);
+    auto& bin  = get_bin_source(tab.compo, id);
 
-    auto keep_element = true;
-    auto update       = false;
+    auto u = 0;
 
     if (ImGui::TreeNodeEx(
           &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("x"))
-            keep_element = false;
+        if (ImGui::SmallButton("x")) {
+            tab.compo.srcs.data.free(id);
+            ++u;
+        } else {
+            u += ImGui::InputFilteredString("name", name);
 
-        if (ImGui::InputFilteredString("name", name))
-            update = true;
+            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                if (fs.dir_paths.try_to_get(tab.file.parent)) {
+                    const auto old = bin.file;
+                    bin.file =
+                      show_data_file_input(fs, tab.file.parent, bin.file);
 
-        const auto& file = ids.component_file_paths[compo_id];
-
-        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-            if (fs.dir_paths.try_to_get(file.parent)) {
-                bin.file = show_data_file_input(app.mod, file.parent, bin.file);
-            } else {
-                bin.file = undefined<file_path_id>();
-            }
-        });
-
-        ImGui::TreePop();
-    }
-
-    if (update) {
-        app.add_gui_task([&app, compo_id, id, bin, name]() noexcept {
-            app.mod.ids.write([&](auto& ids) noexcept {
-                auto& compo = ids.components[compo_id];
-                if (compo.srcs.data.exists(id)) {
-                    auto& elem = compo.srcs.data.template get<
-                      external_source_definition::source_element>()[id];
-                    if (elem.type == source_type::binary_file) {
-                        auto& bin_elem                               = elem.bin;
-                        bin_elem                                     = bin;
-                        compo.srcs.data.template get<name_str>()[id] = name;
-                    }
+                    u += old != bin.file;
+                } else {
+                    u += bin.file != undefined<file_path_id>();
+                    bin.file = undefined<file_path_id>();
                 }
             });
-        });
+
+            ImGui::TreePop();
+        }
     }
 
-    return keep_element;
+    return u > 0;
 }
 
 static bool display_text_source(
   application&                         app,
-  const component_access&              ids,
-  const component&                     compo,
-  const component_id                   compo_id,
+  component_editor::tab&               tab,
   const external_source_definition::id id) noexcept
 {
-    const auto& elem                            = get_source_element(compo, id);
-    name_str    name                            = get_name(compo, id);
-    external_source_definition::text_source txt = get_txt_source(compo, id);
+    auto& elem = get_source_element(tab.compo, id);
+    auto& name = get_name(tab.compo, id);
+    auto& txt  = get_txt_source(tab.compo, id);
 
-    auto keep_element = true;
-    auto update       = false;
+    auto u = 0;
 
     if (ImGui::TreeNodeEx(
           &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("x"))
-            keep_element = false;
+        if (ImGui::SmallButton("x")) {
+            tab.compo.srcs.data.free(id);
+            ++u;
+        } else {
+            u += ImGui::InputFilteredString("name", name);
 
-        if (ImGui::InputFilteredString("name", name))
-            update = true;
+            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
+                if (fs.dir_paths.try_to_get(tab.file.parent)) {
+                    const auto old = txt.file;
+                    txt.file =
+                      show_data_file_input(fs, tab.file.parent, txt.file);
 
-        const auto& file = ids.component_file_paths[compo_id];
-
-        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-            if (fs.dir_paths.try_to_get(file.parent)) {
-                txt.file = show_data_file_input(app.mod, file.parent, txt.file);
-            } else {
-                txt.file = undefined<file_path_id>();
-            }
-        });
-
-        ImGui::TreePop();
-    }
-
-    if (update) {
-        app.add_gui_task([&app, compo_id, id, txt, name]() noexcept {
-            app.mod.ids.write([&](auto& ids) noexcept {
-                auto& compo = ids.components[compo_id];
-                if (compo.srcs.data.exists(id)) {
-                    auto& elem = compo.srcs.data.template get<
-                      external_source_definition::source_element>()[id];
-                    if (elem.type == source_type::text_file) {
-                        auto& txt_elem                               = elem.txt;
-                        txt_elem                                     = txt;
-                        compo.srcs.data.template get<name_str>()[id] = name;
-                    }
+                    u += old != txt.file;
+                } else {
+                    u += txt.file != undefined<file_path_id>();
+                    txt.file = undefined<file_path_id>();
                 }
             });
-        });
-    }
-
-    return keep_element;
-}
-
-static bool display_random_source(
-  application&                         app,
-  const component&                     compo,
-  const component_id                   compo_id,
-  const external_source_definition::id id) noexcept
-{
-    const auto& elem = get_source_element(compo, id);
-    name_str    name = get_name(compo, id);
-    external_source_definition::random_source rnd = get_rnd_source(compo, id);
-
-    auto keep_element = true;
-    auto update       = false;
-
-    if (ImGui::TreeNodeEx(
-          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
-        ImGui::SameLine();
-
-        if (ImGui::SmallButton("x"))
-            keep_element = false;
-
-        if (ImGui::InputFilteredString("name", name))
-            update = true;
-
-        if (show_random_distribution_input(rnd))
-            update = true;
-
-        ImGui::TreePop();
-    }
-
-    if (update) {
-        app.add_gui_task([&app, compo_id, id, rnd, name]() noexcept {
-            app.mod.ids.write([&](auto& ids) noexcept {
-                auto& compo = ids.components[compo_id];
-                if (compo.srcs.data.exists(id)) {
-                    auto& elem = compo.srcs.data.template get<
-                      external_source_definition::source_element>()[id];
-                    if (elem.type == source_type::random) {
-                        auto& cst_elem                               = elem.rnd;
-                        cst_elem                                     = rnd;
-                        compo.srcs.data.template get<name_str>()[id] = name;
-                    }
-                }
-            });
-        });
-    }
-
-    return keep_element;
-}
-
-static void display_external_source(application&       app,
-                                    const component_id compo_id) noexcept
-{
-    app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        if (ids.exists(compo_id))
-            return;
-
-        const auto& compo = ids.components[compo_id];
-        if (compo.srcs.data.empty())
-            return;
-
-        if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
-            std::optional<external_source_definition::id> to_del;
-            for (const auto id : compo.srcs.data) {
-                auto keep_element = true;
-                switch (get_source_element(compo, id).type) {
-                case source_type::constant:
-                    keep_element =
-                      display_constant_source(app, compo, compo_id, id);
-                    break;
-
-                case source_type::binary_file:
-                    keep_element =
-                      display_binary_source(app, ids, compo, compo_id, id);
-                    break;
-
-                case source_type::text_file:
-                    keep_element =
-                      display_text_source(app, ids, compo, compo_id, id);
-                    break;
-
-                case source_type::random:
-                    keep_element =
-                      display_random_source(app, compo, compo_id, id);
-                    break;
-                }
-
-                if (not keep_element)
-                    to_del = id;
-            }
-
-            if (to_del.has_value()) {
-                app.add_gui_task([&app, compo_id, id = *to_del]() noexcept {
-                    app.mod.ids.write([&](auto& ids) noexcept {
-                        auto& compo = ids.components[compo_id];
-                        if (compo.srcs.data.exists(id)) {
-                            compo.srcs.data.free(id);
-                        }
-                    });
-                });
-            }
 
             ImGui::TreePop();
         }
-    });
+    }
+
+    return u > 0;
+}
+
+static bool display_random_source(
+  component_editor::tab&               tab,
+  const external_source_definition::id id) noexcept
+{
+    auto& elem = get_source_element(tab.compo, id);
+    auto& name = get_name(tab.compo, id);
+    auto& rnd  = get_rnd_source(tab.compo, id);
+
+    auto u = 0;
+
+    if (ImGui::TreeNodeEx(
+          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+        ImGui::SameLine();
+
+        if (ImGui::SmallButton("x")) {
+            tab.compo.srcs.data.free(id);
+            ++u;
+        } else {
+            u += ImGui::InputFilteredString("name", name);
+            u += show_random_distribution_input(rnd);
+        }
+
+        ImGui::TreePop();
+    }
+
+    return u > 0;
+}
+
+static bool display_external_source(application&           app,
+                                    component_editor::tab& tab) noexcept
+{
+    auto u = 0;
+
+    if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (tab.compo.srcs.data.empty())
+            ImGui::TextUnformatted("No source defined");
+
+        for (const auto id : tab.compo.srcs.data) {
+            switch (get_source_element(tab.compo, id).type) {
+            case source_type::constant:
+                u += display_constant_source(tab, id);
+                break;
+
+            case source_type::binary_file:
+                u += display_binary_source(app, tab, id);
+                break;
+
+            case source_type::text_file:
+                u += display_text_source(app, tab, id);
+                break;
+
+            case source_type::random:
+                u += display_random_source(tab, id);
+                break;
+            }
+        }
+
+        ImGui::TreePop();
+    }
+
+    return u > 0;
 }
 
 static auto select_registred_path(const modeling& mod,
@@ -2252,7 +2158,7 @@ static void display_component_editor_subtable(
 
                 if (not tab.compo.srcs.data.empty()) {
                     ImGui::Separator();
-                    display_external_source(app, tab.id);
+                    u += display_external_source(app, tab);
                 }
                 ImGui::EndMenu();
             }
