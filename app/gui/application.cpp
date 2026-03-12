@@ -521,8 +521,6 @@ bool application::init() noexcept
           });
       });
 
-    mod.files.write([&](auto& fs) { fs.browse_registreds(jn); });
-
     if (auto ret = mod.fill_components(); ret.has_error()) {
         jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
             title = "Modeling initialization error";
