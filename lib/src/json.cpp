@@ -1785,10 +1785,11 @@ struct json_dearchiver::impl {
             }
         }
 
-        if (not f and is_undefined(compo_id_from_compo))
-            return error("unknown component file in {} / {} / {}", reg, dir, file);
+        if (not f  and is_undefined(compo_id_from_compo))
+                return error("unknown component file in {} / {} / {}", reg, dir, file);
 
-        const auto compo_id = ids.exists(f->component) ? f->component : compo_id_from_compo;
+        const auto compo_id = (f and ids.exists(f->component)) ? f->component : compo_id_from_compo;
+
         if (not ids.exists(compo_id))
             return error("unknown component in {} / {} / {}", reg, dir, file);
 
