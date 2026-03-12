@@ -803,19 +803,25 @@ void grid_component_editor_data::read(application& app,
 void grid_component_editor_data::write(application& app,
                                        component&   compo) noexcept
 {
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) {
-            if (not ids.exists(m_id))
-                return;
+    auto c_ptr = std::make_unique<component>(std::move(compo));
+    auto g_ptr = std::make_unique<grid_component>(std::move(m_grid));
 
-            ids.components[m_id] = compo;
-            debug::ensure(compo.type == component_type::grid);
+    app.add_gui_task(
+      [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
+          app.mod.ids.write([&](auto& ids) {
+              if (not ids.exists(id))
+                  return;
 
-            if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
-                *g = m_grid;
-            }
-        });
-    });
+              ids.components[id] = *c;
+
+              if (debug::check(c->type == component_type::grid)) {
+                  const auto grid_id = c->id.grid_id;
+
+                  if (auto* grid = ids.grid_components.try_to_get(grid_id))
+                      *grid = *g;
+              }
+          });
+      });
 }
 
 } // namespace irt

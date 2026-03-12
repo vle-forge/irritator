@@ -1256,19 +1256,25 @@ void graph_component_editor_data::read(application& app,
 void graph_component_editor_data::write(application& app,
                                         component&   compo) noexcept
 {
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) {
-            if (not ids.exists(m_id))
-                return;
+    auto c_ptr = std::make_unique<component>(std::move(compo));
+    auto g_ptr = std::make_unique<graph_component>(std::move(m_graph));
 
-            ids.components[m_id] = compo;
-            debug::ensure(compo.type == component_type::graph);
+    app.add_gui_task(
+      [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
+          app.mod.ids.write([&](auto& ids) {
+              if (not ids.exists(id))
+                  return;
 
-            if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
-                *g = m_graph;
-            }
-        });
-    });
+              ids.components[id] = *c;
+
+              if (debug::check(c->type == component_type::graph)) {
+                  const auto graph_id = c->id.graph_id;
+
+                  if (auto* graph = ids.graph_components.try_to_get(graph_id))
+                      *graph = *g;
+              }
+          });
+      });
 }
 
 } // namespace irt

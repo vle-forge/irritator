@@ -83,19 +83,25 @@ void simulation_component_editor_data::read(application& app,
 void simulation_component_editor_data::write(application& app,
                                              component&   compo) noexcept
 {
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) {
-            if (not ids.exists(m_id))
-                return;
+    auto c_ptr = std::make_unique<component>(std::move(compo));
+    auto g_ptr = std::make_unique<simulation_component>(std::move(m_sim));
 
-            ids.components[m_id] = compo;
-            debug::ensure(compo.type == component_type::simulation);
+    app.add_gui_task(
+      [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
+          app.mod.ids.write([&](auto& ids) {
+              if (not ids.exists(id))
+                  return;
 
-            if (auto* s = ids.sim_components.try_to_get(compo.id.sim_id)) {
-                *s = m_sim;
-            }
-        });
-    });
+              ids.components[id] = *c;
+
+              if (debug::check(c->type == component_type::simulation)) {
+                  const auto sim_id = c->id.sim_id;
+
+                  if (auto* sim = ids.sim_components.try_to_get(sim_id))
+                      *sim = *g;
+              }
+          });
+      });
 }
 
 } // namespace irt

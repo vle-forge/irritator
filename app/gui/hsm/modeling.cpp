@@ -1266,19 +1266,25 @@ void hsm_component_editor_data::read(application& app,
 void hsm_component_editor_data::write(application& app,
                                       component&   compo) noexcept
 {
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) {
-            if (not ids.exists(m_id))
-                return;
+    auto c_ptr = std::make_unique<component>(std::move(compo));
+    auto g_ptr = std::make_unique<hsm_component>(std::move(m_hsm));
 
-            ids.components[m_id] = compo;
-            debug::ensure(compo.type == component_type::hsm);
+    app.add_gui_task(
+      [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
+          app.mod.ids.write([&](auto& ids) {
+              if (not ids.exists(id))
+                  return;
 
-            if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {
-                *hsm = m_hsm;
-            }
-        });
-    });
+              ids.components[id] = *c;
+
+              if (debug::check(c->type == component_type::hsm)) {
+                  const auto hsm_id = c->id.hsm_id;
+
+                  if (auto* hsm = ids.hsm_components.try_to_get(hsm_id))
+                      *hsm = *g;
+              }
+          });
+      });
 }
 
 hsm_component_editor_data::hsm_component_editor_data(
