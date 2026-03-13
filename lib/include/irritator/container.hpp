@@ -1286,8 +1286,8 @@ public:
 
     constexpr ~buffer_view() noexcept = default;
 
-    constexpr buffer_view(const buffer_view& o) noexcept            = default;
-    constexpr buffer_view& operator=(const buffer_view& o) noexcept = default;
+    constexpr buffer_view(const buffer_view& o) noexcept            = delete;
+    constexpr buffer_view& operator=(const buffer_view& o) noexcept = delete;
 
     constexpr buffer_view(buffer_view&& o) noexcept
       : m_buffer{ std::exchange(o.m_buffer, nullptr) }
@@ -1295,7 +1295,9 @@ public:
 
     constexpr buffer_view& operator=(buffer_view&& o) noexcept
     {
-        buffer_view{ std::move(o) }.swap(*this);
+        if (this != &o)
+            m_buffer = std::exchange(o.m_buffer, nullptr);
+
         return *this;
     }
 
