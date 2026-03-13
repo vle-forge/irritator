@@ -446,58 +446,10 @@ struct external_source_definition {
 
         source_element() noexcept = default;
 
-        source_element(const source_element& src) noexcept
-        {
-            do_destroy();
-
-            type = src.type;
-
-            switch (type) {
-            case source_type::constant:
-                std::construct_at(std::addressof(cst), src.cst);
-                break;
-            case source_type::binary_file:
-                std::construct_at(std::addressof(bin), src.bin);
-                break;
-            case source_type::text_file:
-                std::construct_at(std::addressof(txt), src.txt);
-                break;
-            case source_type::random:
-                std::construct_at(std::addressof(rnd), src.rnd);
-                break;
-            }
-        }
-
-        ~source_element() noexcept
-        {
-            do_destroy();
-        }
-
-        union {
-            constant_source cst = constant_source{};
-            binary_source bin;
-            text_source txt;
-            random_source rnd;
-        };
-
-    private:
-        void do_destroy() noexcept
-        {
-            switch (type) {
-            case source_type::constant:
-                std::destroy_at(std::addressof(cst));
-                break;
-            case source_type::binary_file:
-                std::destroy_at(std::addressof(bin));
-                break;
-            case source_type::text_file:
-                std::destroy_at(std::addressof(txt));
-                break;
-            case source_type::random:
-                std::destroy_at(std::addressof(rnd));
-                break;
-            }
-        }
+        constant_source cst;
+        binary_source   bin;
+        text_source     txt;
+        random_source   rnd;
     };
 
     id_data_array<void,
@@ -507,35 +459,21 @@ struct external_source_definition {
                   name_str>
       data;
 
-    void emplace(const external_source_definition::id i, const source_type type,
+    void emplace(const external_source_definition::id i,
+                 const source_type                    type,
                  const std::string_view name = std::string_view()) noexcept
     {
         debug::ensure(data.exists(i));
 
-        if (data.get<source_element>(i).type != type) {
-            std::destroy_at(std::addressof(data.get<external_source_definition::source_element>(i)));
-        }
+        auto& dst = data.get<source_element>(i);
 
-        data.get<source_element>(i).type = type;
+        dst.type = type;
+        dst.cst  = constant_source{};
+        dst.bin  = binary_source{};
+        dst.txt  = text_source{};
+        dst.rnd  = random_source{};
+
         data.get<name_str>(i) = name;
-
-        switch (type) {
-        case source_type::constant:
-            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).cst));
-            break;
-
-        case source_type::binary_file:
-            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).bin));
-            break;
-
-        case source_type::text_file:
-            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).txt));
-            break;
-
-        case source_type::random:
-            std::construct_at(std::addressof(data.get<external_source_definition::source_element>(i).rnd));
-            break;
-        }
     }
 
     constant_source& alloc_constant_source(std::string_view name = "") noexcept;
