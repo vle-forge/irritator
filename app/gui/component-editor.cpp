@@ -15,6 +15,15 @@
 
 namespace irt {
 
+enum class component_editor_result_type : u8 {
+    do_store_component,
+    do_store_file_path,
+    do_store_external_source,
+    do_save_file,
+};
+
+using component_editor_result = bitflags<component_editor_result_type>;
+
 template<size_t N>
 static const char* make_title(small_string<N>&       out,
                               const std::string_view name,
@@ -513,9 +522,15 @@ static bool display_random_source(
     return u > 0;
 }
 
-static bool display_external_source(application&           app,
-                                    component_editor::tab& tab) noexcept
+static component_editor_result display_external_source(
+  application&           app,
+  component_editor::tab& tab) noexcept
 {
+    const auto  do_nothing = component_editor_result{};
+    static auto do_srcs    = component_editor_result{
+        component_editor_result_type::do_store_external_source
+    };
+
     auto u = 0;
 
     if (ImGui::TreeNodeEx("Sources", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -545,14 +560,14 @@ static bool display_external_source(application&           app,
         ImGui::TreePop();
     }
 
-    return u > 0;
+    return u > 0 ? do_srcs : do_nothing;
 }
 
-static auto select_registred_path(const modeling& mod,
+static void select_registred_path(const modeling& mod,
                                   const component_access& /*ids*/,
-                                  component_editor::tab& tab) noexcept -> bool
+                                  component_editor::tab& tab) noexcept
 {
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) {
+    mod.files.read([&](const auto& fs, const auto /*vers*/) {
         static constexpr const char* empty = "-";
 
         const auto* r       = fs.registred_paths.try_to_get(tab.file.reg);
@@ -561,8 +576,6 @@ static auto select_registred_path(const modeling& mod,
         if (not r)
             tab.file.reg = undefined<registred_path_id>();
 
-        auto u = 0;
-
         if (ImGui::BeginCombo("Path", preview)) {
             const registred_path* list = nullptr;
 
@@ -570,7 +583,6 @@ static auto select_registred_path(const modeling& mod,
                 if (is_defined(tab.file.reg)) {
                     tab.file.reg    = undefined<registred_path_id>();
                     tab.file.parent = undefined<dir_path_id>();
-                    ++u;
                 }
             }
 
@@ -586,20 +598,17 @@ static auto select_registred_path(const modeling& mod,
                     if (r_id != tab.file.reg) {
                         tab.file.reg    = r_id;
                         tab.file.parent = undefined<dir_path_id>();
-                        ++u;
                     }
                 }
                 ImGui::PopID();
             }
             ImGui::EndCombo();
         }
-
-        return u > 0;
     });
 }
 
-static auto select_dir_path(const modeling&        mod,
-                            component_editor::tab& tab) noexcept -> bool
+static void select_dir_path(const modeling&        mod,
+                            component_editor::tab& tab) noexcept
 {
     debug::ensure(is_defined(tab.file.reg));
 
@@ -613,12 +622,9 @@ static auto select_dir_path(const modeling&        mod,
         if (not d)
             tab.file.parent = undefined<dir_path_id>();
 
-        auto u = 0;
-
         if (ImGui::BeginCombo("Directory", preview)) {
             if (ImGui::Selectable(empty, d == nullptr)) {
                 tab.file.parent = undefined<dir_path_id>();
-                ++u;
             }
 
             for (const auto id : r.children) {
@@ -628,7 +634,6 @@ static auto select_dir_path(const modeling&        mod,
                         const auto d_id = fs.dir_paths.get_id(*dir);
                         if (d_id != tab.file.parent) {
                             tab.file.parent = d_id;
-                            ++u;
                         }
                     }
                     ImGui::PopID();
@@ -637,8 +642,6 @@ static auto select_dir_path(const modeling&        mod,
 
             ImGui::EndCombo();
         }
-
-        return u > 0;
     });
 }
 
@@ -693,50 +696,45 @@ static void create_dir_path(application& app,
     }
 }
 
-static auto select_file_path(application& /*app*/,
-                             const component_access& ids,
-                             component_editor::tab&  tab) noexcept -> bool
+static component_editor_result select_file_path(
+  application& /*app*/,
+  component_editor::tab& tab) noexcept
 {
     debug::ensure(is_defined(tab.file.reg));
     debug::ensure(is_defined(tab.file.parent));
 
-    auto u = 0;
+    component_editor_result ret;
 
-    if (ImGui::InputFilteredString("File##text", tab.file.path)) {
+    if (ImGui::InputFilteredString("File", tab.file.path)) {
         if (not has_extension(tab.file.path.sv(),
-                              file_path::file_type::component_file))
+                              file_path::file_type::component_file)) {
             add_extension(tab.file.path, file_path::file_type::component_file);
-
-        if (is_valid_irt_filename(tab.file.path.sv()))
-            u +=
-              tab.file.path.sv() != ids.component_file_paths[tab.id].path.sv();
+            ret |= component_editor_result_type::do_store_file_path;
+        }
     }
 
     if (ImGui::InputSmallStringMultiline(
-          "##source",
+          "##description",
           tab.desc,
           ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
           ImGuiInputTextFlags_AllowTabInput)) {
-        u += tab.desc.sv() != ids.component_descriptions[tab.id].sv();
+        ret |= component_editor_result_type::do_store_component;
     }
 
-    return u;
+    return ret;
 }
 
-template<typename ComponentEditor>
-static bool show_file_access(application&            app,
-                             const component_access& ids,
-                             ComponentEditor&        ed,
-                             component_editor::tab&  tab) noexcept
+static component_editor_result show_file_access(
+  application&            app,
+  const component_access& ids,
+  component_editor::tab&  tab) noexcept
 {
     debug::ensure(ids.exists(tab.id));
 
-    auto u = 0;
-
-    u += select_registred_path(app.mod, ids, tab);
+    select_registred_path(app.mod, ids, tab);
 
     if (is_defined(tab.file.reg)) {
-        u += select_dir_path(app.mod, tab);
+        select_dir_path(app.mod, tab);
 
         if (const auto dir_id_opt = tab.new_dir.try_take();
             dir_id_opt.has_value()) {
@@ -748,33 +746,22 @@ static bool show_file_access(application&            app,
         }
     }
 
+    component_editor_result ret;
+
     if (is_defined(tab.file.reg) and is_defined(tab.file.parent)) {
-        u += select_file_path(app, ids, tab);
+        ret |= select_file_path(app, tab);
 
-        if (u > 0) {
-            app.add_gui_task([&app, &tab]() {
-                app.mod.ids.write([&](auto& ids) noexcept {
-                    if (ids.exists(tab.id)) {
-                        auto& file  = ids.component_file_paths[tab.id];
-                        file.parent = tab.file.parent;
-                        file.path   = tab.file.path;
-                    }
-                });
-            });
-        }
+        if (is_valid_irt_filename(tab.file.path.sv()))
+            if (ImGui::Button("Save")) {
+                // if constexpr (has_store_function<ComponentEditor>)
+                //     ed.store(app.component_ed);
 
-        if constexpr (has_store_function<ComponentEditor>) {
-            ed.store(app.component_ed);
-        }
-
-        if (u > 0 and ImGui::Button("Save")) {
-            app.start_save_component(tab.id);
-
-            app.component_sel.task_update();
-        }
+                ret |= component_editor_result_type::do_store_component;
+                ret |= component_editor_result_type::do_save_file;
+            }
     }
 
-    return u > 0;
+    return ret;
 }
 
 static port_id show_input_port(component& gcompo, port_id g_port_id) noexcept
@@ -2063,14 +2050,13 @@ static void show_output_connection_packs(application&            app,
 }
 
 template<typename ComponentEditor>
-static void display_component_editor_subtable(
-  application&            app,
-  const component_access& ids,
-  ComponentEditor&        element,
-  component_editor::tab&  tab) noexcept
+static component_editor_result display_component_editor_subtable(
+  application&           app,
+  ComponentEditor&       element,
+  component_editor::tab& tab) noexcept
 {
     auto& ed = app.component_ed;
-    auto  u  = 0;
+    component_editor_result action;
 
     if (ImGui::BeginTable("##ed", 2)) {
         ImGui::TableSetupColumn(
@@ -2089,17 +2075,12 @@ static void display_component_editor_subtable(
 
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("Save")) {
-                if (show_file_access(app, ids, element, tab)) {
-                    app.add_gui_task([&app, &tab]() {
-                        app.mod.ids.write([&](auto& ids) noexcept {
-                            ids.component_file_paths[tab.id].parent =
-                              tab.file.parent;
-                            ids.component_file_paths[tab.id].path =
-                              tab.file.path;
-                            ids.component_descriptions[tab.id] = tab.desc;
-                        });
-                    });
-                }
+                action |= app.mod.ids.read(
+                  [&](const auto& ids,
+                      auto) noexcept -> component_editor_result {
+                      return show_file_access(app, ids, tab);
+                  });
+
                 ImGui::EndMenu();
             }
 
@@ -2158,7 +2139,7 @@ static void display_component_editor_subtable(
 
                 if (not tab.compo.srcs.data.empty()) {
                     ImGui::Separator();
-                    u += display_external_source(app, tab);
+                    action |= display_external_source(app, tab);
                 }
                 ImGui::EndMenu();
             }
@@ -2211,8 +2192,11 @@ static void display_component_editor_subtable(
                         });
                     }
 
-                    if (ImGui::Button("refresh i/o", size))
-                        update_component_list(app, ids, ed, tab.id);
+                    if (ImGui::Button("refresh i/o", size)) {
+                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                            update_component_list(app, ids, ed, tab.id);
+                        });
+                    }
 
                     if (not tab.compo.x.empty() or not tab.compo.y.empty()) {
                         if (ImGui::TreeNode("Ports")) {
@@ -2233,27 +2217,40 @@ static void display_component_editor_subtable(
                         if (ImGui::TreeNode("Connections")) {
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input connection")) {
-                                show_input_connections(app, ids, tab.compo);
+                                app.mod.ids.read([&](const auto& ids,
+                                                     auto) noexcept {
+                                    show_input_connections(app, ids, tab.compo);
+                                });
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output connection")) {
-                                show_output_connections(app, ids, tab.compo);
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_output_connections(
+                                        app, ids, tab.compo);
+                                  });
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input Connection pack")) {
-                                show_input_connection_packs(
-                                  app, ids, tab.compo);
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_input_connection_packs(
+                                        app, ids, tab.compo);
+                                  });
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output Connection pack")) {
-                                show_output_connection_packs(
-                                  app, ids, tab.compo);
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_output_connection_packs(
+                                        app, ids, tab.compo);
+                                  });
                                 ImGui::TreePop();
                             }
 
@@ -2272,29 +2269,23 @@ static void display_component_editor_subtable(
             tab.compo.name = copy_name;
         }
 
-        if (element.show_selected_nodes(ed, ids, tab.compo))
-            ++u;
+        if (app.mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
+                return element.show_selected_nodes(ed, ids, tab.compo);
+            }))
+            action |= component_editor_result_type::do_store_component;
+
         ImGui::EndChild();
 
         ImGui::TableSetColumnIndex(1);
-        if (element.show(ed, ids, tab.compo))
-            ++u;
+        if (app.mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
+                return element.show(ed, ids, tab.compo);
+            }))
+            action = component_editor_result_type::do_store_component;
 
         ImGui::EndTable();
     }
 
-    if (u > 0) {
-        app.add_gui_task([&app, &tab]() {
-            app.mod.ids.write([&](auto& ids) {
-                if (not ids.exists(tab.id))
-                    return;
-
-                ids.components[tab.id]             = tab.compo;
-                ids.component_file_paths[tab.id]   = tab.file;
-                ids.component_descriptions[tab.id] = tab.desc;
-            });
-        });
-    }
+    return action;
 }
 
 template<typename T, typename ID>
@@ -2306,69 +2297,128 @@ static auto display_component_editor(component_editor&      ed,
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    return app.mod.ids.read([&](const auto& ids, const auto version) noexcept
-                              -> component_editor::show_result_t {
-        if (not ids.exists(tab.id))
-            return component_editor::show_result_t::request_to_close;
+    const auto do_close = app.mod.ids.read(
+      [&](const auto& ids, const auto version) noexcept -> bool {
+          if (version != tab.version) {
+              tab.version = version;
 
-        const auto& compo   = ids.components[tab.id];
-        const auto& file    = ids.component_file_paths[tab.id];
-        const auto& desc    = ids.component_descriptions[tab.id];
-        auto*       element = data.try_to_get(id);
+              if (ids.exists(tab.id)) {
+                  tab.compo = ids.components[tab.id];
+                  tab.file  = ids.component_file_paths[tab.id];
+                  tab.desc  = ids.component_descriptions[tab.id];
+                  return false;
+              }
 
-        if (not element)
-            return component_editor::show_result_t::request_to_close;
+              return true;
+          }
 
-        if (tab.version != version) {
-            tab.version  = version;
-            tab.desc     = desc;
-            tab.file     = file;
-            tab.file.reg = undefined<registred_path_id>();
+          return false;
+      });
 
-            if (is_defined(tab.file.parent)) {
-                tab.file.reg = app.mod.files.read(
-                  [&](const auto& files, auto) noexcept -> registred_path_id {
-                      if (auto* d = files.dir_paths.try_to_get(tab.file.parent))
-                          return d->parent;
-                      return undefined<registred_path_id>();
-                  });
-            }
-        }
+    if (do_close)
+        return component_editor::show_result_t::request_to_close;
 
-        if (app.component_ed.need_to_open(tab.id))
-            app.component_ed.clear_request_to_open();
+    if (app.component_ed.need_to_open(tab.id))
+        app.component_ed.clear_request_to_open();
 
-        if (not tab.is_dock_init) {
-            ImGui::SetNextWindowDockID(app.get_main_dock_id());
-            tab.is_dock_init = true;
-        }
+    if (not tab.is_dock_init) {
+        ImGui::SetNextWindowDockID(app.get_main_dock_id());
+        tab.is_dock_init = true;
+    }
 
-        bool              is_open = true;
-        small_string<127> title;
+    bool              is_open = true;
+    small_string<127> title;
 
-        if (not ImGui::Begin(make_title(title, compo.name.sv(), tab.id),
-                             &is_open)) {
-            ImGui::End();
-            return is_open ? component_editor::show_result_t::success
-                           : component_editor::show_result_t::request_to_close;
-        }
-
-        if (not tab.file.path.empty() and is_defined(tab.file.parent)) {
-            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
-                if constexpr (has_store_function<T>) {
-                    element->store(app.component_ed);
-                }
-                app.start_save_component(tab.id);
-            }
-        }
-
-        display_component_editor_subtable(app, ids, *element, tab);
-
+    if (not ImGui::Begin(make_title(title, tab.compo.name.sv(), tab.id),
+                         &is_open)) {
         ImGui::End();
-
         return is_open ? component_editor::show_result_t::success
                        : component_editor::show_result_t::request_to_close;
-    });
+    }
+
+    component_editor_result action;
+
+    if (auto* element = data.try_to_get(id)) {
+        action |= display_component_editor_subtable(app, *element, tab);
+
+        if (not tab.file.path.empty() and is_defined(tab.file.parent) and
+            is_defined(tab.file.reg) and
+            is_valid_irt_filename(tab.file.path.sv())) {
+            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+                if constexpr (has_store_function<T>) {
+                    if (auto* element = data.try_to_get(id))
+                        element->store(app.component_ed);
+                }
+
+                action |= component_editor_result_type::do_save_file;
+            }
+        }
+
+        if (action.any()) {
+            app.add_gui_task([&app, &tab, action]() {
+                app.mod.ids.write([&](auto& ids) {
+                    if (not ids.exists(tab.id))
+                        return;
+
+                    if (action[component_editor_result_type::do_save_file]) {
+                        ids.components[tab.id]             = tab.compo;
+                        ids.component_file_paths[tab.id]   = tab.file;
+                        ids.component_descriptions[tab.id] = tab.desc;
+                        ids.components[tab.id]             = tab.compo;
+
+                        app.mod.files.read([&](const auto& fs, auto) noexcept {
+                            if (auto ret = app.mod.save(ids, fs, tab.id);
+                                not ret) {
+                                app.jn.push(
+                                  log_level::error,
+                                  [&](auto& title, auto& msg) {
+                                      title = "Component save error";
+                                      format(msg,
+                                             "Fail to save {} (part: {} {})",
+                                             tab.compo.name.sv(),
+                                             ordinal(ret.error().cat()),
+                                             ret.error().value());
+                                  });
+                            } else {
+                                app.jn.push(log_level::notice,
+                                            [&](auto& title, auto& msg) {
+                                                title = "Component save";
+                                                format(msg,
+                                                       "Save {} success",
+                                                       tab.compo.name.sv());
+                                            });
+                            }
+                        });
+
+                        return;
+                    }
+
+                    if (action
+                          [component_editor_result_type::do_store_component]) {
+                        ids.components[tab.id] = tab.compo;
+                    }
+
+                    if (action
+                          [component_editor_result_type::do_store_file_path]) {
+                        ids.component_file_paths[tab.id]   = tab.file;
+                        ids.component_descriptions[tab.id] = tab.desc;
+                    }
+
+                    if (action[component_editor_result_type::
+                                 do_store_external_source]) {
+                        ids.components[tab.id] = tab.compo;
+                    }
+                });
+            });
+
+            app.component_sel.task_update();
+        }
+    }
+
+    ImGui::End();
+
+    return is_open ? component_editor::show_result_t::success
+                   : component_editor::show_result_t::request_to_close;
 }
 
 auto component_editor::display_tab_content(tab& t) noexcept -> show_result_t
