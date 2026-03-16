@@ -280,7 +280,7 @@ bool graph_component_editor_data::show_graph(application& app,
 {
     ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
     canvas_sz        = ImGui::GetContentRegionAvail();
-    auto u           = 0;
+    auto update      = 0;
 
     if (canvas_sz.x < 50.0f)
         canvas_sz.x = 50.0f;
@@ -347,7 +347,7 @@ bool graph_component_editor_data::show_graph(application& app,
                     };
 
                     selected_nodes.emplace_back(*id);
-                    ++u;
+                    ++update;
                 } else {
                     app.jn.push(
                       log_level::error,
@@ -367,7 +367,7 @@ bool graph_component_editor_data::show_graph(application& app,
                 for (int i = 0; i < e; ++i) {
                     for (int j = i + 1; j < e; ++j) {
                         data.g.alloc_edge(selected_nodes[i], selected_nodes[j]);
-                        ++u;
+                        ++update;
                     }
                 }
                 selected_nodes.clear();
@@ -378,7 +378,7 @@ bool graph_component_editor_data::show_graph(application& app,
                 for (auto id : selected_nodes) {
                     if (data.g.nodes.exists(id)) {
                         data.g.nodes.free(id);
-                        ++u;
+                        ++update;
                     }
                 }
                 selected_nodes.clear();
@@ -389,7 +389,7 @@ bool graph_component_editor_data::show_graph(application& app,
                 for (auto id : selected_edges)
                     if (data.g.edges.exists(id)) {
                         data.g.edges.free(id);
-                        ++u;
+                        ++update;
                     }
                 selected_edges.clear();
             }
@@ -474,8 +474,6 @@ bool graph_component_editor_data::show_graph(application& app,
                 }
             }
         }
-
-        return u > 0;
     }
 
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
@@ -613,7 +611,7 @@ bool graph_component_editor_data::show_graph(application& app,
 
     draw_list->PopClipRect();
 
-    return u > 0;
+    return update > 0;
 }
 
 void graph_component_editor_data::center_camera(ImVec2 top_left,

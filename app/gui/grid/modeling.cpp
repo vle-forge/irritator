@@ -583,7 +583,6 @@ bool grid_component_editor_data::show(component_editor&       ed,
     auto  u   = 0;
 
     read(app, compo);
-
     if (ImGui::BeginChild("##grid-ed",
                           ImVec2(0, 0),
                           ImGuiChildFlags_None,
