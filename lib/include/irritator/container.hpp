@@ -3054,7 +3054,7 @@ public:
     constexpr bitflags() noexcept = default;
     explicit constexpr bitflags(unsigned long long val) noexcept;
 
-    explicit constexpr bitflags(std::same_as<EnumT> auto... args) noexcept;
+    constexpr bitflags(std::same_as<EnumT> auto... args) noexcept;
 
     constexpr bitflags& set(value_type e, bool value = true) noexcept;
     constexpr bitflags& reset(value_type e) noexcept;
@@ -3075,9 +3075,60 @@ public:
     constexpr std::size_t count() const noexcept;
     std::size_t           to_unsigned() const noexcept;
 
+    /** Sets the bits to the result of binary AND on corresponding pairs of bits of *this and other. */
+    constexpr bitflags<EnumT>& operator&=( const bitflags<EnumT>& other ) noexcept
+    {
+        m_bits &= other.m_bits;
+        return *this;
+    }
+
+    /** Sets the bits to the result of binary OR on corresponding pairs of bits of *this and other. */
+    constexpr bitflags<EnumT>& operator|=( const bitflags<EnumT>& other ) noexcept
+    {
+        m_bits |= other.m_bits;
+        return *this;
+
+    }
+
+    /** Sets the bits to the result of binary XOR on corresponding pairs of bits of *this and other. */
+    constexpr bitflags<EnumT>& operator^=( const bitflags<EnumT>& other ) noexcept
+    {
+        m_bits ^= other.m_bits;
+        return *this;
+    }
+
+    /** Returns a temporary copy of *this with all bits flipped (binary NOT). */
+    constexpr bitflags<EnumT> operator~() const
+    {
+        bitflags<EnumT> copy = ~m_bits;
+        return copy;
+    }
+
+    /** Returns a bitflags<EnumT> containing the result of binary AND on corresponding pairs of bits of lhs and rhs. */
+    constexpr friend bitflags<EnumT> operator&( const bitflags<EnumT>& lhs,
+                              const bitflags<EnumT>& rhs ) noexcept
+    {
+        return lhs.m_bits & rhs.m_bits;
+    }
+
+    /** Returns a bitflags<EnumT> containing the result of binary OR on corresponding pairs of bits of lhs and rhs. */
+    constexpr friend bitflags<EnumT> operator|( const bitflags<EnumT>& lhs,
+                              const bitflags<EnumT>& rhs ) noexcept
+    {
+        return lhs.m_bits | rhs.m_bits;
+    }
+
+    /** Returns a bitflags<EnumT> containing the result of binary XOR on corresponding pairs of bits of lhs and rhs. */
+    constexpr friend bitflags<EnumT> operator^( const bitflags<EnumT>& lhs,
+                              const bitflags<EnumT>& rhs ) noexcept
+    {
+        return lhs.m_bits ^ rhs.m_bits;
+    }
+
 private:
     std::bitset<max_bits> m_bits;
 };
+
 
 /**
  * @brief A dynamic allocation object pool.
