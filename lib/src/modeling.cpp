@@ -1454,6 +1454,40 @@ void component_access::free(const component_id compo_id) noexcept
     ids.free(compo_id);
 }
 
+status modeling::save(const component_access& ids,
+                      const file_access&      fs,
+                      const component_id      id) noexcept
+{
+    if (not ids.exists(id))
+        return new_error(modeling_errc::component_load_error);
+
+    const auto filenames = make_component_files(fs, ids, id);
+
+    if (not filenames.has_value())
+        return new_error(modeling_errc::file_error);
+
+    auto cfile =
+      file::open(filenames->component, file_mode{ file_open_options::write });
+    if (cfile.has_error()) [[unlikely]]
+        return cfile.error();
+
+    json_archiver j;
+    if (auto ret = j(*this, fs, ids, id, *cfile); ret.has_error())
+        return ret.error();
+    return success();
+
+    auto dfile =
+      file::open(filenames->description, file_mode{ file_open_options::write });
+
+    if (dfile.has_value()) [[likely]] {
+        const auto& str = ids.component_descriptions[id];
+        if (not str.empty())
+            dfile->write(str.sv());
+    }
+
+    return success();
+}
+
 status modeling::save(const component_id compo_id) noexcept
 {
     return ids.read([&](const auto& ids, auto) -> status {

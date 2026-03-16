@@ -1642,6 +1642,10 @@ public:
 
     status save(const component_id c) noexcept;
 
+    status save(const component_access& ids,
+                const file_access&      fs,
+                const component_id      id) noexcept;
+
     status import(const component_id         src,
                   const component_id         dst,
                   const std::span<position>  positions  = {},
