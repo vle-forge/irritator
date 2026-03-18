@@ -630,6 +630,7 @@ public:
     vector<component_id>         node_components;
     vector<float>                node_areas;
     vector<std::array<edge, 2>>  edges_nodes;
+    vector<float>                edges_penwidths;
 
     std::string_view main_id;
 

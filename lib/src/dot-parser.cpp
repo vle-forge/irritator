@@ -433,8 +433,9 @@ private:
             const auto c = g.nodes.capacity();
 
             if (not(g.nodes.reserve(c) and g.node_names.resize(c) and
-                    g.node_ids.resize(c) and g.node_labels.resize(c) and g.node_positions.resize(c) and
-                    g.node_areas.resize(c) and g.node_components.resize(c)))
+                    g.node_ids.resize(c) and g.node_labels.resize(c) and
+                    g.node_positions.resize(c) and g.node_areas.resize(c) and
+                    g.node_components.resize(c)))
                 return new_error(modeling_errc::dot_memory_insufficient);
         }
 
@@ -898,7 +899,7 @@ private:
             } else if (iequals(left_str, "component"sv)) {
                 g.node_components[irt::get_index(id)] =
                   search_component(right_str);
-            if (iequals(left_str, "label"sv)) {
+            } else if (iequals(left_str, "label"sv)) {
                 g.node_labels[irt::get_index(id)] = g.buffer.append(right_str);
             } else if (iequals(left_str, "pos"sv)) {
                 g.node_positions[irt::get_index(id)] = to_2_or_3_pos(right_str);
@@ -918,7 +919,59 @@ private:
         }
     }
 
-    bool parse_attributes(const graph_edge_id /*id*/) noexcept { return true; }
+    bool parse_attributes(const graph_edge_id id) noexcept
+    {
+        using namespace std::string_view_literals;
+
+        if (not check_minimum_tokens(1))
+            return error<msg_id::missing_token>(line);
+
+        auto bracket = pop_token();
+        if (not bracket[element_type::opening_bracket])
+            return error<msg_id::missing_token>(line);
+
+        for (;;) {
+            if (not check_minimum_tokens(1))
+                return error<msg_id::missing_token>(line);
+
+            auto left = pop_token();
+            if (left[element_type::closing_bracket])
+                return true;
+
+            if (not check_minimum_tokens(3))
+                return error<msg_id::missing_token>(line);
+
+            if (not left.is_string())
+                return error<msg_id::missing_token>(line);
+
+            auto middle = pop_token();
+            if (not middle[element_type::equals])
+                return error<msg_id::missing_token>(line);
+
+            auto right = pop_token();
+            if (not right.is_string())
+                return error<msg_id::missing_token>(line);
+
+            const auto left_str  = get_and_free_string(left);
+            const auto right_str = get_and_free_string(right);
+
+            if (iequals(left_str, "penwidth"sv)) {
+                g.edges_penwidths[id] = to_float(right_str);
+            } else {
+                warning<msg_id::unknown_attribute>(left_str, right_str, line);
+            }
+
+            auto close_backet_or_comma = pop_token();
+            if (close_backet_or_comma[element_type::comma] or
+                close_backet_or_comma[element_type::semicolon]) {
+                continue;
+            } else if (close_backet_or_comma[element_type::closing_bracket]) {
+                return true;
+            } else {
+                return error<msg_id::missing_token>(line);
+            }
+        }
+    }
 
     bool parse_edge() noexcept
     {
@@ -973,26 +1026,18 @@ private:
             }
         }
 
-        if (not g.edges.can_alloc(1)) {
-            if (not g.edges.grow<2, 1>()) {
-                ec = new_error(modeling_errc::dot_memory_insufficient);
-                return error<msg_id::missing_token>(line);
-            }
-
-            const auto c = g.edges.capacity();
-            if (not g.edges.reserve(c) or not g.edges_nodes.resize(c)) {
-                ec = new_error(modeling_errc::dot_memory_insufficient);
-                return error<msg_id::missing_token>(line);
-            }
+        const auto new_edge_id = g.alloc_edge(*from_id, *to_id);
+        if (new_edge_id.has_error()) {
+            ec = new_error(modeling_errc::dot_memory_insufficient);
+            return error<msg_id::missing_token>(line);
         }
 
-        const auto new_edge_id                               = g.edges.alloc();
-        g.edges_nodes[irt::get_index(new_edge_id)][0].first  = *from_id;
-        g.edges_nodes[irt::get_index(new_edge_id)][0].second = port_src;
-        g.edges_nodes[irt::get_index(new_edge_id)][1].first  = *to_id;
-        g.edges_nodes[irt::get_index(new_edge_id)][1].second = port_dst;
+        const auto id               = *new_edge_id;
+        g.edges_nodes[id][0].second = port_src;
+        g.edges_nodes[id][1].second = port_dst;
+        g.edges_penwidths[id]       = 0.f;
 
-        return next_is_attributes() ? parse_attributes(new_edge_id) : true;
+        return next_is_attributes() ? parse_attributes(id) : true;
     }
 
     bool parse_node() noexcept
@@ -1221,6 +1266,7 @@ graph::graph(const graph& other) noexcept
   , node_components(other.node_components)
   , node_areas(other.node_areas)
   , edges_nodes(other.edges_nodes)
+  , edges_penwidths(other.edges_penwidths)
   , main_id(other.main_id)
   , flags(other.flags)
 {
@@ -1244,6 +1290,7 @@ graph::graph(graph&& other) noexcept
   , node_components(std::move(other.node_components))
   , node_areas(std::move(other.node_areas))
   , edges_nodes(std::move(other.edges_nodes))
+  , edges_penwidths(std::move(other.edges_penwidths))
   , main_id(std::move(other.main_id))
   , buffer(std::move(other.buffer))
   , file(other.file)
@@ -1264,6 +1311,7 @@ graph& graph::operator=(const graph& other) noexcept
     node_components = other.node_components;
     node_areas      = other.node_areas;
     edges_nodes     = other.edges_nodes;
+    edges_penwidths = other.edges_penwidths;
     main_id         = other.main_id;
     flags           = other.flags;
 
@@ -1292,6 +1340,7 @@ graph& graph::operator=(graph&& other) noexcept
     node_components = std::move(other.node_components);
     node_areas      = std::move(other.node_areas);
     edges_nodes     = std::move(other.edges_nodes);
+    edges_penwidths = std::move(other.edges_penwidths);
     main_id         = std::move(other.main_id);
     buffer          = std::move(other.buffer);
     main_id         = other.main_id;
@@ -1359,7 +1408,8 @@ expected<void> graph::init_scale_free_graph(double       alpha,
                     return new_error(
                       modeling_errc::graph_children_container_full);
 
-                if (not edges_nodes.resize(edges.capacity()))
+                if (not edges_nodes.resize(edges.capacity()) or
+                    not edges_penwidths.resize(edges.capacity()))
                     return new_error(
                       modeling_errc::graph_children_container_full);
             }
@@ -1367,6 +1417,7 @@ expected<void> graph::init_scale_free_graph(double       alpha,
             auto new_edge_id                  = edges.alloc();
             edges_nodes[new_edge_id][0].first = *first;
             edges_nodes[new_edge_id][1].first = second;
+            edges_penwidths[new_edge_id]      = 0.f;
         }
     }
 
@@ -1431,7 +1482,8 @@ expected<void> graph::init_small_world_graph(double       probability,
                     return new_error(
                       modeling_errc::graph_connection_container_full);
 
-                if (not edges_nodes.resize(edges.capacity()))
+                if (not edges_nodes.resize(edges.capacity()) or
+                    not edges_penwidths.resize(edges.capacity()))
                     return new_error(
                       modeling_errc::graph_connection_container_full);
             }
@@ -1457,9 +1509,9 @@ expected<graph_node_id> graph::alloc_node() noexcept
 
         const auto c = nodes.capacity();
 
-        if (not(node_names.resize(c) and node_ids.resize(c) and node_labels.resize(c) and
-                node_positions.resize(c) and node_components.resize(c) and
-                node_areas.resize(c)))
+        if (not(node_names.resize(c) and node_ids.resize(c) and
+                node_labels.resize(c) and node_positions.resize(c) and
+                node_components.resize(c) and node_areas.resize(c)))
             return new_error(modeling_errc::graph_children_container_full);
     }
 
@@ -1488,6 +1540,9 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 
         if (not edges_nodes.resize(edges.capacity()))
             return new_error(modeling_errc::graph_connection_container_full);
+
+        if (not edges_penwidths.resize(edges.capacity()))
+            return new_error(modeling_errc::graph_connection_container_full);
     }
 
     const auto id             = edges.alloc();
@@ -1495,19 +1550,22 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
     edges_nodes[id][1].first  = dst;
     edges_nodes[id][0].second = std::string_view();
     edges_nodes[id][1].second = std::string_view();
+    edges_penwidths[id]       = 0.f;
     return id;
 }
 
 expected<void> graph::reserve(int n, int e) noexcept
 {
     if (not(nodes.reserve(n) and node_names.resize(n) and node_ids.resize(n) and
-        node_labels.resize(n) and 
+            node_labels.resize(n) and
             node_positions.resize(n, std::array<float, 3>{ 0.f, 0.f, 0.f }) and
             node_components.resize(n, undefined<component_id>()) and
             node_areas.resize(n, 1.f)))
         return new_error(modeling_errc::dot_memory_insufficient);
 
-    if (not(edges.reserve(e) and edges_nodes.resize(e, std::array<edge, 2>())))
+    if (not(edges.reserve(e) and
+            edges_nodes.resize(e, std::array<edge, 2>()) and
+            edges_penwidths.resize(e)))
         return new_error(modeling_errc::dot_memory_insufficient);
 
     return success();
@@ -1524,10 +1582,10 @@ void graph::swap(graph& g) noexcept
     node_components.swap(g.node_components);
     node_areas.swap(g.node_areas);
     edges_nodes.swap(g.edges_nodes);
+    edges_penwidths.swap(g.edges_penwidths);
+
     main_id.swap(g.main_id);
-
     std::swap(buffer, g.buffer);
-
     std::swap(flags, g.flags);
 }
 
@@ -1542,6 +1600,7 @@ void graph::clear() noexcept
     node_components.clear();
     node_areas.clear();
     edges_nodes.clear();
+    edges_penwidths.clear();
     main_id = std::string_view{};
 
     buffer.clear();
@@ -1574,7 +1633,9 @@ static std::optional<reg_dir_file> build_component_string(
 {
     if (const auto* d = fs.dir_paths.try_to_get(file_path.parent))
         if (const auto* r = fs.registred_paths.try_to_get(d->parent))
-            return reg_dir_file{ .r = r->name.sv(), .d = d->path.sv(), .f = file_path.path.sv() };
+            return reg_dir_file{ .r = r->name.sv(),
+                                 .d = d->path.sv(),
+                                 .f = file_path.path.sv() };
 
     return std::nullopt;
 }
@@ -1615,7 +1676,7 @@ expected<void> write_dot_stream(const modeling& mod,
         }
 
         if (not g.node_labels[idx].empty())
-            out = fmt::format_to(", label=\"{}\"", g.node_labels[idx]);
+            out = fmt::format_to(out, ", label=\"{}\"", g.node_labels[idx]);
 
         mod.files.read([&](const auto& fs, auto) noexcept {
             mod.ids.read([&](const auto& ids, auto) noexcept {

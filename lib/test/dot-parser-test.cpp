@@ -66,10 +66,10 @@ int main()
         auto ret = irt::parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
-        expect(eq(ret->nodes.size(), 4u));
+        expect(eq(ret->nodes.size(), 3u));
 
         const auto table = ret->make_toc();
-        expect(eq(table.ssize(), 4));
+        expect(eq(table.ssize(), 3));
 
         expect(table.get("A"sv) >> fatal);
         expect(table.get("B"sv) >> fatal);
@@ -88,6 +88,38 @@ int main()
         expect(eq(ret->node_labels[idx_A], "a"sv));
         expect(eq(ret->node_labels[idx_B], "b"sv));
         expect(eq(ret->node_labels[idx_C], "c"sv));
+    };
+
+    "small-and-simple-with-penwidth-attributes"_test = [&mod] {
+        const std::string_view buf = R"(digraph D {
+            A
+            B
+            A -- B [penwidth=123.]
+        })";
+
+        auto ret = irt::parse_dot_buffer(mod, buf);
+        expect(ret.has_value() >> fatal);
+
+        expect(eq(ret->nodes.size(), 2u));
+
+        const auto table = ret->make_toc();
+        expect(eq(table.ssize(), 2));
+
+        expect(table.get("A"sv) >> fatal);
+        expect(table.get("B"sv) >> fatal);
+        const auto id_A  = *table.get("A"sv);
+        const auto id_B  = *table.get("B"sv);
+        const auto idx_A = irt::get_index(id_A);
+        const auto idx_B = irt::get_index(id_B);
+
+        expect(eq(ret->node_names[idx_A], "A"sv));
+        expect(eq(ret->node_names[idx_B], "B"sv));
+
+        expect(eq(ret->edges.size(), 1u));
+        expect(ge(ret->edges_penwidths.size(), 1u));
+        expect(ret->edges_nodes[0][0].first == id_A);
+        expect(ret->edges_nodes[0][1].first == id_B);
+        expect(eq(ret->edges_penwidths[0], 123.));
     };
 
     "small-and-simple-with-attributes"_test = [&mod] {
@@ -169,7 +201,6 @@ int main()
         expect(eq(ret->node_positions[idx_C][0], 5.0f));
         expect(eq(ret->node_positions[idx_C][1], 6.0f));
     };
-
 
     "small-with-port-and-simple-with-attributes"_test = [&mod] {
         const std::string_view buf = R"(digraph D {
