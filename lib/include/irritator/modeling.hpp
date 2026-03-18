@@ -625,6 +625,7 @@ public:
 
     vector<std::string_view>     node_names;
     vector<std::string_view>     node_ids;
+    vector<std::string_view>     node_labels;
     vector<std::array<float, 3>> node_positions;
     vector<component_id>         node_components;
     vector<float>                node_areas;
@@ -633,7 +634,7 @@ public:
     std::string_view main_id;
 
     string_buffer buffer; /**< Stores all strings from @a node_names, @a
-                             node_ids and @a main_id.*/
+                             node_ids, node_labels and @a main_id.*/
 
     file_path_id file = undefined<file_path_id>();
 

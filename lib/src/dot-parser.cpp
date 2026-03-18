@@ -433,7 +433,7 @@ private:
             const auto c = g.nodes.capacity();
 
             if (not(g.nodes.reserve(c) and g.node_names.resize(c) and
-                    g.node_ids.resize(c) and g.node_positions.resize(c) and
+                    g.node_ids.resize(c) and g.node_labels.resize(c) and g.node_positions.resize(c) and
                     g.node_areas.resize(c) and g.node_components.resize(c)))
                 return new_error(modeling_errc::dot_memory_insufficient);
         }
@@ -443,6 +443,7 @@ private:
 
         g.node_names[idx]     = g.buffer.append(name);
         g.node_ids[idx]       = std::string_view{};
+        g.node_labels[idx]    = std::string_view{};
         g.node_positions[idx] = { 0.f, 0.f, 0.f };
         g.node_areas[idx]     = 0.f;
         name_to_node_id.data.emplace_back(g.node_names[idx], id);
@@ -897,6 +898,8 @@ private:
             } else if (iequals(left_str, "component"sv)) {
                 g.node_components[irt::get_index(id)] =
                   search_component(right_str);
+            if (iequals(left_str, "label"sv)) {
+                g.node_labels[irt::get_index(id)] = g.buffer.append(right_str);
             } else if (iequals(left_str, "pos"sv)) {
                 g.node_positions[irt::get_index(id)] = to_2_or_3_pos(right_str);
             } else {
@@ -1213,6 +1216,7 @@ graph::graph(const graph& other) noexcept
   , edges(other.edges)
   , node_names(other.node_names)
   , node_ids(other.node_ids)
+  , node_labels(other.node_labels)
   , node_positions(other.node_positions)
   , node_components(other.node_components)
   , node_areas(other.node_areas)
@@ -1221,9 +1225,10 @@ graph::graph(const graph& other) noexcept
   , flags(other.flags)
 {
     for (const auto id : other.nodes) {
-        const auto idx  = get_index(id);
-        node_names[idx] = buffer.append(other.node_names[idx]);
-        node_ids[idx]   = buffer.append(other.node_ids[idx]);
+        const auto idx   = get_index(id);
+        node_names[idx]  = buffer.append(other.node_names[idx]);
+        node_ids[idx]    = buffer.append(other.node_ids[idx]);
+        node_labels[idx] = buffer.append(other.node_labels[idx]);
     }
 
     main_id = buffer.append(other.main_id);
@@ -1234,6 +1239,7 @@ graph::graph(graph&& other) noexcept
   , edges(std::move(other.edges))
   , node_names(std::move(other.node_names))
   , node_ids(std::move(other.node_ids))
+  , node_labels(std::move(other.node_labels))
   , node_positions(std::move(other.node_positions))
   , node_components(std::move(other.node_components))
   , node_areas(std::move(other.node_areas))
@@ -1253,6 +1259,7 @@ graph& graph::operator=(const graph& other) noexcept
     edges           = other.edges;
     node_names      = other.node_names;
     node_ids        = other.node_ids;
+    node_labels     = other.node_labels;
     node_positions  = other.node_positions;
     node_components = other.node_components;
     node_areas      = other.node_areas;
@@ -1261,9 +1268,10 @@ graph& graph::operator=(const graph& other) noexcept
     flags           = other.flags;
 
     for (const auto id : other.nodes) {
-        const auto idx  = get_index(id);
-        node_names[idx] = buffer.append(other.node_names[idx]);
-        node_ids[idx]   = buffer.append(other.node_ids[idx]);
+        const auto idx   = get_index(id);
+        node_names[idx]  = buffer.append(other.node_names[idx]);
+        node_ids[idx]    = buffer.append(other.node_ids[idx]);
+        node_labels[idx] = buffer.append(other.node_labels[idx]);
     }
 
     main_id = buffer.append(other.main_id);
@@ -1279,6 +1287,7 @@ graph& graph::operator=(graph&& other) noexcept
     edges           = std::move(other.edges);
     node_names      = std::move(other.node_names);
     node_ids        = std::move(other.node_ids);
+    node_labels     = std::move(other.node_labels);
     node_positions  = std::move(other.node_positions);
     node_components = std::move(other.node_components);
     node_areas      = std::move(other.node_areas);
@@ -1306,6 +1315,7 @@ expected<void> graph::init_scale_free_graph(double       alpha,
         const auto id       = nodes.alloc();
         node_names[id]      = std::string_view();
         node_ids[id]        = std::string_view();
+        node_labels[id]     = std::string_view();
         node_positions[id]  = { 0.f, 0.f, 0.f };
         node_components[id] = compo_id;
         node_areas[id]      = 1.f;
@@ -1377,6 +1387,7 @@ expected<void> graph::init_small_world_graph(double       probability,
         const auto id       = nodes.alloc();
         node_names[id]      = std::string_view();
         node_ids[id]        = std::string_view();
+        node_labels[id]     = std::string_view();
         node_positions[id]  = { 0.f, 0.f, 0.f };
         node_components[id] = compo_id;
         node_areas[id]      = 1.f;
@@ -1446,7 +1457,7 @@ expected<graph_node_id> graph::alloc_node() noexcept
 
         const auto c = nodes.capacity();
 
-        if (not(node_names.resize(c) and node_ids.resize(c) and
+        if (not(node_names.resize(c) and node_ids.resize(c) and node_labels.resize(c) and
                 node_positions.resize(c) and node_components.resize(c) and
                 node_areas.resize(c)))
             return new_error(modeling_errc::graph_children_container_full);
@@ -1456,6 +1467,7 @@ expected<graph_node_id> graph::alloc_node() noexcept
     const auto idx       = get_index(id);
     node_names[idx]      = std::string_view();
     node_ids[idx]        = std::string_view();
+    node_labels[idx]     = std::string_view();
     node_positions[idx]  = { 0.f, 0.f, 0.f };
     node_components[idx] = undefined<component_id>();
     node_areas[idx]      = 1.f;
@@ -1489,6 +1501,7 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 expected<void> graph::reserve(int n, int e) noexcept
 {
     if (not(nodes.reserve(n) and node_names.resize(n) and node_ids.resize(n) and
+        node_labels.resize(n) and 
             node_positions.resize(n, std::array<float, 3>{ 0.f, 0.f, 0.f }) and
             node_components.resize(n, undefined<component_id>()) and
             node_areas.resize(n, 1.f)))
@@ -1506,6 +1519,7 @@ void graph::swap(graph& g) noexcept
     edges.swap(g.edges);
     node_names.swap(g.node_names);
     node_ids.swap(g.node_ids);
+    node_labels.swap(g.node_labels);
     node_positions.swap(g.node_positions);
     node_components.swap(g.node_components);
     node_areas.swap(g.node_areas);
@@ -1523,6 +1537,7 @@ void graph::clear() noexcept
     edges.clear();
     node_names.clear();
     node_ids.clear();
+    node_labels.clear();
     node_positions.clear();
     node_components.clear();
     node_areas.clear();
@@ -1598,6 +1613,9 @@ expected<void> write_dot_stream(const modeling& mod,
                                  g.node_positions[idx][0],
                                  g.node_positions[idx][1]);
         }
+
+        if (not g.node_labels[idx].empty())
+            out = fmt::format_to(", label=\"{}\"", g.node_labels[idx]);
 
         mod.files.read([&](const auto& fs, auto) noexcept {
             mod.ids.read([&](const auto& ids, auto) noexcept {
