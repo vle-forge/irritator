@@ -328,7 +328,12 @@ private:
     }
 #endif
 
-    auto to_3float(std::string_view str) noexcept -> std::array<float, 3>
+    /// Read two or three comma separated reals with or without the
+    /// exclamation final character at last position.
+    ///
+    /// @param str The string buffer to parse.
+    /// @return The float vector read.
+    auto to_2_or_3_pos(std::string_view str) noexcept -> std::array<float, 3>
     {
         if (const auto first = to_float_str(str); first.has_value()) {
             const auto& [float_1, s_str] = *first;
@@ -438,7 +443,7 @@ private:
 
         g.node_names[idx]     = g.buffer.append(name);
         g.node_ids[idx]       = std::string_view{};
-        g.node_positions[idx] = { 0.f, 0.f };
+        g.node_positions[idx] = { 0.f, 0.f, 0.f };
         g.node_areas[idx]     = 0.f;
         name_to_node_id.data.emplace_back(g.node_names[idx], id);
         sort_before_search = true;
@@ -893,7 +898,7 @@ private:
                 g.node_components[irt::get_index(id)] =
                   search_component(right_str);
             } else if (iequals(left_str, "pos"sv)) {
-                g.node_positions[irt::get_index(id)] = to_3float(right_str);
+                g.node_positions[irt::get_index(id)] = to_2_or_3_pos(right_str);
             } else {
                 warning<msg_id::unknown_attribute>(left_str, right_str, line);
             }
@@ -1301,7 +1306,7 @@ expected<void> graph::init_scale_free_graph(double       alpha,
         const auto id       = nodes.alloc();
         node_names[id]      = std::string_view();
         node_ids[id]        = std::string_view();
-        node_positions[id]  = { 0.f, 0.f };
+        node_positions[id]  = { 0.f, 0.f, 0.f };
         node_components[id] = compo_id;
         node_areas[id]      = 1.f;
     }
@@ -1372,7 +1377,7 @@ expected<void> graph::init_small_world_graph(double       probability,
         const auto id       = nodes.alloc();
         node_names[id]      = std::string_view();
         node_ids[id]        = std::string_view();
-        node_positions[id]  = { 0.f, 0.f };
+        node_positions[id]  = { 0.f, 0.f, 0.f };
         node_components[id] = compo_id;
         node_areas[id]      = 1.f;
     }
@@ -1451,7 +1456,7 @@ expected<graph_node_id> graph::alloc_node() noexcept
     const auto idx       = get_index(id);
     node_names[idx]      = std::string_view();
     node_ids[idx]        = std::string_view();
-    node_positions[idx]  = { 0.f, 0.f };
+    node_positions[idx]  = { 0.f, 0.f, 0.f };
     node_components[idx] = undefined<component_id>();
     node_areas[idx]      = 1.f;
 
@@ -1583,13 +1588,13 @@ expected<void> write_dot_stream(const modeling& mod,
 
         if (g.node_positions[idx][2] != 0.f) {
             out = fmt::format_to(out,
-                                 ", pos=\"{},{},{}\"",
+                                 ", pos=\"{},{},{}!\"",
                                  g.node_positions[idx][0],
                                  g.node_positions[idx][1],
                                  g.node_positions[idx][2]);
         } else {
             out = fmt::format_to(out,
-                                 ", pos=\"{},{}\"",
+                                 ", pos=\"{},{}!\"",
                                  g.node_positions[idx][0],
                                  g.node_positions[idx][1]);
         }
