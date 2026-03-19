@@ -1224,26 +1224,6 @@ void hsm_component_editor_data::clear_selected_nodes() noexcept
     m_selected_links.clear();
 }
 
-void hsm_component_editor_data::store(component_editor& ed) noexcept
-{
-    auto& app = container_of(&ed, &application::component_ed);
-
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) {
-            if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {
-                for (auto i = 1, e = length(hsm->machine.states); i != e; ++i) {
-                    if (m_enabled[i]) {
-                        const auto pos =
-                          ImNodes::GetNodeEditorSpacePos(get_state(i));
-                        hsm->positions[i].x = pos.x;
-                        hsm->positions[i].y = pos.y;
-                    }
-                }
-            }
-        });
-    });
-}
-
 void hsm_component_editor_data::read(application& app,
                                      component&   compo) noexcept
 {
@@ -1263,11 +1243,57 @@ void hsm_component_editor_data::read(application& app,
     });
 }
 
+static void update_enabled_states(const hierarchical_state_machine& hsm,
+                                  std::span<bool> vec) noexcept
+{
+    if (debug::check(vec.size() ==
+                     hierarchical_state_machine::max_number_of_state)) {
+        std::ranges::fill(vec, false);
+
+        for (auto i = 0, e = length(hsm.states); i != e; ++i) {
+            if (hsm.states[i].if_transition !=
+                hierarchical_state_machine::invalid_state_id) {
+                vec[hsm.states[i].if_transition] = true;
+                vec[i]                           = true;
+            }
+            if (hsm.states[i].else_transition !=
+                hierarchical_state_machine::invalid_state_id) {
+                vec[hsm.states[i].else_transition] = true;
+                vec[i]                             = true;
+            }
+            if (hsm.states[i].super_id !=
+                hierarchical_state_machine::invalid_state_id) {
+                vec[hsm.states[i].super_id] = true;
+                vec[i]                      = true;
+            }
+            if (hsm.states[i].sub_id !=
+                hierarchical_state_machine::invalid_state_id) {
+                vec[hsm.states[i].sub_id] = true;
+                vec[i]                    = true;
+            }
+        }
+    }
+}
+
 void hsm_component_editor_data::write(application& app,
                                       component&   compo) noexcept
 {
-    auto c_ptr = std::make_unique<component>(std::move(compo));
-    auto g_ptr = std::make_unique<hsm_component>(std::move(m_hsm));
+
+    // Stores the ImNodes hidden position into the HSM component.
+
+    auto vec = std::array<bool, max_number_of_state>{};
+    update_enabled_states(m_hsm.machine, std::span(vec.data(), vec.size()));
+
+    for (auto i = 1, e = length(m_hsm.machine.states); i != e; ++i) {
+        if (vec[i]) {
+            const auto pos       = ImNodes::GetNodeEditorSpacePos(get_state(i));
+            m_hsm.positions[i].x = pos.x;
+            m_hsm.positions[i].y = pos.y;
+        }
+    }
+
+    auto c_ptr = std::make_unique<component>(compo);
+    auto g_ptr = std::make_unique<hsm_component>(m_hsm);
 
     app.add_gui_task(
       [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
@@ -1280,8 +1306,9 @@ void hsm_component_editor_data::write(application& app,
               if (debug::check(c->type == component_type::hsm)) {
                   const auto hsm_id = c->id.hsm_id;
 
-                  if (auto* hsm = ids.hsm_components.try_to_get(hsm_id))
+                  if (auto* hsm = ids.hsm_components.try_to_get(hsm_id)) {
                       *hsm = *g;
+                  }
               }
           });
       });
@@ -1309,33 +1336,11 @@ hsm_component_editor_data::hsm_component_editor_data(
     style.Flags |=
       ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 
-    m_enabled.fill(false);
-
     m_hsm.machine.states[0].super_id = hsm_t::invalid_state_id;
     m_hsm.machine.top_state          = 0;
 
-    for (auto i = 0, e = length(m_hsm.machine.states); i != e; ++i) {
-        if (m_hsm.machine.states[i].if_transition !=
-            hierarchical_state_machine::invalid_state_id) {
-            m_enabled[m_hsm.machine.states[i].if_transition] = true;
-            m_enabled[i]                                     = true;
-        }
-        if (m_hsm.machine.states[i].else_transition !=
-            hierarchical_state_machine::invalid_state_id) {
-            m_enabled[m_hsm.machine.states[i].else_transition] = true;
-            m_enabled[i]                                       = true;
-        }
-        if (m_hsm.machine.states[i].super_id !=
-            hierarchical_state_machine::invalid_state_id) {
-            m_enabled[m_hsm.machine.states[i].super_id] = true;
-            m_enabled[i]                                = true;
-        }
-        if (m_hsm.machine.states[i].sub_id !=
-            hierarchical_state_machine::invalid_state_id) {
-            m_enabled[m_hsm.machine.states[i].sub_id] = true;
-            m_enabled[i]                              = true;
-        }
-    }
+    m_enabled.fill(false);
+    update_enabled_states(m_hsm.machine, m_enabled);
 
     for (auto i = 0, e = length(m_hsm.machine.states); i != e; ++i)
         if (m_enabled[i])

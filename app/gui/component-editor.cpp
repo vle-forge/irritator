@@ -56,11 +56,6 @@ constexpr T* find(data_array<T, Identifier>& data,
     return nullptr;
 }
 
-template<typename T>
-concept has_store_function = requires(T t, component_editor& ed) {
-    { t.store(ed) } -> std::same_as<void>;
-};
-
 static bool push_back_if_not_find(application&          app,
                                   vector<component_id>& vec,
                                   const component_id    id) noexcept
@@ -753,10 +748,6 @@ static component_editor_result show_file_access(
 
         if (is_valid_irt_filename(tab.file.path.sv()))
             if (ImGui::Button("Save")) {
-                // if constexpr (has_store_function<ComponentEditor>)
-                //     ed.store(app.component_ed);
-
-                ret |= component_editor_result_type::do_store_component;
                 ret |= component_editor_result_type::do_save_file;
             }
     }
@@ -2055,7 +2046,7 @@ static component_editor_result display_component_editor_subtable(
   ComponentEditor&       element,
   component_editor::tab& tab) noexcept
 {
-    auto& ed = app.component_ed;
+    auto&                   ed = app.component_ed;
     component_editor_result action;
 
     if (ImGui::BeginTable("##ed", 2)) {
@@ -2345,11 +2336,6 @@ static auto display_component_editor(component_editor&      ed,
             is_defined(tab.file.reg) and
             is_valid_irt_filename(tab.file.path.sv())) {
             if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
-                if constexpr (has_store_function<T>) {
-                    if (auto* element = data.try_to_get(id))
-                        element->store(app.component_ed);
-                }
-
                 action |= component_editor_result_type::do_save_file;
             }
         }

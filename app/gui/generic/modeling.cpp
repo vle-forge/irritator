@@ -1396,50 +1396,6 @@ void generic_component_editor_data::clear_selected_nodes() noexcept
     selected_nodes.clear();
 }
 
-void generic_component_editor_data::store(component_editor& ed) noexcept
-{
-    auto& app = container_of(&ed, &application::component_ed);
-
-    app.add_gui_task([&]() {
-        app.mod.ids.write([&](auto& ids) noexcept {
-            if (not ids.exists(m_id))
-                return;
-
-            auto& compo = ids.components[m_id];
-            if (compo.type != component_type::generic)
-                return;
-
-            auto& gen = ids.generic_components.get(compo.id.generic_id);
-
-            for (auto& c : gen.children) {
-                const auto id  = gen.children.get_id(c);
-                const auto idx = get_index(id);
-
-                const auto pos =
-                  ImNodes::GetNodeEditorSpacePos(pack_node_child(id));
-                gen.children_positions[idx].x = pos.x;
-                gen.children_positions[idx].y = pos.y;
-            }
-
-            compo.x.template for_each<position>(
-              [&](const auto id, auto& position) noexcept {
-                  const auto pos =
-                    ImNodes::GetNodeEditorSpacePos(pack_node_X(id));
-                  position.x = pos.x;
-                  position.y = pos.y;
-              });
-
-            compo.y.template for_each<position>(
-              [&](const auto id, auto& position) noexcept {
-                  const auto pos =
-                    ImNodes::GetNodeEditorSpacePos(pack_node_Y(id));
-                  position.x = pos.x;
-                  position.y = pos.y;
-              });
-        });
-    });
-}
-
 void generic_component_editor_data::read(application& app,
                                          component&   compo) noexcept
 {
@@ -1463,8 +1419,36 @@ void generic_component_editor_data::read(application& app,
 void generic_component_editor_data::write(application& app,
                                           component&   compo) noexcept
 {
-    auto c_ptr = std::make_unique<component>(std::move(compo));
-    auto g_ptr = std::make_unique<generic_component>(std::move(m_generic));
+    /*
+     * Stores the ImNodes hidden attributes into
+     * generic_component position of nodes.
+     */
+
+    for (auto& c : m_generic.children) {
+        const auto id  = m_generic.children.get_id(c);
+        const auto idx = get_index(id);
+
+        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_child(id));
+        m_generic.children_positions[idx].x = pos.x;
+        m_generic.children_positions[idx].y = pos.y;
+    }
+
+    compo.x.template for_each<position>(
+      [&](const auto id, auto& position) noexcept {
+          const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_X(id));
+          position.x     = pos.x;
+          position.y     = pos.y;
+      });
+
+    compo.y.template for_each<position>(
+      [&](const auto id, auto& position) noexcept {
+          const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_Y(id));
+          position.x     = pos.x;
+          position.y     = pos.y;
+      });
+
+    auto c_ptr = std::make_unique<component>(compo);
+    auto g_ptr = std::make_unique<generic_component>(m_generic);
 
     app.add_gui_task(
       [&app, c = std::move(c_ptr), g = std::move(g_ptr), id = m_id]() {
@@ -1477,8 +1461,9 @@ void generic_component_editor_data::write(application& app,
               if (debug::check(c->type == component_type::generic)) {
                   const auto gen_id = c->id.generic_id;
 
-                  if (auto* gen = ids.generic_components.try_to_get(gen_id))
+                  if (auto* gen = ids.generic_components.try_to_get(gen_id)) {
                       *gen = *g;
+                  }
               }
           });
       });

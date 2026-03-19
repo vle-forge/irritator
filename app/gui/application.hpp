@@ -830,14 +830,6 @@ public:
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
-    /**
-     * Stores the @c hsm_component_editor_data hidden attributes into hsm
-     * component. For example the position of nodes (in ImNodes). This function
-     * is called before switching to another component or before saving the
-     * component.
-     */
-    void store(component_editor& ed) noexcept;
-
 private:
     bool show_hsm() noexcept;
     bool show_menu() noexcept;
@@ -892,16 +884,6 @@ public:
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
-    /** Stores the @c generic_component_editor_data hidden attributes into
-     * generic_component. For example the position of nodes (in ImNodes). This
-     * function is called before switching to another component or before saving
-     * the component. */
-    void store(component_editor& ed) noexcept;
-
-    //! Before running any ImNodes functions, pre-move all children to force
-    //! position for all new children.
-    // void update_position() noexcept;
-
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
@@ -919,6 +901,9 @@ public:
     ImVector<int>    selected_links;
     ImVector<int>    selected_nodes;
     vector<child_id> update_position_list;
+
+    std::unique_ptr<component>         m_compo_buffer;
+    std::unique_ptr<generic_component> m_generic_buffer;
 
     int   automatic_layout_iteration_limit = 2048;
     float automatic_layout_x_distance      = 350.f;
