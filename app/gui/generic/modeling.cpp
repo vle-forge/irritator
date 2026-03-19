@@ -695,10 +695,10 @@ static bool show_graph(const component_access& ids,
     return u > 0;
 }
 
-static bool add_popup_menuitem(application&            app,
-                               generic_component&      s_parent,
-                               const dynamics_type     type,
-                               const ImVec2            click_pos)
+static bool add_popup_menuitem(application&        app,
+                               generic_component&  s_parent,
+                               const dynamics_type type,
+                               const ImVec2        click_pos) noexcept
 {
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
         if (not(s_parent.children.can_alloc(1) or
@@ -719,6 +719,7 @@ static bool add_popup_menuitem(application&            app,
         s_parent.children_positions[idx].x = click_pos.x;
         s_parent.children_positions[idx].y = click_pos.y;
         s_parent.children_parameters[idx].init_from(type);
+        ImNodes::SetNodeScreenSpacePos(pack_node_child(id), click_pos);
 
         return true;
     }
@@ -726,10 +727,10 @@ static bool add_popup_menuitem(application&            app,
     return false;
 }
 
-static bool add_popup_menuitem(application&            app,
-                               generic_component&      s_parent,
-                               const u8                type,
-                               const ImVec2            click_pos)
+static bool add_popup_menuitem(application&       app,
+                               generic_component& s_parent,
+                               const u8           type,
+                               const ImVec2       click_pos) noexcept
 {
     auto d_type = enum_cast<dynamics_type>(type);
 
@@ -775,7 +776,7 @@ static bool add_component_to_current(application&            app,
                                      const component_id      parent_id,
                                      generic_component&      parent_compo,
                                      const component_id      compo_to_add_id,
-                                     ImVec2 click_pos = ImVec2())
+                                     ImVec2                  click_pos)
 {
     if (not ids.can_add(parent_id, compo_to_add_id)) {
         app.jn.push(
@@ -860,23 +861,23 @@ static bool show_popup_menuitem(const component_access&        ids,
                       });
                 else
                     u += add_component_to_current(
-                      app, ids, parent_id, s_parent, res.id);
+                      app, ids, parent_id, s_parent, res.id, click_pos);
             }
         }
 
         ImGui::Separator();
 
         if (ImGui::BeginMenu("QSS1")) {
-            auto       i = ordinal(dynamics_type::qss1_integrator);
-            const auto e = ordinal(dynamics_type::qss1_exp) + 1;
+            auto           i = ordinal(dynamics_type::qss1_integrator);
+            constexpr auto e = ordinal(dynamics_type::qss1_exp) + 1;
             for (; i != e; ++i)
                 u += add_popup_menuitem(app, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("QSS2")) {
-            auto       i = ordinal(dynamics_type::qss2_integrator);
-            const auto e = ordinal(dynamics_type::qss2_exp) + 1;
+            auto           i = ordinal(dynamics_type::qss2_integrator);
+            constexpr auto e = ordinal(dynamics_type::qss2_exp) + 1;
 
             for (; i != e; ++i)
                 u += add_popup_menuitem(app, s_parent, i, click_pos);
@@ -884,8 +885,8 @@ static bool show_popup_menuitem(const component_access&        ids,
         }
 
         if (ImGui::BeginMenu("QSS3")) {
-            auto       i = ordinal(dynamics_type::qss3_integrator);
-            const auto e = ordinal(dynamics_type::qss3_exp) + 1;
+            auto           i = ordinal(dynamics_type::qss3_integrator);
+            constexpr auto e = ordinal(dynamics_type::qss3_exp) + 1;
 
             for (; i != e; ++i)
                 u += add_popup_menuitem(app, s_parent, i, click_pos);
@@ -893,56 +894,38 @@ static bool show_popup_menuitem(const component_access&        ids,
         }
 
         if (ImGui::BeginMenu("Logical")) {
-            u += add_popup_menuitem(app,
-                                    s_parent,
-                                    dynamics_type::logical_and_2,
-                                    click_pos);
-            u += add_popup_menuitem(app,
-                                    s_parent,
-                                    dynamics_type::logical_or_2,
-                                    click_pos);
-            u += add_popup_menuitem(app,
-                                    s_parent,
-                                    dynamics_type::logical_and_3,
-                                    click_pos);
-            u += add_popup_menuitem(app,
-                                    s_parent,
-                                    dynamics_type::logical_or_3,
-                                    click_pos);
-            u += add_popup_menuitem(app,
-                                    s_parent,
-                                    dynamics_type::logical_invert,
-                                    click_pos);
+            u += add_popup_menuitem(
+              app, s_parent, dynamics_type::logical_and_2, click_pos);
+            u += add_popup_menuitem(
+              app, s_parent, dynamics_type::logical_or_2, click_pos);
+            u += add_popup_menuitem(
+              app, s_parent, dynamics_type::logical_and_3, click_pos);
+            u += add_popup_menuitem(
+              app, s_parent, dynamics_type::logical_or_3, click_pos);
+            u += add_popup_menuitem(
+              app, s_parent, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
         u +=
           add_popup_menuitem(app, s_parent, dynamics_type::counter, click_pos);
         u += add_popup_menuitem(app, s_parent, dynamics_type::queue, click_pos);
-        u += add_popup_menuitem(app,
-                                s_parent,
-                                dynamics_type::dynamic_queue,
-                                click_pos);
-        u += add_popup_menuitem(app,
-                                s_parent,
-                                dynamics_type::priority_queue,
-                                click_pos);
+        u += add_popup_menuitem(
+          app, s_parent, dynamics_type::dynamic_queue, click_pos);
+        u += add_popup_menuitem(
+          app, s_parent, dynamics_type::priority_queue, click_pos);
         u += add_popup_menuitem(
           app, s_parent, dynamics_type::generator, click_pos);
         u +=
           add_popup_menuitem(app, s_parent, dynamics_type::constant, click_pos);
         u += add_popup_menuitem(
           app, s_parent, dynamics_type::time_func, click_pos);
-        u += add_popup_menuitem(app,
-                                s_parent,
-                                dynamics_type::accumulator_2,
-                                click_pos);
+        u += add_popup_menuitem(
+          app, s_parent, dynamics_type::accumulator_2, click_pos);
         u += add_popup_menuitem(
           app, s_parent, dynamics_type::hsm_wrapper, click_pos);
-        u += add_popup_menuitem(app,
-                                s_parent,
-                                dynamics_type::simulation_wrapper,
-                                click_pos);
+        u += add_popup_menuitem(
+          app, s_parent, dynamics_type::simulation_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
