@@ -958,193 +958,183 @@ static bool is_link_created(application&            app,
 {
     int start = 0, end = 0;
 
-    if (ImNodes::IsLinkCreated(&start, &end)) {
-        if (not s_parent.connections.can_alloc() and
-            not s_parent.connections.grow<2, 1>()) {
-            error_not_enough_connections(app, s_parent.connections.capacity());
+    if (not ImNodes::IsLinkCreated(&start, &end))
+        return false;
+
+    if (not s_parent.connections.can_alloc() and
+        not s_parent.connections.grow<2, 1>()) {
+        error_not_enough_connections(app, s_parent.connections.capacity());
+        return false;
+    }
+
+    if (is_input_X(start)) {
+        auto port_idx = unpack_X(start);
+        auto port_id  = parent.x.get_from_index(port_idx);
+        debug::ensure(is_defined(port_id));
+
+        if (is_output_Y(end)) {
+            error_not_connection_auth(app);
             return false;
         }
 
-        if (is_input_X(start)) {
-            auto port_idx = unpack_X(start);
-            auto port_id  = parent.x.get_from_index(port_idx);
+        auto  child_port = unpack_in(end);
+        auto* child = s_parent.children.try_to_get_from_pos(child_port.first);
+        debug::ensure(child);
+
+        if (child->type == child_type::model) {
+            auto port_in = static_cast<int>(child_port.second);
+
+            if (auto ret = s_parent.connect_input(
+                  port_id, *child, connection::port{ .model = port_in });
+                !ret)
+                debug_log("fail to create link");
+            parent.state = component_status::modified;
+            return true;
+        } else {
+            if (not ids.exists(child->id.compo_id))
+                return false;
+
+            const auto& compo_dst = ids.components[child->id.compo_id];
+
+            const auto port_dst_id =
+              compo_dst.x.get_from_index(child_port.second);
+            if (is_undefined(port_dst_id))
+                return false;
+
+            if (auto ret = s_parent.connect_input(
+                  port_id, *child, connection::port{ .compo = port_dst_id });
+                !ret)
+                debug_log("fail to create link\n");
+            parent.state = component_status::modified;
+            return true;
+        }
+    } else {
+        auto  ch_port_src = unpack_out(start);
+        auto* ch_src = s_parent.children.try_to_get_from_pos(ch_port_src.first);
+        debug::ensure(ch_src);
+
+        if (is_output_Y(end)) {
+            auto port_idx = unpack_Y(end);
+            auto port_id  = parent.y.get_from_index(port_idx);
             debug::ensure(is_defined(port_id));
 
-            if (is_output_Y(end)) {
-                error_not_connection_auth(app);
-                return false;
-            }
+            if (ch_src->type == child_type::model) {
+                auto port_out = static_cast<int>(ch_port_src.second);
 
-            auto  child_port = unpack_in(end);
-            auto* child =
-              s_parent.children.try_to_get_from_pos(child_port.first);
-            debug::ensure(child);
-
-            if (child->type == child_type::model) {
-                auto port_in = static_cast<int>(child_port.second);
-
-                if (auto ret = s_parent.connect_input(
-                      port_id, *child, connection::port{ .model = port_in });
+                if (auto ret = s_parent.connect_output(
+                      port_id, *ch_src, connection::port{ .model = port_out });
                     !ret)
-                    debug_log("fail to create link");
+                    debug_log("fail to create link\n");
                 parent.state = component_status::modified;
+                return true;
             } else {
-                if (not ids.exists(child->id.compo_id))
+                if (not ids.exists(ch_src->id.compo_id))
                     return false;
 
-                const auto& compo_dst = ids.components[child->id.compo_id];
-
-                const auto port_dst_id =
-                  compo_dst.x.get_from_index(child_port.second);
-                if (is_undefined(port_dst_id))
+                const auto& compo_src = ids.components[ch_src->id.compo_id];
+                const auto  port_out =
+                  compo_src.y.get_from_index(ch_port_src.second);
+                if (is_undefined(port_out))
                     return false;
 
-                if (auto ret = s_parent.connect_input(
-                      port_id,
-                      *child,
-                      connection::port{ .compo = port_dst_id });
+                if (auto ret = s_parent.connect_output(
+                      port_id, *ch_src, connection::port{ .compo = port_id });
                     !ret)
                     debug_log("fail to create link\n");
                 parent.state = component_status::modified;
                 return true;
             }
         } else {
-            auto  ch_port_src = unpack_out(start);
-            auto* ch_src =
-              s_parent.children.try_to_get_from_pos(ch_port_src.first);
-            debug::ensure(ch_src);
+            auto  ch_port_dst = unpack_in(end);
+            auto* ch_dst =
+              s_parent.children.try_to_get_from_pos(ch_port_dst.first);
+            debug::ensure(ch_dst);
 
-            if (is_output_Y(end)) {
-                auto port_idx = unpack_Y(end);
-                auto port_id  = parent.y.get_from_index(port_idx);
-                debug::ensure(is_defined(port_id));
+            if (ch_src->type == child_type::model) {
+                auto port_out = static_cast<int>(ch_port_src.second);
+                if (ch_dst->type == child_type::model) {
+                    auto port_in = static_cast<int>(ch_port_dst.second);
 
-                if (ch_src->type == child_type::model) {
-                    auto port_out = static_cast<int>(ch_port_src.second);
-
-                    if (auto ret = s_parent.connect_output(
-                          port_id,
+                    if (auto ret = s_parent.connect(
+                          app.mod,
                           *ch_src,
-                          connection::port{ .model = port_out });
+                          connection::port{ .model = port_out },
+                          *ch_dst,
+                          connection::port{ .model = port_in });
                         !ret)
                         debug_log("fail to create link\n");
                     parent.state = component_status::modified;
                     return true;
                 } else {
-                    if (not ids.exists(ch_src->id.compo_id))
+                    if (not ids.exists(ch_dst->id.compo_id))
                         return false;
 
-                    const auto& compo_src = ids.components[ch_src->id.compo_id];
-                    const auto  port_out =
-                      compo_src.y.get_from_index(ch_port_src.second);
-                    if (is_undefined(port_out))
+                    const auto& compo_dst = ids.components[ch_dst->id.compo_id];
+                    const auto  port_dst_id =
+                      compo_dst.x.get_from_index(ch_port_dst.second);
+                    if (is_undefined(port_dst_id))
                         return false;
 
-                    if (auto ret = s_parent.connect_output(
-                          port_id,
+                    if (auto ret = s_parent.connect(
+                          app.mod,
                           *ch_src,
-                          connection::port{ .compo = port_id });
+                          connection::port{ .model = port_out },
+                          *ch_dst,
+                          connection::port{ .compo = port_dst_id });
                         !ret)
                         debug_log("fail to create link\n");
                     parent.state = component_status::modified;
                     return true;
                 }
             } else {
-                auto  ch_port_dst = unpack_in(end);
-                auto* ch_dst =
-                  s_parent.children.try_to_get_from_pos(ch_port_dst.first);
-                debug::ensure(ch_dst);
+                if (not ids.exists(ch_src->id.compo_id))
+                    return false;
 
-                if (ch_src->type == child_type::model) {
-                    auto port_out = static_cast<int>(ch_port_src.second);
-                    if (ch_dst->type == child_type::model) {
-                        auto port_in = static_cast<int>(ch_port_dst.second);
+                const auto& compo_src = ids.components[ch_src->id.compo_id];
+                const auto  port_out =
+                  compo_src.y.get_from_index(ch_port_src.second);
 
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .model = port_out },
-                              *ch_dst,
-                              connection::port{ .model = port_in });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                        return true;
-                    } else {
-                        if (not ids.exists(ch_dst->id.compo_id))
-                            return false;
+                if (is_undefined(port_out))
+                    return false;
 
-                        const auto& compo_dst =
-                          ids.components[ch_dst->id.compo_id];
-                        const auto port_dst_id =
-                          compo_dst.x.get_from_index(ch_port_dst.second);
-                        if (is_undefined(port_dst_id))
-                            return false;
+                if (ch_dst->type == child_type::model) {
+                    auto port_in = static_cast<int>(ch_port_dst.second);
 
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .model = port_out },
-                              *ch_dst,
-                              connection::port{ .compo = port_dst_id });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                        return true;
-                    }
+                    if (auto ret = s_parent.connect(
+                          app.mod,
+                          *ch_src,
+                          connection::port{ .compo = port_out },
+                          *ch_dst,
+                          connection::port{ .model = port_in });
+                        !ret)
+                        debug_log("fail to create link\n");
+                    parent.state = component_status::modified;
+                    return true;
                 } else {
-                    if (not ids.exists(ch_src->id.compo_id))
+                    if (not ids.exists(ch_dst->id.compo_id))
                         return false;
 
-                    const auto& compo_src = ids.components[ch_src->id.compo_id];
-                    const auto  port_out =
-                      compo_src.y.get_from_index(ch_port_src.second);
+                    const auto& compo_dst = ids.components[ch_dst->id.compo_id];
+                    const auto  port_in =
+                      compo_dst.x.get_from_index(ch_port_dst.second);
 
-                    if (is_undefined(port_out))
+                    if (is_undefined(port_in))
                         return false;
 
-                    if (ch_dst->type == child_type::model) {
-                        auto port_in = static_cast<int>(ch_port_dst.second);
-
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .compo = port_out },
-                              *ch_dst,
-                              connection::port{ .model = port_in });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                        return true;
-                    } else {
-                        if (not ids.exists(ch_dst->id.compo_id))
-                            return false;
-
-                        const auto& compo_dst =
-                          ids.components[ch_dst->id.compo_id];
-                        const auto port_in =
-                          compo_dst.x.get_from_index(ch_port_dst.second);
-
-                        if (is_undefined(port_in))
-                            return false;
-
-                        if (auto ret = s_parent.connect(
-                              app.mod,
-                              *ch_src,
-                              connection::port{ .compo = port_out },
-                              *ch_dst,
-                              connection::port{ .compo = port_in });
-                            !ret)
-                            debug_log("fail to create link\n");
-                        parent.state = component_status::modified;
-                        return true;
-                    }
+                    if (auto ret = s_parent.connect(
+                          app.mod,
+                          *ch_src,
+                          connection::port{ .compo = port_out },
+                          *ch_dst,
+                          connection::port{ .compo = port_in });
+                        !ret)
+                        debug_log("fail to create link\n");
+                    parent.state = component_status::modified;
+                    return true;
                 }
             }
         }
     }
-
-    return false;
 }
 
 static bool is_link_destroyed(generic_component& s_parent) noexcept
