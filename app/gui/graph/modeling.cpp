@@ -896,7 +896,9 @@ void graph_component_editor_data::graph_component_editor_data::show(
         ImGui::EndPopup();
     }
 
-    if (automatic_layout and not m_graph.g.nodes.empty()) {
+    if (automatic_layout and
+        m_graph.g_type != graph_component::graph_type::dot_file and
+        not m_graph.g.nodes.empty()) {
         bool again = compute_automatic_layout(m_graph);
         if (not again) {
             iteration        = 0;
@@ -1017,6 +1019,10 @@ bool graph_component_editor_data::show(component_editor& ed,
                     break;
 
                 case job::build_small_world_required:
+                    scale_free_builder = { .ed       = &ed,
+                                           .graph_ed = this,
+                                           .g_id     = graph_id };
+
                     app.add_gui_task([&app, builder = scale_free_builder]() {
                         app.mod.ids.write([&](auto& ids) {
                             const auto c_id = builder.graph_ed->get_id();
@@ -1051,6 +1057,10 @@ bool graph_component_editor_data::show(component_editor& ed,
                     break;
 
                 case job::build_dot_graph_required:
+                    scale_free_builder = { .ed       = &ed,
+                                           .graph_ed = this,
+                                           .g_id     = graph_id };
+
                     app.add_gui_task([&app, builder = scale_free_builder]() {
                         app.mod.ids.write([&](auto& ids) {
                             const auto c_id = builder.graph_ed->get_id();
@@ -1079,6 +1089,10 @@ bool graph_component_editor_data::show(component_editor& ed,
                                 graph.g_type =
                                   graph_component::graph_type::dot_file;
                                 builder.graph_ed->pdf.reset();
+
+                                // @TODO update-position only and only if the
+                                // graph.g.node_positions[] is empty (the dot
+                                // file does not have position).
 
                                 if (not graph.g.nodes.empty()) {
                                     graph.update_position();
