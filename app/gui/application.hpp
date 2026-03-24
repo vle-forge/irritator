@@ -464,6 +464,33 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
+/**
+ * @brief The file_selector class display triple-combobox to select (new) file.
+ */
+class file_selector
+{
+public:
+    struct combo_box_result {
+        registred_path_id reg_id  = undefined<registred_path_id>();
+        dir_path_id       dir_id  = undefined<dir_path_id>();
+        file_path_id      file_id = undefined<file_path_id>();
+
+        int close = false; //<! @c true if user click on save or close.
+        int save  = false; //<! @c true if user click on save.
+    };
+
+    combo_box_result combobox(application&               app,
+                              const file_access&         fs,
+                              const registred_path_id    reg_id,
+                              const dir_path_id          dir_id,
+                              const file_path_id         file_id,
+                              const file_path::file_type type) noexcept;
+
+private:
+    atomic_request_buffer<dir_path_id>  new_dir_;
+    atomic_request_buffer<file_path_id> new_file_;
+};
+
 struct plot_copy {
     small_string<16u>        name;
     ring_buffer<observation> linear_outputs;
