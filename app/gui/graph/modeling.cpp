@@ -775,6 +775,37 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
     return u > 0;
 }
 
+void save_dot_file(application&       app,
+                   const graph&       g,
+                   const file_path_id file_id) noexcept
+{
+    auto g_ptr = std::make_unique<graph>(g);
+
+    app.add_gui_task([&app, g = std::move(g_ptr), file_id]() {
+        app.mod.files.read([&](const auto& fs, auto) {
+            app.mod.ids.read([&](const auto& ids, auto) {
+                const auto file = fs.get_fs_path(file_id);
+                if (file.has_error()) {
+                    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                        t = "Graph component editor";
+                        format(m, "Fail to open file {}\n", ordinal(file_id));
+                    });
+
+                    return;
+                }
+
+                const auto ret = write_dot_file(fs, ids, *g, *file);
+                if (ret.has_error()) {
+                    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                        t = "Graph component editor";
+                        format(m, "Fail to write file {}\n", file->string());
+                    });
+                }
+            });
+        });
+    });
+}
+
 void graph_component_editor_data::graph_component_editor_data::show(
   application& app,
   component&   compo) noexcept
@@ -792,8 +823,37 @@ void graph_component_editor_data::graph_component_editor_data::show(
             u += show_small_world_menu(app);
             u += show_dot_file_menu(app);
             ImGui::Separator();
+
+            const auto already_saved_defined =
+              is_defined(reg) and is_defined(dir) and is_defined(file);
+            auto close = false;
+
+            ImGui::BeginDisabled(not already_saved_defined);
             if (ImGui::MenuItem("Save")) {
-                show_save = true;
+                save_dot_file(app, m_graph.g, file);
+            }
+            ImGui::EndDisabled();
+
+            if (ImGui::BeginMenu("Save as...")) {
+                close = app.mod.files.read([&](const auto& fs,
+                                               auto) noexcept -> bool {
+                    const auto selected = file_select.combobox(
+                      app, fs, reg, dir, file, file_path::file_type::dot_file);
+
+                    reg  = selected.reg_id;
+                    dir  = selected.dir_id;
+                    file = selected.file_id;
+
+                    if (selected.save)
+                        save_dot_file(app, m_graph.g, selected.file_id);
+
+                    return selected.close;
+                });
+
+                if (close)
+                    ImGui::CloseCurrentPopup();
+
+                ImGui::EndMenu();
             }
 
             ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -855,26 +915,28 @@ void graph_component_editor_data::graph_component_editor_data::show(
 
         if (ImGui::Button("Save")) {
             if (auto f = make_file(app.mod, file); f.has_value()) {
-                if (write_dot_file(app.mod, m_graph.g, *f)) {
-                    m_graph.g_type = graph_component::graph_type::dot_file;
-                    m_graph.param  = { .dot = { .dir = dir, .file = file } };
-                } else {
-                    app.add_gui_task([&app, id = file]() {
-                        app.mod.files.write(
-                          [&](auto& fs) { fs.remove_file(id); });
-                    });
+                // if (write_dot_file(app.mod, m_graph.g, *f)) {
+                //     m_graph.g_type =
+                //     graph_component::graph_type::dot_file; m_graph.param
+                //     = { .dot = { .dir = dir, .file = file } };
+                // } else {
+                //     app.add_gui_task([&app, id = file]() {
+                //         app.mod.files.write(
+                //           [&](auto& fs) { fs.remove_file(id); });
+                //     });
 
-                    clear_file_access();
+                //     clear_file_access();
 
-                    app.jn.push(
-                      log_level::error,
-                      [](auto& t, auto& m, const auto& f) {
-                          t = "Fail to save dot file";
-                          format(
-                            m, "{}", reinterpret_cast<const char*>(f.c_str()));
-                      },
-                      *f);
-                }
+                //     app.jn.push(
+                //       log_level::error,
+                //       [](auto& t, auto& m, const auto& f) {
+                //           t = "Fail to save dot file";
+                //           format(
+                //             m, "{}", reinterpret_cast<const
+                //             char*>(f.c_str()));
+                //       },
+                //       *f);
+                // }
             } else {
                 app.add_gui_task([&app, id = file]() {
                     app.mod.files.write([&](auto& fs) { fs.remove_file(id); });
@@ -1090,9 +1152,9 @@ bool graph_component_editor_data::show(component_editor& ed,
                                   graph_component::graph_type::dot_file;
                                 builder.graph_ed->pdf.reset();
 
-                                // @TODO update-position only and only if the
-                                // graph.g.node_positions[] is empty (the dot
-                                // file does not have position).
+                                // @TODO update-position only and only if
+                                // the graph.g.node_positions[] is empty
+                                // (the dot file does not have position).
 
                                 if (not graph.g.nodes.empty()) {
                                     graph.update_position();

@@ -731,6 +731,8 @@ public:
     component_id get_id() const noexcept { return m_id; }
 
 private:
+    file_selector file_select;
+
     graph_component::scale_free_param  psf{};
     graph_component::small_world_param psw{};
     graph_component::dot_file_param    pdf{};
