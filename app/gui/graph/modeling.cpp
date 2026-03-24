@@ -814,7 +814,6 @@ void graph_component_editor_data::graph_component_editor_data::show(
 
     ImGui::BeginDisabled(running.test());
 
-    static bool show_save = false;
     int         u         = 0;
 
     if (ImGui::BeginMenuBar()) {
@@ -902,61 +901,6 @@ void graph_component_editor_data::graph_component_editor_data::show(
     }
 
     ImGui::EndDisabled();
-
-    if (show_save)
-        ImGui::OpenPopup("Save dot graph");
-
-    if (ImGui::BeginPopupModal(
-          "Save dot graph", &show_save, ImGuiWindowFlags_AlwaysAutoResize)) {
-        const auto can_save = file_path_selector(
-          app, file_path_selector_option::force_dot_extension, reg, dir, file);
-
-        ImGui::BeginDisabled(can_save == false);
-
-        if (ImGui::Button("Save")) {
-            if (auto f = make_file(app.mod, file); f.has_value()) {
-                // if (write_dot_file(app.mod, m_graph.g, *f)) {
-                //     m_graph.g_type =
-                //     graph_component::graph_type::dot_file; m_graph.param
-                //     = { .dot = { .dir = dir, .file = file } };
-                // } else {
-                //     app.add_gui_task([&app, id = file]() {
-                //         app.mod.files.write(
-                //           [&](auto& fs) { fs.remove_file(id); });
-                //     });
-
-                //     clear_file_access();
-
-                //     app.jn.push(
-                //       log_level::error,
-                //       [](auto& t, auto& m, const auto& f) {
-                //           t = "Fail to save dot file";
-                //           format(
-                //             m, "{}", reinterpret_cast<const
-                //             char*>(f.c_str()));
-                //       },
-                //       *f);
-                // }
-            } else {
-                app.add_gui_task([&app, id = file]() {
-                    app.mod.files.write([&](auto& fs) { fs.remove_file(id); });
-                });
-
-                clear_file_access();
-            }
-            show_save = false;
-            ImGui::CloseCurrentPopup();
-        }
-
-        ImGui::EndDisabled();
-        ImGui::SameLine();
-
-        if (ImGui::Button("Close")) {
-            show_save = false;
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
-    }
 
     if (automatic_layout and
         m_graph.g_type != graph_component::graph_type::dot_file and
