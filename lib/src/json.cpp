@@ -7150,7 +7150,7 @@ status json_archiver::operator()(project&                pj,
         return new_error(project_errc::empty_project);
 
     auto* parent = pj.tn_head();
-    if (parent)
+    if (not parent)
         return new_error(project_errc::empty_project);
 
     debug::ensure(head_id == parent->id);
