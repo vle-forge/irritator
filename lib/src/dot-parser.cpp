@@ -242,7 +242,7 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        mod.journal.push(
+        jn.push(
           log_level::warning,
           [](auto& title, auto& msg, auto& format, auto args) {
               title = "Dot parser warning";
@@ -261,7 +261,7 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        mod.journal.push(
+        jn.push(
           log_level::error,
           [](auto& title, auto& msg, auto& format, auto args) {
               title = "Dot parser error";
@@ -372,7 +372,9 @@ public:
 
     using token_ring_t = irt::small_ring_buffer<token, ring_length>;
 
-    const modeling& mod;
+    const file_access&      fs;
+    const component_access& ids;
+    journal_handler&        jn;
 
     irt::id_array<str_id>    strings_ids;
     irt::vector<std::string> strings;
@@ -395,13 +397,17 @@ public:
      *  @param stream The default input stream.
      *  @param start_fill_tokens Start the parsing/tokenizing in constructor.
      */
-    explicit input_stream_buffer(const modeling& mod_,
-                                 std::istream&   stream,
-                                 bool start_fill_tokens = true) noexcept
-      : mod{ mod_ }
-      , strings_ids(64)
-      , strings(64)
-      , is(stream)
+    input_stream_buffer(const file_access&      fs_,
+                        const component_access& ids_,
+                        journal_handler&        jn_,
+                        std::istream&           stream,
+                        bool start_fill_tokens = true) noexcept
+      : fs{ fs_ }
+      , ids{ ids_ }
+      , jn{ jn_ }
+      , strings_ids{ 64 }
+      , strings{ 64 }
+      , is{ stream }
     {
         if (start_fill_tokens)
             fill_tokens();
@@ -852,8 +858,46 @@ private:
     {
         const auto dot_compo = split_colon(str);
 
-        return mod.search_component_by_name(
-          dot_compo.reg, dot_compo.dir, dot_compo.file);
+        const auto [r, d] = [&]() -> std::pair<registred_path_id, dir_path_id> {
+            const auto r_id = fs.find_registred_path_by_name(dot_compo.reg);
+            const auto d_id =
+              is_defined(r_id)
+                ? fs.find_directory_in_registry(r_id, dot_compo.dir)
+                : fs.find_directory(dot_compo.dir);
+
+            if (is_undefined(d_id)) {
+                jn.push(log_level::error, [&](auto& t, auto& m) {
+                    t = "Dot parser error";
+                    format(m,
+                           "Directory {} not found in registered path {}",
+                           dot_compo.dir,
+                           dot_compo.reg);
+                });
+
+                return std::make_pair(undefined<registred_path_id>(),
+                                      undefined<dir_path_id>());
+            }
+
+            return std::make_pair(fs.dir_paths.get(d_id).parent, d_id);
+        }();
+
+        for (const auto id : ids) {
+            const auto& f = ids.component_file_paths[id];
+
+            if (f.reg == r and f.parent == d and f.path == dot_compo.file)
+                return id;
+        }
+
+        jn.push(log_level::error, [&](auto& t, auto& m) {
+            t = "Dot parser error";
+            format(m,
+                   "File {} not found in directory {} from {}",
+                   dot_compo.file,
+                   dot_compo.dir,
+                   dot_compo.reg);
+        });
+
+        return undefined<component_id>();
     }
 
     bool parse_attributes(const graph_node_id id) noexcept
@@ -1233,23 +1277,27 @@ public:
     {}
 };
 
-expected<graph> parse_dot_buffer(const modeling&        mod,
-                                 const std::string_view buffer) noexcept
+expected<graph> parse_dot_buffer(const file_access&      fs,
+                                 const component_access& ids,
+                                 const std::string_view  buffer,
+                                 journal_handler&        jn) noexcept
 {
     if (buffer.empty())
         return new_error(modeling_errc::dot_buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
-    input_stream_buffer sb{ mod, isvs };
+    input_stream_buffer sb{ fs, ids, jn, isvs };
 
     return sb.parse();
 }
 
-expected<graph> parse_dot_file(const modeling&              mod,
-                               const std::filesystem::path& p) noexcept
+expected<graph> parse_dot_file(const file_access&           fs,
+                               const component_access&      ids,
+                               const std::filesystem::path& p,
+                               journal_handler&             jn) noexcept
 {
     if (std::ifstream ifs{ p }; ifs) {
-        input_stream_buffer sb{ mod, ifs };
+        input_stream_buffer sb{ fs, ids, jn, ifs };
         return sb.parse();
     }
 
@@ -1641,9 +1689,10 @@ static std::optional<reg_dir_file> build_component_string(
 }
 
 template<typename OutputIterator>
-expected<void> write_dot_stream(const modeling& mod,
-                                const graph&    g,
-                                OutputIterator  out) noexcept
+expected<void> write_dot_stream(const file_access&      fs,
+                                const component_access& ids,
+                                const graph&            g,
+                                OutputIterator          out) noexcept
 {
     if (g.flags[graph::option_flags::strict])
         out = fmt::format_to(out, "strict ");
@@ -1678,27 +1727,23 @@ expected<void> write_dot_stream(const modeling& mod,
         if (not g.node_labels[idx].empty())
             out = fmt::format_to(out, ", label=\"{}\"", g.node_labels[idx]);
 
-        mod.files.read([&](const auto& fs, auto) noexcept {
-            mod.ids.read([&](const auto& ids, auto) noexcept {
-                const auto compo_id = g.node_components[idx];
-                if (ids.exists(compo_id)) {
-                    const auto& fp    = ids.component_file_paths[compo_id];
-                    const auto  compo = build_component_string(fs, fp);
+        const auto compo_id = g.node_components[idx];
+        if (ids.exists(compo_id)) {
+            const auto& fp    = ids.component_file_paths[compo_id];
+            const auto  compo = build_component_string(fs, fp);
 
-                    if (compo.has_value()) {
-                        out = fmt::format_to(out,
-                                             ", component=\"{}:{}:{}\"];\n",
-                                             compo->r,
-                                             compo->d,
-                                             compo->f);
-                    } else {
-                        out = fmt::format_to(out, "];\n");
-                    }
-                } else {
-                    out = fmt::format_to(out, "];\n");
-                }
-            });
-        });
+            if (compo.has_value()) {
+                out = fmt::format_to(out,
+                                     ", component=\"{}:{}:{}\"];\n",
+                                     compo->r,
+                                     compo->d,
+                                     compo->f);
+            } else {
+                out = fmt::format_to(out, "];\n");
+            }
+        } else {
+            out = fmt::format_to(out, "];\n");
+        }
     }
 
     const auto edge_type = g.flags[graph::option_flags::directed] ? "->" : "--";
@@ -1724,26 +1769,29 @@ expected<void> write_dot_stream(const modeling& mod,
     return expected<void>();
 }
 
-expected<void> write_dot_file(const modeling&              mod,
+expected<void> write_dot_file(const file_access&           fs,
+                              const component_access&      ids,
                               const graph&                 graph,
                               const std::filesystem::path& path) noexcept
 {
     if (std::ofstream ofs(path); ofs) {
-        return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
+        return write_dot_stream(
+          fs, ids, graph, std::ostream_iterator<char>(ofs));
     } else {
         return new_error(modeling_errc::dot_file_unreachable);
     }
 }
 
-expected<vector<char>> write_dot_buffer(const modeling& mod,
-                                        const graph&    graph) noexcept
+expected<vector<char>> write_dot_buffer(const file_access&      fs,
+                                        const component_access& ids,
+                                        const graph&            graph) noexcept
 {
     vector<char> buffer(4096, reserve_tag);
     if (buffer.capacity() < 4096)
         return new_error(modeling_errc::dot_memory_insufficient);
 
     if (auto ret =
-          write_dot_stream(mod, graph, std::back_insert_iterator(buffer));
+          write_dot_stream(fs, ids, graph, std::back_insert_iterator(buffer));
         ret.has_value())
         return buffer;
     else

@@ -6250,7 +6250,7 @@ struct json_archiver::impl {
 
             if (dir and file) {
                 if (auto f = make_file(mod, *file); f.has_value()) {
-                    if (not write_dot_file(mod, g.g, *f)) {
+                    if (not write_dot_file(files, ids, g.g, *f)) {
                         mod.journal.push(
                           log_level::error,
                           [](auto&       t,

@@ -443,7 +443,7 @@ status modeling::fill_components() noexcept
                   const auto file_id = g.file;
 
                   if (const auto file = fs.get_fs_path(file_id)) {
-                      if (auto ret = parse_dot_file(*this, *file);
+                      if (auto ret = parse_dot_file(fs, ids, *file, journal);
                           ret.has_value()) {
                           g      = std::move(*ret);
                           g.file = file_id;

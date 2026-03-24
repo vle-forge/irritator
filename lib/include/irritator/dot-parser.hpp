@@ -9,11 +9,15 @@
 
 namespace irt {
 
-expected<graph> parse_dot_buffer(const modeling&        mod,
-                                 const std::string_view buffer) noexcept;
+expected<graph> parse_dot_buffer(const file_access&      fs,
+                                 const component_access& ids,
+                                 const std::string_view  buffer,
+                                 journal_handler&        jn) noexcept;
 
-expected<graph> parse_dot_file(const modeling&              mod,
-                               const std::filesystem::path& p) noexcept;
+expected<graph> parse_dot_file(const file_access&           fs,
+                               const component_access&      ids,
+                               const std::filesystem::path& p,
+                               journal_handler&             jn) noexcept;
 
 /**
  * @brief Write the @a graph into a text based file.
@@ -21,7 +25,8 @@ expected<graph> parse_dot_file(const modeling&              mod,
  * @param graph dot-graph to write.
  * @return @a vector<char> or error_code if error.
  */
-expected<void> write_dot_file(const modeling&              mod,
+expected<void> write_dot_file(const file_access&           fs,
+                              const component_access&      ids,
                               const graph&                 graph,
                               const std::filesystem::path& path) noexcept;
 
@@ -31,8 +36,9 @@ expected<void> write_dot_file(const modeling&              mod,
  * @param graph dot-graph to write.
  * @return @a vector<char> or error_code if error.
  */
-expected<vector<char>> write_dot_buffer(const modeling& mod,
-                                        const graph&    graph) noexcept;
+expected<vector<char>> write_dot_buffer(const file_access&      fs,
+                                        const component_access& ids,
+                                        const graph&            graph) noexcept;
 
 } // irt
 

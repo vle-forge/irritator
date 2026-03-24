@@ -19,6 +19,30 @@
 
 using namespace std::literals;
 
+irt::expected<irt::graph> irt_parse_dot_buffer(irt::modeling&   mod,
+                                               std::string_view str)
+{
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::graph> {
+          return mod.ids.read(
+            [&](const auto& ids, auto) -> irt::expected<irt::graph> {
+                return irt::parse_dot_buffer(files, ids, str, mod.journal);
+            });
+      });
+}
+
+irt::expected<irt::vector<char>> irt_write_dot_buffer(const irt::modeling& mod,
+                                                      const irt::graph& graph)
+{
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::vector<char>> {
+          return mod.ids.read(
+            [&](const auto& ids, auto) -> irt::expected<irt::vector<char>> {
+                return irt::write_dot_buffer(files, ids, graph);
+            });
+      });
+}
+
 static auto get_connection_number(const irt::simulation& sim) noexcept
 {
     const auto block_node_number =
@@ -1799,7 +1823,7 @@ int main()
             C -- A
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 3u));
@@ -1906,7 +1930,7 @@ int main()
             E -- F
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 6u));
@@ -2064,7 +2088,7 @@ int main()
             E -- F
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 6u));

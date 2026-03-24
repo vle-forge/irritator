@@ -10,6 +10,30 @@
 
 using namespace std::literals;
 
+irt::expected<irt::graph> irt_parse_dot_buffer(irt::modeling&   mod,
+                                               std::string_view str)
+{
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::graph> {
+          return mod.ids.read(
+            [&](const auto& ids, auto) -> irt::expected<irt::graph> {
+                return irt::parse_dot_buffer(files, ids, str, mod.journal);
+            });
+      });
+}
+
+irt::expected<irt::vector<char>> irt_write_dot_buffer(const irt::modeling& mod,
+                                                      const irt::graph& graph)
+{
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::vector<char>> {
+          return mod.ids.read(
+            [&](const auto& ids, auto) -> irt::expected<irt::vector<char>> {
+                return irt::write_dot_buffer(files, ids, graph);
+            });
+      });
+}
+
 int main()
 {
     using namespace boost::ut;
@@ -22,7 +46,7 @@ int main()
     irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
-    "small-and-simple-0"_test = [] {
+    "small-and-simple-0"_test = [&mod] {
         const std::string_view buf = R"(digraph D {
             A
             B
@@ -32,8 +56,7 @@ int main()
             A->D
         })";
 
-        irt::journal_handler jn{};
-        auto ret = irt::parse_dot_buffer(irt::modeling{ jn }, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
         expect(eq(ret->nodes.ssize(), 4));
         expect(eq(ret->edges.ssize(), 3));
@@ -49,7 +72,7 @@ int main()
             A -> D
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.ssize(), 4));
@@ -63,7 +86,7 @@ int main()
             C [label="c"]
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 3u));
@@ -97,7 +120,7 @@ int main()
             A -- B [penwidth=123.]
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 2u));
@@ -132,7 +155,7 @@ int main()
             A -> D
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 4u));
@@ -172,7 +195,7 @@ int main()
             A -> D
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 4u));
@@ -213,7 +236,7 @@ int main()
             D:b -> B:d
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 4u));
@@ -261,7 +284,7 @@ int main()
             2 [id=2, Area=321, pos="-3,-4"];
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 2u));
@@ -300,7 +323,7 @@ int main()
             2 [id=2, Area=321, pos="-4,-5,-6"];
         })";
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.size(), 2u));
@@ -368,17 +391,14 @@ int main()
             expect(eq(g.node_areas[idx_2], 321.0f));
         };
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         check_buffer(*ret);
         check_buffer(*ret);
 
-        irt::journal_handler jn{};
-        irt::modeling        mod{ jn };
-
-        auto save_buf = irt::write_dot_buffer(mod, *ret);
+        auto save_buf = irt_write_dot_buffer(mod, *ret);
         expect(save_buf.has_value() >> fatal);
 
-        auto load_buf = irt::parse_dot_buffer(
+        auto load_buf = irt_parse_dot_buffer(
           mod, std::string_view(save_buf->data(), save_buf->size()));
 
         expect(load_buf.has_value() >> fatal);
@@ -422,17 +442,14 @@ int main()
             expect(eq(g.node_areas[idx_2], 321.0f));
         };
 
-        auto ret = irt::parse_dot_buffer(mod, buf);
+        auto ret = irt_parse_dot_buffer(mod, buf);
         check_buffer(*ret);
         check_buffer(*ret);
 
-        irt::journal_handler jn{};
-        irt::modeling        mod{ jn };
-
-        auto save_buf = irt::write_dot_buffer(mod, *ret);
+        auto save_buf = irt_write_dot_buffer(mod, *ret);
         expect(save_buf.has_value() >> fatal);
 
-        auto load_buf = irt::parse_dot_buffer(
+        auto load_buf = irt_parse_dot_buffer(
           mod, std::string_view(save_buf->data(), save_buf->size()));
 
         expect(load_buf.has_value() >> fatal);
