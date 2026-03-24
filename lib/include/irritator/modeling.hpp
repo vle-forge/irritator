@@ -1626,14 +1626,6 @@ public:
      */
     void browse_file_system() noexcept;
 
-    /** Search a component from three string.
-     *
-     *  @return @c component_id found or @c undefined<component_id>();
-     */
-    component_id search_component_by_name(std::string_view reg,
-                                          std::string_view dir,
-                                          std::string_view file) const noexcept;
-
 public:
     shared_buffer<component_access> ids;
     shared_buffer<file_access>      files;

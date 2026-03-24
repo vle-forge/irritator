@@ -712,35 +712,6 @@ auto file_access::find_directory_in_registry(
     return undefined<dir_path_id>();
 }
 
-component_id modeling::search_component_by_name(
-  std::string_view reg,
-  std::string_view dir,
-  std::string_view file) const noexcept
-{
-    const auto file_id = files.read([&](const auto& fs, const auto /*vers*/) {
-        const auto r_id = fs.find_registred_path_by_name(reg);
-        const auto d_id = is_defined(r_id)
-                            ? fs.find_directory_in_registry(r_id, dir)
-                            : fs.find_directory(dir);
-        const auto f_id = is_defined(d_id)
-                            ? fs.find_file_in_directory(d_id, file)
-                            : undefined<file_path_id>();
-
-        return f_id;
-    });
-
-    return files.read([&](const auto& fs, const auto /*vers*/) {
-        if (const auto* f = fs.file_paths.try_to_get(file_id)) {
-            const auto exists = ids.read(
-              [&](const auto& ids, auto) { return ids.exists(f->component); });
-
-            return exists ? f->component : undefined<component_id>();
-        }
-
-        return undefined<component_id>();
-    });
-}
-
 file_path_id file_access::alloc_file(const dir_path_id          id,
                                      const std::string_view     name,
                                      const file_path::file_type type,
