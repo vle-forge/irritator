@@ -804,19 +804,16 @@ public:
         }
     };
 
-    union random_graph_param {
-        dot_file_param    dot;
-        scale_free_param  scale;
-        small_world_param small;
-    };
+    dot_file_param    dot;
+    scale_free_param  scale;
+    small_world_param small;
 
     graph g;
 
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
-    random_graph_param param  = { .scale = scale_free_param{} };
-    graph_type         g_type = graph_type::scale_free;
+    graph_type g_type = graph_type::scale_free;
 
     philox_64 rng;
 

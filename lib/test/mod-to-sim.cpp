@@ -550,14 +550,14 @@ int main()
             auto& s    = ids.generic_components.get(c.id.generic_id);
             s.alloc(irt::dynamics_type::counter);
 
-            cg_id               = ids.alloc_graph_component();
-            auto& cg            = ids.components[cg_id];
-            auto& g             = ids.graph_components.get(cg.id.graph_id);
-            g.g_type            = irt::graph_component::graph_type::small_world;
-            g.type              = irt::graph_component::connection_type::in_out;
-            g.param.small       = irt::graph_component::small_world_param{};
-            g.param.small.nodes = 25;
-            g.param.small.id    = c_id;
+            cg_id         = ids.alloc_graph_component();
+            auto& cg      = ids.components[cg_id];
+            auto& g       = ids.graph_components.get(cg.id.graph_id);
+            g.g_type      = irt::graph_component::graph_type::small_world;
+            g.type        = irt::graph_component::connection_type::in_out;
+            g.small       = irt::graph_component::small_world_param{};
+            g.small.nodes = 25;
+            g.small.id    = c_id;
 
             node_size = g.g.nodes.ssize();
         });
@@ -581,14 +581,14 @@ int main()
             auto& s    = ids.generic_components.get(c.id.generic_id);
             s.alloc(irt::dynamics_type::counter);
 
-            cg_id               = ids.alloc_graph_component();
-            auto& cg            = ids.components[cg_id];
-            auto& g             = ids.graph_components.get(cg.id.graph_id);
-            g.g_type            = irt::graph_component::graph_type::scale_free;
-            g.type              = irt::graph_component::connection_type::in_out;
-            g.param.scale       = irt::graph_component::scale_free_param{};
-            g.param.scale.nodes = 25;
-            g.param.scale.id    = c_id;
+            cg_id         = ids.alloc_graph_component();
+            auto& cg      = ids.components[cg_id];
+            auto& g       = ids.graph_components.get(cg.id.graph_id);
+            g.g_type      = irt::graph_component::graph_type::scale_free;
+            g.type        = irt::graph_component::connection_type::in_out;
+            g.scale       = irt::graph_component::scale_free_param{};
+            g.scale.nodes = 25;
+            g.scale.id    = c_id;
 
             node_size = g.g.nodes.ssize();
         });
@@ -621,18 +621,18 @@ int main()
             expect(!!s.connect_output(
               port_out, child, irt::connection::port{ .model = 0 }));
 
-            cg_id               = ids.alloc_graph_component();
-            auto& cg            = ids.components[cg_id];
-            auto& g             = ids.graph_components.get(cg.id.graph_id);
-            g.g_type            = irt::graph_component::graph_type::scale_free;
-            g.type              = irt::graph_component::connection_type::in_out;
-            g.param.scale       = irt::graph_component::scale_free_param{};
-            g.param.scale.alpha = 2.5;
-            g.param.scale.beta  = 1.e3;
-            g.param.scale.id    = c_id;
-            g.param.scale.nodes = 64;
-            node_size           = g.g.nodes.ssize();
-            edge_size           = g.g.edges.ssize();
+            cg_id         = ids.alloc_graph_component();
+            auto& cg      = ids.components[cg_id];
+            auto& g       = ids.graph_components.get(cg.id.graph_id);
+            g.g_type      = irt::graph_component::graph_type::scale_free;
+            g.type        = irt::graph_component::connection_type::in_out;
+            g.scale       = irt::graph_component::scale_free_param{};
+            g.scale.alpha = 2.5;
+            g.scale.beta  = 1.e3;
+            g.scale.id    = c_id;
+            g.scale.nodes = 64;
+            node_size     = g.g.nodes.ssize();
+            edge_size     = g.g.edges.ssize();
         });
 
         expect(!!pj.set(mod, cg_id));
@@ -670,16 +670,16 @@ int main()
             expect(!!s.connect_output(
               port_out_n, child, irt::connection::port{ .model = 1 }));
 
-            cg_id               = ids.alloc_graph_component();
-            auto& cg            = ids.components[cg_id];
-            auto& g             = ids.graph_components.get(cg.id.graph_id);
-            g.g_type            = irt::graph_component::graph_type::scale_free;
-            g.type              = irt::graph_component::connection_type::name;
-            g.param.scale       = irt::graph_component::scale_free_param{};
-            g.param.scale.alpha = 2.5;
-            g.param.scale.beta  = 1.e3;
-            g.param.scale.id    = c_id;
-            g.param.scale.nodes = 64;
+            cg_id         = ids.alloc_graph_component();
+            auto& cg      = ids.components[cg_id];
+            auto& g       = ids.graph_components.get(cg.id.graph_id);
+            g.g_type      = irt::graph_component::graph_type::scale_free;
+            g.type        = irt::graph_component::connection_type::name;
+            g.scale       = irt::graph_component::scale_free_param{};
+            g.scale.alpha = 2.5;
+            g.scale.beta  = 1.e3;
+            g.scale.id    = c_id;
+            g.scale.nodes = 64;
 
             node_size = g.g.nodes.ssize();
             edge_size = g.g.edges.ssize();
@@ -749,11 +749,11 @@ int main()
             auto& g       = ids.graph_components.get(cg.id.graph_id);
             g.g_type      = irt::graph_component::graph_type::scale_free;
             g.type        = irt::graph_component::connection_type::name_suffix;
-            g.param.scale = irt::graph_component::scale_free_param{};
-            g.param.scale.alpha = 3;
-            g.param.scale.beta  = 1.e3;
-            g.param.scale.id    = c_id;
-            g.param.scale.nodes = 16;
+            g.scale       = irt::graph_component::scale_free_param{};
+            g.scale.alpha = 3;
+            g.scale.beta  = 1.e3;
+            g.scale.id    = c_id;
+            g.scale.nodes = 16;
 
             node_size = g.g.nodes.ssize();
             edge_size = g.g.edges.ssize();

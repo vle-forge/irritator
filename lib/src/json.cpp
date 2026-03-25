@@ -3295,20 +3295,20 @@ struct json_dearchiver::impl {
         debug::ensure(name.IsString());
 
         if ("dot-file"sv == name.GetString()) {
-            graph.g_type    = graph_component::graph_type::dot_file;
-            graph.param.dot = graph_component::dot_file_param{};
+            graph.g_type = graph_component::graph_type::dot_file;
+            graph.dot    = graph_component::dot_file_param{};
             return read_dot_graph_param(val, files, graph);
         }
 
         if ("scale-free"sv == name.GetString()) {
-            graph.g_type      = graph_component::graph_type::scale_free;
-            graph.param.scale = graph_component::scale_free_param{};
+            graph.g_type = graph_component::graph_type::scale_free;
+            graph.scale  = graph_component::scale_free_param{};
             return read_scale_free_graph_param(val, graph);
         }
 
         if ("small-world"sv == name.GetString()) {
-            graph.g_type      = graph_component::graph_type::small_world;
-            graph.param.small = graph_component::small_world_param{};
+            graph.g_type = graph_component::graph_type::small_world;
+            graph.small  = graph_component::small_world_param{};
             return read_small_world_graph_param(val, graph);
         }
 
@@ -3349,13 +3349,13 @@ struct json_dearchiver::impl {
               files.find_file_in_directory(dir_id, file_path.sv());
 
             if (files.dir_paths.try_to_get(dir_id))
-                graph.param.dot.dir = dir_id;
+                graph.dot.dir = dir_id;
             else
                 warning("graph-component: fail to found directory {}",
                         dir_path.sv());
 
             if (files.file_paths.try_to_get(file_id))
-                graph.param.dot.file = file_id;
+                graph.dot.file = file_id;
             else
                 warning("graph-component: fail to found file {}",
                         file_path.sv());
@@ -3375,15 +3375,15 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("alpha"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(graph.param.scale.alpha);
+                         copy_real_to(graph.scale.alpha);
 
               if ("beta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(graph.param.scale.beta);
+                         copy_real_to(graph.scale.beta);
 
               if ("nodes"sv == name)
                   return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                         copy_i64_to(graph.param.scale.nodes);
+                         copy_i64_to(graph.scale.nodes);
 
               return true;
           });
@@ -3398,15 +3398,15 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("probability"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(graph.param.small.probability);
+                         copy_real_to(graph.small.probability);
 
               if ("k"sv == name)
                   return read_temp_i64(value) && is_i64_greater_equal_than(1) &&
-                         copy_i64_to(graph.param.small.k);
+                         copy_i64_to(graph.small.k);
 
               if ("nodes"sv == name)
                   return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                         copy_i64_to(graph.param.small.nodes);
+                         copy_i64_to(graph.small.nodes);
 
               return true;
           });
@@ -3689,8 +3689,7 @@ struct json_dearchiver::impl {
 
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file:
-            if (const auto* f =
-                  files.file_paths.try_to_get(graph.param.dot.file)) {
+            if (const auto* f = files.file_paths.try_to_get(graph.dot.file)) {
                 if (const auto* g = ids.graphs.try_to_get(f->g_id)) {
                     graph.g = *g;
                     graph.update_position();
@@ -3701,10 +3700,10 @@ struct json_dearchiver::impl {
             return false;
 
         case graph_component::graph_type::scale_free: {
-            auto ret = graph.g.init_scale_free_graph(graph.param.scale.alpha,
-                                                     graph.param.scale.beta,
-                                                     graph.param.scale.id,
-                                                     graph.param.scale.nodes,
+            auto ret = graph.g.init_scale_free_graph(graph.scale.alpha,
+                                                     graph.scale.beta,
+                                                     graph.scale.id,
+                                                     graph.scale.nodes,
                                                      graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
@@ -3713,12 +3712,11 @@ struct json_dearchiver::impl {
         }
 
         case graph_component::graph_type::small_world:
-            auto ret =
-              graph.g.init_small_world_graph(graph.param.small.probability,
-                                             graph.param.small.k,
-                                             graph.param.small.id,
-                                             graph.param.small.nodes,
-                                             graph.rng);
+            auto ret = graph.g.init_small_world_graph(graph.small.probability,
+                                                      graph.small.k,
+                                                      graph.small.id,
+                                                      graph.small.nodes,
+                                                      graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
 
@@ -6234,7 +6232,7 @@ struct json_archiver::impl {
         switch (g.g_type) {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
-            auto&      p    = g.param.dot;
+            auto&      p    = g.dot;
             dir_path*  dir  = nullptr;
             file_path* file = nullptr;
 
@@ -6280,11 +6278,11 @@ struct json_archiver::impl {
         case graph_component::graph_type::scale_free: {
             w.String("scale-free");
             w.Key("alpha");
-            w.Double(g.param.scale.alpha);
+            w.Double(g.scale.alpha);
             w.Key("beta");
-            w.Double(g.param.scale.beta);
+            w.Double(g.scale.beta);
             w.Key("nodes");
-            w.Int(g.param.scale.nodes);
+            w.Int(g.scale.nodes);
 
             w.Key("children");
             w.StartArray();
@@ -6301,11 +6299,11 @@ struct json_archiver::impl {
         case graph_component::graph_type::small_world: {
             w.String("small-world");
             w.Key("probability");
-            w.Double(g.param.small.probability);
+            w.Double(g.small.probability);
             w.Key("k");
-            w.Int(g.param.small.k);
+            w.Int(g.small.k);
             w.Key("nodes");
-            w.Int(g.param.small.nodes);
+            w.Int(g.small.nodes);
 
             w.Key("children");
             w.StartArray();

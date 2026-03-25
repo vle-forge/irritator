@@ -685,10 +685,11 @@ bool graph_component_editor_data::show_scale_free_menu(
 
         if (ImGui::Button("generate")) {
             clear_selected_nodes();
+
             m_graph.g.clear();
-            m_graph.g_type      = graph_component::graph_type::scale_free;
-            m_graph.param.scale = psf;
-            st                  = job::build_scale_free_required;
+            m_graph.g_type = graph_component::graph_type::scale_free;
+            m_graph.scale  = psf;
+            st             = job::build_scale_free_required;
             ImGui::CloseCurrentPopup();
             ++u;
         }
@@ -733,9 +734,9 @@ bool graph_component_editor_data::show_small_world_menu(
         if (ImGui::Button("generate")) {
             clear_selected_nodes();
             m_graph.g.clear();
-            m_graph.g_type      = graph_component::graph_type::small_world;
-            m_graph.param.small = psw;
-            st                  = job::build_small_world_required;
+            m_graph.g_type = graph_component::graph_type::small_world;
+            m_graph.small  = psw;
+            st             = job::build_small_world_required;
             ImGui::CloseCurrentPopup();
             ++u;
         }
@@ -761,9 +762,9 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
             if (ImGui::Button("Load")) {
                 clear_selected_nodes();
                 m_graph.g.clear();
-                m_graph.g_type    = graph_component::graph_type::dot_file;
-                m_graph.param.dot = pdf;
-                st                = job::build_dot_graph_required;
+                m_graph.g_type = graph_component::graph_type::dot_file;
+                m_graph.dot    = pdf;
+                st             = job::build_dot_graph_required;
                 ImGui::CloseCurrentPopup();
                 ++u;
             }
@@ -814,7 +815,7 @@ void graph_component_editor_data::graph_component_editor_data::show(
 
     ImGui::BeginDisabled(running.test());
 
-    int         u         = 0;
+    int u = 0;
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("Model")) {
@@ -1008,7 +1009,7 @@ bool graph_component_editor_data::show(component_editor& ed,
                                   builder.graph_ed->psf.id,
                                   builder.graph_ed->psf.nodes,
                                   graph.rng)) {
-                                graph.param.scale = builder.graph_ed->psf;
+                                graph.scale = builder.graph_ed->psf;
                                 graph.g_type =
                                   graph_component::graph_type::scale_free;
 
@@ -1046,7 +1047,7 @@ bool graph_component_editor_data::show(component_editor& ed,
                                   builder.graph_ed->psw.nodes,
                                   builder.graph_ed->m_graph.rng)) {
 
-                                graph.param.small = builder.graph_ed->psw;
+                                graph.small = builder.graph_ed->psw;
                                 graph.g_type =
                                   graph_component::graph_type::small_world;
 
@@ -1090,8 +1091,8 @@ bool graph_component_editor_data::show(component_editor& ed,
 
                             if (const auto* g_glob =
                                   ids.graphs.try_to_get(id)) {
-                                graph.g         = *g_glob;
-                                graph.param.dot = builder.graph_ed->pdf;
+                                graph.g   = *g_glob;
+                                graph.dot = builder.graph_ed->pdf;
                                 graph.g_type =
                                   graph_component::graph_type::dot_file;
                                 builder.graph_ed->pdf.reset();
