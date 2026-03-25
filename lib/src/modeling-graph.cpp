@@ -15,6 +15,23 @@
 
 namespace irt {
 
+void graph_component::swap(graph_component& other) noexcept
+{
+    g.swap(other.g);
+    input_connections.swap(other.input_connections);
+    output_connections.swap(other.output_connections);
+    top_left_limit.swap(other.top_left_limit);
+    bottom_right_limit.swap(other.bottom_right_limit);
+
+    std::swap(dot, other.dot);
+    std::swap(scale, other.scale);
+    std::swap(small, other.small);
+    std::swap(g_type, other.g_type);
+
+    std::swap(rng, other.rng);
+    std::swap(type, other.type);
+}
+
 bool graph_component::exists_child(const std::string_view name) const noexcept
 {
     for (const auto id : g.nodes)

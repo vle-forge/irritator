@@ -824,6 +824,8 @@ public:
 
     graph_component() noexcept;
 
+    void swap(graph_component& other) noexcept;
+
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
 
