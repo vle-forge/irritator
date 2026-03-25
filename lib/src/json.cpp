@@ -46,9 +46,9 @@ enum class connection_type : u8 {
 struct json_dearchiver::impl {
     json_dearchiver& self;
 
-    modeling*        m_mod = nullptr;
-    simulation*      m_sim = nullptr;
-    project*         m_pj  = nullptr;
+    modeling*   m_mod = nullptr;
+    simulation* m_sim = nullptr;
+    project*    m_pj  = nullptr;
 
     std::string_view m_path;
 
@@ -60,7 +60,7 @@ struct json_dearchiver::impl {
 
     small_vector<std::string_view, 16> stack;
 
-    bool has_error = false;
+    bool has_error                       = false;
     bool has_missing_dependent_component = false;
 
     bool have_error() const noexcept { return has_error; }
@@ -172,7 +172,7 @@ struct json_dearchiver::impl {
         temp_bool   = false;
         temp_string.clear();
         stack.clear();
-        has_error = false;
+        has_error                       = false;
         has_missing_dependent_component = false;
     }
 
@@ -1775,7 +1775,7 @@ struct json_dearchiver::impl {
                                 : files.find_directory(dir);
         const auto  file_id = files.find_file_in_directory(dir_id, file);
         const auto* f       = files.file_paths.try_to_get(file_id);
-        auto  compo_id_from_compo = undefined<component_id>();
+        auto        compo_id_from_compo = undefined<component_id>();
 
         for (const auto id : ids) {
             const auto& fp = ids.component_file_paths[id];
@@ -1785,10 +1785,12 @@ struct json_dearchiver::impl {
             }
         }
 
-        if (not f  and is_undefined(compo_id_from_compo))
-                return error("unknown component file in {} / {} / {}", reg, dir, file);
+        if (not f and is_undefined(compo_id_from_compo))
+            return error(
+              "unknown component file in {} / {} / {}", reg, dir, file);
 
-        const auto compo_id = (f and ids.exists(f->component)) ? f->component : compo_id_from_compo;
+        const auto compo_id =
+          (f and ids.exists(f->component)) ? f->component : compo_id_from_compo;
 
         if (not ids.exists(compo_id))
             return error("unknown component in {} / {} / {}", reg, dir, file);
@@ -1796,7 +1798,8 @@ struct json_dearchiver::impl {
         const auto& c = ids.components[compo_id];
         if (c.state != component_status::unmodified) {
             has_missing_dependent_component = true;
-            return error("need to read the component in {} / {} / {}", reg, dir, file);
+            return error(
+              "need to read the component in {} / {} / {}", reg, dir, file);
         }
 
         c_id = compo_id;
@@ -2357,9 +2360,9 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_constant_source(const rapidjson::Value&                     value,
-                              component& compo,
-                              external_source_definition::id              id) noexcept
+    bool read_constant_source(const rapidjson::Value&        value,
+                              component&                     compo,
+                              external_source_definition::id id) noexcept
     {
         auto_stack s(this, "srcs constant source");
 
@@ -2379,8 +2382,12 @@ struct json_dearchiver::impl {
                                 copy_string_to(s_name);
 
                      if ("parameters"sv == name)
-                         return read_constant_parameters(value,
-                                                         compo.srcs.data.get<external_source_definition::source_element>(id).cst);
+                         return read_constant_parameters(
+                           value,
+                           compo.srcs.data
+                             .get<external_source_definition::source_element>(
+                               id)
+                             .cst);
 
                      return true;
                  }) &&
@@ -2412,12 +2419,10 @@ struct json_dearchiver::impl {
             return read_constant_source(value, compo, id);
 
         case source_type::binary_file:
-            return read_binary_source(
-              value, files, ids, compo_id, compo, id);
+            return read_binary_source(value, files, ids, compo_id, compo, id);
 
         case source_type::text_file:
-            return read_text_source(
-              value, files, ids, compo_id, compo, id);
+            return read_text_source(value, files, ids, compo_id, compo, id);
 
         case source_type::random:
             return read_random_source(value, compo, id);
@@ -2427,7 +2432,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_source(const rapidjson::Value& val,
-                     const file_access&            files,
+                     const file_access&      files,
                      component_access&       ids,
                      component_id            compo_id) noexcept
     {
@@ -2513,7 +2518,7 @@ struct json_dearchiver::impl {
                             const file_access&             files,
                             component_access&              ids,
                             const component_id             compo_id,
-                            component& compo,
+                            component&                     compo,
                             external_source_definition::id id) noexcept
     {
         auto_stack s(this, "srcs binary file sources");
@@ -2536,8 +2541,13 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids, files, compo_id,
-                                     compo.srcs.data.get<external_source_definition::source_element>(id).bin.file);
+                                  ids,
+                                  files,
+                                  compo_id,
+                                  compo.srcs.data
+                                    .get<external_source_definition::
+                                           source_element>(id)
+                                    .bin.file);
 
                      return true;
                  }) &&
@@ -2545,12 +2555,12 @@ struct json_dearchiver::impl {
                cache_srcs_mapping_add(*id_in_file, id);
     }
 
-    bool read_text_source(const rapidjson::Value&                     value,
-                          const file_access&                          files,
-                          component_access&                           ids,
-                          const component_id                          compo_id,
-                          component& compo,
-                          external_source_definition::id              id) noexcept
+    bool read_text_source(const rapidjson::Value&        value,
+                          const file_access&             files,
+                          component_access&              ids,
+                          const component_id             compo_id,
+                          component&                     compo,
+                          external_source_definition::id id) noexcept
     {
         auto_stack s(this, "srcs text file sources");
 
@@ -2572,8 +2582,13 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids, files, compo_id,
-                                     compo.srcs.data.get<external_source_definition::source_element>(id).txt.file);
+                                  ids,
+                                  files,
+                                  compo_id,
+                                  compo.srcs.data
+                                    .get<external_source_definition::
+                                           source_element>(id)
+                                    .txt.file);
 
                      return true;
                  }) &&
@@ -2750,9 +2765,9 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
-    bool read_random_source(const rapidjson::Value&                     value,
-                            component& compo,
-                            external_source_definition::id              id) noexcept
+    bool read_random_source(const rapidjson::Value&        value,
+                            component&                     compo,
+                            external_source_definition::id id) noexcept
     {
         auto_stack s(this, "srcs random sources");
 
@@ -2772,7 +2787,11 @@ struct json_dearchiver::impl {
                                 copy_string_to(s_name);
 
                      if ("type"sv == name) {
-                         auto& rnd = compo.srcs.data.get<external_source_definition::source_element>(id).rnd;
+                         auto& rnd =
+                           compo.srcs.data
+                             .get<external_source_definition::source_element>(
+                               id)
+                             .rnd;
 
                          return read_temp_string(value) &&
                                 copy_string_to(rnd.type) &&
@@ -5699,10 +5718,10 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_component_path(Writer&               w,
-                                    const registred_path& reg,
-                                    const dir_path&       dir,
-                                    const component_file_path&      file) noexcept
+    void write_child_component_path(Writer&                    w,
+                                    const registred_path&      reg,
+                                    const dir_path&            dir,
+                                    const component_file_path& file) noexcept
     {
         w.Key("path");
         w.String(reg.name.begin(), reg.name.size());
@@ -5715,8 +5734,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_component_path(Writer&            w,
-                                    const file_access& files,
+    void write_child_component_path(Writer&                    w,
+                                    const file_access&         files,
                                     const component_file_path& file) noexcept
     {
         if (auto* d = files.dir_paths.try_to_get(file.parent)) {
@@ -5732,7 +5751,7 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_component(const modeling&         /*mod*/,
+    void write_child_component(const modeling& /*mod*/,
                                const file_access&      files,
                                const component_access& ids,
                                const component_id      compo_id,
@@ -5740,7 +5759,7 @@ struct json_archiver::impl {
     {
         if (ids.exists(compo_id)) {
             const auto& compo = ids.components[compo_id];
-            const auto& file = ids.component_file_paths[compo_id];
+            const auto& file  = ids.component_file_paths[compo_id];
 
             w.Key("component-type");
             w.String(component_type_names[ordinal(compo.type)]);
@@ -5969,7 +5988,7 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_input_connection(const modeling&                 /*mod*/,
+    void write_input_connection(const modeling& /*mod*/,
                                 const component_access&         ids,
                                 const component&                parent,
                                 const generic_component&        gen,
@@ -6001,7 +6020,7 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_output_connection(const modeling&                 /*mod*/,
+    void write_output_connection(const modeling& /*mod*/,
                                  const component_access&         ids,
                                  const component&                parent,
                                  const generic_component&        gen,
@@ -6033,7 +6052,7 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_internal_connection(const modeling&                 /*mod*/,
+    void write_internal_connection(const modeling& /*mod*/,
                                    const component_access&         ids,
                                    const generic_component&        gen,
                                    const generic_component::child& src,
@@ -6532,13 +6551,18 @@ struct json_archiver::impl {
                 w.String(names[id].c_str());
                 w.Key("type");
 
-                const auto type = compo.srcs.data.get<external_source_definition::source_element>(id).type;
+                const auto type =
+                  compo.srcs.data
+                    .get<external_source_definition::source_element>(id)
+                    .type;
                 w.String(external_source_type_string[ordinal(type)]);
 
                 switch (type) {
                 case source_type::constant:
                     write_constant_source(
-                            compo.srcs.data.get<external_source_definition::source_element>(id).cst,
+                      compo.srcs.data
+                        .get<external_source_definition::source_element>(id)
+                        .cst,
                       w);
                     break;
 
@@ -6546,7 +6570,9 @@ struct json_archiver::impl {
                     write_binary_source(
                       mod,
                       files,
-                      compo.srcs.data.get<external_source_definition::source_element>(id).bin,
+                      compo.srcs.data
+                        .get<external_source_definition::source_element>(id)
+                        .bin,
                       w);
                     break;
 
@@ -6554,13 +6580,17 @@ struct json_archiver::impl {
                     write_text_source(
                       mod,
                       files,
-                      compo.srcs.data.get<external_source_definition::source_element>(id).txt,
+                      compo.srcs.data
+                        .get<external_source_definition::source_element>(id)
+                        .txt,
                       w);
                     break;
 
                 case source_type::random:
                     write_random_source(
-                                compo.srcs.data.get<external_source_definition::source_element>(id).rnd,
+                      compo.srcs.data
+                        .get<external_source_definition::source_element>(id)
+                        .rnd,
                       w);
                     break;
 
@@ -6797,10 +6827,10 @@ struct json_archiver::impl {
     template<typename Writer>
     void do_project_save_component(Writer& w,
                                    const component_access& /*ids*/,
-                                   const component&            compo,
-                                   const registred_path& reg,
-                                   const dir_path&       dir,
-                                   const component_file_path&      file) noexcept
+                                   const component&           compo,
+                                   const registred_path&      reg,
+                                   const dir_path&            dir,
+                                   const component_file_path& file) noexcept
     {
         w.Key("component-type");
         w.String(component_type_names[ordinal(compo.type)]);
@@ -6825,17 +6855,17 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    status do_project_save(Writer&                 w,
-                           project&                pj,
-                           modeling&               /*mod*/,
+    status do_project_save(Writer&  w,
+                           project& pj,
+                           modeling& /*mod*/,
                            const file_access&      files,
                            const component_access& ids,
                            const component_id      compo_id) noexcept
     {
         debug::ensure(ids.exists(compo_id));
 
-        const auto&       compo = ids.components[compo_id];
-        const auto& file = ids.component_file_paths[compo_id];
+        const auto& compo = ids.components[compo_id];
+        const auto& file  = ids.component_file_paths[compo_id];
 
         if (is_undefined(file.parent) or file.path.empty())
             return new_error(modeling_errc::file_error);
@@ -6927,7 +6957,7 @@ status json_dearchiver::operator()(modeling&          mod,
 
     json_dearchiver::impl i(*this, mod, path);
     if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
-            ret.has_error()) {
+        ret.has_error()) {
         if (i.has_missing_dependent_component) {
             compo.state = component_status::unread;
         }
@@ -6956,7 +6986,8 @@ status json_dearchiver::operator()(project&                pj,
     if (const auto ret = read_file_to_buffer(buffer, io); ret.has_error())
         return ret.error();
 
-    if (const auto ret = parse_json_data(std::span(buffer.data(), buffer.size()), doc))
+    if (const auto ret =
+          parse_json_data(std::span(buffer.data(), buffer.size()), doc))
         return ret.error();
 
     json_dearchiver::impl i(*this, mod, sim, pj, path);
@@ -6981,7 +7012,7 @@ status json_dearchiver::operator()(modeling&          mod,
     json_dearchiver::impl i(*this, mod);
 
     if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
-            ret.has_error()) {
+        ret.has_error()) {
         if (i.has_missing_dependent_component) {
             compo.state = component_status::unread;
         }
