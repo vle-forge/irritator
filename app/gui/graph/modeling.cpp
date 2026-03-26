@@ -18,84 +18,6 @@
 
 namespace irt {
 
-static auto dir_path_combobox(const file_access& fs, dir_path_id& dir_id)
-  -> bool
-{
-    const auto* dir         = fs.dir_paths.try_to_get(dir_id);
-    const auto* preview_dir = dir ? dir->path.c_str() : "-";
-    const auto  old_dir_id  = dir_id;
-
-    if (ImGui::BeginCombo("Directory", preview_dir)) {
-        if (ImGui::Selectable("-", dir == nullptr)) {
-            dir_id = undefined<dir_path_id>();
-        }
-
-        auto local_id = 0;
-        for (const auto& elem : fs.dir_paths) {
-            const auto elem_id = fs.dir_paths.get_id(elem);
-            ImGui::PushID(++local_id);
-
-            if (ImGui::Selectable(elem.path.c_str(), dir_id == elem_id)) {
-                dir_id = elem_id;
-            }
-
-            ImGui::PopID();
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return dir_id != old_dir_id;
-}
-
-static auto dot_file_combobox(const file_access& fs,
-                              const dir_path&    dir,
-                              file_path_id&      file_id) noexcept -> bool
-{
-    const auto* file         = fs.file_paths.try_to_get(file_id);
-    const auto* preview_file = file ? file->path.c_str() : "-";
-    const auto  old_file_id  = file_id;
-
-    if (ImGui::BeginCombo("Dot file", preview_file)) {
-        if (ImGui::Selectable("-", file == nullptr)) {
-            file_id = undefined<file_path_id>();
-        }
-
-        int local_id = 0;
-        for (const auto elem_id : dir.children) {
-            if (const auto* elem = fs.file_paths.try_to_get(elem_id);
-                elem and elem->type == file_path::file_type::dot_file) {
-                ImGui::PushID(++local_id);
-
-                if (ImGui::Selectable(elem->path.c_str(), file_id == elem_id))
-                    file_id = elem_id;
-
-                ImGui::PopID();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return file_id != old_file_id;
-}
-
-static auto dot_combobox_selector(const modeling& mod,
-                                  dir_path_id&    dir_id,
-                                  file_path_id&   file_id) noexcept -> bool
-{
-    const auto old_dir_id  = dir_id;
-    const auto old_file_id = file_id;
-
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        dir_path_combobox(fs, dir_id);
-        if (const auto* dir = fs.dir_paths.try_to_get(dir_id))
-            dot_file_combobox(fs, *dir, file_id);
-
-        return not(old_dir_id == dir_id and old_file_id == file_id);
-    });
-}
-
 static void update_bound(graph_component& graph, std::integral auto i) noexcept
 {
     graph.top_left_limit[0] =
@@ -658,23 +580,25 @@ bool graph_component_editor_data::show_scale_free_menu(
                    "the World Wide Web, are scale-free graphs, making these "
                    "graphs a good model for certain networking.");
 
-        if (ImGui::InputInt("size", &psf.nodes)) {
-            psf.nodes = std::clamp(psf.nodes, 1, graph_component::children_max);
+        if (ImGui::InputInt("size", &m_graph.scale.nodes)) {
+            m_graph.scale.nodes =
+              std::clamp(m_graph.scale.nodes, 1, graph_component::children_max);
             ++u;
         }
 
-        if (ImGui::InputDouble("alpha", &psf.alpha)) {
-            psf.alpha = std::clamp(psf.alpha, 0.0, 1000.0);
+        if (ImGui::InputDouble("alpha", &m_graph.scale.alpha)) {
+            m_graph.scale.alpha = std::clamp(m_graph.scale.alpha, 0.0, 1000.0);
             ++u;
         }
 
-        if (ImGui::InputDouble("beta", &psf.beta)) {
-            psf.beta = std::clamp(psf.beta, 0.0, 1000.0);
+        if (ImGui::InputDouble("beta", &m_graph.scale.beta)) {
+            m_graph.scale.beta = std::clamp(m_graph.scale.beta, 0.0, 1000.0);
             ++u;
         }
 
-        if (auto r = app.component_sel.combobox("component", psf.id); r) {
-            psf.id = r.id;
+        if (auto r = app.component_sel.combobox("component", m_graph.scale.id);
+            r) {
+            m_graph.scale.id = r.id;
             ++u;
         }
 
@@ -687,12 +611,12 @@ bool graph_component_editor_data::show_scale_free_menu(
                 if (m_graph_2nd.should_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
-                        new_graph.g.init_scale_free_graph(psf.alpha,
-                                                          psf.beta,
-                                                          psf.id,
-                                                          psf.nodes,
+                        new_graph.g.init_scale_free_graph(m_graph.scale.alpha,
+                                                          m_graph.scale.beta,
+                                                          m_graph.scale.id,
+                                                          m_graph.scale.nodes,
                                                           new_graph.rng);
-                        new_graph.scale = psf;
+                        new_graph.scale = m_graph.scale;
                         new_graph.g_type =
                           graph_component::graph_type::scale_free;
                         new_graph.update_position();
@@ -730,24 +654,27 @@ bool graph_component_editor_data::show_small_world_menu(
           "connected to its k nearest neighbors).Edges in the graph are "
           "randomly rewired to different vertices with a probability p.");
 
-        if (ImGui::InputInt("size", &psw.nodes)) {
+        if (ImGui::InputInt("size", &m_graph.small.nodes)) {
             ++u;
-            psw.nodes = std::clamp(psw.nodes, 1, graph_component::children_max);
+            m_graph.small.nodes =
+              std::clamp(m_graph.small.nodes, 1, graph_component::children_max);
         }
 
-        if (ImGui::InputDouble("probability", &psw.probability)) {
+        if (ImGui::InputDouble("probability", &m_graph.small.probability)) {
             ++u;
-            psw.probability = std::clamp(psw.probability, 0.0, 1.0);
+            m_graph.small.probability =
+              std::clamp(m_graph.small.probability, 0.0, 1.0);
         }
 
-        if (ImGui::InputInt("k", &psw.k, 1, 2)) {
+        if (ImGui::InputInt("k", &m_graph.small.k, 1, 2)) {
             ++u;
-            psw.k = std::clamp(psw.k, 1, 8);
+            m_graph.small.k = std::clamp(m_graph.small.k, 1, 8);
         }
 
-        if (auto r = app.component_sel.combobox("component", psw.id); r) {
+        if (auto r = app.component_sel.combobox("component", m_graph.small.id);
+            r) {
             ++u;
-            psw.id = r.id;
+            m_graph.small.id = r.id;
         }
 
         const auto size = ImGui::ComputeButtonSize(2);
@@ -759,12 +686,13 @@ bool graph_component_editor_data::show_small_world_menu(
                 if (m_graph_2nd.should_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
-                        new_graph.g.init_small_world_graph(psw.probability,
-                                                           psw.k,
-                                                           psw.id,
-                                                           psf.nodes,
-                                                           new_graph.rng);
-                        new_graph.small = psw;
+                        new_graph.g.init_small_world_graph(
+                          m_graph.small.probability,
+                          m_graph.small.k,
+                          m_graph.small.id,
+                          m_graph.small.nodes,
+                          new_graph.rng);
+                        new_graph.small = m_graph.small;
                         new_graph.g_type =
                           graph_component::graph_type::small_world;
                         new_graph.update_position();
@@ -799,28 +727,32 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
         HelpMarker("dot: consists of a file defining the graph "
                    "according to the dot file format.");
 
-        if (dot_combobox_selector(app.mod, pdf.dir, pdf.file))
-            ++u;
+        auto close = app.mod.files.read([&](const auto& fs,
+                                            auto) noexcept -> bool {
+            const auto selected = file_select.combobox_ro(
+              fs, reg, dir, file, file_path::file_type::dot_file);
 
-        if (is_defined(pdf.dir) and is_defined(pdf.file)) {
-            const auto size = ImGui::ComputeButtonSize(2);
-            ImGui::BeginDisabled(task_is_running.test());
-            if (ImGui::Button("Load", size)) {
-                clear_selected_nodes();
+            reg  = selected.reg_id;
+            dir  = selected.dir_id;
+            file = selected.file_id;
+
+            if (selected.save and not task_is_running.test_and_set()) {
+                if (m_graph.g_type == graph_component::graph_type::dot_file)
+                    m_graph.dot.file = selected.file_id;
 
                 if (m_graph_2nd.should_request()) {
                     app.add_gui_task([&app, this]() {
                         graph_component new_graph;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
-                            if (auto path = fs.get_fs_path(pdf.file)) {
+                            if (auto path = fs.get_fs_path(m_graph.dot.file)) {
                                 app.mod.ids.read([&](const auto& ids,
                                                      auto) noexcept {
                                     if (auto dot_graph = parse_dot_file(
                                           fs, ids, *path, app.jn)) {
 
                                         new_graph.g   = std::move(*dot_graph);
-                                        new_graph.dot = pdf;
+                                        new_graph.dot = m_graph.dot;
                                         new_graph.g_type =
                                           graph_component::graph_type::dot_file;
                                         new_graph.update_position();
@@ -833,16 +765,13 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
                         task_is_running.clear();
                     });
                 }
-
-                ImGui::CloseCurrentPopup();
             }
-            ImGui::EndDisabled();
 
-            ImGui::SameLine();
-            if (ImGui::Button("cancel", size)) {
-                ImGui::CloseCurrentPopup();
-            }
-        }
+            return selected.close;
+        });
+
+        if (close)
+            ImGui::CloseCurrentPopup();
 
         ImGui::EndMenu();
     }
@@ -1062,7 +991,7 @@ bool graph_component_editor_data::show(component_editor& ed,
     if (auto new_graph_opt = m_graph_2nd.try_take()) {
         const auto t_l = m_graph.top_left_limit;
         const auto b_r = m_graph.bottom_right_limit;
-        m_graph = *new_graph_opt;
+        m_graph        = *new_graph_opt;
 
         if (t_l != m_graph.top_left_limit or b_r != m_graph.bottom_right_limit)
             auto_fit_camera();

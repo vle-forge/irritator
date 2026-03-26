@@ -486,6 +486,12 @@ public:
                               const file_path_id         file_id,
                               const file_path::file_type type) noexcept;
 
+    combo_box_result combobox_ro(const file_access&         fs,
+                                 const registred_path_id    reg_id,
+                                 const dir_path_id          dir_id,
+                                 const file_path_id         file_id,
+                                 const file_path::file_type type) noexcept;
+
 private:
     atomic_request_buffer<dir_path_id>  new_dir_;
     atomic_request_buffer<file_path_id> new_file_;
@@ -732,10 +738,6 @@ public:
 
 private:
     file_selector file_select;
-
-    graph_component::scale_free_param  psf{};
-    graph_component::small_world_param psw{};
-    graph_component::dot_file_param    pdf{};
 
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;

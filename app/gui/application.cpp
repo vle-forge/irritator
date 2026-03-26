@@ -169,6 +169,48 @@ private:
                                       .updated = up > 0 };
     }
 
+    auto do_run(const file_access&      fs,
+                const registred_path_id reg_id,
+                const dir_path_id       dir_id) const noexcept
+      -> combo_dir_path_result
+    {
+        const auto& r       = fs.registred_paths.get(reg_id);
+        const auto* d       = fs.dir_paths.try_to_get(dir_id);
+        const auto* preview = d ? d->path.c_str() : empty;
+
+        auto buffer = directory_path_str{};
+        auto id     = dir_id;
+        auto up     = 0;
+
+        if (ImGui::BeginCombo("Directory", preview)) {
+            if (ImGui::Selectable(empty, d == nullptr)) {
+                if (is_defined(id)) {
+                    id = undefined<dir_path_id>();
+                    ++up;
+                }
+            }
+
+            for (const auto d_id : r.children) {
+                if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
+                    ImGui::PushID(dir);
+                    if (ImGui::Selectable(dir->path.c_str(), d_id == id)) {
+                        if (d_id != id) {
+                            id = d_id;
+                            ++up;
+                        }
+                    }
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        return combo_dir_path_result{ .id      = id,
+                                      .path    = buffer.sv(),
+                                      .updated = up > 0 };
+    }
+
 public:
     auto operator()(application&                        app,
                     const file_access&                  fs,
@@ -182,6 +224,16 @@ public:
         const auto d_id = get_dir_id(dir_ptr, dir_id);
 
         return do_run(app, fs, reg_id, d_id, dir_ptr);
+    }
+
+    auto operator()(const file_access&      fs,
+                    const registred_path_id reg_id,
+                    const dir_path_id       dir_id) const noexcept
+      -> combo_dir_path_result
+    {
+        debug::ensure(fs.registred_paths.try_to_get(reg_id));
+
+        return do_run(fs, reg_id, dir_id);
     }
 };
 
@@ -283,6 +335,56 @@ struct combo_file_path_fn {
                                        .path    = buffer.sv(),
                                        .updated = up > 0 };
     }
+
+    auto operator()(const file_access&         fs,
+                    const registred_path_id    reg_id,
+                    const dir_path_id          dir_id,
+                    const file_path_id         file_id,
+                    const file_path::file_type type) const noexcept
+      -> combo_file_path_result
+    {
+        debug::ensure(fs.registred_paths.try_to_get(reg_id) != nullptr);
+        debug::ensure(fs.dir_paths.try_to_get(dir_id) != nullptr);
+
+        const auto& d = fs.dir_paths.get(dir_id);
+
+        const auto* f       = fs.file_paths.try_to_get(file_id);
+        const auto* preview = f ? f->path.c_str() : empty;
+
+        auto buffer = file_path_str{};
+        auto id     = file_id;
+        auto up     = 0;
+
+        if (ImGui::BeginCombo("File", preview)) {
+            if (ImGui::Selectable(empty, f == nullptr)) {
+                if (is_defined(id)) {
+                    id = undefined<file_path_id>();
+                    ++up;
+                }
+            }
+
+            for (const auto f_id : d.children) {
+                if (const auto* file = fs.file_paths.try_to_get(f_id)) {
+                    if (file->type == type) {
+                        ImGui::PushID(file);
+                        if (ImGui::Selectable(file->path.c_str(), f_id == id)) {
+                            if (f_id != id) {
+                                id = f_id;
+                                ++up;
+                            }
+                        }
+                        ImGui::PopID();
+                    }
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        return combo_file_path_result{ .id      = id,
+                                       .path    = buffer.sv(),
+                                       .updated = up > 0 };
+    }
 };
 
 static inline combo_registred_path_fn combo_registred_path{};
@@ -318,10 +420,61 @@ auto file_selector::combobox(application&               app,
             if (is_defined(fc.id)) {
                 const auto size = ImGui::ComputeButtonSize(2);
 
-                if (ImGui::Button("Save", size)) {
+                if (ImGui::Button("Select", size)) {
                     save  = true;
                     close = true;
                 }
+
+                ImGui::SameLine();
+
+                if (ImGui::Button("Close", size)) {
+                    save  = false;
+                    close = true;
+                }
+            }
+        }
+    }
+
+    return combo_box_result{ .reg_id  = reg,
+                             .dir_id  = dir,
+                             .file_id = file,
+                             .close   = close,
+                             .save    = save };
+}
+
+auto file_selector::combobox_ro(const file_access&         fs,
+                                const registred_path_id    reg_id,
+                                const dir_path_id          dir_id,
+                                const file_path_id         file_id,
+                                const file_path::file_type type) noexcept
+  -> combo_box_result
+{
+    auto reg   = reg_id;
+    auto dir   = dir_id;
+    auto file  = file_id;
+    auto save  = false;
+    auto close = false;
+
+    const auto rc = combo_registred_path(fs, reg);
+    reg           = rc.id;
+
+    if (is_defined(rc.id)) {
+        const auto dc = combo_dir_path(fs, reg, dir);
+        dir           = dc.id;
+
+        if (is_defined(dc.id)) {
+            const auto fc = combo_file_path(fs, reg, dir, file, type);
+            file          = fc.id;
+
+            if (is_defined(fc.id)) {
+                const auto size = ImGui::ComputeButtonSize(2);
+
+                if (ImGui::Button("Select", size)) {
+                    save  = true;
+                    close = true;
+                }
+
+                ImGui::SameLine();
 
                 if (ImGui::Button("Close", size)) {
                     save  = false;

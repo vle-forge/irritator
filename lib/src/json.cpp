@@ -3367,9 +3367,7 @@ struct json_dearchiver::impl {
             const auto file_id =
               files.find_file_in_directory(dir_id, file_path.sv());
 
-            if (files.dir_paths.try_to_get(dir_id))
-                graph.dot.dir = dir_id;
-            else
+            if (not files.dir_paths.try_to_get(dir_id))
                 warning("graph-component: fail to found directory {}",
                         dir_path.sv());
 
@@ -6251,20 +6249,24 @@ struct json_archiver::impl {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
             auto&      p    = g.dot;
+            registred_path* reg = nullptr;
             dir_path*  dir  = nullptr;
             file_path* file = nullptr;
 
-            if (dir = files.dir_paths.try_to_get(p.dir); dir) {
-                w.Key("dir");
-                w.String(dir->path.begin(), dir->path.size());
-            }
-
             if (file = files.file_paths.try_to_get(p.file); file) {
+                if (dir = files.dir_paths.try_to_get(file->parent); dir) {
+                    if (reg = files.registred_paths.try_to_get(dir->parent); reg) {
+                        w.Key("path");
+                        w.String(reg->path.data(), reg->path.size());
+                    }
+                    w.Key("dir");
+                    w.String(dir->path.begin(), dir->path.size());
+                }
                 w.Key("file");
                 w.String(file->path.begin(), file->path.size());
             }
 
-            if (dir and file) {
+            if (file) {
                 if (auto f = make_file(mod, *file); f.has_value()) {
                     if (not write_dot_file(files, ids, g.g, *f)) {
                         mod.journal.push(

@@ -763,12 +763,10 @@ public:
     };
 
     struct dot_file_param {
-        dir_path_id  dir  = undefined<dir_path_id>();
-        file_path_id file = undefined<file_path_id>();
+        file_path_id      file = undefined<file_path_id>();
 
         void reset() noexcept
         {
-            dir  = undefined<dir_path_id>();
             file = undefined<file_path_id>();
         }
     };
