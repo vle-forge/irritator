@@ -3426,6 +3426,8 @@ constexpr typename id_array<Identifier, A>::this_container&
 id_array<Identifier, A>::operator=(id_array<Identifier, A>&& o) noexcept
 {
     if (this != &o) {
+        clear();
+
         m_items     = std::exchange(o.m_items, nullptr);
         m_max_size  = std::exchange(o.m_max_size, 0);
         m_max_used  = std::exchange(o.m_max_used, 0);
@@ -4368,14 +4370,16 @@ template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
   data_array&& other) noexcept
 {
-    clear();
+    if (this != &other) {
+        clear();
 
-    m_items     = std::exchange(other.m_items, nullptr);
-    m_max_size  = std::exchange(other.m_max_size, 0);
-    m_max_used  = std::exchange(other.m_max_used, 0);
-    m_capacity  = std::exchange(other.m_capacity, 0);
-    m_next_key  = std::exchange(other.m_next_key, 1);
-    m_free_head = std::exchange(other.m_free_head, none);
+        m_items     = std::exchange(other.m_items, nullptr);
+        m_max_size  = std::exchange(other.m_max_size, 0);
+        m_max_used  = std::exchange(other.m_max_used, 0);
+        m_capacity  = std::exchange(other.m_capacity, 0);
+        m_next_key  = std::exchange(other.m_next_key, 1);
+        m_free_head = std::exchange(other.m_free_head, none);
+    }
 
     return *this;
 }
@@ -5008,6 +5012,7 @@ inline constexpr vector<T, A>& vector<T, A>::operator=(vector&& other) noexcept
 {
     if (this != &other) {
         destroy();
+
         m_data     = std::exchange(other.m_data, nullptr);
         m_size     = std::exchange(other.m_size, 0);
         m_capacity = std::exchange(other.m_capacity, 0);
