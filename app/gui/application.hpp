@@ -737,20 +737,23 @@ private:
     graph_component::small_world_param psw{};
     graph_component::dot_file_param    pdf{};
 
-    vector<ImVec2> displacements;
-
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
     ImVec2                start_selection;
     ImVec2                end_selection;
     ImVec2                canvas_sz;
+    bool                  run_selection = false;
 
     ImVec2 distance{ 15.f, 15.f };
     ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
     ImVec2 zoom{ 1.f, 1.f };
 
-    int iteration       = 0;
-    int iteration_limit = 1000;
+    std::atomic_flag task_is_running; // Allow only one task (new graph or new
+                                      // automatic layout at the same time).
+
+    i32 iteration_limit     = 100'000;
+    i32 time_limit_ms       = 1'000;
+    i32 update_frequence_ms = 0'16;
 
     graph_component_id graph_id = undefined<graph_component_id>();
     component_id       m_id     = undefined<component_id>();
@@ -759,26 +762,16 @@ private:
     dir_path_id       dir  = undefined<dir_path_id>();
     file_path_id      file = undefined<file_path_id>();
 
-    bool automatic_layout = false;
-    bool run_selection    = false;
+    void automatic_layout_task(application& app) noexcept;
+    bool compute_automatic_layout(graph_component& graph,
+                                  vector<ImVec2>&  displacements,
+                                  int              iteration) const noexcept;
 
-    enum class job : u8 {
-        none,
-        center_required,
-        auto_fit_required,
-    } st = job::none;
-
-    struct scale_free_build_handler {
-        component_editor*            ed       = nullptr;
-        graph_component_editor_data* graph_ed = nullptr;
-        graph_component_id           g_id     = undefined<graph_component_id>();
-    } scale_free_builder;
-
-    bool show(application&, component&) noexcept;
-    bool compute_automatic_layout(graph_component& graph) noexcept;
     void clear_file_access() noexcept;
     void center_camera() noexcept;
     void auto_fit_camera() noexcept;
+
+    bool show(application&, component&) noexcept;
     bool show_scale_free_menu(application& app) noexcept;
     bool show_small_world_menu(application& app) noexcept;
     bool show_dot_file_menu(application& app) noexcept;
@@ -790,8 +783,9 @@ private:
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
-    //! m_graph can receives new graph from dot or random graph.
-    graph_component                 m_graph;
+    graph_component m_graph;
+
+    //! m_graph can receives new graph from dot or random graphs.
     request_buffer<graph_component> m_graph_2nd;
 
     u64 m_version = std::numeric_limits<u64>::max();

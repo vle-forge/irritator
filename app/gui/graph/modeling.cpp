@@ -113,13 +113,13 @@ static void update_bound(graph_component& graph, std::integral auto i) noexcept
 }
 
 bool graph_component_editor_data::compute_automatic_layout(
-  graph_component& graph) noexcept
+  graph_component& graph,
+  vector<ImVec2>&  displacements,
+  int              iteration) const noexcept
 {
     const auto size = graph.g.nodes.size();
     if (size < 2)
         return false;
-
-    displacements.resize(graph.g.nodes.size());
 
     const auto sqrt_size = std::sqrt(static_cast<float>(size));
     const auto W         = (sqrt_size + 1.f) * distance.x;
@@ -679,25 +679,34 @@ bool graph_component_editor_data::show_scale_free_menu(
         }
 
         const auto size = ImGui::ComputeButtonSize(2);
+        ImGui::BeginDisabled(task_is_running.test());
         if (ImGui::Button("generate", size)) {
             clear_selected_nodes();
 
-            if (m_graph_2nd.should_request()) {
-                app.add_gui_task([this]() {
-                    graph_component new_graph;
-                    new_graph.g.init_scale_free_graph(
-                      psf.alpha, psf.beta, psf.id, psf.nodes, new_graph.rng);
-                    new_graph.scale  = psf;
-                    new_graph.g_type = graph_component::graph_type::scale_free;
-                    new_graph.update_position();
-                    new_graph.assign_grid_position(distance.x, distance.y);
+            if (not task_is_running.test_and_set()) {
+                if (m_graph_2nd.should_request()) {
+                    app.add_gui_task([this]() {
+                        graph_component new_graph;
+                        new_graph.g.init_scale_free_graph(psf.alpha,
+                                                          psf.beta,
+                                                          psf.id,
+                                                          psf.nodes,
+                                                          new_graph.rng);
+                        new_graph.scale = psf;
+                        new_graph.g_type =
+                          graph_component::graph_type::scale_free;
+                        new_graph.update_position();
+                        new_graph.assign_grid_position(distance.x, distance.y);
 
-                    m_graph_2nd.fulfill(std::move(new_graph));
-                });
+                        m_graph_2nd.fulfill(std::move(new_graph));
+                        task_is_running.clear();
+                    });
+                }
             }
 
             ImGui::CloseCurrentPopup();
         }
+        ImGui::EndDisabled();
 
         ImGui::SameLine();
         if (ImGui::Button("cancel", size)) {
@@ -742,25 +751,34 @@ bool graph_component_editor_data::show_small_world_menu(
         }
 
         const auto size = ImGui::ComputeButtonSize(2);
+        ImGui::BeginDisabled(task_is_running.test());
         if (ImGui::Button("generate", size)) {
             clear_selected_nodes();
 
-            if (m_graph_2nd.should_request()) {
-                app.add_gui_task([this]() {
-                    graph_component new_graph;
-                    new_graph.g.init_small_world_graph(
-                      psw.probability, psw.k, psw.id, psf.nodes, new_graph.rng);
-                    new_graph.small  = psw;
-                    new_graph.g_type = graph_component::graph_type::small_world;
-                    new_graph.update_position();
-                    new_graph.assign_grid_position(distance.x, distance.y);
+            if (not task_is_running.test_and_set()) {
+                if (m_graph_2nd.should_request()) {
+                    app.add_gui_task([this]() {
+                        graph_component new_graph;
+                        new_graph.g.init_small_world_graph(psw.probability,
+                                                           psw.k,
+                                                           psw.id,
+                                                           psf.nodes,
+                                                           new_graph.rng);
+                        new_graph.small = psw;
+                        new_graph.g_type =
+                          graph_component::graph_type::small_world;
+                        new_graph.update_position();
+                        new_graph.assign_grid_position(distance.x, distance.y);
 
-                    m_graph_2nd.fulfill(std::move(new_graph));
-                });
+                        m_graph_2nd.fulfill(std::move(new_graph));
+                        task_is_running.clear();
+                    });
+                }
             }
 
             ImGui::CloseCurrentPopup();
         }
+        ImGui::EndDisabled();
 
         ImGui::SameLine();
         if (ImGui::Button("cancel", size)) {
@@ -786,6 +804,7 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
 
         if (is_defined(pdf.dir) and is_defined(pdf.file)) {
             const auto size = ImGui::ComputeButtonSize(2);
+            ImGui::BeginDisabled(task_is_running.test());
             if (ImGui::Button("Load", size)) {
                 clear_selected_nodes();
 
@@ -811,11 +830,13 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
                         });
 
                         m_graph_2nd.fulfill(std::move(new_graph));
+                        task_is_running.clear();
                     });
                 }
 
                 ImGui::CloseCurrentPopup();
             }
+            ImGui::EndDisabled();
 
             ImGui::SameLine();
             if (ImGui::Button("cancel", size)) {
@@ -858,6 +879,45 @@ void save_dot_file(application&       app,
             });
         });
     });
+}
+
+void graph_component_editor_data::automatic_layout_task(
+  application& app) noexcept
+{
+    if (not task_is_running.test_and_set()) {
+        auto g_ptr = std::make_unique<graph_component>(m_graph);
+
+        app.add_gui_task([this, g = std::move(g_ptr)]() {
+            namespace sc = std::chrono;
+
+            auto       displacements = vector<ImVec2>(g->g.nodes.size());
+            const auto start         = sc::system_clock::now();
+            auto       next_update   = sc::milliseconds{ 0 };
+
+            for (i32 iteration = 0; iteration < iteration_limit; ++iteration) {
+                if (not compute_automatic_layout(*g, displacements, iteration))
+                    break;
+
+                const auto now = sc::system_clock::now();
+                const auto ms =
+                  sc::duration_cast<sc::milliseconds>(now - start);
+                if (ms >= sc::milliseconds{ time_limit_ms })
+                    break;
+
+                next_update += ms;
+                if (next_update > sc::milliseconds{ update_frequence_ms }) {
+                    if (m_graph_2nd.should_request()) {
+                        next_update  = sc::milliseconds{ 0 };
+                        auto to_move = graph_component(*g);
+
+                        m_graph_2nd.fulfill(std::move(to_move));
+                    }
+                }
+            }
+
+            task_is_running.clear();
+        });
+    }
 }
 
 bool graph_component_editor_data::graph_component_editor_data::show(
@@ -913,10 +973,32 @@ bool graph_component_editor_data::graph_component_editor_data::show(
         }
 
         if (ImGui::BeginMenu("Display##Menu")) {
+            ImGui::BeginDisabled(task_is_running.test());
+            if (ImGui::MenuItem("Automatic layout"))
+                automatic_layout_task(app);
+            ImGui::EndDisabled();
+
             if (ImGui::MenuItem("Center"))
-                st = graph_component_editor_data::job::center_required;
+                center_camera();
             if (ImGui::MenuItem("Auto-fit"))
-                st = graph_component_editor_data::job::auto_fit_required;
+                auto_fit_camera();
+
+            ImGui::SeparatorText("Automatic Layout");
+
+            if (ImGui::InputInt("iteration limit", &iteration_limit)) {
+                iteration_limit = std::clamp(iteration_limit, 1'000, 100'000);
+            }
+
+            if (ImGui::InputInt("time limit (ms)", &time_limit_ms)) {
+                time_limit_ms = std::clamp(time_limit_ms, 0'500, 10'000);
+            }
+
+            if (ImGui::InputInt("draw frequence (ms)", &update_frequence_ms)) {
+                update_frequence_ms =
+                  std::clamp(update_frequence_ms, 0'160, 1'000);
+            }
+
+            ImGui::SeparatorText("Drawing settings");
 
             float wzoom[2] = { zoom.x, zoom.y };
             if (ImGui::MenuItem("Reset zoom")) {
@@ -927,11 +1009,6 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             if (ImGui::InputFloat2("Zoom x,y", wzoom)) {
                 zoom.x = ImClamp(wzoom[0], 0.1f, 1000.f);
                 zoom.y = ImClamp(wzoom[1], 0.1f, 1000.f);
-            }
-
-            if (ImGui::Checkbox("Automatic layout", &automatic_layout)) {
-                if (automatic_layout)
-                    iteration = 0;
             }
 
             float wdistance[2] = { distance.x, distance.y };
@@ -948,16 +1025,6 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
-    }
-
-    if (automatic_layout and
-        m_graph.g_type != graph_component::graph_type::dot_file and
-        not m_graph.g.nodes.empty()) {
-        bool again = compute_automatic_layout(m_graph);
-        if (not again) {
-            iteration        = 0;
-            automatic_layout = false;
-        }
     }
 
     u += show_graph(app, compo, m_graph);
@@ -977,7 +1044,6 @@ graph_component_editor_data::graph_component_editor_data(
   const graph_component_id graph_id_) noexcept
   : graph_id(graph_id_)
   , m_id(id_)
-  , st(job::auto_fit_required)
 {}
 
 void graph_component_editor_data::clear() noexcept
@@ -991,47 +1057,28 @@ bool graph_component_editor_data::show(component_editor& ed,
                                        component& compo) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
-    bool  force_auto_fit = false;
     int   u   = 0;
 
     if (auto new_graph_opt = m_graph_2nd.try_take()) {
+        const auto t_l = m_graph.top_left_limit;
+        const auto b_r = m_graph.bottom_right_limit;
         m_graph = *new_graph_opt;
-        new_graph_opt->g.clear();
-        auto_fit_camera();
+
+        if (t_l != m_graph.top_left_limit or b_r != m_graph.bottom_right_limit)
+            auto_fit_camera();
+
         ++u;
     } else {
         read(app, compo);
     }
-
-    ImGui::TextFormat(
-      "nodes: {} edges: {}", m_graph.g.nodes.size(), m_graph.g.edges.size());
 
     if (ImGui::BeginChild("##graph-ed",
                           ImVec2(0, 0),
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_MenuBar)) {
         u += show(app, compo);
-
-        if (force_auto_fit)
-            st = job::auto_fit_required;
-
-        switch (st) {
-        case job::none:
-            break;
-
-        case job::center_required:
-            center_camera();
-            st = job::none;
-            break;
-
-        case job::auto_fit_required:
-            auto_fit_camera();
-            st = job::none;
-            break;
-        }
-
-        ImGui::EndChild();
     }
+    ImGui::EndChild();
 
     if (u > 0) {
         write(app, compo);
