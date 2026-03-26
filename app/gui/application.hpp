@@ -736,7 +736,6 @@ private:
     graph_component::scale_free_param  psf{};
     graph_component::small_world_param psw{};
     graph_component::dot_file_param    pdf{};
-    graph                              g;
 
     vector<ImVec2> displacements;
 
@@ -760,10 +759,6 @@ private:
     dir_path_id       dir  = undefined<dir_path_id>();
     file_path_id      file = undefined<file_path_id>();
 
-    std::atomic_flag running = ATOMIC_FLAG_INIT;
-
-    spin_mutex mutex;
-
     bool automatic_layout = false;
     bool run_selection    = false;
 
@@ -771,9 +766,6 @@ private:
         none,
         center_required,
         auto_fit_required,
-        build_scale_free_required,
-        build_small_world_required,
-        build_dot_graph_required,
     } st = job::none;
 
     struct scale_free_build_handler {
@@ -782,16 +774,11 @@ private:
         graph_component_id           g_id     = undefined<graph_component_id>();
     } scale_free_builder;
 
-    void show(application&, component&) noexcept;
+    bool show(application&, component&) noexcept;
     bool compute_automatic_layout(graph_component& graph) noexcept;
-    void update_position_to_grid(graph_component& graph) noexcept;
     void clear_file_access() noexcept;
-    void center_camera(ImVec2 top_left,
-                       ImVec2 bottom_right,
-                       ImVec2 canvas_sz) noexcept;
-    void auto_fit_camera(ImVec2 top_left,
-                         ImVec2 bottom_right,
-                         ImVec2 canvas_sz) noexcept;
+    void center_camera() noexcept;
+    void auto_fit_camera() noexcept;
     bool show_scale_free_menu(application& app) noexcept;
     bool show_small_world_menu(application& app) noexcept;
     bool show_dot_file_menu(application& app) noexcept;
@@ -803,8 +790,11 @@ private:
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
-    graph_component m_graph;
-    u64             m_version = std::numeric_limits<u64>::max();
+    //! m_graph can receives new graph from dot or random graph.
+    graph_component                 m_graph;
+    request_buffer<graph_component> m_graph_2nd;
+
+    u64 m_version = std::numeric_limits<u64>::max();
 };
 
 class simulation_component_editor_data
