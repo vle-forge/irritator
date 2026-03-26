@@ -624,7 +624,6 @@ public:
     id_array<graph_edge_id> edges;
 
     vector<std::string_view>     node_names;
-    vector<std::string_view>     node_ids;
     vector<std::string_view>     node_labels;
     vector<std::array<float, 3>> node_positions;
     vector<component_id>         node_components;

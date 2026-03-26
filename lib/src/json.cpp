@@ -3436,7 +3436,6 @@ struct json_dearchiver::impl {
         compo.g.nodes.reserve(len);
         compo.g.node_areas.resize(len);
         compo.g.node_components.resize(len);
-        compo.g.node_ids.resize(len);
         compo.g.node_names.resize(len);
         compo.g.node_positions.resize(len);
 

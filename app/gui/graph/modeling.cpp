@@ -1111,10 +1111,10 @@ bool graph_component_editor_data::show_selected_nodes(
                       m_graph.g.buffer.append(name.sv());
                 }
 
-                name_str id_str = m_graph.g.node_ids[idx];
+                name_str id_str = m_graph.g.node_names[idx];
                 if (ImGui::InputFilteredString("id", id_str)) {
                     ++u;
-                    m_graph.g.node_ids[idx] =
+                    m_graph.g.node_names[idx] =
                       m_graph.g.buffer.append(id_str.sv());
                 }
 

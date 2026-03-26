@@ -864,7 +864,7 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
     static std::string temp;
 
     temp = graph.g.nodes.exists(selected)
-             ? graph.g.node_ids[get_index(selected)]
+             ? graph.g.node_names[get_index(selected)]
              : "-";
 
     if (ImGui::BeginCombo("Node", temp.c_str())) {
@@ -886,8 +886,8 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
             const auto idx = get_index(id);
             ImGui::PushID(idx);
 
-            if (not graph.g.node_ids[idx].empty()) {
-                temp = graph.g.node_ids[idx];
+            if (not graph.g.node_names[idx].empty()) {
+                temp = graph.g.node_names[idx];
 
                 if (filter.PassFilter(temp.c_str())) {
                     ImGui::PushID(idx);
@@ -1750,10 +1750,9 @@ static void show_input_connections(application&            app,
                 if (sub_compo.x.exists(con.id) and c.x.exists(con.x)) {
                     ImGui::SetNextItemAllowOverlap();
 
-                    ImGui::TextFormat("{} connected to node {} (name: {}) port "
+                    ImGui::TextFormat("{} connected to node {} port "
                                       "{}\n",
                                       c.x.get<port_str>(con.x).sv(),
-                                      g.g.node_ids[get_index(con.v)],
                                       g.g.node_names[get_index(con.v)],
                                       sub_compo.x.get<port_str>(con.id).sv());
                 } else
@@ -1793,10 +1792,9 @@ static void show_output_connections(application&            app,
                 if (sub_compo.y.exists(con.id) and c.y.exists(con.y)) {
                     ImGui::SetNextItemAllowOverlap();
 
-                    ImGui::TextFormat("{} connected to node {} (name: {}) port "
+                    ImGui::TextFormat("{} connected to node {} port "
                                       "{}\n",
                                       c.y.get<port_str>(con.y).sv(),
-                                      g.g.node_ids[get_index(con.v)],
                                       g.g.node_names[get_index(con.v)],
                                       sub_compo.y.get<port_str>(con.id).sv());
                 } else
