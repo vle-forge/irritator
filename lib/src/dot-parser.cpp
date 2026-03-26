@@ -1444,9 +1444,16 @@ expected<void> graph::init_scale_free_graph(double       alpha,
                 break;
 
             auto second = undefined<graph_node_id>();
+            auto cnt    = 0;
             do {
                 const auto idx = d(rng);
                 second         = nodes.get_from_index(idx);
+                ++cnt;
+
+                if (cnt > 10'000)
+                    return new_error(
+                      modeling_errc::graph_children_container_full);
+
             } while (not is_defined(second) or *first == second or
                      exists_edge(*first, second));
             --degree;
@@ -1500,6 +1507,7 @@ expected<void> graph::init_small_world_graph(double       probability,
         int second = 1;
         int source = 0;
         int target = 1;
+        int cnt    = 0;
 
         do {
             target = (target + 1) % n;
@@ -1537,8 +1545,16 @@ expected<void> graph::init_small_world_graph(double       probability,
             }
 
             if (vertex_first == vertex_second or
-                exists_edge(vertex_first, vertex_second))
+                exists_edge(vertex_first, vertex_second)) {
+                ++cnt;
+
+                if (cnt > 10'000)
+                    return new_error(modeling_errc::component_container_full);
+
                 continue;
+            } else {
+                cnt = 0;
+            }
 
             const auto new_edge_id            = edges.alloc();
             edges_nodes[new_edge_id][0].first = vertex_first;
