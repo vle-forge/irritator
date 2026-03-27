@@ -413,12 +413,11 @@ public:
 
     using container_type     = vector<value_type, A>;
     using size_type          = typename container_type::size_type;
+    using index_type         = std::make_signed_t<size_type>;
     using iterator           = typename container_type::iterator;
     using const_iterator     = typename container_type::const_iterator;
     using reference          = typename container_type::reference;
     using const_reference    = typename container_type::const_reference;
-    using pointer            = typename container_type::pointer;
-    using const_pointer      = typename container_type::const_pointer;
     using identifier_compare = Compare;
 
     container_type data;
@@ -440,8 +439,8 @@ public:
     constexpr void erase(Identifier id) noexcept;
     constexpr void sort() noexcept;
 
-    constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
+    constexpr size_type  size() const noexcept;
+    constexpr index_type ssize() const noexcept;
 };
 
 template<typename T>
@@ -660,15 +659,17 @@ constexpr void table<Identifier, T, Compare, A>::sort() noexcept
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
-constexpr unsigned table<Identifier, T, Compare, A>::size() const noexcept
+constexpr table<Identifier, T, Compare, A>::size_type
+table<Identifier, T, Compare, A>::size() const noexcept
 {
     return data.size();
 }
 
 template<typename Identifier, typename T, class Compare, typename A>
-constexpr int table<Identifier, T, Compare, A>::ssize() const noexcept
+constexpr table<Identifier, T, Compare, A>::index_type
+table<Identifier, T, Compare, A>::ssize() const noexcept
 {
-    return data.ssize();
+    return static_cast<index_type>(data.size());
 }
 
 // class hierarchy

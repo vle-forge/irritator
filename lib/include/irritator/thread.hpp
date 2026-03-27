@@ -27,6 +27,18 @@ class task_manager;
 class ordered_task_list
 {
 public:
+    ordered_task_list() noexcept = default;
+
+    ~ordered_task_list() noexcept = default;
+
+    ordered_task_list(ordered_task_list&& other) noexcept
+      : m_queue(std::move(other.m_queue))
+      , m_tasks_submitted(other.m_tasks_submitted)
+      , m_tasks_completed(other.m_tasks_completed)
+      , m_tasks_running(other.m_tasks_running)
+      , m_stopping(other.m_stopping)
+    {}
+
     template<typename Fn>
     void add(Fn&& fn) noexcept
     {
@@ -118,6 +130,8 @@ public:
       , m_execution_time(other.m_execution_time)
     {}
 
+    ~ordered_worker() noexcept = default;
+
     void start() noexcept
     {
         m_thread = std::thread([this] {
@@ -156,6 +170,17 @@ class unordered_task_list
 {
 public:
     unordered_task_list() noexcept { m_pending.reserve(1024); }
+
+    unordered_task_list(unordered_task_list&& other) noexcept
+      : m_pending(std::move(other.m_pending))
+      , m_tasks_submitted(other.m_tasks_submitted)
+      , m_tasks_completed(other.m_tasks_completed)
+      , m_batch_size(other.m_batch_size)
+      , m_next_index(other.m_next_index)
+      , m_completed(other.m_completed)
+      , m_phase(other.m_phase)
+      , m_stopping(other.m_stopping)
+    {}
 
     template<typename Fn>
     void add(Fn&& fn) noexcept

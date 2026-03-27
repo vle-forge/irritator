@@ -1028,7 +1028,8 @@ void project_external_source_editor::show(application&    app,
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                 ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                ImPlot::PlotScatter("value", vec.data(), vec.size(), 1.0, 0.0);
+                ImPlot::PlotScatter(
+                  "value", vec.data(), static_cast<int>(vec.size()), 1.0, 0.0);
 
                 ImPlot::PopStyleVar(2);
                 ImPlot::EndPlot();
@@ -1394,28 +1395,28 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::constant and
+    return type_sel.has_value() and * type_sel == source_type::constant and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::text_file and
+    return type_sel.has_value() and * type_sel == source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::binary_file and
+    return type_sel.has_value() and * type_sel == source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source_type::random and
+    return type_sel.has_value() and * type_sel == source_type::random and
            id_sel == ordinal(id);
 }
 

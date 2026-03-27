@@ -546,10 +546,10 @@ static auto compute_automatic_layout(const project&        pj,
 {
     struct node {
         component_id id;
-        float    width;
-        float    height;
-        float    x;
-        float    y;
+        float        width;
+        float        height;
+        float        x;
+        float        y;
     };
 
     // To keep the grid position, we compute the greater width,height from
@@ -603,8 +603,8 @@ static auto compute_width_height(const graph_component& g) noexcept
 }
 
 struct max_point_in_vh_lines_result {
-    unsigned hpoints;
-    unsigned vpoints;
+    sz hpoints;
+    sz vpoints;
 };
 
 static auto max_point_in_vh_lines(const graph_component& g,
@@ -664,10 +664,10 @@ static void compute_automatic_layout(const project&         pj,
 {
     struct node {
         graph_node_id id;
-        float    width;
-        float    height;
-        float    x;
-        float    y;
+        float         width;
+        float         height;
+        float         x;
+        float         y;
     };
 
     // To keep the graph position, we compute (1) the greater width,height
@@ -759,7 +759,7 @@ static void compute_automatic_layout(const project&           pj,
         return left.y < rigth.y;
     });
 
-    for (auto i = 1, e = nodes.ssize(); i < e; ++i) {
+    for (sz i = 1, e = nodes.size(); i < e; ++i) {
         auto& prev    = nodes[i - 1];
         auto& current = nodes[i];
 

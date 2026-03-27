@@ -19,7 +19,7 @@ static void try_append(const application&                             app,
                        vector<std::pair<tree_node_id, component_id>>& out,
                        vector<name_str>& names) noexcept
 {
-    debug::ensure(out.ssize() == names.ssize());
+    debug::ensure(out.size() == names.size());
 
     if (auto it = std::find_if(
           out.begin(),
@@ -83,10 +83,11 @@ void component_model_selector::component_comboxbox(
             compo_id           = undefined<component_id>();
         }
 
-        for (int i = 0, e = data.names.ssize(); i != e; ++i) {
-            if (ImGui::Selectable(data.names[i].c_str(),
-                                  i == component_selected)) {
-                component_selected = i;
+        for (sz i = 0, e = data.names.size(); i != e; ++i) {
+            const auto is_selected = static_cast<sz>(component_selected) == i;
+
+            if (ImGui::Selectable(data.names[i].c_str(), is_selected)) {
+                component_selected = static_cast<int>(i);
                 tn_id              = data.components[component_selected].first;
                 compo_id           = data.components[component_selected].second;
             }
@@ -154,7 +155,7 @@ void component_model_selector::observable_model_treenode(
   const data_type& data) noexcept
 {
     debug::ensure(0 <= component_selected);
-    debug::ensure(component_selected < data.names.ssize());
+    debug::ensure(std::cmp_less(component_selected, data.names.size()));
     debug::ensure(is_defined(compo_id));
     debug::ensure(compo_id == data.components[component_selected].second);
     debug::ensure(is_defined(tn_id));
@@ -191,8 +192,8 @@ component_model_selector::combobox(const char*    label,
     std::optional<access> ret;
 
     data.read([&](const auto& data, const auto /*version*/) noexcept {
-        debug::ensure(data.components.ssize() == data.names.ssize());
-        debug::ensure(component_selected < data.names.ssize());
+        debug::ensure(data.components.size() == data.names.size());
+        debug::ensure(std::cmp_less(component_selected, data.names.size()));
 
         component_comboxbox(label, data);
         if (is_defined(compo_id)) {
@@ -243,10 +244,10 @@ void component_model_selector::update(const project&     pj,
             });
         } else {
             component_selected = -1;
-            for (int i = 0, e = data.components.ssize(); i != e; ++i) {
+            for (sz i = 0, e = data.components.size(); i != e; ++i) {
                 if (data.components[i].second == compo_id &&
                     data.components[i].first == tn_id) {
-                    component_selected = i;
+                    component_selected = static_cast<int>(i);
                     break;
                 }
             }

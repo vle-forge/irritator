@@ -1571,8 +1571,8 @@ int main()
         auto f = irt::memory::make(256);
 
         expect(f.has_value()) << fatal;
-        expect(eq(f->data.ssize(), 256));
-        expect(eq(f->data.capacity(), 256));
+        expect(eq(f->data.size(), 256u));
+        expect(eq(f->data.capacity(), 256u));
         expect(eq(f->tell(), 0));
         expect(eq(f->length(), 256));
 
@@ -1586,8 +1586,8 @@ int main()
         expect(!!f->write(c));
         expect(!!f->write(d));
 
-        expect(eq(f->data.ssize(), 256));
-        expect(eq(f->data.capacity(), 256));
+        expect(eq(f->data.size(), 256u));
+        expect(eq(f->data.capacity(), 256u));
         expect(eq(f->tell(), 8 + 4 + 2 + 1));
         expect(eq(f->length(), 256));
 

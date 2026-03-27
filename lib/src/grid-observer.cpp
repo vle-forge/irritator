@@ -87,7 +87,8 @@ static void build_grid_observer(grid_observer&  grid_obs,
                     const auto index = grid_compo.pos(w.first, w.second);
 
                     debug::ensure(0 <= index);
-                    debug::ensure(index < grid_obs.observers.ssize());
+                    debug::ensure(
+                      std::cmp_less(index, grid_obs.observers.size()));
 
                     grid_obs.observers[index] =
                       init_or_reuse_observer(sim, *mdl, w.first, w.second);
@@ -156,7 +157,8 @@ void grid_observer::clear() noexcept
 void grid_observer::update(const simulation& sim) noexcept
 {
     values.write([&](auto& v) noexcept {
-        if (rows * cols != observers.ssize() or v.ssize() != observers.ssize())
+        if (static_cast<sz>(rows * cols) != observers.size() or
+            v.size() != observers.size())
             return;
 
         std::fill_n(v.data(), v.capacity(), 0.0);

@@ -188,14 +188,19 @@ irt::vector<char> file::read_entire_file() noexcept
             if (size >= 0) {
                 const auto beg = std::fseek(to_file(), 0, SEEK_SET);
                 if (beg == 0) {
-                    buffer.resize(size, '\0');
+                    if (buffer.resize(size)) {
+                        std::fill_n(buffer.data(), buffer.size(), '\0');
 
-                    const auto read_size = std::fread(
-                      buffer.data(), 1, static_cast<size_t>(size), to_file());
+                        const auto read_size =
+                          std::fread(buffer.data(),
+                                     1,
+                                     static_cast<size_t>(size),
+                                     to_file());
 
-                    // @TODO We must handle reading error
-                    if (std::cmp_equal(read_size, buffer.size()))
-                        buffer.clear();
+                        // @TODO We must handle reading error
+                        if (std::cmp_equal(read_size, buffer.size()))
+                            buffer.clear();
+                    }
                 }
             }
         }
@@ -786,7 +791,10 @@ memory& memory::operator=(memory&& other) noexcept
 }
 
 bool memory::is_open() const noexcept { return data.capacity() == 0; }
-bool memory::is_eof() const noexcept { return pos == data.capacity(); }
+bool memory::is_eof() const noexcept
+{
+    return std::cmp_equal(pos, data.capacity());
+}
 
 i64 memory::length() const noexcept { return data.capacity(); }
 
@@ -895,11 +903,11 @@ bool memory::write(const double value) noexcept
 
 bool memory::read(void* buffer, i64 length) noexcept
 {
-    debug::ensure(data.ssize() == data.capacity());
+    debug::ensure(data.size() == data.capacity());
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
-    if (data.ssize() != data.capacity() or not buffer or length <= 0)
+    if (data.size() != data.capacity() or not buffer or length <= 0)
         return false;
 
     if (std::cmp_less_equal(pos + length, data.capacity())) {
@@ -916,11 +924,11 @@ bool memory::read(void* buffer, i64 length) noexcept
 
 bool memory::write(const void* buffer, i64 length) noexcept
 {
-    debug::ensure(data.ssize() == data.capacity());
+    debug::ensure(data.size() == data.capacity());
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
-    if (data.ssize() != data.capacity() or not buffer or length <= 0)
+    if (data.size() != data.capacity() or not buffer or length <= 0)
         return false;
 
     if (std::cmp_less_equal(pos + length, data.capacity())) {

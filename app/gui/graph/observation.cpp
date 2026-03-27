@@ -600,9 +600,9 @@ bool graph_editor::draw_popup(application& app,
                 }
 
                 if (not selected_nodes.empty() and ImGui::MenuItem("Connect")) {
-                    const auto e = selected_nodes.ssize();
-                    for (int i = 0; i < e; ++i) {
-                        for (int j = i + 1; j < e; ++j) {
+                    const auto e = selected_nodes.size();
+                    for (sz i = 0; i < e; ++i) {
+                        for (sz j = i + 1; j < e; ++j) {
                             g.alloc_edge(selected_nodes[i], selected_nodes[j]);
                         }
                     }

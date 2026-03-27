@@ -262,7 +262,8 @@ public:
 
     void observation_update() noexcept
     {
-        for (int i = 0, e = pj.sim.immediate_observers.ssize(); i != e; ++i) {
+        for (std::size_t i = 0, e = pj.sim.immediate_observers.size(); i != e;
+             ++i) {
             const auto obs_id = pj.sim.immediate_observers[i];
             if (auto* o = pj.sim.observers.try_to_get(obs_id); o)
                 if (o->states[irt::observer_flags::buffer_full])

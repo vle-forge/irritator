@@ -15,6 +15,9 @@ namespace irt {
 class simulation_snapshot_handler
 {
 public:
+    using size_type  = vector<simulation_snapshot>::size_type;
+    using index_type = std::make_signed_t<size_type>;
+
     constexpr simulation_snapshot_handler() noexcept = default;
     explicit simulation_snapshot_handler(const int capacity) noexcept;
 
@@ -39,21 +42,20 @@ public:
 
     constexpr void erase_after(const simulation_snapshot* snap) noexcept;
 
-    constexpr unsigned capacity() const noexcept;
-    constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
-    constexpr bool     empty() const noexcept;
+    constexpr size_type  capacity() const noexcept;
+    constexpr size_type  size() const noexcept;
+    constexpr index_type ssize() const noexcept;
+    constexpr bool       empty() const noexcept;
 
-    constexpr int index_from_ptr(
-      const simulation_snapshot* data) const noexcept;
+    constexpr int index_of(const simulation_snapshot* data) const noexcept;
     constexpr const simulation_snapshot* ptr_from_index(int idx) const noexcept;
 
 private:
     vector<simulation_snapshot> ring;
 
-    int m_front    = 0;
-    int m_back     = 0;
-    int m_capacity = 1;
+    std::size_t m_front    = 0;
+    std::size_t m_back     = 0;
+    std::size_t m_capacity = 1;
 };
 
 // Implementation
@@ -104,14 +106,14 @@ inline constexpr bool simulation_snapshot_handler::next(
         return true;
     }
 
-    const auto idx = ring.index_from_ptr(snap);
+    const auto idx = ring.index_of(snap);
 
-    if ((idx + 1) % m_capacity == m_front) {
+    if ((*idx + 1) % m_capacity == m_front) {
         snap = nullptr;
         return false;
     }
 
-    snap = std::addressof(ring[idx + 1]);
+    snap = std::addressof(ring[*idx + 1]);
     return true;
 }
 
@@ -126,14 +128,14 @@ inline constexpr bool simulation_snapshot_handler::next(
         return true;
     }
 
-    const auto idx = ring.index_from_ptr(snap);
+    const auto idx = ring.index_of(snap);
 
-    if ((idx + 1) % m_capacity == m_front) {
+    if ((*idx + 1) % m_capacity == m_front) {
         snap = nullptr;
         return false;
     }
 
-    snap = std::addressof(ring[idx + 1]);
+    snap = std::addressof(ring[*idx + 1]);
     return true;
 }
 
@@ -149,7 +151,7 @@ inline constexpr bool simulation_snapshot_handler::previous(
         return true;
     }
 
-    const auto idx     = ring.index_from_ptr(snap);
+    const auto idx     = ring.index_of(snap);
     const auto new_idx = idx == 0 ? m_capacity - 1 : m_back - 1;
 
     if (new_idx % m_capacity == m_back) {
@@ -172,14 +174,14 @@ inline constexpr bool simulation_snapshot_handler::previous(
         return true;
     }
 
-    const auto idx = ring.index_from_ptr(snap);
+    const auto idx = ring.index_of(snap);
 
-    if ((idx + 1) % m_capacity == m_front) {
+    if ((*idx + 1) % m_capacity == m_front) {
         snap = nullptr;
         return false;
     }
 
-    snap = std::addressof(ring[idx + 1]);
+    snap = std::addressof(ring[*idx + 1]);
     return true;
 }
 
@@ -189,33 +191,36 @@ inline constexpr void simulation_snapshot_handler::erase_after(
     if (snap == nullptr)
         return;
 
-    const auto idx = ring.index_from_ptr(snap);
+    const auto idx = ring.index_of(snap);
 
-    if ((idx + 1) % m_capacity == m_front)
+    if ((*idx + 1) % m_capacity == m_front)
         return;
 
-    m_back = idx + 1;
+    m_back = *idx + 1;
 }
 
-inline constexpr unsigned simulation_snapshot_handler::capacity() const noexcept
+inline constexpr simulation_snapshot_handler::size_type
+simulation_snapshot_handler::capacity() const noexcept
 {
     return m_capacity - 1;
 }
 
-inline constexpr unsigned simulation_snapshot_handler::size() const noexcept
+inline constexpr simulation_snapshot_handler::size_type
+simulation_snapshot_handler::size() const noexcept
 {
     if (m_back >= m_front)
-        return static_cast<unsigned>(m_back - m_front);
+        return static_cast<size_type>(m_back - m_front);
 
-    return static_cast<unsigned>(m_capacity - (m_front - m_back));
+    return static_cast<size_type>(m_capacity - (m_front - m_back));
 }
 
-inline constexpr int simulation_snapshot_handler::ssize() const noexcept
+inline constexpr simulation_snapshot_handler::index_type
+simulation_snapshot_handler::ssize() const noexcept
 {
     if (m_back >= m_front)
         return m_back - m_front;
 
-    return m_capacity - (m_front - m_back);
+    return static_cast<index_type>(m_capacity - (m_front - m_back));
 }
 
 inline constexpr bool simulation_snapshot_handler::empty() const noexcept
@@ -223,7 +228,7 @@ inline constexpr bool simulation_snapshot_handler::empty() const noexcept
     return m_front == m_back;
 }
 
-inline constexpr int simulation_snapshot_handler::index_from_ptr(
+inline constexpr int simulation_snapshot_handler::index_of(
   const simulation_snapshot* ptr) const noexcept
 {
     if (not(ring.data() <= ptr and ptr < (ring.data() + ring.size())))
@@ -241,15 +246,17 @@ inline constexpr int simulation_snapshot_handler::index_from_ptr(
 inline constexpr const simulation_snapshot*
 simulation_snapshot_handler::ptr_from_index(int idx) const noexcept
 {
-    if (idx < 0)
+    if (idx < 0 or std::cmp_greater(idx, m_capacity))
         return nullptr;
 
-    if (m_front < m_back)
-        return (m_front <= idx and idx < m_back) ? std::addressof(ring[idx])
-                                                 : nullptr;
+    const auto cidx = static_cast<simulation_snapshot_handler::size_type>(idx);
 
-    return ((m_front <= idx and idx < m_capacity) or idx < m_back)
-             ? std::addressof(ring[idx])
+    if (m_front < m_back)
+        return (m_front <= cidx and cidx < m_back) ? std::addressof(ring[cidx])
+                                                   : nullptr;
+
+    return ((m_front <= cidx and cidx < m_capacity) or cidx < m_back)
+             ? std::addressof(ring[cidx])
              : nullptr;
 }
 

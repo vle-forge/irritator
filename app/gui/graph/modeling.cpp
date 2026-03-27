@@ -282,9 +282,9 @@ bool graph_component_editor_data::show_graph(application& app,
             }
 
             if (not selected_nodes.empty() and ImGui::MenuItem("Connect")) {
-                const auto e = selected_nodes.ssize();
-                for (int i = 0; i < e; ++i) {
-                    for (int j = i + 1; j < e; ++j) {
+                const auto e = selected_nodes.size();
+                for (sz i = 0; i < e; ++i) {
+                    for (sz j = i + 1; j < e; ++j) {
                         data.g.alloc_edge(selected_nodes[i], selected_nodes[j]);
                         ++update;
                     }
@@ -737,8 +737,7 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
             file = selected.file_id;
 
             if (selected.save and not task_is_running.test_and_set()) {
-                if (m_graph.g_type == graph_component::graph_type::dot_file)
-                    m_graph.dot.file = selected.file_id;
+                m_graph.dot.file = selected.file_id;
 
                 if (m_graph_2nd.should_request()) {
                     app.add_gui_task([&app, this]() {

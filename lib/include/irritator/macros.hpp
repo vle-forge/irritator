@@ -93,8 +93,8 @@ inline constexpr void ensure(T&& assertion) noexcept
 //! This function is disabled if the boolean @c
 //! variables::enable_ensure_simulation is false.
 //!
-//! @tparam T The type of the assertion to test.
-//! @param assertion The instance of the assertion to test.
+//! @tparam T The type of the assertion to test. //! @param assertion The
+//! instance of the assertion to test.
 template<typename T>
     requires(::irt::debug::enable_ensure == false)
 irt_force_inline_attribute constexpr void ensure(

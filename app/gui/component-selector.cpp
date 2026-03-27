@@ -102,7 +102,8 @@ void component_selector::task_update() noexcept
     auto& app = container_of(this, &application::component_sel);
 
     app.add_gui_task([&app]() noexcept {
-        app.component_sel.data.write([&](auto& vecs) noexcept { vecs.update(app.mod); });
+        app.component_sel.data.write(
+          [&](auto& vecs) noexcept { vecs.update(app.mod); });
     });
 }
 
@@ -146,8 +147,8 @@ component_selector::result_t component_selector::combobox(
             }
             ImGui::PopID();
 
-            for (auto i = 0, e = data.by_names.ssize(); i != e; ++i) {
-                ImGui::PushID(i);
+            for (sz i = 0, e = data.by_names.size(); i != e; ++i) {
+                ImGui::PushID(static_cast<int>(i));
                 const auto col =
                   get_component_color(app, data.by_names[i].first);
                 const auto im = ImVec4{ col[0], col[1], col[2], col[3] };
@@ -284,8 +285,8 @@ static auto display_menu(const char* title, const auto& vec) noexcept
     auto done = false;
 
     if (ImGui::BeginMenu(title)) {
-        for (int i = 0, e = vec.ssize(); i != e; ++i) {
-            ImGui::PushID(i);
+        for (sz i = 0, e = vec.size(); i != e; ++i) {
+            ImGui::PushID(static_cast<int>(i));
             if (ImGui::MenuItem(vec[i].second.c_str())) {
                 id   = vec[i].first;
                 done = true;

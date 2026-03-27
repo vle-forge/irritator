@@ -335,7 +335,7 @@ void for_each_component(const modeling& mod, Function&& f) noexcept
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 {
-    for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
+    for (sz i = 0, e = tn.unique_id_to_model_id.data.size(); i < e; ++i) {
         if_data_exists_do(
           sim.models, tn.unique_id_to_model_id.data[i].value, [&](auto& mdl) {
               std::invoke(std::forward<Function>(f),
@@ -350,7 +350,7 @@ void for_each_model(const simulation& sim,
                     const tree_node&  tn,
                     Function&&        f) noexcept
 {
-    for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
+    for (sz i = 0, e = tn.unique_id_to_model_id.data.size(); i < e; ++i) {
         const auto mdl_id = tn.unique_id_to_model_id.data[i].value;
         if (const auto* mdl = sim.models.try_to_get(mdl_id); mdl)
             std::invoke(std::forward<Function>(f),

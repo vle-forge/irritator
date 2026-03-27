@@ -4476,7 +4476,7 @@ struct json_dearchiver::impl {
         return error("fail to convert access to tree node and model ids");
     }
 
-    template<typename T, int L>
+    template<typename T, std::size_t L>
     bool clear(small_vector<T, L>& out) noexcept
     {
         out.clear();
@@ -4484,10 +4484,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    template<typename T, int L>
+    template<typename T, std::size_t L>
     bool push_back_string(small_vector<T, L>& out) noexcept
     {
-        if (out.ssize() + 1 < out.capacity()) {
+        if (out.can_alloc(1)) {
             out.emplace_back(
               std::string_view{ temp_string.data(), temp_string.size() });
             return true;
@@ -6248,14 +6248,15 @@ struct json_archiver::impl {
         switch (g.g_type) {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
-            auto&      p    = g.dot;
-            registred_path* reg = nullptr;
-            dir_path*  dir  = nullptr;
-            file_path* file = nullptr;
+            auto&           p    = g.dot;
+            registred_path* reg  = nullptr;
+            dir_path*       dir  = nullptr;
+            file_path*      file = nullptr;
 
             if (file = files.file_paths.try_to_get(p.file); file) {
                 if (dir = files.dir_paths.try_to_get(file->parent); dir) {
-                    if (reg = files.registred_paths.try_to_get(dir->parent); reg) {
+                    if (reg = files.registred_paths.try_to_get(dir->parent);
+                        reg) {
                         w.Key("path");
                         w.String(reg->path.data(), reg->path.size());
                     }

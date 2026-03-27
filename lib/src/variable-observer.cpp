@@ -8,11 +8,11 @@
 
 namespace irt {
 
-static bool check(const int tn_ids,
-                  const int mdl_ids,
-                  const int obs_ids,
-                  const int colors,
-                  const int options) noexcept
+static bool check(const sz tn_ids,
+                  const sz mdl_ids,
+                  const sz obs_ids,
+                  const sz colors,
+                  const sz options) noexcept
 {
     return tn_ids == mdl_ids and tn_ids == obs_ids and tn_ids == colors and
            tn_ids == options;
@@ -20,7 +20,7 @@ static bool check(const int tn_ids,
 
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
-    for (auto i = 0, e = m_tn_ids.ssize(); i != e; ++i) {
+    for (sz i = 0, e = m_tn_ids.size(); i != e; ++i) {
         auto  obs_id = undefined<observer_id>();
         auto* tn     = pj.tree_nodes.try_to_get(m_tn_ids[i]);
         auto* mdl    = sim.models.try_to_get(m_mdl_ids[i]);
@@ -110,11 +110,11 @@ variable_observer::sub_id variable_observer::push_back(
   const type_options     t,
   const std::string_view name) noexcept
 {
-    check(m_tn_ids.ssize(),
-          m_mdl_ids.ssize(),
-          m_obs_ids.ssize(),
-          m_colors.ssize(),
-          m_options.ssize());
+    check(m_tn_ids.size(),
+          m_mdl_ids.size(),
+          m_obs_ids.size(),
+          m_colors.size(),
+          m_options.size());
 
     if (not m_ids.capacity()) {
         m_ids.reserve(max_observers.value());

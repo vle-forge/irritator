@@ -35,15 +35,14 @@ static void build_graph(graph_observer&  graph_obs,
             auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
 
             if (tn and mdl) {
-                auto index = 0;
+                sz index = 0;
 
                 if (auto ret = std::from_chars(
                       child->unique_id.begin(), child->unique_id.end(), index);
                     ret.ec == std::errc{}) {
-                    debug::ensure(0 <= index);
-                    debug::ensure(graph_obs.observers.ssize() ==
-                                  graph_compo.g.nodes.ssize());
-                    debug::ensure(index < graph_obs.observers.ssize());
+                    debug::ensure(graph_obs.observers.size() ==
+                                  graph_compo.g.nodes.size());
+                    debug::ensure(index < graph_obs.observers.size());
 
                     auto&      obs    = sim.observers.alloc();
                     const auto obs_id = sim.observers.get_id(obs);
@@ -105,13 +104,13 @@ void graph_observer::clear() noexcept
 void graph_observer::update(const simulation& sim) noexcept
 {
     values.write([&](auto& v) noexcept {
-        debug::ensure(v.ssize() == observers.ssize());
+        debug::ensure(v.size() == observers.size());
 
-        if (v.ssize() != observers.ssize())
+        if (v.size() != observers.size())
             return;
 
         std::fill_n(v.data(), v.capacity(), 0.0);
-        for (int i = 0, e = observers.ssize(); i < e; ++i) {
+        for (sz i = 0, e = observers.size(); i < e; ++i) {
             if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
                 if (obs->states[observer_flags::use_linear_buffer]) {
                     obs->linearized_buffer.read(

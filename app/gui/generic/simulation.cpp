@@ -672,11 +672,10 @@ static constexpr auto get_index_from_nodes(
       })));
 }
 
-static constexpr void build_links(
-  const simulation&                          sim,
-  const tree_node&                           tn,
-  std::span<generic_simulation_editor::node> nodes,
-  vector<generic_simulation_editor::link>&   links) noexcept
+static void build_links(const simulation&                          sim,
+                        const tree_node&                           tn,
+                        std::span<generic_simulation_editor::node> nodes,
+                        vector<generic_simulation_editor::link>& links) noexcept
 {
     for (const auto& child : tn.children) {
         if (child.type == tree_node::child_node::type::model) {
@@ -709,10 +708,9 @@ static constexpr void build_links(
     }
 }
 
-static constexpr void build_nodes(
-  const simulation&                        sim,
-  const tree_node&                         tn,
-  vector<generic_simulation_editor::node>& nodes) noexcept
+static void build_nodes(const simulation&                        sim,
+                        const tree_node&                         tn,
+                        vector<generic_simulation_editor::node>& nodes) noexcept
 {
     constexpr std::string_view empty_name;
 
@@ -781,11 +779,11 @@ static void build_flat_nodes(
     }
 }
 
-static constexpr int copy(application&                                   app,
-                          project_editor&                                pj_ed,
-                          const vector<generic_simulation_editor::node>& nodes,
-                          const tree_node_id current,
-                          const vector<int>& selection) noexcept
+static int copy(application&                                   app,
+                project_editor&                                pj_ed,
+                const vector<generic_simulation_editor::node>& nodes,
+                const tree_node_id                             current,
+                const vector<int>& selection) noexcept
 {
     int ret = false;
 
@@ -971,7 +969,7 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
        Experience, Vol. 21(1 1), 1129-1164 (november 1991).
        */
 
-    const auto size      = nodes.ssize();
+    const auto size      = nodes.size();
     const auto tmp       = std::sqrt(size);
     const auto column    = static_cast<int>(tmp);
     const auto line      = column;
@@ -992,13 +990,13 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
 
     float t = 1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
 
-    for (int i_v = 0; i_v < size; ++i_v) {
+    for (sz i_v = 0; i_v < size; ++i_v) {
         const int v = to_signed(get_index(nodes[i_v].mdl));
 
         displacements[i_v].x = 0.f;
         displacements[i_v].y = 0.f;
 
-        for (int i_u = 0; i_u < size; ++i_u) {
+        for (sz i_u = 0; i_u < size; ++i_u) {
             const int u = to_signed(get_index(nodes[i_u].mdl));
 
             if (u != v) {
@@ -1021,8 +1019,8 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
     compute_connection_distance(
       links, k, std::span(displacements.data(), displacements.size()));
 
-    for (int i_v = 0; i_v < size; ++i_v) {
-        const int v = to_signed(get_index(nodes[i_v].mdl));
+    for (sz i_v = 0; i_v < size; ++i_v) {
+        const sz v = to_signed(get_index(nodes[i_v].mdl));
 
         const float d2 = displacements[i_v].x * displacements[i_v].x +
                          displacements[i_v].y * displacements[i_v].y;
@@ -1047,7 +1045,7 @@ static void compute_grid_layout(
   const float                                    grid_layout_x_distance,
   const float grid_layout_y_distance) noexcept
 {
-    const auto size  = nodes.ssize();
+    const auto size  = nodes.size();
     const auto fsize = static_cast<float>(size);
 
     if (size == 0)
@@ -1075,7 +1073,7 @@ static void compute_grid_layout(
     new_pos.x = panning.x;
     new_pos.y = panning.y + static_cast<float>(column) * grid_layout_y_distance;
 
-    for (auto j = 0; j < remaining; ++j) {
+    for (sz j = 0; j < remaining; ++j) {
         new_pos.x = panning.x + static_cast<float>(j) * grid_layout_x_distance;
         ImNodes::SetNodeEditorSpacePos(to_signed(get_index(nodes[index].mdl)),
                                        new_pos);
@@ -1253,7 +1251,7 @@ void show_node_values(project_editor& ed, Dynamics& dyn) noexcept
 void generic_simulation_editor::show_nodes(application&    app,
                                            project_editor& pj_ed) noexcept
 {
-    for (auto i = 0, e = nodes.ssize(); i != e; ++i) {
+    for (sz i = 0, e = nodes.size(); i != e; ++i) {
         if (auto* mdl = pj_ed.pj.sim.models.try_to_get(nodes[i].mdl)) {
             ImNodes::BeginNode(to_signed(get_index(nodes[i].mdl)));
             ImNodes::BeginNodeTitleBar();
@@ -1302,8 +1300,8 @@ void generic_simulation_editor::show_nodes(application&    app,
 
 void generic_simulation_editor::show_links() noexcept
 {
-    for (auto i = 0, e = links.ssize(); i != e; ++i) {
-        ImNodes::Link(i, links[i].out, links[i].in);
+    for (sz i = 0, e = links.size(); i != e; ++i) {
+        ImNodes::Link(static_cast<int>(i), links[i].out, links[i].in);
     }
 }
 

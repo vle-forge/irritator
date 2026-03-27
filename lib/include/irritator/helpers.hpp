@@ -545,9 +545,9 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
         for (auto i = 0, e = vec.ssize(); i != e; ++i)
             if_data_exists_do(d, vec[i], std::forward<Function>(f));
     } else {
-        auto i = 0;
+        sz i = 0;
 
-        while (i < vec.ssize()) {
+        while (i < vec.size()) {
             if (auto* ptr = d.try_to_get(vec[i]); ptr) {
                 std::invoke(std::forward<Function>(f), *ptr);
                 ++i;

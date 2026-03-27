@@ -193,6 +193,26 @@ struct struct_with_static_member {
     }
 
     struct_with_static_member() noexcept { ++i; }
+    struct_with_static_member(const struct_with_static_member&) noexcept
+    {
+        ++i;
+    }
+
+    struct_with_static_member(struct_with_static_member&&) noexcept {}
+
+    struct_with_static_member& operator=(
+      const struct_with_static_member&) noexcept
+    {
+        ++i;
+
+        return *this;
+    }
+
+    struct_with_static_member& operator=(struct_with_static_member&&) noexcept
+    {
+        return *this;
+    }
+
     ~struct_with_static_member() noexcept { ++j; }
 };
 
@@ -206,7 +226,7 @@ static bool check_data_array_loop(const Data& d) noexcept
 
     irt::small_vector<const value_type*, 16> test_vec;
 
-    if (test_vec.capacity() < d.ssize())
+    if (test_vec.capacity() < d.size())
         return false;
 
     const value_type* ptr = nullptr;
@@ -622,7 +642,8 @@ int main()
         expect(v[7] == 7);
         v.swap_pop_back(0);
         expect(v.size() == 7);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -633,7 +654,8 @@ int main()
         expect(v[6] == 6);
         v.swap_pop_back(6);
         expect(v.size() == 6);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -653,7 +675,7 @@ int main()
         expect(v2[5] == 5);
 
         v2.erase(v2.begin());
-        expect(eq(v2.ssize(), 5));
+        expect(eq(v2.size(), 5u));
         expect(v2[0] == 1);
         expect(v2[1] == 2);
         expect(v2[2] == 3);
@@ -661,14 +683,14 @@ int main()
         expect(v2[4] == 5);
 
         v2.erase(v2.begin() + 4);
-        expect(eq(v2.ssize(), 4));
+        expect(eq(v2.size(), 4u));
         expect(v2[0] == 1);
         expect(v2[1] == 2);
         expect(v2[2] == 3);
         expect(v2[3] == 4);
 
         v2.erase(v2.begin() + 2);
-        expect(eq(v2.ssize(), 3));
+        expect(eq(v2.size(), 3u));
         expect(v2[0] == 1);
         expect(v2[1] == 2);
         expect(v2[2] == 4);
@@ -697,9 +719,10 @@ int main()
         expect(v[5] == 5);
         expect(v[6] == 6);
         expect(v[7] == 7);
-        v.swap_pop_back(0);
+        v.swap_pop_back(0u);
         expect(v.size() == 7);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -708,9 +731,10 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
         expect(v[6] == 6);
-        v.swap_pop_back(6);
+        v.swap_pop_back(6u);
         expect(v.size() == 6);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -743,7 +767,7 @@ int main()
         v.emplace_back(6);
         v.emplace_back(7);
         expect(v.size() == 8);
-        expect(v.full());
+        expect(not v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 0);
         expect(v[1] == 1);
@@ -753,9 +777,9 @@ int main()
         expect(v[5] == 5);
         expect(v[6] == 6);
         expect(v[7] == 7);
-        v.swap_pop_back(0);
+        v.swap_pop_back(0u);
         expect(v.size() == 7);
-        expect(!v.full());
+        expect(v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -764,9 +788,9 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
         expect(v[6] == 6);
-        v.swap_pop_back(6);
+        v.swap_pop_back(6u);
         expect(v.size() == 6);
-        expect(!v.full());
+        expect(v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -799,7 +823,7 @@ int main()
         v.emplace_back(6);
         v.emplace_back(7);
         expect(v.size() == 8);
-        expect(v.full());
+        expect(not v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 0);
         expect(v[1] == 1);
@@ -809,9 +833,9 @@ int main()
         expect(v[5] == 5);
         expect(v[6] == 6);
         expect(v[7] == 7);
-        v.swap_pop_back(0);
+        v.swap_pop_back(0u);
         expect(v.size() == 7);
-        expect(!v.full());
+        expect(v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -820,9 +844,9 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
         expect(v[6] == 6);
-        v.swap_pop_back(6);
+        v.swap_pop_back(6u);
         expect(v.size() == 6);
-        expect(!v.full());
+        expect(v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -857,7 +881,7 @@ int main()
         v.emplace_back(6);
         v.emplace_back(7);
         expect(v.size() == 8);
-        expect(v.full());
+        expect(not v.can_alloc(1));
         expect(!v.empty());
         expect(v[0] == 0);
         expect(v[1] == 1);
@@ -867,9 +891,10 @@ int main()
         expect(v[5] == 5);
         expect(v[6] == 6);
         expect(v[7] == 7);
-        v.swap_pop_back(0);
+        v.swap_pop_back(0u);
         expect(v.size() == 7);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -880,7 +905,8 @@ int main()
         expect(v[6] == 6);
         v.swap_pop_back(6);
         expect(v.size() == 6);
-        expect(!v.full());
+        expect(v.can_alloc(1));
+
         expect(!v.empty());
         expect(v[0] == 7);
         expect(v[1] == 1);
@@ -903,8 +929,8 @@ int main()
     "vector-iterator-valid"_test = [] {
         irt::vector<int> vec(4, irt::reserve_tag);
 
-        expect(eq(vec.ssize(), 0));
-        expect(eq(vec.capacity(), 4));
+        expect(eq(vec.size(), 0u));
+        expect(eq(vec.capacity(), 4u));
 
         vec.emplace_back(INT32_MAX);
         irt::vector<int>::iterator it = vec.begin();
@@ -916,21 +942,22 @@ int main()
         expect(eq(vec.front(), INT32_MAX));
 
         vec.emplace_back(INT32_MIN);
-        expect(eq(vec.ssize(), 2));
-        expect(eq(vec.capacity(), 512));
+        expect(eq(vec.size(), 2u));
+        expect(eq(vec.capacity(), 512u));
 
         vec.emplace_back(INT32_MAX);
-        expect(eq(vec.ssize(), 3));
-        expect(eq(vec.capacity(), 512));
+        expect(eq(vec.size(), 3u));
+        expect(eq(vec.capacity(), 512u));
 
         vec.emplace_back(INT32_MIN);
-        expect(eq(vec.ssize(), 4));
-        expect(eq(vec.capacity(), 512));
+        expect(eq(vec.size(), 4u));
+        expect(eq(vec.capacity(), 512u));
 
         it = vec.begin() + 2;
 
         expect(eq(*it, INT32_MAX));
-        expect(eq(vec.index_from_ptr(it), 2));
+        expect(vec.index_of(it).has_value());
+        expect(eq(vec.index_of(it).value(), 2u));
     };
 
     "vector-erase"_test = [] {
@@ -962,13 +989,13 @@ int main()
 
         expect(eq(v_1[0].x, 1));
         expect(eq(v_1[8].x, 9));
-        expect(eq(v_1.ssize(), 9));
+        expect(eq(v_1.size(), 9u));
         v_1.erase(v_1.begin(), v_1.begin() + 5);
         expect(v_1.is_iterator_valid(v_1.begin()));
 
         expect(eq(v_1[0].x, 6));
         expect(eq(v_1[3].x, 9));
-        expect(eq(v_1.ssize(), 4));
+        expect(eq(v_1.size(), 4u));
     };
 
     "vector-static-member"_test = [] {
@@ -977,32 +1004,32 @@ int main()
         irt::vector<struct_with_static_member> v;
         v.reserve(4);
 
-        expect(v.ssize() == 0);
+        expect(v.size() == 0);
         expect(v.capacity() >= 4);
 
         v.emplace_back();
-        expect(struct_with_static_member::i == 1);
-        expect(struct_with_static_member::j == 0);
+        expect(eq(struct_with_static_member::i, 1));
+        expect(eq(struct_with_static_member::j, 0));
 
         v.emplace_back();
         v.emplace_back();
         v.emplace_back();
-        expect(struct_with_static_member::i == 4);
-        expect(struct_with_static_member::j == 0);
+        expect(eq(struct_with_static_member::i, 4));
+        expect(eq(struct_with_static_member::j, 0));
 
         v.pop_back();
-        expect(struct_with_static_member::i == 4);
-        expect(struct_with_static_member::j == 1);
+        expect(eq(struct_with_static_member::i, 4));
+        expect(eq(struct_with_static_member::j, 1));
 
         v.swap_pop_back(2);
-        expect(struct_with_static_member::i == 4);
-        expect(struct_with_static_member::j == 2);
+        expect(eq(struct_with_static_member::i, 4));
+        expect(eq(struct_with_static_member::j, 2));
 
-        v.swap_pop_back(0);
-        expect(struct_with_static_member::i == 4);
-        expect(struct_with_static_member::j == 3);
+        v.swap_pop_back(0u);
+        expect(eq(struct_with_static_member::i, 4));
+        expect(eq(struct_with_static_member::j, 4));
 
-        expect(std::ssize(v) == 1);
+        expect(eq(std::size(v), 1u));
     };
 
     "small-vector-no-trivial"_test = [] {
@@ -1052,7 +1079,7 @@ int main()
 
         v.swap_pop_back(0);
         expect(struct_with_static_member::i == 4);
-        expect(struct_with_static_member::j == 3);
+        expect(struct_with_static_member::j == 4);
 
         expect(std::ssize(v) == 1);
     };
@@ -2530,9 +2557,9 @@ int main()
         expect(check_data_array_loop(array));
     };
 
-    constexpr static int Size = 10;
-    using svec                = irt::small_vector<int, Size>;
-    using vec                 = irt::vector<int>;
+    constexpr static std::size_t Size = 10;
+    using svec                        = irt::small_vector<int, Size>;
+    using vec                         = irt::vector<int>;
 
     "test_default_constructor"_test = [] {
         svec sdata;
@@ -2540,7 +2567,7 @@ int main()
 
         expect(eq(data.size(), 0u));
         expect(data.empty());
-        expect(eq(data.capacity(), 0));
+        expect(eq(data.capacity(), 0u));
         expect(data.begin() == data.end());
 
         expect(eq(sdata.size(), 0u));
@@ -2554,18 +2581,18 @@ int main()
         vec  data{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
         expect(!data.empty());
-        expect(data.full());
+        expect(!data.can_alloc(1));
         expect(data.begin() != data.end());
-        expect(eq(0, data.capacity() - data.ssize()));
-        expect(eq(10, data.capacity()));
-        expect(eq(10, data.ssize()));
+        expect(eq(0u, data.capacity() - data.size()));
+        expect(eq(10u, data.capacity()));
+        expect(eq(10u, data.size()));
 
         expect(!sdata.empty());
         expect(sdata.full());
         expect(sdata.begin() != sdata.end());
-        expect(eq(0, sdata.capacity() - sdata.ssize()));
-        expect(eq(10, sdata.capacity()));
-        expect(eq(10, sdata.ssize()));
+        expect(eq(0u, sdata.capacity() - sdata.size()));
+        expect(eq(10u, sdata.capacity()));
+        expect(eq(10u, sdata.size()));
 
         expect(data == sdata);
     };
@@ -2598,7 +2625,7 @@ int main()
         {
             vec data(sorted_vec.begin(), sorted_vec.end());
             vec data2(std::move(data));
-            expect(data.size() == 0);
+            expect(data.size() == 0u);
             expect(data2.size() == sorted_vec.size());
             expect(data2 != data);
         }
@@ -2606,7 +2633,7 @@ int main()
         {
             svec data(sorted_vec.begin(), sorted_vec.end());
             svec data2(std::move(data));
-            expect(data.size() == 0);
+            expect(data.size() == 0u);
             expect(data2.size() == sorted_vec.size());
             expect(data2 != data);
         }
@@ -2650,7 +2677,7 @@ int main()
 
             other_data = std::move(data);
 
-            expect(data.size() == 0);
+            expect(data.size() == 0u);
             expect(other_data.size() == sorted_vec.size());
             expect(data != other_data);
         }
@@ -2661,7 +2688,7 @@ int main()
 
             other_data = std::move(data);
 
-            expect(data.size() == 0);
+            expect(data.size() == 0u);
             expect(other_data.size() == sorted_vec.size());
             expect(data != other_data);
         }
@@ -2839,14 +2866,14 @@ int main()
 
     "test_push_back"_test = [] {
         std::vector<int> compare_data;
-        for (int i = 0; i < Size; ++i) {
+        for (std::size_t i = 0; i < Size; ++i) {
             compare_data.push_back(i);
         }
 
         {
             vec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.push_back(i);
             }
 
@@ -2860,7 +2887,7 @@ int main()
         {
             svec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.push_back(i);
             }
 
@@ -2916,11 +2943,11 @@ int main()
         {
             vec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.push_back(i);
             }
 
-            if (data.capacity() == data.ssize())
+            if (data.capacity() == data.size())
                 expect(not data.can_alloc(1));
             else
                 expect(data.can_alloc(1));
@@ -2928,7 +2955,7 @@ int main()
         {
             svec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.push_back(i);
             }
 
@@ -2938,14 +2965,14 @@ int main()
 
     "test_emplace_back"_test = [] {
         std::vector<int> compare_data;
-        for (int i = 0; i < Size; ++i) {
+        for (std::size_t i = 0; i < Size; ++i) {
             compare_data.emplace_back(i);
         }
 
         {
             vec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.emplace_back(i);
             }
 
@@ -2959,7 +2986,7 @@ int main()
         {
             svec data;
 
-            for (int i = 0; i < Size; ++i) {
+            for (std::size_t i = 0; i < Size; ++i) {
                 data.emplace_back(i);
             }
 
@@ -2977,14 +3004,15 @@ int main()
             vec data;
 
             data.emplace_back(24);
-            auto back = data.emplace_back(42);
+            auto back = *data.emplace_back(42);
             expect(eq(back, data.back()));
         }
         {
             svec data;
 
             data.emplace_back(24);
-            auto back = data.emplace_back(42);
+            auto back = *data.emplace_back(42);
+
             expect(eq(back, data.back()));
         }
     };
@@ -3063,7 +3091,7 @@ int main()
                                 sorted_vec.begin() + INITIAL_SIZE);
             expect(eq(compare_data.size(), data.size()));
 
-            data.insert(data.cbegin() + offset, INITIAL_VALUE);
+            data.emplace(data.cbegin() + offset, INITIAL_VALUE);
             compare_data.insert(compare_data.cbegin() + offset, INITIAL_VALUE);
 
             expect(eq(compare_data.size(), data.size()));

@@ -382,7 +382,7 @@ static int free_model(application& /*app*/,
 {
     if (pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
-            for (auto i = 0, e = tn->children.ssize(); i < e; ++i) {
+            for (sz i = 0, e = tn->children.size(); i < e; ++i) {
                 if (tn->children[i].type ==
                       tree_node::child_node::type::model and
                     tn->children[i].mdl == data.mdl_id) {
@@ -712,9 +712,9 @@ void project_editor::start_simulation_observation(application& app) noexcept
 
     debug::ensure(simulation_state != simulation_status::finished);
 
-    constexpr int capacity = 255;
-    int           obs_max  = pj.sim.immediate_observers.ssize();
-    int           current  = 0;
+    constexpr sz capacity = 255;
+    sz           obs_max  = pj.sim.immediate_observers.size();
+    sz           current  = 0;
 
     while (obs_max > 0) {
         int loop = std::min(obs_max, capacity);
@@ -1084,7 +1084,7 @@ void project_editor::start_simulation_advance(application& app) noexcept
             const auto* snap = snaps.ptr_from_index(current_snap);
             if (snaps.previous(snap)) {
                 pj.sim       = *snap;
-                current_snap = snaps.index_from_ptr(snap);
+                current_snap = snaps.index_of(snap);
             }
         }
     });
@@ -1100,7 +1100,7 @@ void project_editor::start_simulation_back(application& app) noexcept
             const auto* snap = snaps.ptr_from_index(current_snap);
             if (snaps.next(snap)) {
                 pj.sim       = *snap;
-                current_snap = snaps.index_from_ptr(snap);
+                current_snap = snaps.index_of(snap);
             }
         }
     });

@@ -357,20 +357,23 @@ static bool display_constant_source(
         } else {
             u += ImGui::InputFilteredString("name", name);
 
-            auto size = cst.data.ssize();
+            auto size = cst.data.size();
             if (ImGui::InputScalar("length", ImGuiDataType_S32, &size)) {
                 size = size < 1                     ? 1
                        : size < cst.data.capacity() ? size
                                                     : cst.data.capacity();
-                if (size != cst.data.ssize()) {
+                if (size != cst.data.size()) {
                     cst.data.resize(size);
                     ++u;
                 }
             }
 
-            const auto columns = 3 < cst.data.ssize() ? 3 : cst.data.ssize();
-            const auto rows    = (cst.data.ssize() / columns) +
-                              ((cst.data.ssize() % columns) > 0 ? 1 : 0);
+            const auto columns_sz = 3 < cst.data.size() ? 3 : cst.data.size();
+            const auto rows_sz    = (cst.data.size() / columns_sz) +
+                                 ((cst.data.size() % columns_sz) > 0 ? 1 : 0);
+
+            const auto columns = static_cast<int>(columns_sz);
+            const auto rows    = static_cast<int>(rows_sz);
 
             if (ImGui::BeginChild(
                   "##zone",
@@ -2549,82 +2552,88 @@ void component_editor::request_to_open(const component_id id) noexcept
             switch (compo.type) {
             case component_type::generic:
                 if (app.generics.can_alloc(1)) {
-                    auto& t           = tabs.emplace_back();
-                    t.id              = id;
-                    t.type            = component_type::generic;
-                    t.file.reg        = reg_id;
-                    t.file.parent     = dir_id;
-                    t.file.path       = file.path;
-                    t.data.generic    = app.generics.get_id(app.generics.alloc(
-                      id,
-                      compo,
-                      compo.id.generic_id,
-                      ids.generic_components.get(compo.id.generic_id)));
-                    m_request_to_open = id;
+                    if (auto* t = tabs.emplace_back()) {
+                        t->id          = id;
+                        t->type        = component_type::generic;
+                        t->file.reg    = reg_id;
+                        t->file.parent = dir_id;
+                        t->file.path   = file.path;
+                        t->data.generic =
+                          app.generics.get_id(app.generics.alloc(
+                            id,
+                            compo,
+                            compo.id.generic_id,
+                            ids.generic_components.get(compo.id.generic_id)));
+                        m_request_to_open = id;
+                    }
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::grid:
                 if (app.grids.can_alloc(1)) {
-                    auto& t       = tabs.emplace_back();
-                    t.id          = id;
-                    t.type        = component_type::grid;
-                    t.file.reg    = reg_id;
-                    t.file.parent = dir_id;
-                    t.file.path   = file.path;
-                    t.data.grid =
-                      app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
-                    m_request_to_open = id;
+                    if (auto* t = tabs.emplace_back()) {
+                        t->id          = id;
+                        t->type        = component_type::grid;
+                        t->file.reg    = reg_id;
+                        t->file.parent = dir_id;
+                        t->file.path   = file.path;
+                        t->data.grid   = app.grids.get_id(
+                          app.grids.alloc(id, compo.id.grid_id));
+                        m_request_to_open = id;
+                    }
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::graph:
                 if (app.graphs.can_alloc(1)) {
-                    auto& t       = tabs.emplace_back();
-                    t.id          = id;
-                    t.type        = component_type::graph;
-                    t.file.reg    = reg_id;
-                    t.file.parent = dir_id;
-                    t.file.path   = file.path;
-                    t.data.graph  = app.graphs.get_id(
-                      app.graphs.alloc(id, compo.id.graph_id));
-                    m_request_to_open = id;
+                    if (auto* t = tabs.emplace_back()) {
+                        t->id          = id;
+                        t->type        = component_type::graph;
+                        t->file.reg    = reg_id;
+                        t->file.parent = dir_id;
+                        t->file.path   = file.path;
+                        t->data.graph  = app.graphs.get_id(
+                          app.graphs.alloc(id, compo.id.graph_id));
+                        m_request_to_open = id;
+                    }
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::hsm:
                 if (app.hsms.can_alloc(1)) {
-                    auto& t       = tabs.emplace_back();
-                    t.id          = id;
-                    t.type        = component_type::hsm;
-                    t.file.reg    = reg_id;
-                    t.file.parent = dir_id;
-                    t.file.path   = file.path;
-                    t.data.hsm    = app.hsms.get_id(
-                      app.hsms.alloc(id,
-                                     compo.id.hsm_id,
-                                     ids.hsm_components.get(compo.id.hsm_id)));
-                    m_request_to_open = id;
+                    if (auto* t = tabs.emplace_back()) {
+                        t->id             = id;
+                        t->type           = component_type::hsm;
+                        t->file.reg       = reg_id;
+                        t->file.parent    = dir_id;
+                        t->file.path      = file.path;
+                        t->data.hsm       = app.hsms.get_id(app.hsms.alloc(
+                          id,
+                          compo.id.hsm_id,
+                          ids.hsm_components.get(compo.id.hsm_id)));
+                        m_request_to_open = id;
+                    }
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::simulation:
                 if (app.sims.can_alloc(1)) {
-                    auto& t       = tabs.emplace_back();
-                    t.id          = id;
-                    t.type        = component_type::simulation;
-                    t.file.reg    = reg_id;
-                    t.file.parent = dir_id;
-                    t.file.path   = file.path;
-                    t.data.sim    = app.sims.get_id(
-                      app.sims.alloc(id,
-                                     compo.id.sim_id,
-                                     ids.sim_components.get(compo.id.sim_id)));
-                    m_request_to_open = id;
+                    if (auto* t = tabs.emplace_back()) {
+                        t->id             = id;
+                        t->type           = component_type::simulation;
+                        t->file.reg       = reg_id;
+                        t->file.parent    = dir_id;
+                        t->file.path      = file.path;
+                        t->data.sim       = app.sims.get_id(app.sims.alloc(
+                          id,
+                          compo.id.sim_id,
+                          ids.sim_components.get(compo.id.sim_id)));
+                        m_request_to_open = id;
+                    }
                 } else
                     app.jn.push(log_level::error, log_not_enough_memory);
                 break;

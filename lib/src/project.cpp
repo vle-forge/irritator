@@ -172,7 +172,8 @@ private:
         mdl        = output_mdl;
         port       = 0;
 
-        tn->children.emplace_back().set(output_mdl);
+        if (auto* ptr = tn->children.emplace_back())
+            ptr->set(output_mdl);
 
         return success();
     }
@@ -192,7 +193,8 @@ private:
         mdl                 = sim.models.get_id(new_mdl);
         port                = 0;
 
-        tn->children.emplace_back().set(mdl);
+        if (auto* ptr = tn->children.emplace_back())
+            ptr->set(mdl);
 
         return sim.connect(new_mdl, 0, old_mdl, 3);
     }
@@ -861,7 +863,8 @@ static bool external_sources_reserve_add(const external_source_definition& src,
                                          external_source& dst) noexcept
 {
     std::array<unsigned, 4> more_reserve{};
-    const auto& srcs = src.data.get<external_source_definition::source_element>();
+    const auto&             srcs =
+      src.data.get<external_source_definition::source_element>();
 
     for (const auto id : src.data)
         ++more_reserve[ordinal(srcs[id].type)];
@@ -888,14 +891,14 @@ static status external_source_copy(const modeling&                   mod,
     for (const auto id : src.data) {
         switch (src_elems[id].type) {
         case source_type::constant: {
-            auto& n_src = src_elems[id].cst;
-            auto& n_res = dst.constant_sources.alloc(n_src.data);
+            auto& n_src   = src_elems[id].cst;
+            auto& n_res   = dst.constant_sources.alloc(n_src.data);
             n_res.name    = src_names[id];
             auto n_res_id = dst.constant_sources.get_id(n_res);
 
-            for (int i = 0; i < n_src.data.ssize(); ++i)
+            for (sz i = 0; i < n_src.data.size(); ++i)
                 n_res.buffer[i] = n_src.data[i];
-            n_res.length = n_src.data.ssize();
+            n_res.length = static_cast<unsigned>(n_src.data.size());
 
             v.emplace_back(id, n_res_id);
         } break;
@@ -2237,17 +2240,17 @@ auto project::get_model(const tree_node&        tn,
                         const relative_id_path& path) noexcept
   -> std::pair<tree_node_id, model_id>
 {
-    debug::ensure(path.ids.ssize() >= 2);
+    debug::ensure(path.ids.size() >= 2);
 
     tree_node_id ret_node_id = tree_nodes.get_id(tn);
     model_id     ret_mdl_id  = undefined<model_id>();
 
     const auto* from = &tn;
-    const int   first =
-      path.ids.ssize() - 2; // Do not read the first child of the grid
-                            // component tree node. Use tn instead.
+    const sz    first =
+      path.ids.size() - 2; // Do not read the first child of the grid
+                           // component tree node. Use tn instead.
 
-    int i = first;
+    sz i = first;
     while (i >= 1) {
         const auto* ptr = from->unique_id_to_tree_node_id.get(path.ids[i]);
 
@@ -2317,7 +2320,7 @@ auto project::get_model_path(const std::string_view id) const noexcept
 auto project::get_model_path(const unique_id_path& path) const noexcept
   -> std::optional<std::pair<tree_node_id, model_id>>
 {
-    std::span<const name_str> stack{ path.data(), path.size() };
+    std::span<const name_str> stack{ path.begin(), path.end() };
 
     if (const auto* head = tn_head(); head) {
         while (not stack.empty()) {
@@ -2349,10 +2352,10 @@ auto project::get_model_path(const unique_id_path& path) const noexcept
 auto project::get_tn_id(const unique_id_path& path) const noexcept
   -> tree_node_id
 {
-    std::span<const name_str> stack{ path.data(), path.size() };
+    std::span<const name_str> stack{ path.begin(), path.end() };
 
     if (const auto* head = tn_head(); head) {
-        switch (path.ssize()) {
+        switch (path.size()) {
         case 0:
             return undefined<tree_node_id>();
 
