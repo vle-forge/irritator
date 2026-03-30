@@ -20,6 +20,7 @@ enum class component_editor_result_type : u8 {
     do_store_file_path,
     do_store_external_source,
     do_save_file,
+    do_close_menu
 };
 
 using component_editor_result = bitflags<component_editor_result_type>;
@@ -749,10 +750,21 @@ static component_editor_result show_file_access(
     if (is_defined(tab.file.reg) and is_defined(tab.file.parent)) {
         ret |= select_file_path(app, tab);
 
-        if (is_valid_irt_filename(tab.file.path.sv()))
-            if (ImGui::Button("Save")) {
+        if (is_valid_irt_filename(tab.file.path.sv())) {
+            const auto size = ImGui::ComputeButtonSize(2);
+
+            if (ImGui::Button("Save", size)) {
                 ret |= component_editor_result_type::do_save_file;
+                ret |= component_editor_result_type::do_close_menu;
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", size))
+                ret |= component_editor_result_type::do_close_menu;
+        } else {
+            const auto size = ImGui::ComputeButtonSize(1);
+            if (ImGui::Button("Cancel", size))
+                ret |= component_editor_result_type::do_close_menu;
+        }
     }
 
     return ret;
@@ -2073,6 +2085,9 @@ static component_editor_result display_component_editor_subtable(
                       return show_file_access(app, ids, tab);
                   });
 
+                if (action[component_editor_result_type::do_close_menu])
+                    ImGui::CloseCurrentPopup();
+
                 ImGui::EndMenu();
             }
 
@@ -2259,6 +2274,7 @@ static component_editor_result display_component_editor_subtable(
         if (ImGui::InputFilteredString("Name", copy_name)) {
             app.component_ed.request_to_open(tab.id);
             tab.compo.name = copy_name;
+            action |= component_editor_result_type::do_store_component;
         }
 
         if (app.mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
