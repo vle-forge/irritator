@@ -6989,7 +6989,8 @@ status json_dearchiver::operator()(project&                pj,
         return ret.error();
 
     if (const auto ret =
-          parse_json_data(std::span(buffer.data(), buffer.size()), doc))
+          parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+            ret.has_error())
         return ret.error();
 
     json_dearchiver::impl i(*this, mod, sim, pj, path);
