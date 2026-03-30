@@ -790,7 +790,6 @@ void grid_component_editor_data::read(application& app,
         if (not ids.exists(m_id))
             return;
 
-        compo = ids.components[m_id];
         debug::ensure(compo.type == component_type::grid);
 
         if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {

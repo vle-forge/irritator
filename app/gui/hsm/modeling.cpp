@@ -1234,7 +1234,6 @@ void hsm_component_editor_data::read(application& app,
         if (not ids.exists(m_id))
             return;
 
-        compo = ids.components[m_id];
         debug::ensure(compo.type == component_type::hsm);
 
         if (auto* hsm = ids.hsm_components.try_to_get(m_hsm_id)) {

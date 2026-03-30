@@ -1379,7 +1379,6 @@ void generic_component_editor_data::read(application& app,
         if (not ids.exists(m_id))
             return;
 
-        compo = ids.components[m_id];
         if (debug::check(compo.type == component_type::generic)) {
             const auto gen_id = compo.id.generic_id;
 
