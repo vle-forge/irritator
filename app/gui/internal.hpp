@@ -318,7 +318,8 @@ inline auto TreeNodeExSelectableWithHint(const char*        label,
 
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
-    ::irt::debug::ensure(button_number > 1);
+    if (button_number <= 0)
+        return ImVec2{ ImGui::GetContentRegionAvail().x, 0.f };
 
     return ImVec2{ ((ImGui::GetContentRegionAvail().x -
                      (static_cast<float>(button_number) *

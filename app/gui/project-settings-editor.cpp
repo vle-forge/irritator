@@ -198,172 +198,6 @@ static bool show_registred_obseravation_path(application&    app,
     return old_observation_dir != ed.pj.observation_dir;
 }
 
-static void show_project_file_access(application&    app,
-                                     project_editor& ed) noexcept
-{
-    static constexpr const char* empty = "";
-
-    app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        if (auto* f = fs.file_paths.try_to_get(ed.pj.file)) {
-            if (auto* d = fs.dir_paths.try_to_get(f->parent)) {
-                ed.dir = f->parent;
-
-                if (fs.registred_paths.try_to_get(d->parent))
-                    ed.reg = d->parent;
-            }
-        }
-    });
-
-    const registred_path* reg_dir = nullptr;
-    const dir_path*       dir     = nullptr;
-
-    app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        reg_dir                 = fs.registred_paths.try_to_get(ed.reg);
-        const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
-
-        if (ImGui::BeginCombo("Path##FileAccess", reg_preview)) {
-            const registred_path* list = nullptr;
-            while (fs.registred_paths.next(list)) {
-                if (list->status == registred_path::state::error)
-                    continue;
-
-                if (ImGui::Selectable(list->path.c_str(),
-                                      reg_dir == list,
-                                      ImGuiSelectableFlags_None)) {
-                    ed.reg     = fs.registred_paths.get_id(list);
-                    ed.dir     = undefined<dir_path_id>();
-                    ed.pj.file = undefined<file_path_id>();
-                    reg_dir    = list;
-                }
-            }
-            ImGui::EndCombo();
-        }
-
-        if (reg_dir) {
-            dir                     = fs.dir_paths.try_to_get(ed.dir);
-            const auto* dir_preview = dir ? dir->path.c_str() : empty;
-
-            if (ImGui::BeginCombo("Dir", dir_preview)) {
-                if (ImGui::Selectable("##empty-dir", dir == nullptr)) {
-                    ed.dir     = undefined<dir_path_id>();
-                    ed.pj.file = undefined<file_path_id>();
-                    dir        = nullptr;
-                }
-
-                const dir_path* list = nullptr;
-                while (fs.dir_paths.next(list)) {
-                    if (ImGui::Selectable(list->path.c_str(), dir == list)) {
-                        ed.dir     = fs.dir_paths.get_id(list);
-                        dir        = list;
-                        ed.pj.file = undefined<file_path_id>();
-                    }
-                }
-                ImGui::EndCombo();
-            }
-        }
-    });
-
-    if (dir == nullptr) {
-        directory_path_str dir_name;
-
-        if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-            const auto already_exist =
-              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                  return std::ranges::any_of(
-                    reg_dir->children, [&](const auto d_id) {
-                        if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
-                            if (dir->path.sv() == dir_name.sv())
-                                return true;
-                        }
-
-                        return false;
-                    });
-              });
-
-            if (not already_exist) {
-                app.mod.files.write([&](auto& fs) {
-                    auto& new_dir  = fs.dir_paths.alloc();
-                    auto  dir_id   = fs.dir_paths.get_id(new_dir);
-                    auto  reg_id   = fs.registred_paths.get_id(*reg_dir);
-                    new_dir.parent = reg_id;
-                    new_dir.path   = dir_name;
-                    new_dir.status = dir_path::state::unread;
-
-                    fs.registred_paths.try_to_get(reg_id)
-                      ->children.emplace_back(dir_id);
-
-                    ed.reg     = reg_id;
-                    ed.dir     = dir_id;
-                    ed.pj.file = undefined<file_path_id>();
-
-                    if (!fs.create_directories(dir_id)) {
-                        app.jn.push(log_level::error,
-                                    [&](auto& title, auto& /*msg*/) noexcept {
-                                        format(title,
-                                               "Fail to create directory {}",
-                                               new_dir.path.sv());
-                                    });
-                    }
-
-                    dir = &new_dir;
-                });
-            } else {
-                app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                    dir = fs.dir_paths.try_to_get(ed.dir);
-                });
-            }
-        }
-    }
-
-    if (dir != nullptr) {
-        const file_path* file = nullptr;
-
-        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-            file = fs.file_paths.try_to_get(ed.pj.file);
-        });
-
-        if (not file) {
-            app.mod.files.write([&](auto& fs) {
-                auto& f    = fs.file_paths.alloc();
-                ed.pj.file = fs.file_paths.get_id(f);
-
-                f.path   = ed.pj.name.sv();
-                f.parent = fs.dir_paths.get_id(*dir);
-                f.type   = file_path::file_type::project_file;
-
-                fs.dir_paths.get(f.parent).children.emplace_back(ed.pj.file);
-
-                file = &f;
-            });
-        }
-
-        file_path_str tmp_path        = file->path.sv();
-        const auto    is_save_enabled = is_valid_filename(
-          file->path.sv(), file_path::file_type::project_file);
-
-        if (ImGui::InputFilteredString("File##text", tmp_path)) {
-            if (not has_extension(file->path.sv(),
-                                  file_path::file_type::project_file)) {
-                add_extension(tmp_path, file_path::file_type::project_file);
-
-                app.mod.files.write([&](auto& fs) {
-                    auto& f = fs.file_paths.get(ed.pj.file);
-                    f.path  = tmp_path.sv();
-                });
-            }
-        }
-
-        ImGui::BeginDisabled(!is_save_enabled);
-        if (ImGui::Button("Save")) {
-            const auto pj_id = app.pjs.get_id(ed);
-            debug::ensure(app.pjs.try_to_get(pj_id));
-            app.start_save_project(pj_id);
-        }
-
-        ImGui::EndDisabled();
-    }
-}
-
 static bool EnhancedButton(const application& app,
                            const char*        label,
                            const ImVec2       button_size,
@@ -500,7 +334,99 @@ static bool show_project_simulation_settings(application&    app,
         }
     }
 
-    show_project_file_access(app, ed);
+    app.mod.files.read([&](const auto& fs, auto) noexcept {
+        const auto selected = ed.file_select.combobox(
+          app,
+          fs,
+          ed.reg_id,
+          ed.dir_id,
+          ed.file_id,
+          file_path::file_type::project_file,
+          file_selector::flags(file_selector::flag::show_save_button));
+
+        ed.reg_id  = selected.reg_id;
+        ed.dir_id  = selected.dir_id;
+        ed.file_id = selected.file_id;
+
+        if (selected.save and not ed.save_in_progress.test_and_set()) {
+            const auto pj_id = app.pjs.get_id(ed);
+            ed.pj.file       = selected.file_id;
+
+            app.add_gui_task([&app, pj_id]() {
+                auto& ed = app.pjs.get(pj_id);
+
+                if (auto ret = ed.pj.save(app.mod); ret) {
+                    app.jn.push(
+                      log_level::info,
+                      [&](auto& title, auto& /*msg*/) noexcept {
+                          app.mod.files.read(
+                            [&](const auto& fs, const auto /*vers*/) {
+                                format(title,
+                                       "Saving project file {} success",
+                                       fs.file_paths.get(ed.pj.file).path.sv());
+                            });
+                      });
+                } else {
+                    app.jn.push(
+                      log_level::error, [&](auto& title, auto& msg) noexcept {
+                          const small_string<127> name = app.mod.files.read(
+                            [&](const auto& fs, const auto /*vers*/) {
+                                const auto* f =
+                                  fs.file_paths.try_to_get(ed.pj.file);
+                                return f ? f->path.sv()
+                                         : std::string_view{ "-" };
+                            });
+
+                          format(
+                            title, "Saving project file {} error", name.sv());
+
+                          if (ret.error().cat() == category::project) {
+                              if (static_cast<project_errc>(
+                                    ret.error().value()) ==
+                                  project_errc::file_access_error) {
+                                  msg = "Access error.";
+                              }
+                          } else if (ret.error().cat() == category::json) {
+                              switch (
+                                static_cast<json_errc>(ret.error().value())) {
+                              case json_errc::memory_error:
+                                  format(msg,
+                                         "json archiving memory error: not "
+                                         "enough memory\n");
+                                  break;
+
+                              case json_errc::arg_error:
+                                  format(msg,
+                                         "json archiving internal error\n");
+                                  break;
+
+                              case json_errc::file_error:
+                                  format(msg,
+                                         "json archiving memory error: not "
+                                         "enough memory\n");
+                                  break;
+
+                              case json_errc::invalid_project_format:
+                                  format(msg,
+                                         "json archiving json format error "
+                                         "`{}' at offset "
+                                         "{}\n",
+                                         0,
+                                         0);
+                                  break;
+
+                              default:
+                                  format(msg,
+                                         "json de-archiving unknown error\n");
+                              }
+                          }
+                      });
+                }
+
+                ed.save_in_progress.clear();
+            });
+        }
+    });
 
     if (ImGui::InputReal("Begin", &begin))
         ed.pj.sim.limits.set_bound(begin, end);

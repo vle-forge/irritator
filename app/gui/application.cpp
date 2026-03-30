@@ -309,8 +309,6 @@ struct combo_file_path_fn {
 
         if (is_undefined(id)) {
             if (ImGui::InputFilteredString("New file", buffer)) {
-                constexpr auto type = file_path::file_type::dot_file;
-
                 if (not has_extension(buffer.sv(), type)) {
                     add_extension(buffer, type);
                     if (file_ptr.should_request()) {
@@ -396,8 +394,8 @@ auto file_selector::combobox(application&               app,
                              const registred_path_id    reg_id,
                              const dir_path_id          dir_id,
                              const file_path_id         file_id,
-                             const file_path::file_type type) noexcept
-  -> combo_box_result
+                             const file_path::file_type type,
+                             const flags flags) noexcept -> combo_box_result
 {
     auto reg   = reg_id;
     auto dir   = dir_id;
@@ -418,18 +416,26 @@ auto file_selector::combobox(application&               app,
             file = fc.id;
 
             if (is_defined(fc.id)) {
-                const auto size = ImGui::ComputeButtonSize(2);
+                const auto have_cancel = flags[flag::show_cancel_button];
+                const auto buttons     = have_cancel ? 2 : 1;
+                const auto size        = ImGui::ComputeButtonSize(buttons);
+                const auto button_name = flags[flag::show_load_button] ? "load"
+                                         : flags[flag::show_save_button]
+                                           ? "save"
+                                           : "select";
 
-                if (ImGui::Button("Select", size)) {
+                if (ImGui::Button(button_name, size)) {
                     save  = true;
                     close = true;
                 }
 
                 ImGui::SameLine();
 
-                if (ImGui::Button("Close", size)) {
-                    save  = false;
-                    close = true;
+                if (have_cancel) {
+                    if (ImGui::Button("cancel", size)) {
+                        save  = false;
+                        close = true;
+                    }
                 }
             }
         }
@@ -446,8 +452,8 @@ auto file_selector::combobox_ro(const file_access&         fs,
                                 const registred_path_id    reg_id,
                                 const dir_path_id          dir_id,
                                 const file_path_id         file_id,
-                                const file_path::file_type type) noexcept
-  -> combo_box_result
+                                const file_path::file_type type,
+                                const flags flags) noexcept -> combo_box_result
 {
     auto reg   = reg_id;
     auto dir   = dir_id;
@@ -467,18 +473,26 @@ auto file_selector::combobox_ro(const file_access&         fs,
             file          = fc.id;
 
             if (is_defined(fc.id)) {
-                const auto size = ImGui::ComputeButtonSize(2);
+                const auto have_cancel = flags[flag::show_cancel_button];
+                const auto buttons     = have_cancel ? 2 : 1;
+                const auto size        = ImGui::ComputeButtonSize(buttons);
+                const auto button_name = flags[flag::show_load_button] ? "load"
+                                         : flags[flag::show_save_button]
+                                           ? "save"
+                                           : "select";
 
-                if (ImGui::Button("Select", size)) {
+                if (ImGui::Button(button_name, size)) {
                     save  = true;
                     close = true;
                 }
 
                 ImGui::SameLine();
 
-                if (ImGui::Button("Close", size)) {
-                    save  = false;
-                    close = true;
+                if (have_cancel) {
+                    if (ImGui::Button("cancel", size)) {
+                        save  = false;
+                        close = true;
+                    }
                 }
             }
         }

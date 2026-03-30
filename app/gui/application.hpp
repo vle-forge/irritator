@@ -470,6 +470,16 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
 class file_selector
 {
 public:
+    enum class flag : u8 {
+        show_save_button,
+        show_load_button,
+        show_cancel_button
+    };
+
+    using flags = bitflags<flag>;
+
+    constexpr static inline flags empty_option = flags{};
+
     struct combo_box_result {
         registred_path_id reg_id  = undefined<registred_path_id>();
         dir_path_id       dir_id  = undefined<dir_path_id>();
@@ -484,13 +494,15 @@ public:
                               const registred_path_id    reg_id,
                               const dir_path_id          dir_id,
                               const file_path_id         file_id,
-                              const file_path::file_type type) noexcept;
+                              const file_path::file_type type,
+                              const flags = empty_option) noexcept;
 
     combo_box_result combobox_ro(const file_access&         fs,
                                  const registred_path_id    reg_id,
                                  const dir_path_id          dir_id,
                                  const file_path_id         file_id,
-                                 const file_path::file_type type) noexcept;
+                                 const file_path::file_type type,
+                                 const flags = empty_option) noexcept;
 
 private:
     atomic_request_buffer<dir_path_id>  new_dir_;
@@ -1391,11 +1403,11 @@ struct project_editor {
 
     small_string<64> title;
 
-    /// @c reg is used to edit the @c project @c file_path_id.
-    registred_path_id reg = undefined<registred_path_id>();
-
-    /// @c dir is used to edit the @c project @c file_path_id.
-    dir_path_id dir = undefined<dir_path_id>();
+    std::atomic_flag  save_in_progress;
+    file_selector     file_select;
+    registred_path_id reg_id  = undefined<registred_path_id>();
+    dir_path_id       dir_id  = undefined<dir_path_id>();
+    file_path_id      file_id = undefined<file_path_id>();
 };
 
 inline bool project_editor::can_edit() const noexcept

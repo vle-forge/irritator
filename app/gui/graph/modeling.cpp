@@ -730,7 +730,13 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
         auto close = app.mod.files.read([&](const auto& fs,
                                             auto) noexcept -> bool {
             const auto selected = file_select.combobox_ro(
-              fs, reg, dir, file, file_path::file_type::dot_file);
+              fs,
+              reg,
+              dir,
+              file,
+              file_path::file_type::dot_file,
+              file_selector::flags(file_selector::flag::show_load_button,
+                                   file_selector::flag::show_cancel_button));
 
             reg  = selected.reg_id;
             dir  = selected.dir_id;
@@ -872,20 +878,28 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             ImGui::EndDisabled();
 
             if (ImGui::BeginMenu("Save as...")) {
-                close = app.mod.files.read([&](const auto& fs,
-                                               auto) noexcept -> bool {
-                    const auto selected = file_select.combobox(
-                      app, fs, reg, dir, file, file_path::file_type::dot_file);
+                close = app.mod.files.read(
+                  [&](const auto& fs, auto) noexcept -> bool {
+                      const auto selected = file_select.combobox(
+                        app,
+                        fs,
+                        reg,
+                        dir,
+                        file,
+                        file_path::file_type::dot_file,
+                        file_selector::flags(
+                          file_selector::flag::show_save_button,
+                          file_selector::flag::show_cancel_button));
 
-                    reg  = selected.reg_id;
-                    dir  = selected.dir_id;
-                    file = selected.file_id;
+                      reg  = selected.reg_id;
+                      dir  = selected.dir_id;
+                      file = selected.file_id;
 
-                    if (selected.save)
-                        save_dot_file(app, m_graph.g, selected.file_id);
+                      if (selected.save)
+                          save_dot_file(app, m_graph.g, selected.file_id);
 
-                    return selected.close;
-                });
+                      return selected.close;
+                  });
 
                 if (close)
                     ImGui::CloseCurrentPopup();
