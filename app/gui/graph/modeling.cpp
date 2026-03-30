@@ -1000,6 +1000,11 @@ bool graph_component_editor_data::show(component_editor& ed,
         read(app, compo);
     }
 
+    if (not is_initialized and canvas_sz.x and canvas_sz.y) {
+        auto_fit_camera();
+        is_initialized = true;
+    }
+
     if (ImGui::BeginChild("##graph-ed",
                           ImVec2(0, 0),
                           ImGuiChildFlags_None,

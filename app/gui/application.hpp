@@ -745,6 +745,7 @@ private:
     ImVec2                end_selection;
     ImVec2                canvas_sz;
     bool                  run_selection = false;
+    bool                  is_initialized = false;
 
     ImVec2 distance{ 15.f, 15.f };
     ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
