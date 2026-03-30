@@ -6258,7 +6258,7 @@ struct json_archiver::impl {
                     if (reg = files.registred_paths.try_to_get(dir->parent);
                         reg) {
                         w.Key("path");
-                        w.String(reg->path.data(), reg->path.size());
+                        w.String(reg->name.data(), reg->name.size());
                     }
                     w.Key("dir");
                     w.String(dir->path.begin(), dir->path.size());
