@@ -854,48 +854,19 @@ private:
 
     component_id search_component(const std::string_view str) noexcept
     {
-        const auto dot_compo = split_colon(str);
+        const auto  name_3  = split_colon(str);
+        const auto  file_id = fs.find_file(name_3.reg, name_3.dir, name_3.file);
+        const auto* fp      = fs.file_paths.try_to_get(file_id);
+        if (not fp) {
+            jn.push(log_level::error, [&](auto& t, auto& m) {
+                t = "Dot parser error";
+                format(m, "Fail to found component from string: `{}'", str);
+            });
 
-        const auto [r, d] = [&]() -> std::pair<registred_path_id, dir_path_id> {
-            const auto r_id = fs.find_registred_path_by_name(dot_compo.reg);
-            const auto d_id =
-              is_defined(r_id)
-                ? fs.find_directory_in_registry(r_id, dot_compo.dir)
-                : fs.find_directory(dot_compo.dir);
-
-            if (is_undefined(d_id)) {
-                jn.push(log_level::error, [&](auto& t, auto& m) {
-                    t = "Dot parser error";
-                    format(m,
-                           "Directory {} not found in registered path {}",
-                           dot_compo.dir,
-                           dot_compo.reg);
-                });
-
-                return std::make_pair(undefined<registred_path_id>(),
-                                      undefined<dir_path_id>());
-            }
-
-            return std::make_pair(fs.dir_paths.get(d_id).parent, d_id);
-        }();
-
-        for (const auto id : ids) {
-            const auto& f = ids.component_file_paths[id];
-
-            if (f.reg == r and f.parent == d and f.path == dot_compo.file)
-                return id;
+            return undefined<component_id>();
         }
 
-        jn.push(log_level::error, [&](auto& t, auto& m) {
-            t = "Dot parser error";
-            format(m,
-                   "File {} not found in directory {} from {}",
-                   dot_compo.file,
-                   dot_compo.dir,
-                   dot_compo.reg);
-        });
-
-        return undefined<component_id>();
+        return fp->component;
     }
 
     bool parse_attributes(const graph_node_id id) noexcept
@@ -1681,11 +1652,12 @@ static std::optional<reg_dir_file> build_component_string(
   const file_access&         fs,
   const component_file_path& file_path) noexcept
 {
-    if (const auto* d = fs.dir_paths.try_to_get(file_path.parent))
-        if (const auto* r = fs.registred_paths.try_to_get(d->parent))
-            return reg_dir_file{ .r = r->name.sv(),
-                                 .d = d->path.sv(),
-                                 .f = file_path.path.sv() };
+    if (const auto* f = fs.file_paths.try_to_get(file_path.file))
+        if (const auto* d = fs.dir_paths.try_to_get(f->parent))
+            if (const auto* r = fs.registred_paths.try_to_get(d->parent))
+                return reg_dir_file{ .r = r->name.sv(),
+                                     .d = d->path.sv(),
+                                     .f = f->path.sv() };
 
     return std::nullopt;
 }

@@ -37,44 +37,46 @@ void component_selector::data_type::update(const modeling& mod) noexcept
             for (const auto c_id : ids) {
                 const auto  type   = ids.components[c_id].type;
                 const auto  name   = ids.components[c_id].name.sv();
-                const auto& file   = ids.component_file_paths[c_id];
-                const auto  dir_id = file.parent;
+                const auto& filep   = ids.component_file_paths[c_id];
+                const auto  file_id = filep.file;
 
-                if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
-                    if (const auto* reg =
-                          fs.registred_paths.try_to_get(dir->parent)) {
+                if (const auto* fp = fs.file_paths.try_to_get(file_id)) {
+                    if (const auto* dir = fs.dir_paths.try_to_get(fp->parent)) {
+                        if (const auto* reg =
+                              fs.registred_paths.try_to_get(dir->parent)) {
 
-                        by_names.emplace_back(c_id, name);
-                        by_files.emplace_back(c_id, file.path.sv());
+                            by_names.emplace_back(c_id, name);
+                            by_files.emplace_back(c_id, fp->path.sv());
 
-                        format(by_files.back().second,
-                               "{}/{}",
-                               dir->path.sv(),
-                               name);
+                            format(by_files.back().second,
+                                   "{}/{}",
+                                   dir->path.sv(),
+                                   name);
 
-                        switch (type) {
-                        case component_type::generic:
-                            by_generics.emplace_back(c_id, name);
-                            break;
+                            switch (type) {
+                            case component_type::generic:
+                                by_generics.emplace_back(c_id, name);
+                                break;
 
-                        case component_type::grid:
-                            by_grids.emplace_back(c_id, name);
-                            break;
+                            case component_type::grid:
+                                by_grids.emplace_back(c_id, name);
+                                break;
 
-                        case component_type::graph:
-                            by_graphs.emplace_back(c_id, name);
-                            break;
+                            case component_type::graph:
+                                by_graphs.emplace_back(c_id, name);
+                                break;
 
-                        case component_type::hsm:
-                            by_hsms.emplace_back(c_id, name);
-                            break;
+                            case component_type::hsm:
+                                by_hsms.emplace_back(c_id, name);
+                                break;
 
-                        case component_type::simulation:
-                            by_sims.emplace_back(c_id, name);
-                            break;
+                            case component_type::simulation:
+                                by_sims.emplace_back(c_id, name);
+                                break;
 
-                        case component_type::none:
-                            break;
+                            case component_type::none:
+                                break;
+                            }
                         }
                     }
                 }

@@ -432,17 +432,19 @@ static bool display_binary_source(
         } else {
             u += ImGui::InputFilteredString("name", name);
 
-            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                if (fs.dir_paths.try_to_get(tab.file.parent)) {
-                    const auto old = bin.file;
-                    bin.file =
-                      show_data_file_input(fs, tab.file.parent, bin.file);
+            u += app.mod.files.read([&](const auto& fs, auto) noexcept -> int {
+                if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
+                    if (fs.dir_paths.try_to_get(f->parent)) {
+                        const auto old = bin.file;
+                        bin.file =
+                          show_data_file_input(fs, f->parent, bin.file);
 
-                    u += old != bin.file;
-                } else {
-                    u += bin.file != undefined<file_path_id>();
-                    bin.file = undefined<file_path_id>();
+                        return old != bin.file;
+                    }
                 }
+
+                bin.file = undefined<file_path_id>();
+                return bin.file != undefined<file_path_id>();
             });
 
             ImGui::TreePop();
@@ -473,17 +475,19 @@ static bool display_text_source(
         } else {
             u += ImGui::InputFilteredString("name", name);
 
-            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                if (fs.dir_paths.try_to_get(tab.file.parent)) {
-                    const auto old = txt.file;
-                    txt.file =
-                      show_data_file_input(fs, tab.file.parent, txt.file);
+            u += app.mod.files.read([&](const auto& fs, auto) noexcept -> int {
+                if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
+                    if (fs.dir_paths.try_to_get(f->parent)) {
+                        const auto old = txt.file;
+                        txt.file =
+                          show_data_file_input(fs, f->parent, txt.file);
 
-                    u += old != txt.file;
-                } else {
-                    u += txt.file != undefined<file_path_id>();
-                    txt.file = undefined<file_path_id>();
+                        return old != txt.file;
+                    }
                 }
+
+                txt.file = undefined<file_path_id>();
+                return txt.file != undefined<file_path_id>();
             });
 
             ImGui::TreePop();
@@ -560,214 +564,6 @@ static component_editor_result display_external_source(
     }
 
     return u > 0 ? do_srcs : do_nothing;
-}
-
-static void select_registred_path(const modeling& mod,
-                                  const component_access& /*ids*/,
-                                  component_editor::tab& tab) noexcept
-{
-    mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        static constexpr const char* empty = "-";
-
-        const auto* r       = fs.registred_paths.try_to_get(tab.file.reg);
-        const auto* preview = r ? r->path.c_str() : empty;
-
-        if (not r)
-            tab.file.reg = undefined<registred_path_id>();
-
-        if (ImGui::BeginCombo("Path", preview)) {
-            const registred_path* list = nullptr;
-
-            if (ImGui::Selectable(empty, r == nullptr)) {
-                if (is_defined(tab.file.reg)) {
-                    tab.file.reg    = undefined<registred_path_id>();
-                    tab.file.parent = undefined<dir_path_id>();
-                }
-            }
-
-            while (fs.registred_paths.next(list)) {
-                if (list->status == registred_path::state::error)
-                    continue;
-
-                ImGui::PushID(list);
-                if (ImGui::Selectable(list->path.c_str(),
-                                      r == list,
-                                      ImGuiSelectableFlags_None)) {
-                    const auto r_id = fs.registred_paths.get_id(list);
-                    if (r_id != tab.file.reg) {
-                        tab.file.reg    = r_id;
-                        tab.file.parent = undefined<dir_path_id>();
-                    }
-                }
-                ImGui::PopID();
-            }
-            ImGui::EndCombo();
-        }
-    });
-}
-
-static void select_dir_path(const modeling&        mod,
-                            component_editor::tab& tab) noexcept
-{
-    debug::ensure(is_defined(tab.file.reg));
-
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) {
-        static constexpr const char* empty = "-";
-
-        const auto& r       = fs.registred_paths.get(tab.file.reg);
-        const auto* d       = fs.dir_paths.try_to_get(tab.file.parent);
-        const auto* preview = d ? d->path.c_str() : empty;
-
-        if (not d)
-            tab.file.parent = undefined<dir_path_id>();
-
-        if (ImGui::BeginCombo("Directory", preview)) {
-            if (ImGui::Selectable(empty, d == nullptr)) {
-                tab.file.parent = undefined<dir_path_id>();
-            }
-
-            for (const auto id : r.children) {
-                if (const auto* dir = fs.dir_paths.try_to_get(id)) {
-                    ImGui::PushID(dir);
-                    if (ImGui::Selectable(dir->path.c_str(), d == dir)) {
-                        const auto d_id = fs.dir_paths.get_id(*dir);
-                        if (d_id != tab.file.parent) {
-                            tab.file.parent = d_id;
-                        }
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-    });
-}
-
-static void create_dir_path(application& app,
-                            const component_access& /*ids*/,
-                            component_editor::tab& tab) noexcept
-{
-    if (ImGui::InputFilteredString("New dir.##dir", tab.dir_name)) {
-        const auto exists =
-          app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-              const auto& r = fs.registred_paths.get(tab.file.reg);
-
-              for (const auto id : r.children)
-                  if (const auto* dir = fs.dir_paths.try_to_get(id))
-                      if (dir->path.sv() == tab.dir_name.sv())
-                          return true;
-
-              return false;
-          });
-
-        if (not exists and tab.new_dir.should_request()) {
-            app.add_gui_task([&app, &tab]() {
-                const auto dir_id = app.mod.files.write([&](auto& fs) {
-                    const auto id =
-                      fs.alloc_dir(tab.file.reg, tab.dir_name.sv());
-                    if (is_undefined(id)) {
-                        app.jn.push(log_level::error,
-                                    [&](auto& title, auto& /*msg*/) noexcept {
-                                        format(title,
-                                               "Fail to create directory {}",
-                                               tab.dir_name.sv());
-                                    });
-                    } else {
-                        if (not fs.create_directories(id)) {
-                            app.jn.push(
-                              log_level::error,
-                              [&](auto& title, auto& /*msg*/) noexcept {
-                                  format(title,
-                                         "Fail to create directory {}",
-                                         tab.dir_name.sv());
-                              });
-                            fs.free(id);
-                        }
-                    }
-
-                    return id;
-                });
-
-                tab.new_dir.fulfill(dir_id);
-            });
-        }
-    }
-}
-
-static component_editor_result select_file_path(
-  application& /*app*/,
-  component_editor::tab& tab) noexcept
-{
-    debug::ensure(is_defined(tab.file.reg));
-    debug::ensure(is_defined(tab.file.parent));
-
-    component_editor_result ret;
-
-    if (ImGui::InputFilteredString("File", tab.file.path)) {
-        if (not has_extension(tab.file.path.sv(),
-                              file_path::file_type::component_file)) {
-            add_extension(tab.file.path, file_path::file_type::component_file);
-            ret |= component_editor_result_type::do_store_file_path;
-        }
-    }
-
-    if (ImGui::InputSmallStringMultiline(
-          "##description",
-          tab.desc,
-          ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-          ImGuiInputTextFlags_AllowTabInput)) {
-        ret |= component_editor_result_type::do_store_component;
-    }
-
-    return ret;
-}
-
-static component_editor_result show_file_access(
-  application&            app,
-  const component_access& ids,
-  component_editor::tab&  tab) noexcept
-{
-    debug::ensure(ids.exists(tab.id));
-
-    select_registred_path(app.mod, ids, tab);
-
-    if (is_defined(tab.file.reg)) {
-        select_dir_path(app.mod, tab);
-
-        if (const auto dir_id_opt = tab.new_dir.try_take();
-            dir_id_opt.has_value()) {
-            tab.file.parent = *dir_id_opt;
-        }
-
-        if (is_undefined(tab.file.parent)) {
-            create_dir_path(app, ids, tab);
-        }
-    }
-
-    component_editor_result ret;
-
-    if (is_defined(tab.file.reg) and is_defined(tab.file.parent)) {
-        ret |= select_file_path(app, tab);
-
-        if (is_valid_irt_filename(tab.file.path.sv())) {
-            const auto size = ImGui::ComputeButtonSize(2);
-
-            if (ImGui::Button("Save", size)) {
-                ret |= component_editor_result_type::do_save_file;
-                ret |= component_editor_result_type::do_close_menu;
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Cancel", size))
-                ret |= component_editor_result_type::do_close_menu;
-        } else {
-            const auto size = ImGui::ComputeButtonSize(1);
-            if (ImGui::Button("Cancel", size))
-                ret |= component_editor_result_type::do_close_menu;
-        }
-    }
-
-    return ret;
 }
 
 static port_id show_input_port(component& gcompo, port_id g_port_id) noexcept
@@ -2079,11 +1875,45 @@ static component_editor_result display_component_editor_subtable(
 
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("Save")) {
-                action |= app.mod.ids.read(
-                  [&](const auto& ids,
-                      auto) noexcept -> component_editor_result {
-                      return show_file_access(app, ids, tab);
-                  });
+                action |= app.mod.files.read([&](const auto& fs, auto) noexcept
+                                               -> component_editor_result {
+                    const auto selected = tab.file_select.combobox(
+                      app,
+                      fs,
+                      tab.reg_id,
+                      tab.dir_id,
+                      tab.file_id,
+                      file_path::file_type::component_file,
+                      file_selector::flags(
+                        file_selector::flag::show_save_button,
+                        file_selector::flag::show_cancel_button));
+
+                    tab.reg_id  = selected.reg_id;
+                    tab.dir_id  = selected.dir_id;
+                    tab.file_id = selected.file_id;
+                    component_editor_result ret;
+
+                    if (is_defined(tab.file_id)) {
+                        if (ImGui::InputSmallStringMultiline(
+                              "##description",
+                              tab.desc,
+                              ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
+                              ImGuiInputTextFlags_AllowTabInput)) {
+                            ret |=
+                              component_editor_result_type::do_store_component;
+                        }
+                    }
+
+                    if (selected.save) {
+                        ret |= component_editor_result_type::do_save_file;
+                        ret |= component_editor_result_type::do_close_menu;
+                    }
+
+                    if (selected.close)
+                        ret |= component_editor_result_type::do_close_menu;
+
+                    return ret;
+                });
 
                 if (action[component_editor_result_type::do_close_menu])
                     ImGui::CloseCurrentPopup();
@@ -2349,10 +2179,17 @@ static auto display_component_editor(component_editor&      ed,
     if (auto* element = data.try_to_get(id)) {
         action |= display_component_editor_subtable(app, *element, tab);
 
-        if (not tab.file.path.empty() and is_defined(tab.file.parent) and
-            is_defined(tab.file.reg) and
-            is_valid_irt_filename(tab.file.path.sv())) {
-            if (ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+        if (is_defined(tab.file.file)) {
+            const auto is_valid_filename =
+              app.mod.files.read([&](const auto& fs, auto) noexcept -> bool {
+                  if (const auto* f = fs.file_paths.try_to_get(tab.file.file))
+                      return is_valid_irt_filename(f->path.sv());
+
+                  return false;
+              });
+
+            if (is_valid_filename and
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
                 action |= component_editor_result_type::do_save_file;
             }
         }
@@ -2551,18 +2388,22 @@ void component_editor::request_to_open(const component_id id) noexcept
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         const auto& compo = ids.components[id];
-        const auto& file  = ids.component_file_paths[id];
 
         if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
             auto reg_id = undefined<registred_path_id>();
             auto dir_id = undefined<dir_path_id>();
+            auto file_id = ids.component_file_paths[id].file;
 
             app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                dir_id          = file.parent;
-                const auto* dir = fs.dir_paths.try_to_get(dir_id);
-                reg_id = dir ? dir->parent : undefined<registred_path_id>();
-                const auto* reg = fs.registred_paths.try_to_get(reg_id);
-                reg_id          = reg ? reg_id : undefined<registred_path_id>();
+                if (const auto* f = fs.file_paths.try_to_get(file_id)) {
+                    if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
+                        if (const auto* r =
+                              fs.registred_paths.try_to_get(d->parent)) {
+                            reg_id = d->parent;
+                        }
+                        dir_id = f->parent;
+                    }
+                }
             });
 
             switch (compo.type) {
@@ -2571,9 +2412,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                     if (auto* t = tabs.emplace_back()) {
                         t->id          = id;
                         t->type        = component_type::generic;
-                        t->file.reg    = reg_id;
-                        t->file.parent = dir_id;
-                        t->file.path   = file.path;
+                        t->reg_id      = reg_id;
+                        t->dir_id      = dir_id;
+                        t->file_id     = file_id;
                         t->data.generic =
                           app.generics.get_id(app.generics.alloc(
                             id,
@@ -2591,9 +2432,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                     if (auto* t = tabs.emplace_back()) {
                         t->id          = id;
                         t->type        = component_type::grid;
-                        t->file.reg    = reg_id;
-                        t->file.parent = dir_id;
-                        t->file.path   = file.path;
+                        t->reg_id      = reg_id;
+                        t->dir_id      = dir_id;
+                        t->file_id     = file_id;
                         t->data.grid   = app.grids.get_id(
                           app.grids.alloc(id, compo.id.grid_id));
                         m_request_to_open = id;
@@ -2607,9 +2448,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                     if (auto* t = tabs.emplace_back()) {
                         t->id          = id;
                         t->type        = component_type::graph;
-                        t->file.reg    = reg_id;
-                        t->file.parent = dir_id;
-                        t->file.path   = file.path;
+                        t->reg_id      = reg_id;
+                        t->dir_id      = dir_id;
+                        t->file_id     = file_id;
                         t->data.graph  = app.graphs.get_id(
                           app.graphs.alloc(id, compo.id.graph_id));
                         m_request_to_open = id;
@@ -2623,9 +2464,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                     if (auto* t = tabs.emplace_back()) {
                         t->id             = id;
                         t->type           = component_type::hsm;
-                        t->file.reg       = reg_id;
-                        t->file.parent    = dir_id;
-                        t->file.path      = file.path;
+                        t->reg_id         = reg_id;
+                        t->dir_id         = dir_id;
+                        t->file_id        = file_id;
                         t->data.hsm       = app.hsms.get_id(app.hsms.alloc(
                           id,
                           compo.id.hsm_id,
@@ -2641,9 +2482,9 @@ void component_editor::request_to_open(const component_id id) noexcept
                     if (auto* t = tabs.emplace_back()) {
                         t->id             = id;
                         t->type           = component_type::simulation;
-                        t->file.reg       = reg_id;
-                        t->file.parent    = dir_id;
-                        t->file.path      = file.path;
+                        t->reg_id         = reg_id;
+                        t->dir_id         = dir_id;
+                        t->file_id        = file_id;
                         t->data.sim       = app.sims.get_id(app.sims.alloc(
                           id,
                           compo.id.sim_id,

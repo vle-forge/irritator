@@ -763,12 +763,9 @@ public:
     };
 
     struct dot_file_param {
-        file_path_id      file = undefined<file_path_id>();
+        file_path_id file = undefined<file_path_id>();
 
-        void reset() noexcept
-        {
-            file = undefined<file_path_id>();
-        }
+        void reset() noexcept { file = undefined<file_path_id>(); }
     };
 
     struct scale_free_param {
@@ -1094,9 +1091,7 @@ struct file_path {
 };
 
 struct component_file_path {
-    registred_path_id reg    = undefined<registred_path_id>();
-    dir_path_id       parent = undefined<dir_path_id>();
-    file_path_str     path;
+    file_path_id file = undefined<file_path_id>();
 };
 
 struct tree_node {
@@ -1536,6 +1531,17 @@ struct file_access {
       const std::string_view     filename,
       const file_path::file_type type =
         file_path::file_type::undefined_file) const noexcept;
+
+    /**
+     * @brief find_file Search a @c file_path_id from strings.
+     * @param reg The dirname of the registred directory.
+     * @param dir The dirname of the directory path.
+     * @param file The filename of the file path.
+     * @return Founded @c file_path_id or @undefined<file_path_id>() otherwise.
+     */
+    file_path_id find_file(const std::string_view reg,
+                           const std::string_view dir,
+                           const std::string_view file) const noexcept;
 
     /// Search a directory name in the children directories of the @c
     /// registred_path lists.

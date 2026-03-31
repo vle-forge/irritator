@@ -264,9 +264,14 @@ int main()
                     fs.create_directories(reg_id);
                     fs.create_directories(dir_id);
 
-                    ids.component_file_paths[component_id].parent = dir_id;
-                    ids.component_file_paths[component_id].path =
-                      "external-source.irt";
+                    expect(fs.file_paths.can_alloc(1));
+
+                    auto file_id =
+                      fs.alloc_file(dir_id,
+                                    "external-source.irt",
+                                    irt::file_path::file_type::component_file);
+
+                    ids.component_file_paths[component_id].file = file_id;
                 });
 
                 return component_id;
@@ -897,18 +902,22 @@ int main()
                 dir.path          = "test";
                 dir.parent        = fs.registred_paths.get_id(reg);
 
-                ids.component_file_paths[c1_id].parent = dir_id;
-                ids.component_file_paths[c2_id].parent = dir_id;
-                ids.component_file_paths[c3_id].parent = dir_id;
-                ids.component_file_paths[cg_id].parent = dir_id;
-
                 fs.create_directories(reg_id);
                 fs.create_directories(dir_id);
 
-                ids.component_file_paths[c1_id].path = "c1.irt";
-                ids.component_file_paths[c2_id].path = "c2.irt";
-                ids.component_file_paths[c3_id].path = "c3.irt";
-                ids.component_file_paths[cg_id].path = "cg.irt";
+                const auto c1_id = fs.alloc_file(
+                  dir_id, "c1.irt", irt::file_path::file_type::component_file);
+                const auto c2_id = fs.alloc_file(
+                  dir_id, "c2.irt", irt::file_path::file_type::component_file);
+                const auto c3_id = fs.alloc_file(
+                  dir_id, "c3.irt", irt::file_path::file_type::component_file);
+                const auto cg_id = fs.alloc_file(
+                  dir_id, "cg.irt", irt::file_path::file_type::component_file);
+
+                ids.component_file_paths[c1_id].file = c1_id;
+                ids.component_file_paths[c2_id].file = c2_id;
+                ids.component_file_paths[c3_id].file = c3_id;
+                ids.component_file_paths[cg_id].file = cg_id;
             });
 
             cell_number = g.cells_number();
@@ -1052,11 +1061,14 @@ int main()
                          ++i) {
                         auto c_id = ids.alloc_generic_component();
 
-                        ids.component_file_paths[c_id].reg    = reg_id;
-                        ids.component_file_paths[c_id].parent = dir_id;
-                        irt::format(ids.component_file_paths[c_id].path,
-                                    "{}.irt",
-                                    irt::internal_component_names[i]);
+                        const auto filename = irt::format_n<64>(
+                          "{}.irt", irt::internal_component_names[i]);
+                        auto f_id = fs.alloc_file(
+                          dir_id,
+                          filename.sv(),
+                          irt::file_path::file_type::component_file);
+
+                        ids.component_file_paths[c_id].file = f_id;
 
                         expect(
                           ids

@@ -416,27 +416,21 @@ status modeling::fill_components() noexcept
               }
 
               for (auto& f : fs.file_paths) {
-                  if (f.type == file_path::file_type::component_file) {
-                      if (not ids.exists(f.component)) {
-                          if (not ids.can_alloc_component(1)) {
-                              return new_error(modeling_errc::memory_error);
-                          }
+                  if (f.type != file_path::file_type::component_file)
+                      continue;
 
-                          const auto compo_id = ids.alloc_component();
-                          f.component         = compo_id;
+                  const auto f_id = fs.file_paths.get_id(f);
+
+                  if (not ids.exists(f.component)) {
+                      if (not ids.can_alloc_component(1)) {
+                          return new_error(modeling_errc::memory_error);
                       }
 
-                      ids.component_file_paths[f.component].path   = f.path;
-                      ids.component_file_paths[f.component].parent = f.parent;
-
-                      if (const auto* dir = fs.dir_paths.try_to_get(f.parent)) {
-                          if (const auto* reg =
-                                fs.registred_paths.try_to_get(dir->parent)) {
-                              ids.component_file_paths[f.component].reg =
-                                dir->parent;
-                          }
-                      }
+                      const auto compo_id = ids.alloc_component();
+                      f.component         = compo_id;
                   }
+
+                  ids.component_file_paths[f.component].file = f_id;
               }
 
               for (auto& g : ids.graphs) {
@@ -673,6 +667,20 @@ auto file_access::find_file_in_directory(
                     return f_id;
 
     return undefined<file_path_id>();
+}
+
+auto file_access::find_file(const std::string_view reg,
+                            const std::string_view dir,
+                            const std::string_view file) const noexcept
+  -> file_path_id
+{
+    const auto reg_id  = find_registred_path_by_name(reg);
+    const auto dir_id  = is_defined(reg_id)
+                           ? find_directory_in_registry(reg_id, dir)
+                           : find_directory(dir);
+    const auto file_id = find_file_in_directory(dir_id, file);
+
+    return file_paths.try_to_get(file_id) ? file_id : undefined<file_path_id>();
 }
 
 auto file_access::find_directory(std::string_view name) const noexcept

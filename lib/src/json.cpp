@@ -1769,29 +1769,13 @@ struct json_dearchiver::impl {
                                         const std::string_view  file,
                                         component_id&           c_id) noexcept
     {
-        const auto  reg_id  = files.find_registred_path_by_name(reg);
-        const auto  dir_id  = is_defined(reg_id)
-                                ? files.find_directory_in_registry(reg_id, dir)
-                                : files.find_directory(dir);
-        const auto  file_id = files.find_file_in_directory(dir_id, file);
+        const auto  file_id = files.find_file(reg, dir, file);
         const auto* f       = files.file_paths.try_to_get(file_id);
-        auto        compo_id_from_compo = undefined<component_id>();
-
-        for (const auto id : ids) {
-            const auto& fp = ids.component_file_paths[id];
-            if (fp.parent == dir_id and fp.reg == reg_id and fp.path == file) {
-                compo_id_from_compo = id;
-                break;
-            }
-        }
-
-        if (not f and is_undefined(compo_id_from_compo))
+        if (not f)
             return error(
               "unknown component file in {} / {} / {}", reg, dir, file);
 
-        const auto compo_id =
-          (f and ids.exists(f->component)) ? f->component : compo_id_from_compo;
-
+        const auto compo_id = f->component;
         if (not ids.exists(compo_id))
             return error("unknown component in {} / {} / {}", reg, dir, file);
 
@@ -5715,10 +5699,10 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_component_path(Writer&                    w,
-                                    const registred_path&      reg,
-                                    const dir_path&            dir,
-                                    const component_file_path& file) noexcept
+    void write_child_component_path(Writer&               w,
+                                    const registred_path& reg,
+                                    const dir_path&       dir,
+                                    const file_path&      file) noexcept
     {
         w.Key("path");
         w.String(reg.name.begin(), reg.name.size());
@@ -5735,14 +5719,16 @@ struct json_archiver::impl {
                                     const file_access&         files,
                                     const component_file_path& file) noexcept
     {
-        if (auto* d = files.dir_paths.try_to_get(file.parent)) {
-            if (auto* r = files.registred_paths.try_to_get(d->parent)) {
-                debug::ensure(not r->path.empty());
-                debug::ensure(not r->name.empty());
-                debug::ensure(not d->path.empty());
-                debug::ensure(not file.path.empty());
+        if (auto* f = files.file_paths.try_to_get(file.file)) {
+            if (auto* d = files.dir_paths.try_to_get(f->parent)) {
+                if (auto* r = files.registred_paths.try_to_get(d->parent)) {
+                    debug::ensure(not r->path.empty());
+                    debug::ensure(not r->name.empty());
+                    debug::ensure(not d->path.empty());
+                    debug::ensure(not f->path.empty());
 
-                write_child_component_path(w, *r, *d, file);
+                    write_child_component_path(w, *r, *d, *f);
+                }
             }
         }
     }
@@ -6829,10 +6815,10 @@ struct json_archiver::impl {
     template<typename Writer>
     void do_project_save_component(Writer& w,
                                    const component_access& /*ids*/,
-                                   const component&           compo,
-                                   const registred_path&      reg,
-                                   const dir_path&            dir,
-                                   const component_file_path& file) noexcept
+                                   const component&      compo,
+                                   const registred_path& reg,
+                                   const dir_path&       dir,
+                                   const file_path&      file) noexcept
     {
         w.Key("component-type");
         w.String(component_type_names[ordinal(compo.type)]);
@@ -6869,10 +6855,14 @@ struct json_archiver::impl {
         const auto& compo = ids.components[compo_id];
         const auto& file  = ids.component_file_paths[compo_id];
 
-        if (is_undefined(file.parent) or file.path.empty())
+        if (is_undefined(file.file))
             return new_error(modeling_errc::file_error);
 
-        const auto* dir = files.dir_paths.try_to_get(file.parent);
+        const auto* fil = files.file_paths.try_to_get(file.file);
+        if (!fil)
+            return new_error(modeling_errc::file_error);
+
+        const auto* dir = files.dir_paths.try_to_get(fil->parent);
         if (!dir)
             return new_error(modeling_errc::directory_error);
         if (dir->path.empty())
@@ -6893,7 +6883,7 @@ struct json_archiver::impl {
         w.Key("end");
         w.Double(pj.sim.limits.end());
 
-        do_project_save_component(w, ids, compo, *reg, *dir, file);
+        do_project_save_component(w, ids, compo, *reg, *dir, *fil);
         do_project_save_parameters(w, pj);
         do_project_save_observations(w, pj);
         w.EndObject();

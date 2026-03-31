@@ -97,15 +97,12 @@ static void show_component_popup_menu(application& app,
 
                 app.add_gui_task([&app, compo_id]() noexcept {
                     app.mod.ids.write([&](auto& ids) noexcept {
-                        const auto& compo = ids.component_file_paths[compo_id];
-                        if (is_undefined(compo.parent))
-                            return;
-
-                        if (compo.path.sv().empty())
+                        const auto& filep = ids.component_file_paths[compo_id];
+                        if (is_undefined(filep.file))
                             return;
 
                         app.mod.files.write([&](auto& fs) noexcept {
-                            const auto file = make_file(fs, compo);
+                            const auto file = make_file(fs, filep);
                             if (file.has_value()) {
                                 std::error_code ec;
 
@@ -125,7 +122,6 @@ static void show_component_popup_menu(application& app,
 
                         ids.free(compo_id);
                     });
-
                 });
 
                 app.component_sel.task_update();
@@ -244,7 +240,6 @@ void library_window::show_file_component(const file_access&      fs,
     auto&       app      = container_of(this, &application::library_wnd);
     const bool  selected = app.component_ed.is_component_open(id);
     const auto& compo    = ids.components[id];
-    const auto& file     = ids.component_file_paths[id];
     const auto  state    = compo.state;
 
     ImGui::PushID(ordinal(id));
@@ -269,7 +264,13 @@ void library_window::show_file_component(const file_access&      fs,
     ImGui::SameLine();
 
     const auto& c       = ids.components[id];
-    const auto  name    = format_n<63>("{} ({})", c.name.sv(), file.path.sv());
+    const auto& file    = ids.component_file_paths[id];
+    const auto* f       = fs.file_paths.try_to_get(file.file);
+
+    if (not f)
+        return;
+
+    const auto  name    = format_n<63>("{} ({})", c.name.sv(), f->path.sv());
     const auto  disable = state == component_status::unreadable;
     const auto  flags   = disable ? ImGuiSelectableFlags_Disabled
                                   : ImGuiSelectableFlags_AllowDoubleClick;
@@ -320,7 +321,8 @@ void library_window::show_notsaved_content(
         for (const auto id : ids) {
             const auto& compo        = ids.components[id];
             const auto& file         = ids.component_file_paths[id];
-            const auto  is_not_saved = file.path.empty();
+            const auto  f_id         = file.file;
+            const auto  is_not_saved = not fs.file_paths.try_to_get(f_id);
 
             if (is_not_saved) {
                 component_color color = ids.component_colors[id];
@@ -404,9 +406,9 @@ void library_window::show_dirpath_content(
             for (const auto id : ids.ids) {
                 const auto& file = ids.component_file_paths[id];
 
-                if (file.parent == dir_id) {
-                    show_file_component(fs, ids, id);
-                }
+                if (const auto* f = fs.file_paths.try_to_get(file.file))
+                    if (f->parent == dir_id)
+                        show_file_component(fs, ids, id);
             }
         }
 

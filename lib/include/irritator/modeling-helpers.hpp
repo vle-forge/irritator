@@ -49,13 +49,13 @@ inline file_path_id get_file_from_component(const component_access& ids,
     if (ids.exists(compo_id)) {
         const auto& filepath = ids.component_file_paths[compo_id];
 
-        if (const auto* d = fs.dir_paths.try_to_get(filepath.parent)) {
-            for (const auto f_id : d->children) {
-                if (const auto* f = fs.file_paths.try_to_get(f_id))
+        if (const auto* f = fs.file_paths.try_to_get(filepath.file))
+            if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
+                for (const auto f_id : d->children) {
                     if (f->path.sv() == str)
                         return f_id;
+                }
             }
-        }
     }
 
     return undefined<file_path_id>();
@@ -185,20 +185,22 @@ inline auto make_component_files(const file_access&      fs,
 {
     const auto& file_path = ids.component_file_paths[id];
 
-    if (const auto* dir = fs.dir_paths.try_to_get(file_path.parent)) {
-        if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
-            try {
-                std::filesystem::path base(reg->path.sv());
-                base /= dir->path.sv();
-                base /= file_path.path.sv();
-                base.replace_extension(".irt");
+    if (const auto* fp = fs.file_paths.try_to_get(file_path.file)) {
+        if (const auto* dir = fs.dir_paths.try_to_get(fp->parent)) {
+            if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
+                try {
+                    std::filesystem::path base(reg->path.sv());
+                    base /= dir->path.sv();
+                    base /= fp->path.sv();
+                    base.replace_extension(".irt");
 
-                std::filesystem::path desc(base);
-                desc.replace_extension(".desc");
+                    std::filesystem::path desc(base);
+                    desc.replace_extension(".desc");
 
-                return component_filenames{ .component   = base,
-                                            .description = desc };
-            } catch (...) {
+                    return component_filenames{ .component   = base,
+                                                .description = desc };
+                } catch (...) {
+                }
             }
         }
     }
@@ -210,12 +212,14 @@ inline std::optional<std::filesystem::path> make_file(
   const file_access&         fs,
   const component_file_path& c) noexcept
 {
-    if (auto* dir = fs.dir_paths.try_to_get(c.parent)) {
-        if (auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
-            std::filesystem::path file(reg->path.sv());
-            file /= dir->path.sv();
-            file /= c.path.sv();
-            return file;
+    if (const auto* fp = fs.file_paths.try_to_get(c.file)) {
+        if (const auto* dir = fs.dir_paths.try_to_get(fp->parent)) {
+            if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
+                std::filesystem::path file(reg->path.sv());
+                file /= dir->path.sv();
+                file /= fp->path.sv();
+                return file;
+            }
         }
     }
 

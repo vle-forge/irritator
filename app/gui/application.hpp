@@ -756,7 +756,7 @@ private:
     ImVec2                start_selection;
     ImVec2                end_selection;
     ImVec2                canvas_sz;
-    bool                  run_selection = false;
+    bool                  run_selection  = false;
     bool                  is_initialized = false;
 
     ImVec2 distance{ 15.f, 15.f };
@@ -1459,20 +1459,20 @@ public:
     struct tab {
         tab() noexcept = default;
 
-        component_id   id;
-        component_type type;
-
+        component_id        id;
+        component_type      type;
         component           compo;
         component_file_path file;
         description_str     desc;
 
-        directory_path_str dir_name;
+        file_selector     file_select;
+        registred_path_id reg_id  = undefined<registred_path_id>();
+        dir_path_id       dir_id  = undefined<dir_path_id>();
+        file_path_id      file_id = undefined<file_path_id>();
 
         u64 version = std::numeric_limits<u64>::max();
 
         bool is_dock_init = false;
-
-        atomic_request_buffer<dir_path_id> new_dir;
 
         union {
             grid_editor_data_id       grid;

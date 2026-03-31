@@ -160,16 +160,22 @@ void memory_window::show() noexcept
                         break;
                     }
 
-                    const auto& file = ids.component_file_paths[id];
-                    ImGui::LabelFormat("File", "{}", file.path.sv());
+                    const auto& file    = ids.component_file_paths[id];
+                    const auto  file_id = file.file;
 
                     app.mod.files.read([&](const auto& fs, auto) {
-                        if (const auto* d =
-                              fs.dir_paths.try_to_get(file.parent)) {
-                            ImGui::LabelFormat("Dir", "{}", d->path.sv());
-                            if (const auto* r =
-                                  fs.registred_paths.try_to_get(d->parent)) {
-                                ImGui::LabelFormat("Reg", "{}", r->path.sv());
+                        if (const auto* fp =
+                              fs.file_paths.try_to_get(file_id)) {
+                            ImGui::LabelFormat("File", "{}", fp->path.sv());
+                            if (const auto* d =
+                                  fs.dir_paths.try_to_get(fp->parent)) {
+                                ImGui::LabelFormat("Dir", "{}", d->path.sv());
+                                if (const auto* r =
+                                      fs.registred_paths.try_to_get(
+                                        d->parent)) {
+                                    ImGui::LabelFormat(
+                                      "Reg", "{}", r->path.sv());
+                                }
                             }
                         }
                     });
