@@ -1874,49 +1874,70 @@ static component_editor_result display_component_editor_subtable(
                           ImGuiWindowFlags_MenuBar);
 
         if (ImGui::BeginMenuBar()) {
-            if (ImGui::BeginMenu("Save")) {
-                action |= app.mod.files.read([&](const auto& fs, auto) noexcept
-                                               -> component_editor_result {
-                    const auto selected = tab.file_select.combobox(
-                      app,
-                      fs,
-                      tab.reg_id,
-                      tab.dir_id,
-                      tab.file_id,
-                      file_path::file_type::component_file,
-                      file_selector::flags(
-                        file_selector::flag::show_save_button,
-                        file_selector::flag::show_cancel_button));
+            if (ImGui::BeginMenu("File")) {
+                if (ImGui::BeginMenu("Save")) {
+                    action |= app.mod.files.read(
+                      [&](const auto& fs,
+                          auto) noexcept -> component_editor_result {
+                          const auto selected = tab.file_select.combobox(
+                            app,
+                            fs,
+                            tab.reg_id,
+                            tab.dir_id,
+                            tab.file_id,
+                            file_path::file_type::component_file,
+                            file_selector::flags(
+                              file_selector::flag::show_save_button,
+                              file_selector::flag::show_cancel_button));
 
-                    tab.reg_id  = selected.reg_id;
-                    tab.dir_id  = selected.dir_id;
-                    tab.file_id = selected.file_id;
-                    component_editor_result ret;
+                          tab.reg_id  = selected.reg_id;
+                          tab.dir_id  = selected.dir_id;
+                          tab.file_id = selected.file_id;
+                          component_editor_result ret;
 
-                    if (is_defined(tab.file_id)) {
-                        if (ImGui::InputSmallStringMultiline(
-                              "##description",
-                              tab.desc,
-                              ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
-                              ImGuiInputTextFlags_AllowTabInput)) {
-                            ret |=
-                              component_editor_result_type::do_store_component;
-                        }
+                          if (selected.save) {
+                              ret |= component_editor_result_type::do_save_file;
+                              ret |=
+                                component_editor_result_type::do_close_menu;
+                          }
+
+                          if (selected.close)
+                              ret |=
+                                component_editor_result_type::do_close_menu;
+
+                          return ret;
+                      });
+
+                    if (action[component_editor_result_type::do_close_menu])
+                        ImGui::CloseCurrentPopup();
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Description")) {
+                    const auto height = 20 * ImGui::GetTextLineHeight();
+                    const auto width  = height;
+
+                    ImGui::InputSmallStringMultiline(
+                      "##description",
+                      tab.desc,
+                      ImVec2(width, height),
+                      ImGuiInputTextFlags_AllowTabInput);
+
+                    const auto size = ImGui::ComputeButtonSize(2);
+                    if (ImGui::Button("Save", size)) {
+                        action |=
+                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::do_save_file;
+                        ImGui::CloseCurrentPopup();
                     }
 
-                    if (selected.save) {
-                        ret |= component_editor_result_type::do_save_file;
-                        ret |= component_editor_result_type::do_close_menu;
-                    }
+                    ImGui::SameLine();
 
-                    if (selected.close)
-                        ret |= component_editor_result_type::do_close_menu;
+                    if (ImGui::Button("Cancel", size))
+                        ImGui::CloseCurrentPopup();
 
-                    return ret;
-                });
-
-                if (action[component_editor_result_type::do_close_menu])
-                    ImGui::CloseCurrentPopup();
+                    ImGui::EndMenu();
+                }
 
                 ImGui::EndMenu();
             }
