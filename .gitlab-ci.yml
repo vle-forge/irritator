@@ -1,15 +1,43 @@
-image: debian:sid
+stages:
+  - build
 
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
+  CLICOLOR_FORCE: "1"
 
-build:
+.build_template:
   stage: build
   before_script:
-    - apt update && apt -y install cmake g++ ninja-build libglew-dev libglfw3-dev
+    - |
+      if command -v apt-get > /dev/null; then
+        apt-get update && apt-get install -y cmake ninja-build libglew-dev libglfw3-dev $COMPILER_PACKAGE
+      elif command -v dnf > /dev/null; then
+        dnf install -y cmake ninja-build glew-devel glfw-devel $COMPILER_PACKAGE
+      fi
   script:
     - mkdir build && cd build
-    - cmake -G Ninja ..
+    - cmake -G Ninja -DCMAKE_CXX_COMPILER=$CXX_COMPILER -DCMAKE_C_COMPILER=$C_COMPILER -DCMAKE_CXX_STANDARD=20 ..
     - ninja
-    - ninja install
-    - ctest -V
+    - ctest -V --output-on-failure
+
+linux_matrix:
+  extends: .build_template
+  parallel:
+    matrix:
+      - IMAGE: "ubuntu:22.04"
+        C_COMPILER: "gcc"
+        CXX_COMPILER: "g++"
+        COMPILER_PACKAGE: "g++"
+      - IMAGE: "ubuntu:24.04"
+        C_COMPILER: "clang"
+        CXX_COMPILER: "clang++"
+        COMPILER_PACKAGE: "clang"
+      - IMAGE: "debian:12"
+        C_COMPILER: "gcc"
+        CXX_COMPILER: "g++"
+        COMPILER_PACKAGE: "g++"
+      - IMAGE: "fedora:40"
+        C_COMPILER: "gcc"
+        CXX_COMPILER: "g++"
+        COMPILER_PACKAGE: "gcc-c++"
+  image: $IMAGE
