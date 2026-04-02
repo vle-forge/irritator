@@ -1453,7 +1453,6 @@ status modeling::save(const component_access& ids,
     json_archiver j;
     if (auto ret = j(*this, fs, ids, id, *cfile); ret.has_error())
         return ret.error();
-    return success();
 
     auto dfile =
       file::open(filenames->description, file_mode{ file_open_options::write });
