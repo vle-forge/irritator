@@ -498,6 +498,7 @@ status component_access::copy(const internal_component src,
         break;
     case internal_component::qss3_van_der_pol:
         irt_check(add_van_der_pol<3>(dst, gen));
+        break;
     }
 
     const auto children = gen.children.size();

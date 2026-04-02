@@ -39,7 +39,7 @@ static void show_component_popup_menu(application& app,
                                       const component_access& /*ids*/,
                                       const file_access& /*fs*/,
                                       const component_id compo_id,
-                                      const component& sel) noexcept
+                                      const component&   sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component"))
@@ -61,27 +61,28 @@ static void show_component_popup_menu(application& app,
 
         if (ImGui::MenuItem("Copy")) {
             app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
-                app.mod.ids.write(
-                    [&](auto& ids) noexcept {
-                        if (not ids.can_alloc_component(1)) {
-                            app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
-                                title = "Library";
-                                msg = "Fail to copy model: too many component";
-                            });
+                app.mod.ids.write([&](auto& ids) noexcept {
+                    if (not ids.can_alloc_component(1)) {
+                        app.jn.push(
+                          log_level::error,
+                          [](auto& title, auto& msg) noexcept {
+                              title = "Library";
+                              msg   = "Fail to copy model: too many component";
+                          });
 
-                            return;
-                        }
+                        return;
+                    }
 
-                        const auto c = ids.copy(compo_id);
-                        if (c.has_error()) {
-                            app.jn.push(log_level::error,
-                                        [](auto& title, auto& msg) noexcept {
-                                            title = "Library";
-                                            msg   = "Fail to copy model";
-                                        });
-                            return;
-                        }
-                    });
+                    const auto c = ids.copy(compo_id);
+                    if (c.has_error()) {
+                        app.jn.push(log_level::error,
+                                    [](auto& title, auto& msg) noexcept {
+                                        title = "Library";
+                                        msg   = "Fail to copy model";
+                                    });
+                        return;
+                    }
+                });
             });
 
             app.component_sel.task_update();
@@ -263,17 +264,17 @@ void library_window::show_file_component(const file_access&      fs,
 
     ImGui::SameLine();
 
-    const auto& c       = ids.components[id];
-    const auto& file    = ids.component_file_paths[id];
-    const auto* f       = fs.file_paths.try_to_get(file.file);
+    const auto& c    = ids.components[id];
+    const auto& file = ids.component_file_paths[id];
+    const auto* f    = fs.file_paths.try_to_get(file.file);
 
     if (not f)
         return;
 
-    const auto  name    = format_n<63>("{} ({})", c.name.sv(), f->path.sv());
-    const auto  disable = state == component_status::unreadable;
-    const auto  flags   = disable ? ImGuiSelectableFlags_Disabled
-                                  : ImGuiSelectableFlags_AllowDoubleClick;
+    const auto name    = format_n<63>("{} ({})", c.name.sv(), f->path.sv());
+    const auto disable = state == component_status::unreadable;
+    const auto flags   = disable ? ImGuiSelectableFlags_Disabled
+                                 : ImGuiSelectableFlags_AllowDoubleClick;
 
     if (ImGui::Selectable(name.c_str(), selected, flags)) {
         if (ImGui::IsMouseDoubleClicked(0))
@@ -649,8 +650,8 @@ void library_window::show_menu() noexcept
         if (ImGui::BeginMenu("Examples")) {
             for (auto i = 0; i < internal_component_count; ++i) {
                 if (ImGui::MenuItem(internal_component_names[i])) {
-                    app.add_gui_task([&]() noexcept {
-                        app.mod.ids.write([&](auto& ids) noexcept {
+                    app.add_gui_task([&app, i]() noexcept {
+                        app.mod.ids.write([&app, i](auto& ids) noexcept {
                             const auto compo_id = ids.alloc_generic_component();
 
                             if (is_undefined(compo_id)) {
@@ -666,13 +667,17 @@ void library_window::show_menu() noexcept
                             const auto ret = ids.copy(
                               enum_cast<internal_component>(i), compo_id);
 
-                            if (ret.has_value())
-                                app.jn.push(log_level::error,
-                                            [](auto& t, auto& m) {
-                                                t = "Library: copy in "
-                                                    "generic component";
-                                                m = "TODO";
-                                            });
+                            if (ret.has_error())
+                                app.jn.push(
+                                  log_level::error, [i](auto& t, auto& m) {
+                                      t = "Library: copy in "
+                                          "generic component";
+                                      format(
+                                        m,
+                                        "Fail to copy {} into a new generic "
+                                        "component",
+                                        internal_component_names[i]);
+                                  });
                         });
                     });
 
