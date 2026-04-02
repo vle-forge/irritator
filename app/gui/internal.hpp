@@ -318,14 +318,14 @@ inline auto TreeNodeExSelectableWithHint(const char*        label,
 
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
-    if (button_number <= 0)
-        return ImVec2{ ImGui::GetContentRegionAvail().x, 0.f };
+    const auto button        = button_number <= 1 ? 1 : button_number;
+    const auto content_width = ImGui::GetContentRegionAvail().x;
+    const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
+    const auto nb_space      = static_cast<float>(button) - 1.f;
+    const auto button_width =
+      (content_width - (nb_space * item_spacing)) / static_cast<float>(button);
 
-    return ImVec2{ ((ImGui::GetContentRegionAvail().x -
-                     (static_cast<float>(button_number) *
-                      ImGui::GetStyle().ItemSpacing.x)) /
-                    static_cast<float>(button_number)),
-                   0.f };
+    return ImVec2(button_width, 0.f);
 }
 
 } // namespace ImGui
