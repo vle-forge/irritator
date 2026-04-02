@@ -747,26 +747,32 @@ static bool compute_grid_layout(generic_component& s_compo,
     if (size == 0)
         return false;
 
-    const auto column  = std::floor(std::sqrt(fsize));
+    const auto column  = static_cast<int>(std::floor(std::sqrt(fsize)));
     const auto panning = ImNodes::EditorContextGetPanning();
-    auto       i       = 0.f;
-    auto       j       = 0.f;
 
-    for_each_data(s_compo.children, [&](auto& c) noexcept {
-        const auto id  = s_compo.children.get_id(c);
-        const auto idx = get_index(id);
+    auto i = 0;
+    auto j = 0;
 
-        s_compo.children_positions[idx].x =
-          panning.y + i * grid_layout_y_distance;
-        s_compo.children_positions[idx].y =
-          panning.x + j * grid_layout_x_distance;
+    for (const auto& c : s_compo.children) {
+        const auto c_id = s_compo.children.get_id(c);
+        const auto x    = panning.y + i * grid_layout_y_distance;
+        const auto y    = panning.x + j * grid_layout_x_distance;
+
+        s_compo.children_positions[c_id] = { .x = x, .y = y };
+
         ++j;
-
-        if (j >= static_cast<int>(column)) {
-            j = 0.f;
+        if (j > column) {
+            j = 0;
             ++i;
         }
-    });
+    }
+
+    for (const auto& c : s_compo.children) {
+        const auto  c_id    = s_compo.children.get_id(c);
+        const auto  node_id = pack_node_child(c_id);
+        const auto& pos     = s_compo.children_positions[c_id];
+        ImNodes::SetNodeEditorSpacePos(node_id, ImVec2(pos.x, pos.y));
+    }
 
     return true;
 }
