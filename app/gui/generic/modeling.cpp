@@ -807,7 +807,7 @@ static bool add_component_to_current(application&            app,
 
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
-    ImNodes::SetNodeEditorSpacePos(pack_node_child(c_id), click_pos);
+    ImNodes::SetNodeScreenSpacePos(pack_node_child(c_id), click_pos);
 
     return true;
 }
