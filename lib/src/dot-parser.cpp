@@ -236,23 +236,34 @@ static constexpr bool starts_as_number(int c) noexcept
 class input_stream_buffer
 {
 private:
+    journal_handler::descr warnings;
+
     template<msg_id Index, typename... Args>
     constexpr void warning(Args&&... args) noexcept
     {
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        jn.push(
-          log_level::warning,
-          [](auto& title, auto& msg, auto& format, auto args) {
-              title = "Dot parser warning";
+        if (warnings.size() + 20 > warnings.capacity())
+            return;
 
-              auto ret =
-                fmt::vformat_to_n(msg.data(), msg.capacity() - 1, format, args);
-              msg.resize(ret.size);
-          },
-          msg_fmt[idx],
-          fmt::make_format_args(args...));
+        const auto start     = warnings.size();
+        const auto remaining = warnings.capacity() - start;
+        const auto ret       = fmt::vformat_to_n(warnings.data() + start,
+                                           remaining,
+                                           msg_fmt[idx],
+                                           fmt::make_format_args(args...));
+
+        warnings.resize(start + ret.size);
+
+        if (warnings.size() + 20 > warnings.capacity())
+            jn.push(
+              log_level::warning,
+              [](auto& title, auto& msg, const auto& w) {
+                  title = "Dot parser warning";
+                  msg   = w;
+              },
+              warnings);
     }
 
     template<msg_id Index, typename... Args>

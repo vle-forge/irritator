@@ -647,6 +647,7 @@ void library_window::show_menu() noexcept
             ImGui::EndMenu();
         }
 
+
         if (ImGui::BeginMenu("Examples")) {
             for (auto i = 0; i < internal_component_count; ++i) {
                 if (ImGui::MenuItem(internal_component_names[i])) {

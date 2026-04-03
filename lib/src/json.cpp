@@ -50,6 +50,10 @@ struct json_dearchiver::impl {
     simulation* m_sim = nullptr;
     project*    m_pj  = nullptr;
 
+    // Stores warnings during the dearchiving process to be flushed at the end
+    // of the process.
+    journal_handler::descr warnings;
+
     std::string_view m_path;
 
     i64         temp_i64    = 0;
@@ -68,46 +72,26 @@ struct json_dearchiver::impl {
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        if (not m_mod)
+        debug::ensure(m_mod);
+
+        if (warnings.size() + 20 > warnings.capacity())
             return;
 
-        m_mod->journal.push(
-          log_level::warning,
-          [](auto& title,
-             auto& msg,
-             auto  path,
-             auto& stack,
-             auto& fmt,
-             auto  args) {
-              format(title, "json warning {}\n", path);
+        const auto start     = warnings.size();
+        const auto remaining = warnings.capacity() - start;
+        const auto ret       = fmt::vformat_to_n(warnings.data() + start,
+                                           remaining,
+                                           fmt,
+                                           fmt::make_format_args(args...));
 
-              auto data      = msg.data();
-              sz   remaining = msg.capacity() - 1u;
-              sz   write     = 0;
+        warnings.resize(start + ret.size);
 
-              for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                  auto ret = fmt::format_to_n(
-                    data, remaining, "{:{}}{}\n", "", i, stack[i]);
-                  write += ret.size;
-                  msg.resize(write);
-                  data = ret.out;
-                  remaining -= ret.size;
-              }
-
-              auto ret = fmt::format_to_n(
-                data, remaining, "{:{}}", "", stack.size() + 1);
-              write += ret.size;
-              msg.resize(write);
-              data = ret.out;
-              remaining -= ret.size;
-
-              ret = fmt::vformat_to_n(data, remaining, fmt, args);
-              msg.resize(write + ret.size);
-          },
-          m_path,
-          std::as_const(stack),
-          fmt,
-          fmt::make_format_args(args...));
+        if (warnings.size() + 20 > warnings.capacity())
+            m_mod->journal.push(log_level::warning,
+                                [&](auto& title, auto& msg) {
+                                    format(title, "json warning {}\n", m_path);
+                                    msg = warnings;
+                                });
     }
 
     template<typename... T>
@@ -6980,7 +6964,7 @@ status json_dearchiver::operator()(project&                pj,
 
     if (const auto ret =
           parse_json_data(std::span(buffer.data(), buffer.size()), doc);
-            ret.has_error())
+        ret.has_error())
         return ret.error();
 
     json_dearchiver::impl i(*this, mod, sim, pj, path);
