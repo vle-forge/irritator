@@ -358,38 +358,46 @@ static bool display_constant_source(
         } else {
             u += ImGui::InputFilteredString("name", name);
 
-            auto size = cst.data.size();
-            if (ImGui::InputScalar("length", ImGuiDataType_S32, &size)) {
-                size = size < 1                     ? 1
-                       : size < cst.data.capacity() ? size
-                                                    : cst.data.capacity();
-                if (size != cst.data.size()) {
-                    cst.data.resize(size);
+            auto size = static_cast<i32>(cst.data.size());
+            if (ImGui::InputInt("length", &size)) {
+                auto new_size = size <= 1         ? 1
+                                : size > INT8_MAX ? INT8_MAX
+                                                  : size;
+
+                if (new_size != cst.data.size()) {
+                    cst.data.resize(new_size, 0.0);
                     ++u;
                 }
             }
 
-            const auto columns_sz = 3 < cst.data.size() ? 3 : cst.data.size();
-            const auto rows_sz    = (cst.data.size() / columns_sz) +
-                                 ((cst.data.size() % columns_sz) > 0 ? 1 : 0);
+            if (size) {
+                const auto columns_sz =
+                  3 < cst.data.size() ? 3 : cst.data.size();
+                const auto rows_sz =
+                  (cst.data.size() / columns_sz) +
+                  ((cst.data.size() % columns_sz) > 0 ? 1 : 0);
 
-            const auto columns = static_cast<int>(columns_sz);
-            const auto rows    = static_cast<int>(rows_sz);
+                const auto columns = static_cast<int>(columns_sz);
+                const auto rows    = static_cast<int>(rows_sz);
 
-            if (ImGui::BeginChild(
-                  "##zone",
-                  ImVec2(ImGui::GetContentRegionAvail().x,
-                         ImGui::GetFrameHeightWithSpacing() * rows))) {
-                if (ImGui::BeginTable("Values", columns)) {
-                    for (int j = 0; j < columns; ++j)
-                        ImGui::TableSetupColumn(
-                          "",
-                          ImGuiTableColumnFlags_WidthFixed,
-                          ImGui::GetContentRegionAvail().x / 3.f);
+                if (ImGui::BeginChild(
+                      "##zone",
+                      ImVec2(ImGui::GetContentRegionAvail().x,
+                             ImGui::GetFrameHeightWithSpacing() * rows))) {
+                    if (ImGui::BeginTable("Values", columns)) {
+                        for (int j = 0; j < columns; ++j)
+                            ImGui::TableSetupColumn(
+                              "",
+                              ImGuiTableColumnFlags_WidthFixed,
+                              (ImGui::GetContentRegionAvail().x -
+                               (2 * ImGui::GetStyle().ItemSpacing.x)) /
+                                3.f);
 
-                    for (int i = 0; i < rows; ++i) {
+                        int i = 0;
+                        int j = 0;
+
                         ImGui::TableNextRow();
-                        for (int j = 0; j < columns; ++j) {
+                        for (sz elem = 0; elem < size; ++elem) {
                             ImGui::TableSetColumnIndex(j);
                             ImGui::PushID(i * columns + j);
                             ImGui::PushItemWidth(-1);
@@ -398,13 +406,22 @@ static bool display_constant_source(
                                 ++u;
                             ImGui::PopItemWidth();
                             ImGui::PopID();
+
+                            ++j;
+                            if (j == columns) {
+                                j = 0;
+                                ImGui::TableNextRow();
+                                ++i;
+                            }
                         }
+
+                        ImGui::EndTable();
                     }
-                    ImGui::EndTable();
                 }
+                ImGui::EndChild();
             }
         }
-        ImGui::EndChild();
+
         ImGui::TreePop();
     }
 
@@ -1968,7 +1985,7 @@ static component_editor_result display_component_editor_subtable(
                                 if (not ids.exists(compo_id))
                                     return;
                                 auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_constant_source();
+                                compo.srcs.alloc_binary_source();
                             });
                         });
 
@@ -1978,7 +1995,7 @@ static component_editor_result display_component_editor_subtable(
                                 if (not ids.exists(compo_id))
                                     return;
                                 auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_constant_source();
+                                compo.srcs.alloc_text_source();
                             });
                         });
 
@@ -1988,7 +2005,7 @@ static component_editor_result display_component_editor_subtable(
                                 if (not ids.exists(compo_id))
                                     return;
                                 auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_constant_source();
+                                compo.srcs.alloc_random_source();
                             });
                         });
 
@@ -2411,8 +2428,8 @@ void component_editor::request_to_open(const component_id id) noexcept
         const auto& compo = ids.components[id];
 
         if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
-            auto reg_id = undefined<registred_path_id>();
-            auto dir_id = undefined<dir_path_id>();
+            auto reg_id  = undefined<registred_path_id>();
+            auto dir_id  = undefined<dir_path_id>();
             auto file_id = ids.component_file_paths[id].file;
 
             app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
@@ -2431,11 +2448,11 @@ void component_editor::request_to_open(const component_id id) noexcept
             case component_type::generic:
                 if (app.generics.can_alloc(1)) {
                     if (auto* t = tabs.emplace_back()) {
-                        t->id          = id;
-                        t->type        = component_type::generic;
-                        t->reg_id      = reg_id;
-                        t->dir_id      = dir_id;
-                        t->file_id     = file_id;
+                        t->id      = id;
+                        t->type    = component_type::generic;
+                        t->reg_id  = reg_id;
+                        t->dir_id  = dir_id;
+                        t->file_id = file_id;
                         t->data.generic =
                           app.generics.get_id(app.generics.alloc(
                             id,
@@ -2451,12 +2468,12 @@ void component_editor::request_to_open(const component_id id) noexcept
             case component_type::grid:
                 if (app.grids.can_alloc(1)) {
                     if (auto* t = tabs.emplace_back()) {
-                        t->id          = id;
-                        t->type        = component_type::grid;
-                        t->reg_id      = reg_id;
-                        t->dir_id      = dir_id;
-                        t->file_id     = file_id;
-                        t->data.grid   = app.grids.get_id(
+                        t->id        = id;
+                        t->type      = component_type::grid;
+                        t->reg_id    = reg_id;
+                        t->dir_id    = dir_id;
+                        t->file_id   = file_id;
+                        t->data.grid = app.grids.get_id(
                           app.grids.alloc(id, compo.id.grid_id));
                         m_request_to_open = id;
                     }
@@ -2467,12 +2484,12 @@ void component_editor::request_to_open(const component_id id) noexcept
             case component_type::graph:
                 if (app.graphs.can_alloc(1)) {
                     if (auto* t = tabs.emplace_back()) {
-                        t->id          = id;
-                        t->type        = component_type::graph;
-                        t->reg_id      = reg_id;
-                        t->dir_id      = dir_id;
-                        t->file_id     = file_id;
-                        t->data.graph  = app.graphs.get_id(
+                        t->id         = id;
+                        t->type       = component_type::graph;
+                        t->reg_id     = reg_id;
+                        t->dir_id     = dir_id;
+                        t->file_id    = file_id;
+                        t->data.graph = app.graphs.get_id(
                           app.graphs.alloc(id, compo.id.graph_id));
                         m_request_to_open = id;
                     }
