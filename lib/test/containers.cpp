@@ -2867,14 +2867,14 @@ int main()
     "test_push_back"_test = [] {
         std::vector<int> compare_data;
         for (std::size_t i = 0; i < Size; ++i) {
-            compare_data.push_back(i);
+            compare_data.push_back(static_cast<int>(i));
         }
 
         {
             vec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.push_back(i);
+                data.push_back(static_cast<int>(i));
             }
 
             expect(eq(compare_data.size(), data.size()));
@@ -2888,7 +2888,7 @@ int main()
             svec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.push_back(i);
+                data.push_back(static_cast<int>(i));
             }
 
             expect(eq(compare_data.size(), data.size()));
@@ -2944,7 +2944,7 @@ int main()
             vec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.push_back(i);
+                data.push_back(static_cast<int>(i));
             }
 
             if (data.capacity() == data.size())
@@ -2956,7 +2956,7 @@ int main()
             svec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.push_back(i);
+                data.push_back(static_cast<int>(i));
             }
 
             expect(not data.can_alloc(1));
@@ -2966,14 +2966,14 @@ int main()
     "test_emplace_back"_test = [] {
         std::vector<int> compare_data;
         for (std::size_t i = 0; i < Size; ++i) {
-            compare_data.emplace_back(i);
+            compare_data.emplace_back(static_cast<int>(i));
         }
 
         {
             vec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.emplace_back(i);
+                data.emplace_back(static_cast<int>(i));
             }
 
             expect(eq(compare_data.size(), data.size()));
@@ -2987,7 +2987,7 @@ int main()
             svec data;
 
             for (std::size_t i = 0; i < Size; ++i) {
-                data.emplace_back(i);
+                data.emplace_back(static_cast<int>(i));
             }
 
             expect(eq(compare_data.size(), data.size()));
