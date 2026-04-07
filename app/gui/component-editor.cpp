@@ -1913,6 +1913,8 @@ static component_editor_result display_component_editor_subtable(
                           component_editor_result ret;
 
                           if (selected.save) {
+                              tab.file.file = tab.file_id;
+
                               ret |= component_editor_result_type::do_save_file;
                               ret |=
                                 component_editor_result_type::do_close_menu;
