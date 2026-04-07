@@ -9,11 +9,7 @@
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 
-#include "application.hpp"
-
 #include <imgui.h>
-
-#include <utility>
 
 namespace irt {
 
