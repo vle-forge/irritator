@@ -2158,7 +2158,7 @@ static component_editor_result display_component_editor_subtable(
         if (app.mod.ids.read([&](const auto& ids, auto) noexcept -> bool {
                 return element.show(ed, ids, tab.compo);
             }))
-            action = component_editor_result_type::do_store_component;
+            action |= component_editor_result_type::do_store_component;
 
         ImGui::EndTable();
     }
