@@ -2046,7 +2046,11 @@ static component_editor_result display_component_editor_subtable(
                                     return;
 
                                 auto& compo = ids.components[cid];
-                                auto  id    = compo.x.alloc_id();
+                                if (not compo.x.can_alloc(1) and
+                                    not compo.x.template grow<3, 2>())
+                                    return;
+
+                                auto id = compo.x.alloc_id();
                                 compo.x.template get<port_str>(id) = "in";
                                 compo.x.template get<port_option>(id) =
                                   port_option::classic;
@@ -2063,7 +2067,11 @@ static component_editor_result display_component_editor_subtable(
                                     return;
 
                                 auto& compo = ids.components[cid];
-                                auto  id    = compo.y.alloc_id();
+                                if (not compo.y.can_alloc(1) and
+                                    not compo.y.template grow<3, 2>())
+                                    return;
+
+                                auto id = compo.y.alloc_id();
                                 compo.y.template get<port_str>(id) = "out";
                                 compo.y.template get<port_option>(id) =
                                   port_option::classic;
