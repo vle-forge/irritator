@@ -358,19 +358,22 @@ static bool display_constant_source(
         } else {
             u += ImGui::InputFilteredString("name", name);
 
-            auto size = static_cast<i32>(cst.data.size());
-            if (ImGui::InputInt("length", &size)) {
-                auto new_size = size <= 1         ? 1
-                                : size > INT8_MAX ? INT8_MAX
-                                                  : size;
+            auto new_size = [&]() {
+                auto size = static_cast<int>(cst.data.size());
+                if (ImGui::InputInt("length", &size)) {
+                    sz new_size = size <= 1         ? 1u
+                                  : size > INT8_MAX ? INT8_MAX
+                                                    : size;
 
-                if (new_size != cst.data.size()) {
-                    cst.data.resize(new_size, 0.0);
-                    ++u;
+                    if (new_size != cst.data.size()) {
+                        cst.data.resize(new_size, 0.0);
+                        ++u;
+                    }
                 }
-            }
+                return cst.data.size();
+            }();
 
-            if (size) {
+            if (new_size) {
                 const auto columns_sz =
                   3 < cst.data.size() ? 3 : cst.data.size();
                 const auto rows_sz =
@@ -397,7 +400,7 @@ static bool display_constant_source(
                         int j = 0;
 
                         ImGui::TableNextRow();
-                        for (sz elem = 0; elem < size; ++elem) {
+                        for (sz elem = 0; elem < new_size; ++elem) {
                             ImGui::TableSetColumnIndex(j);
                             ImGui::PushID(i * columns + j);
                             ImGui::PushItemWidth(-1);
