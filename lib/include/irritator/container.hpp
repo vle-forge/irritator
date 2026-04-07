@@ -1549,6 +1549,8 @@ class id_array
                          std::uint16_t,
                          std::uint32_t>;
 
+public:
+    using size_type       = index_type;
     using identifier_type = Identifier;
     using value_type      = Identifier;
     using this_container  = id_array<Identifier, A>;
@@ -1618,7 +1620,7 @@ public:
      * @return true is success, false otherwise.
      */
     template<int Num, int Denum = 1>
-    constexpr bool grow() noexcept;
+    constexpr bool grow(size_type count = 1) noexcept;
 
     constexpr std::optional<index_type> get(const Identifier id) const noexcept;
     constexpr bool exists(const Identifier id) const noexcept;
@@ -2021,6 +2023,7 @@ private:
 public:
     using iterator       = id_array<identifier_type, A>::iterator;
     using const_iterator = id_array<identifier_type, A>::const_iterator;
+    using size_type      = id_array<identifier_type, A>::size_type;
 
     id_data_array() noexcept = default;
     explicit id_data_array(std::integral auto capacity) noexcept;
@@ -2176,7 +2179,7 @@ public:
     void clear() noexcept;
     bool reserve(std::integral auto len) noexcept;
     template<int Num, int Denum = 1>
-    bool grow() noexcept;
+    bool grow(size_type count = 1) noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
@@ -2227,6 +2230,7 @@ public:
                          std::uint16_t,
                          std::uint32_t>;
 
+    using size_type       = index_type;
     using identifier_type = Identifier;
     using value_type      = T;
     using this_container  = data_array<T, Identifier, A>;
@@ -2304,7 +2308,7 @@ public:
     //!
     //! @attention Use `can_alloc()` to be sure `grow()` succeed.
     template<int Num, int Denum = 1>
-    bool grow() noexcept;
+    bool grow(size_type count = 1) noexcept;
 
     //! @brief Destroy all items in the data_array but keep memory
     //!  allocation.
@@ -3176,6 +3180,7 @@ class pool
 {
 public:
     using index_type      = IndexType;
+    using size_type       = index_type;
     using value_type      = T;
     using reference       = T&;
     using const_reference = const T&;
@@ -3207,7 +3212,7 @@ public:
     constexpr void destroy() noexcept;
 
     constexpr bool can_alloc(std::integral auto nb = 1) const noexcept;
-    constexpr bool grow() noexcept;
+    constexpr bool grow(size_type count = 1) noexcept;
     constexpr bool is_valid(std::integral auto idx) const noexcept;
     constexpr bool exists(std::integral auto idx) const noexcept;
 
@@ -3262,6 +3267,7 @@ class data_vector_array
                          std::uint16_t,
                          std::uint32_t>;
 
+    using size_type       = index_type;
     using identifier_type = Identifier;
     using value_type      = T;
     using allocator_type  = A;
@@ -3354,7 +3360,7 @@ public:
     bool can_alloc(std::integral auto nb) const noexcept;
 
     template<typename Type>
-    bool grow() noexcept;
+    bool grow(size_type count = 1) noexcept;
 
     template<typename Type>
     auto& alloc(const identifier_type id) noexcept;
@@ -3370,7 +3376,7 @@ public:
     void clear() noexcept;
     bool reserve(std::integral auto len) noexcept;
     template<int Num, int Denum = 1>
-    bool grow() noexcept;
+    bool grow(size_type count = 1) noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
@@ -3666,14 +3672,13 @@ constexpr void id_array<Identifier, A>::destroy() noexcept
 template<typename Identifier, typename A>
     requires(is_identifier_type<Identifier>)
 template<int Num, int Denum>
-constexpr bool id_array<Identifier, A>::grow() noexcept
+constexpr bool id_array<Identifier, A>::grow(size_type count) noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb  = m_capacity * Num / Denum;
-    const auto req = std::cmp_equal(m_capacity, nb) ? m_capacity + 8 : nb;
-
-    return reserve(req);
+    const auto required  = m_capacity + static_cast<index_type>(count);
+    const auto ratio_cap = (m_capacity == 0) ? 8 : (m_capacity * Num / Denum);
+    return reserve(std::max(required, ratio_cap));
 }
 
 template<typename Identifier, typename A>
@@ -4242,14 +4247,16 @@ bool id_data_array<T, Identifier, A, Ts...>::reserve(
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<int Num, int Denum>
-bool id_data_array<T, Identifier, A, Ts...>::grow() noexcept
+bool id_data_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb  = capacity() * Num / Denum;
-    const auto req = std::cmp_equal(capacity(), nb) ? capacity() + 8 : nb;
+    const auto required  = m_ids.capacity() + count;
+    const auto ratio_cap = (m_ids.capacity() == 0)
+            ? size_type{ 8 }
+            : (m_ids.capacity() * Num / Denum);
 
-    return reserve(req);
+    return reserve(std::max(required, ratio_cap));
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -4516,14 +4523,14 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 
 template<typename T, typename Identifier, typename A>
 template<int Num, int Denum>
-bool data_array<T, Identifier, A>::grow() noexcept
+bool data_array<T, Identifier, A>::grow(size_type count) noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb  = m_capacity * Num / Denum;
-    const auto req = std::cmp_equal(nb, m_capacity) ? m_capacity + 8 : nb;
+    const auto required  = m_capacity + count;
+    const auto ratio_cap = (m_capacity == 0) ? 8 : (m_capacity * Num / Denum);
 
-    return reserve(req);
+    return reserve(std::max(required, ratio_cap));
 }
 
 template<typename T, typename Identifier, typename A>
@@ -5140,7 +5147,7 @@ template<typename T, typename A>
 template<std::size_t Num, std::size_t Denum>
 bool vector<T, A>::grow(size_type count) noexcept
 {
-    size_type required  = m_size + count;
+    size_type required  = m_capacity + count;
     size_type ratio_cap = (m_capacity == 0) ? 8 : (m_capacity * Num / Denum);
     return reserve(std::max(required, ratio_cap));
 }
@@ -7671,13 +7678,11 @@ constexpr bool pool<T, IndexType, A>::can_alloc(
 }
 
 template<typename T, typename IndexType, typename A>
-constexpr bool pool<T, IndexType, A>::grow() noexcept
+constexpr bool pool<T, IndexType, A>::grow(size_type count) noexcept
 {
-    const auto nb      = m_capacity * 2u;
-    const auto req     = nb == m_capacity ? m_capacity + 8u : nb;
-    const auto min_req = req > std::numeric_limits<index_type>::max()
-                           ? std::numeric_limits<index_type>::max()
-                           : req;
+    const auto required  = m_capacity + count;
+    const auto ratio_cap = (m_capacity == 0) ? 8 : (m_capacity * 2);
+    const auto min_req   = std::max(required, ratio_cap);
 
     if (item* new_data =
           reinterpret_cast<item*>(A::allocate(sizeof(item) * min_req))) {
@@ -7886,9 +7891,9 @@ bool data_vector_array<T, Identifier, A, Ts...>::can_alloc(
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-bool data_vector_array<T, Identifier, A, Ts...>::grow() noexcept
+bool data_vector_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
 {
-    return std::get<pool<Type, index_type, A>>(m_col).grow();
+    return std::get<pool<Type, index_type, A>>(m_col).grow(count);
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -7968,14 +7973,14 @@ void data_vector_array<T, Identifier, A, Ts...>::clear() noexcept
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<int Num, int Denum>
-bool data_vector_array<T, Identifier, A, Ts...>::grow() noexcept
+bool data_vector_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb  = capacity() * Num / Denum;
-    const auto req = std::cmp_equal(capacity(), nb) ? capacity() + 8 : nb;
-
-    return reserve(req);
+    const auto required = m_ids.capacity() + count;
+    const auto ratio_cap =
+            (m_ids.capacity() == 0) ? 8 : (m_ids.capacity() * Num / Denum);
+    return reserve(std::max(required, ratio_cap));
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
