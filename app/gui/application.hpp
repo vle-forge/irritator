@@ -859,7 +859,7 @@ public:
     void clear_selected_nodes() noexcept;
 
 private:
-    bool show_hsm() noexcept;
+    void show_hsm() noexcept;
     bool show_menu() noexcept;
     bool show_graph() noexcept;
     bool show_panel(component&) noexcept;
