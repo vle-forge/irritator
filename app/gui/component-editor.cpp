@@ -2143,7 +2143,8 @@ static component_editor_result display_component_editor_subtable(
         name_str copy_name = tab.compo.name;
         if (ImGui::InputFilteredString("Name", copy_name)) {
             app.component_ed.request_to_open(tab.id);
-            tab.compo.name = copy_name;
+            tab.compo.name   = copy_name;
+            tab.is_dock_init = false;
             action |= component_editor_result_type::do_store_component;
         }
 
