@@ -4748,7 +4748,7 @@ public:
         action_type type = action_type::none;
 
         union {
-            i32   i;
+            i32   i = 0;
             float f;
         } constant;
 
@@ -4797,6 +4797,14 @@ public:
         void set_bit_xor(variable v1, i32 i) noexcept;
 
         void clear() noexcept;
+
+        auto operator<=>(const state_action&) const noexcept = default;
+
+        bool operator==(const state_action& other) const noexcept
+        {
+            return other.var1 == var1 and other.var2 == var2 and
+                   other.type == type and other.constant.i == constant.i;
+        }
     };
 
     /**
@@ -4850,6 +4858,14 @@ public:
         bool check(const std::span<const real, max_constants> c,
                    execution&                                 e) const noexcept;
         void clear() noexcept;
+
+        auto operator<=>(const condition_action&) const noexcept = default;
+
+        bool operator==(const condition_action& other) const noexcept
+        {
+            return other.var1 == var1 and other.var2 == var2 and
+                   other.type == type and other.constant.i == constant.i;
+        }
     };
 
     struct state {
