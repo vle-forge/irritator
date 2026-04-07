@@ -1293,15 +1293,15 @@ static void update_unique_id(generic_component&        gen,
         gen.children_names[ch_idx] = gen.make_unique_name_id(ch_id);
 }
 
-static bool show_selected_node(component&                compo,
-                               generic_component&        gen,
+static bool show_selected_node(generic_component&        gen,
                                generic_component::child& c) noexcept
 {
     const auto id          = gen.children.get_id(c);
     const auto idx         = get_index(id);
+    const auto name        = format_n<32>("{}", idx);
     bool       is_modified = false;
 
-    if (ImGui::TreeNodeEx(&c, ImGuiTreeNodeFlags_DefaultOpen, "%u", idx)) {
+    if (ImGui::TreeNodeEx(name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::TextFormat("position {},{}",
                           gen.children_positions[idx].x,
                           gen.children_positions[idx].y);
@@ -1318,12 +1318,13 @@ static bool show_selected_node(component&                compo,
             is_modified = true;
         }
 
-        if (ImGui::InputSmallString("name", gen.children_names[idx]))
+        name_str name = gen.children_names[idx];
+        if (ImGui::InputFilteredString("name", name)) {
+            gen.children_names[idx] = name;
             is_modified = true;
+        }
 
         update_unique_id(gen, c);
-
-        ImGui::TextFormat("name: {}", compo.name.sv());
         ImGui::TreePop();
     }
 
@@ -1349,7 +1350,7 @@ bool generic_component_editor_data::show_selected_nodes(
 
         const auto id = unpack_node_child(selected_nodes[i]);
         if (auto* child = m_generic.children.try_to_get_from_pos(id); child)
-            u += show_selected_node(compo, m_generic, *child);
+            u += show_selected_node(m_generic, *child);
     }
 
     if (u > 0) {
@@ -1397,10 +1398,8 @@ void generic_component_editor_data::read(application& app,
 void generic_component_editor_data::write(application& app,
                                           component&   compo) noexcept
 {
-    /*
-     * Stores the ImNodes hidden attributes into
-     * generic_component position of nodes.
-     */
+    // Stores the ImNodes hidden attributes into generic_component position of
+    // nodes.
 
     for (auto& c : m_generic.children) {
         const auto id  = m_generic.children.get_id(c);
