@@ -357,7 +357,13 @@ static bool display_constant_source(
             tab.compo.srcs.data.free(id);
             ++u;
         } else {
-            u += ImGui::InputFilteredString("name", name);
+            name_str new_name = name;
+            if (ImGui::InputFilteredString("name", new_name)) {
+                if (new_name != name) {
+                    name = new_name;
+                    ++u;
+                }
+            }
 
             auto new_size = [&]() {
                 auto size = static_cast<int>(cst.data.size());
@@ -452,7 +458,13 @@ static bool display_binary_source(
             tab.compo.srcs.data.free(id);
             ++u;
         } else {
-            u += ImGui::InputFilteredString("name", name);
+            name_str new_name = name;
+            if (ImGui::InputFilteredString("name", new_name)) {
+                if (new_name != name) {
+                    name = new_name;
+                    ++u;
+                }
+            }
 
             u += app.mod.files.read([&](const auto& fs, auto) noexcept -> int {
                 if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
@@ -496,7 +508,13 @@ static bool display_text_source(
             tab.compo.srcs.data.free(id);
             ++u;
         } else {
-            u += ImGui::InputFilteredString("name", name);
+            name_str new_name = name;
+            if (ImGui::InputFilteredString("name", new_name)) {
+                if (name != new_name) {
+                    name = new_name;
+                    ++u;
+                }
+            }
 
             u += app.mod.files.read([&](const auto& fs, auto) noexcept -> int {
                 if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
@@ -539,7 +557,13 @@ static bool display_random_source(
             tab.compo.srcs.data.free(id);
             ++u;
         } else {
-            u += ImGui::InputFilteredString("name", name);
+            name_str new_name = name;
+            if (ImGui::InputFilteredString("name", new_name)) {
+                if (name != new_name) {
+                    name = new_name;
+                    ++u;
+                }
+            }
             u += show_random_distribution_input(rnd);
         }
 
