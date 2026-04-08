@@ -397,12 +397,10 @@ void library_window::show_dirpath_content(
         return;
     }
 
-    if (ImGui::TreeNodeEx(&dir,
-                          ImGuiTreeNodeFlags_DefaultOpen,
-                          "%.*s",
-                          dir.path.ssize(),
-                          dir.path.data())) {
-        const auto dir_id = fs.dir_paths.get_id(dir);
+    const auto dir_id = fs.dir_paths.get_id(dir);
+    const auto label  = format_n<32>("{}##{}", dir.path.sv(), ordinal(dir_id));
+
+    if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
         if (flags[file_type::component]) {
             for (const auto id : ids.ids) {
                 const auto& file = ids.component_file_paths[id];
@@ -455,23 +453,17 @@ void library_window::show_repertories_content(
   const bitflags<file_type> flags) noexcept
 {
     for (const auto id : fs.recorded_paths) {
-        small_string<31>        s;
-        const small_string<31>* select;
-
         const auto* reg_dir = fs.registred_paths.try_to_get(id);
         if (not reg_dir or reg_dir->status == registred_path::state::error)
             continue;
 
-        if (reg_dir->name.empty()) {
-            format(s, "{}", ordinal(id));
-            select = &s;
-        } else {
-            select = &reg_dir->name;
-        }
+        const auto label = format_n<32>(
+          "{}##{}",
+          reg_dir->name.empty() ? "unknown" : reg_dir->name.c_str(),
+          ordinal(id));
 
         ImGui::PushID(reg_dir);
-        if (ImGui::TreeNodeEx(select->c_str(),
-                              ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
             for (const auto dir_id : reg_dir->children) {
                 auto* dir = fs.dir_paths.try_to_get(dir_id);
                 if (dir and dir->status != dir_path::state::error)
@@ -646,7 +638,6 @@ void library_window::show_menu() noexcept
                 flags.set(file_type::dot, show_dot);
             ImGui::EndMenu();
         }
-
 
         if (ImGui::BeginMenu("Examples")) {
             for (auto i = 0; i < internal_component_count; ++i) {

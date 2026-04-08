@@ -102,25 +102,19 @@ void component_model_selector::observable_model_treenode(const project& pj,
 {
     auto& app = container_of(this, &application::component_model_sel);
 
-    static constexpr const char* compo_fmt[] = {
-        "%.*s (none)",  "%.*s (generic)", "%.*s (grid)",
-        "%.*s (graph)", "%.*s (hsm)",
-    };
-
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         if (ids.exists(tn.id)) {
             const auto& compo = ids.components[tn.id];
-            debug::ensure(ordinal(compo.type) < length(compo_fmt));
-
-            const auto* fmt = compo_fmt[ordinal(compo.type)];
+            const auto  label =
+              format_n<32>("{} ({})##{}",
+                           compo.name.sv(),
+                           component_type_names[ordinal(compo.type)],
+                           ordinal(tn.id));
 
             if (compo.type == component_type::generic) {
                 ImGui::PushID(&tn);
-                if (ImGui::TreeNodeEx(&tn,
-                                      ImGuiTreeNodeFlags_DefaultOpen,
-                                      fmt,
-                                      compo.name.size(),
-                                      compo.name.data())) {
+                if (ImGui::TreeNodeEx(label.c_str(),
+                                      ImGuiTreeNodeFlags_DefaultOpen)) {
                     for_each_model(
                       pj.sim,
                       tn,

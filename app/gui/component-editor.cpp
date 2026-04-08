@@ -349,7 +349,8 @@ static bool display_constant_source(
     auto u = 0;
 
     if (ImGui::TreeNodeEx(
-          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          format_n<32>("{}##{}", name.sv(), ordinal(id)).c_str(),
+          ImGuiTreeNodeFlags_SpanLabelWidth)) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x")) {
@@ -443,7 +444,8 @@ static bool display_binary_source(
     auto u = 0;
 
     if (ImGui::TreeNodeEx(
-          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          format_n<32>("{}##{}", name.sv(), ordinal(id)).c_str(),
+          ImGuiTreeNodeFlags_SpanLabelWidth)) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x")) {
@@ -486,7 +488,8 @@ static bool display_text_source(
     auto u = 0;
 
     if (ImGui::TreeNodeEx(
-          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          format_n<32>("{}##{}", name.sv(), ordinal(id)).c_str(),
+          ImGuiTreeNodeFlags_SpanLabelWidth)) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x")) {
@@ -528,7 +531,8 @@ static bool display_random_source(
     auto u = 0;
 
     if (ImGui::TreeNodeEx(
-          &elem, ImGuiTreeNodeFlags_SpanLabelWidth, "%s", name.c_str())) {
+          format_n<32>("{}##{}", name.sv(), ordinal(id)).c_str(),
+          ImGuiTreeNodeFlags_SpanLabelWidth)) {
         ImGui::SameLine();
 
         if (ImGui::SmallButton("x")) {
