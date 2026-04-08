@@ -1058,18 +1058,6 @@ bool graph_component_editor_data::show_selected_nodes(
                       m_graph.g.buffer.append(name.sv());
                 }
 
-                name_str id_str = m_graph.g.node_names[idx];
-                if (ImGui::InputFilteredString("id", id_str)) {
-                    ++u;
-                    m_graph.g.node_names[idx] =
-                      m_graph.g.buffer.append(id_str.sv());
-                }
-
-                ImGui::LabelFormat("position",
-                                   "{}x{}",
-                                   m_graph.g.node_positions[idx][0],
-                                   m_graph.g.node_positions[idx][1]);
-
                 if (auto area = m_graph.g.node_areas[idx];
                     ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
                     m_graph.g.node_areas[idx] = area;
@@ -1082,6 +1070,11 @@ bool graph_component_editor_data::show_selected_nodes(
                     m_graph.g.node_components[idx] = r.id;
                     ++u;
                 }
+
+                ImGui::LabelFormat("position",
+                                   "x: {} y: {}",
+                                   m_graph.g.node_positions[idx][0],
+                                   m_graph.g.node_positions[idx][1]);
 
                 if (ids.exists(m_graph.g.node_components[idx])) {
                     auto& compo =
