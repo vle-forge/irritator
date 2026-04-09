@@ -1456,6 +1456,8 @@ public:
     template<typename T>
     auto get_id(const T& elem) const noexcept;
 
+    enum class tab_id : u32;
+
     struct tab {
         tab() noexcept = default;
 
@@ -1472,7 +1474,8 @@ public:
 
         u64 version = std::numeric_limits<u64>::max();
 
-        bool is_dock_init = false;
+        /// Stores the list of component_id children (used by connection_pack).
+        shared_buffer<vector<component_id>> component_list;
 
         union {
             grid_editor_data_id       grid;
@@ -1481,15 +1484,14 @@ public:
             hsm_editor_data_id        hsm;
             simulation_editor_data_id sim;
         } data;
+
+        bool is_dock_init = false;
     };
 
     enum { tabitem_open_save, tabitem_open_in_out };
 
-    /// List of tabulation opened in the @a ImGui::BeginTabBar.
-    vector<tab> tabs;
-
-    /// Stores the list of component_id opened in the editor.
-    shared_buffer<vector<component_id>> component_list;
+    /// List of component and tabulation opened in the @a ImGui::BeginTabBar.
+    data_array<tab, tab_id> tabs;
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
