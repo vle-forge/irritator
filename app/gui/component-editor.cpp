@@ -1974,45 +1974,29 @@ static component_editor_result display_component_editor_subtable(
                     if (not tab.compo.srcs.data.can_alloc(1))
                         ImGui::TextUnformatted("Not Enough memor");
 
-                    if (ImGui::Button("new constant", size))
-                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
-                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
-                                if (not ids.exists(compo_id))
-                                    return;
-                                auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_constant_source();
-                            });
-                        });
+                    if (ImGui::Button("new constant", size)) {
+                        tab.compo.srcs.alloc_constant_source();
+                        action |=
+                          component_editor_result_type::do_store_component;
+                    }
 
-                    if (ImGui::Button("new binary file", size))
-                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
-                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
-                                if (not ids.exists(compo_id))
-                                    return;
-                                auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_binary_source();
-                            });
-                        });
+                    if (ImGui::Button("new binary file", size)) {
+                        tab.compo.srcs.alloc_binary_source();
+                        action |=
+                          component_editor_result_type::do_store_component;
+                    }
 
-                    if (ImGui::Button("new text file", size))
-                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
-                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
-                                if (not ids.exists(compo_id))
-                                    return;
-                                auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_text_source();
-                            });
-                        });
+                    if (ImGui::Button("new text file", size)) {
+                        tab.compo.srcs.alloc_text_source();
+                        action |=
+                          component_editor_result_type::do_store_component;
+                    }
 
-                    if (ImGui::Button("new random", size))
-                        app.add_gui_task([&app, compo_id = tab.id]() noexcept {
-                            app.mod.ids.write([&compo_id](auto& ids) noexcept {
-                                if (not ids.exists(compo_id))
-                                    return;
-                                auto& compo = ids.components[compo_id];
-                                compo.srcs.alloc_random_source();
-                            });
-                        });
+                    if (ImGui::Button("new random", size)) {
+                        tab.compo.srcs.alloc_random_source();
+                        action |=
+                          component_editor_result_type::do_store_component;
+                    }
 
                     ImGui::EndMenu();
                 }
@@ -2040,44 +2024,34 @@ static component_editor_result display_component_editor_subtable(
 
                     if (tab.compo.x.can_alloc(1) and
                         ImGui::Button("Input port", size)) {
-                        app.add_gui_task([&app, cid = tab.id]() {
-                            app.mod.ids.write([&](auto& ids) noexcept {
-                                if (not ids.exists(cid))
-                                    return;
+                        if (tab.compo.x.can_alloc(1) or
+                            tab.compo.x.template grow<3, 2>()) {
+                            const auto id = tab.compo.x.alloc_id();
 
-                                auto& compo = ids.components[cid];
-                                if (not compo.x.can_alloc(1) and
-                                    not compo.x.template grow<3, 2>())
-                                    return;
+                            tab.compo.x.template get<port_str>(id) = "in";
+                            tab.compo.x.template get<port_option>(id) =
+                              port_option::classic;
+                            tab.compo.x.template get<position>(id).reset();
 
-                                auto id = compo.x.alloc_id();
-                                compo.x.template get<port_str>(id) = "in";
-                                compo.x.template get<port_option>(id) =
-                                  port_option::classic;
-                                compo.x.template get<position>(id).reset();
-                            });
-                        });
+                            action |=
+                              component_editor_result_type::do_store_component;
+                        }
                     }
 
                     if (tab.compo.y.can_alloc(1) and
                         ImGui::Button("Output port", size)) {
-                        app.add_gui_task([&app, cid = tab.id]() {
-                            app.mod.ids.write([&](auto& ids) noexcept {
-                                if (not ids.exists(cid))
-                                    return;
+                        if (tab.compo.y.can_alloc(1) or
+                            tab.compo.y.template grow<3, 2>()) {
+                            const auto id = tab.compo.y.alloc_id();
 
-                                auto& compo = ids.components[cid];
-                                if (not compo.y.can_alloc(1) and
-                                    not compo.y.template grow<3, 2>())
-                                    return;
+                            tab.compo.y.template get<port_str>(id) = "out";
+                            tab.compo.y.template get<port_option>(id) =
+                              port_option::classic;
+                            tab.compo.y.template get<position>(id).reset();
 
-                                auto id = compo.y.alloc_id();
-                                compo.y.template get<port_str>(id) = "out";
-                                compo.y.template get<port_option>(id) =
-                                  port_option::classic;
-                                compo.y.template get<position>(id).reset();
-                            });
-                        });
+                            action |=
+                              component_editor_result_type::do_store_component;
+                        }
                     }
 
                     if (ImGui::Button("refresh i/o", size)) {
