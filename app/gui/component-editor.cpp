@@ -66,7 +66,7 @@ static void update_child_component_task(application&           app,
                                         component_editor::tab& tab) noexcept
 {
     app.add_gui_task([&app, &tab]() noexcept {
-        tab.component_list.write([&](auto& vec) noexcept {
+        tab.uniq_component_children.write([&](auto& vec) noexcept {
             vec.clear();
 
             app.mod.ids.read([&](const auto& ids, auto) noexcept {
@@ -1805,7 +1805,8 @@ static void show_input_connection_packs(application&            app,
 
     p = combobox_port_id("input port", tab.compo.x, p);
 
-    tab.component_list.read([&](const auto& vec, auto /*version*/) noexcept {
+    tab.uniq_component_children.read([&](const auto& vec,
+                                         auto /*version*/) noexcept {
         const auto child =
           combobox_component_id(ids, "child component", vec, c, c_p);
         c   = child.first;
@@ -1844,8 +1845,8 @@ static void show_output_connection_packs(application&            app,
 
     p = combobox_port_id("output port", tab.compo.y, p);
 
-    tab.component_list.read([&](const auto& vec,
-                                const auto /*version*/) noexcept {
+    tab.uniq_component_children.read([&](const auto& vec,
+                                         const auto /*version*/) noexcept {
         const auto child =
           combobox_component_id(ids, "child component", vec, c, c_p);
         c   = child.first;

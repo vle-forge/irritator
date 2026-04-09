@@ -1475,8 +1475,9 @@ public:
 
         u64 version = std::numeric_limits<u64>::max();
 
-        /// Stores the list of component_id children (used by connection_pack).
-        shared_buffer<vector<component_id>> component_list;
+        /// Stores the list of type of component_id children (used by
+        /// connection_pack).
+        shared_buffer<vector<component_id>> uniq_component_children;
 
         union {
             grid_editor_data_id       grid;
