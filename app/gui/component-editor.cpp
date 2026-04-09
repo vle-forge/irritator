@@ -2370,7 +2370,7 @@ void component_editor::display_tabs() noexcept
 }
 
 component_editor::component_editor() noexcept
-  : tabs(32)
+  : tabs{ component_editor::max_tab }
 {}
 
 void component_editor::display() noexcept

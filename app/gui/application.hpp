@@ -1424,6 +1424,7 @@ class component_editor
 {
 public:
     constexpr static inline const char* name = "Component editor";
+    constexpr static inline unsigned    max_tab = 32;
 
     enum class show_result_t {
         success,          ///< Nothing to do.
