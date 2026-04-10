@@ -717,9 +717,9 @@ void project_editor::start_simulation_observation(application& app) noexcept
     sz           current  = 0;
 
     while (obs_max > 0) {
-        int loop = std::min(obs_max, capacity);
+        const auto loop = std::min(obs_max, capacity);
 
-        for (int i = 0; i != loop; ++i) {
+        for (sz i = 0; i != loop; ++i) {
             auto obs_id = pj.sim.immediate_observers[i + current];
 
             task_list.add([&, obs_id]() noexcept {
