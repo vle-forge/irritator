@@ -2132,57 +2132,56 @@ static component_editor_result display_component_editor_subtable(
                         if (ImGui::TreeNode("Ports")) {
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input port")) {
-                                show_input_ports(tab.compo);
+                                if (show_input_ports(tab.compo))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output port")) {
-                                show_output_ports(tab.compo);
+                                if (show_output_ports(tab.compo))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
                             ImGui::TreePop();
                         }
 
-                        if (ImGui::TreeNode("Connections")) {
-                            if (not tab.compo.x.empty() and
-                                ImGui::TreeNode("Input connection")) {
-                                app.mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      show_input_connections(app, ids, tab);
-                                  });
+                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                            if (ImGui::TreeNode("Connections")) {
+                                if (show_input_connections(app, ids, tab))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output connection")) {
-                                app.mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      show_output_connections(app, ids, tab);
-                                  });
+                                if (show_output_connections(app, ids, tab))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input Connection pack")) {
-                                app.mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      show_input_connection_packs(ids, tab);
-                                  });
+                                if (show_input_connection_packs(ids, tab))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output Connection pack")) {
-                                app.mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      show_output_connection_packs(ids, tab);
-                                  });
+                                if (show_output_connection_packs(ids, tab))
+                                    action |= component_editor_result_type::
+                                      do_store_component;
                                 ImGui::TreePop();
                             }
 
                             ImGui::TreePop();
-                        }
+                        });
                     }
                 }
                 ImGui::EndMenu();
