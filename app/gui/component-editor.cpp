@@ -217,15 +217,15 @@ static auto combobox_component_port_id(const auto* label,
 }
 
 template<typename PortGetter>
-static void show_connection_pack(const modeling& /*mod*/,
-                                 const component_access&  ids,
-                                 component&               compo,
+static bool show_connection_pack(const component_access&  ids,
+                                 component_editor::tab&   tab,
                                  vector<connection_pack>& pack,
                                  PortGetter&& port_getter_fn) noexcept
 {
-    auto& port_x_or_y = port_getter_fn(compo);
+    auto& port_x_or_y = port_getter_fn(tab.compo);
     auto  it          = pack.begin();
     auto  push_id     = 0;
+    auto  u           = 0;
 
     while (it != pack.end()) {
         if (not port_x_or_y.exists(it->parent_port) or
@@ -233,6 +233,7 @@ static void show_connection_pack(const modeling& /*mod*/,
             not port_getter_fn(ids.components[it->child_component])
                   .exists(it->child_port)) {
             it = pack.erase(it);
+            ++u;
         } else {
             const auto& child  = ids.components[it->child_component];
             auto        to_del = false;
@@ -249,13 +250,16 @@ static void show_connection_pack(const modeling& /*mod*/,
                 .template get<port_str>(it->child_port)
                 .sv());
 
-            if (to_del)
+            if (to_del) {
                 it = pack.erase(it);
-            else
+                ++u;
+            } else
                 ++it;
             ImGui::PopID();
         }
     }
+
+    return u > 0;
 }
 
 static auto get_source_element(component&                     compo,
@@ -553,8 +557,8 @@ static component_editor_result display_external_source(
   application&           app,
   component_editor::tab& tab) noexcept
 {
-    const auto  do_nothing = component_editor_result{};
-    static auto do_srcs    = component_editor_result{
+    const auto do_nothing = component_editor_result{};
+    const auto do_srcs    = component_editor_result{
         component_editor_result_type::do_store_external_source
     };
 
@@ -646,13 +650,12 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
                                     generic_component& g,
                                     child_id           selected) noexcept
 {
-    static std::string temp;
+    const auto label =
+      std::string{ g.children.try_to_get(selected)
+                     ? g.children_names[get_index(selected)].sv()
+                     : "-" };
 
-    temp = g.children.try_to_get(selected)
-             ? g.children_names[get_index(selected)].sv()
-             : "-";
-
-    if (ImGui::BeginCombo("Child", temp.c_str())) {
+    if (ImGui::BeginCombo("Child", label.c_str())) {
         if (ImGui::IsWindowAppearing()) {
             ImGui::SetKeyboardFocusHere();
             filter.Clear();
@@ -672,7 +675,7 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
             ImGui::PushID(&elem);
 
             if (not g.children_names[idx].empty()) {
-                temp = g.children_names[idx].sv();
+                const auto temp = std::string{ g.children_names[idx].sv() };
 
                 if (filter.PassFilter(temp.c_str())) {
                     ImGui::PushID(idx);
@@ -696,14 +699,11 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
                                          graph_component& graph,
                                          graph_node_id    selected) noexcept
 {
-    static std::string temp;
+    const auto label = std::string{ graph.g.nodes.exists(selected)
+                                      ? graph.g.node_names[get_index(selected)]
+                                      : std::string_view{ "-" } };
 
-    temp = graph.g.nodes.exists(selected)
-             ? graph.g.node_names[get_index(selected)]
-             : "-";
-
-    if (ImGui::BeginCombo("Node", temp.c_str())) {
-
+    if (ImGui::BeginCombo("Node", label.c_str())) {
         if (ImGui::IsWindowAppearing()) {
             ImGui::SetKeyboardFocusHere();
             filter.Clear();
@@ -722,7 +722,7 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
             ImGui::PushID(idx);
 
             if (not graph.g.node_names[idx].empty()) {
-                temp = graph.g.node_names[idx];
+                const auto temp = std::string{ graph.g.node_names[idx] };
 
                 if (filter.PassFilter(temp.c_str())) {
                     ImGui::PushID(idx);
@@ -741,21 +741,19 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
     return selected;
 }
 
-static void show_input_connections_new(application&            app,
+static bool show_input_connections_new(application&            app,
                                        const component_access& ids,
-                                       grid_component&         grid,
-                                       component&              gcompo) noexcept
+                                       component_editor::tab&  tab,
+                                       grid_component&         grid) noexcept
 {
-    static port_id     g_port_id  = undefined<port_id>();
-    static int         selected   = 0;
-    static port_id     p_selected = undefined<port_id>();
-    static std::string temp;
+    auto& con = tab.input_grid_con;
+    auto  u   = 0;
 
-    g_port_id          = show_input_port(gcompo, g_port_id);
-    const auto row_col = grid.pos(selected);
-    int        v[2]    = { row_col.first, row_col.second };
+    con.x = show_input_port(tab.compo, con.x);
 
-    if (is_defined(g_port_id)) {
+    if (is_defined(con.x)) {
+        int v[2] = { con.row, con.col };
+
         if (ImGui::SliderInt("Row", &v[0], 0, grid.row())) {
             if (v[0] < 0)
                 v[0] = 0;
@@ -770,83 +768,84 @@ static void show_input_connections_new(application&            app,
                 v[1] = grid.column() - 1;
         }
 
-        const auto new_selected = grid.pos(v[0], v[1]);
-        if (new_selected != selected) {
-            selected   = new_selected;
-            p_selected = undefined<port_id>();
+        if (v[0] != con.row or v[1] != con.col) {
+            con.row = v[0];
+            con.col = v[1];
+            con.id  = undefined<port_id>();
         }
-    }
 
-    if (grid.is_coord_valid(v[0], v[1])) {
-        const auto ch_id = grid.children()[selected];
+        if (grid.is_coord_valid(v[0], v[1])) {
+            const auto pos   = grid.pos(con.row, con.col);
+            const auto ch_id = grid.children()[pos];
 
-        if (ids.exists(ch_id)) {
-            auto& ch = ids.components[ch_id];
-            temp = ch.x.exists(p_selected) ? ch.x.get<port_str>(p_selected).sv()
-                                           : "-";
+            if (ids.exists(ch_id)) {
+                auto&      ch    = ids.components[ch_id];
+                const auto label = port_str{ ch.x.exists(con.id)
+                                               ? ch.x.get<port_str>(con.id).sv()
+                                               : std::string_view("-") };
 
-            if (ImGui::BeginCombo("Port", temp.c_str())) {
-                if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                    p_selected = undefined<port_id>();
-                }
-
-                for (const auto id : ch.x) {
-                    ImGui::PushID(get_index(id));
-                    if (ImGui::Selectable(ch.x.get<port_str>(id).c_str(),
-                                          p_selected == id)) {
-                        p_selected = id;
+                if (ImGui::BeginCombo("Port", label.c_str())) {
+                    if (ImGui::Selectable("-", is_undefined(con.id))) {
+                        con.id = undefined<port_id>();
                     }
-                    ImGui::PopID();
+
+                    for (const auto id : ch.x) {
+                        ImGui::PushID(get_index(id));
+                        if (ImGui::Selectable(ch.x.get<port_str>(id).c_str(),
+                                              con.id == id)) {
+                            con.id = id;
+                        }
+                        ImGui::PopID();
+                    }
+
+                    ImGui::EndCombo();
                 }
-
-                ImGui::EndCombo();
-            }
-        }
-
-        if (is_defined(g_port_id) and is_defined(p_selected)) {
-            const auto [row, col] = grid.pos(selected);
-            if (auto ret = grid.connect_input(g_port_id, row, col, p_selected);
-                not ret) {
-                app.jn.push(
-                  log_level::error,
-                  [](auto& t, auto& m, auto ec) {
-                      t = "Fail to add input connection";
-                      if (ec.value() ==
-                          ordinal(modeling_errc::
-                                    graph_input_connection_already_exists))
-                          m = "Input connection already exists.";
-                      else if (ec.value() ==
-                               ordinal(modeling_errc::
-                                         graph_input_connection_container_full))
-                          m = "Not enough memory to allocate more "
-                              "input "
-                              "connection.";
-                  },
-                  ret.error());
             }
 
-            g_port_id  = undefined<port_id>();
-            selected   = 0;
-            p_selected = undefined<port_id>();
+            if (is_defined(con.x) and is_defined(con.id)) {
+                if (auto ret =
+                      grid.connect_input(con.x, con.row, con.col, con.id);
+                    not ret) {
+                    app.jn.push(
+                      log_level::error,
+                      [](auto& t, auto& m, auto ec) {
+                          t = "Fail to add input connection";
+                          if (ec.value() ==
+                              ordinal(modeling_errc::
+                                        graph_input_connection_already_exists))
+                              m = "Input connection already exists.";
+                          else if (ec.value() ==
+                                   ordinal(
+                                     modeling_errc::
+                                       graph_input_connection_container_full))
+                              m = "Not enough memory to allocate more "
+                                  "input "
+                                  "connection.";
+                      },
+                      ret.error());
+                } else {
+                    ++u;
+                }
+            }
         }
     }
+
+    return u > 0;
 }
 
-static void show_output_connections_new(application&            app,
+static bool show_output_connections_new(application&            app,
                                         const component_access& ids,
-                                        grid_component&         grid,
-                                        component&              gcompo) noexcept
+                                        component_editor::tab&  tab,
+                                        grid_component&         grid) noexcept
 {
-    static port_id     g_port_id  = undefined<port_id>();
-    static int         selected   = 0;
-    static port_id     p_selected = undefined<port_id>();
-    static std::string temp;
+    auto& con = tab.output_grid_con;
+    auto  u   = 0;
 
-    g_port_id          = show_output_port(gcompo, g_port_id);
-    const auto row_col = grid.pos(selected);
-    int        v[2]    = { row_col.first, row_col.second };
+    con.y = show_output_port(tab.compo, con.y);
 
-    if (is_defined(g_port_id)) {
+    if (is_defined(con.y)) {
+        int v[2] = { con.row, con.col };
+
         if (ImGui::SliderInt("Row", &v[0], 0, grid.row())) {
             if (v[0] < 0)
                 v[0] = 0;
@@ -861,67 +860,78 @@ static void show_output_connections_new(application&            app,
                 v[1] = grid.column() - 1;
         }
 
-        const auto new_selected = grid.pos(v[0], v[1]);
-        if (new_selected != selected) {
-            selected   = new_selected;
-            p_selected = undefined<port_id>();
+        if (v[0] != con.row or v[1] != con.col) {
+            con.row = v[0];
+            con.col = v[1];
+            con.id  = undefined<port_id>();
         }
-    }
 
-    if (grid.is_coord_valid(v[0], v[1])) {
-        const auto ch_id = grid.children()[selected];
+        if (grid.is_coord_valid(v[0], v[1])) {
+            const auto pos   = grid.pos(con.row, con.col);
+            const auto ch_id = grid.children()[pos];
 
-        if (ids.exists(ch_id)) {
-            auto& ch = ids.components[ch_id];
-            temp = ch.y.exists(p_selected) ? ch.y.get<port_str>(p_selected).sv()
-                                           : "-";
+            if (ids.exists(ch_id)) {
+                auto&      ch    = ids.components[ch_id];
+                const auto label = port_str{ ch.y.exists(con.id)
+                                               ? ch.y.get<port_str>(con.id).sv()
+                                               : std::string_view("-") };
 
-            if (ImGui::BeginCombo("Port", temp.c_str())) {
-                if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                    p_selected = undefined<port_id>();
-                }
-
-                for (const auto id : ch.y) {
-                    ImGui::PushID(get_index(id));
-                    if (ImGui::Selectable(ch.y.get<port_str>(id).c_str(),
-                                          p_selected == id)) {
-                        p_selected = id;
+                if (ImGui::BeginCombo("Port", label.c_str())) {
+                    if (ImGui::Selectable("-", is_undefined(con.id))) {
+                        con.id = undefined<port_id>();
                     }
-                    ImGui::PopID();
+
+                    for (const auto id : ch.y) {
+                        ImGui::PushID(get_index(id));
+                        if (ImGui::Selectable(ch.y.get<port_str>(id).c_str(),
+                                              con.id == id)) {
+                            con.id = id;
+                        }
+                        ImGui::PopID();
+                    }
+
+                    ImGui::EndCombo();
                 }
-
-                ImGui::EndCombo();
-            }
-        }
-
-        if (is_defined(g_port_id) and is_defined(p_selected)) {
-            const auto [row, col] = grid.pos(selected);
-            if (auto ret = grid.connect_input(g_port_id, row, col, p_selected);
-                not ret) {
-                app.jn.push(
-                  log_level::error,
-                  [](auto& t, auto& m, auto ec) {
-                      t = "Fail to add input connection";
-                      if (ec.value() ==
-                          ordinal(modeling_errc::
-                                    graph_input_connection_already_exists))
-                          m = "Input connection already exists.";
-                      else if (ec.value() ==
-                               ordinal(modeling_errc::
-                                         graph_input_connection_container_full))
-                          m = "Not enough memory to allocate more "
-                              "input "
-                              "connection.";
-                  },
-                  ret.error());
             }
 
-            g_port_id  = undefined<port_id>();
-            selected   = 0;
-            p_selected = undefined<port_id>();
+            if (is_defined(con.y) and is_defined(con.id)) {
+                if (auto ret =
+                      grid.connect_input(con.y, con.row, con.col, con.id);
+                    not ret) {
+                    app.jn.push(
+                      log_level::error,
+                      [](auto& t, auto& m, auto ec) {
+                          t = "Fail to add input connection";
+                          if (ec.value() ==
+                              ordinal(modeling_errc::
+                                        graph_input_connection_already_exists))
+                              m = "Input connection already exists.";
+                          else if (ec.value() ==
+                                   ordinal(
+                                     modeling_errc::
+                                       graph_input_connection_container_full))
+                              m = "Not enough memory to allocate more "
+                                  "input "
+                                  "connection.";
+                      },
+                      ret.error());
+                } else {
+                    ++u;
+                }
+            }
         }
     }
+
+    return u > 0;
 }
+
+struct connection_pack_info {
+    port_id            g_port_id;
+    child_id           selected;
+    port_id            p_selected;
+    int                pp_selected;
+    generic_component& g;
+};
 
 static bool connect_input(const port_id      g_port_id,
                           const child_id     selected,
@@ -937,101 +947,97 @@ static bool connect_output(const port_id      g_port_id,
                            generic_component& g,
                            application&       app);
 
-static void show_input_connections_new(application&            app,
+static bool show_input_connections_new(application&            app,
                                        const component_access& ids,
-                                       generic_component&      g,
-                                       component&              gcompo) noexcept
+                                       component_editor::tab&  tab,
+                                       generic_component&      g) noexcept
 {
-    static ImGuiTextFilter filter;
-    static port_id         g_port_id   = undefined<port_id>();
-    static child_id        selected    = undefined<child_id>();
-    static port_id         p_selected  = undefined<port_id>();
-    static int             pp_selected = -1;
-    static std::string     temp;
+    auto& con    = tab.input_gen_con;
+    auto temp   = std::string{};
+    auto filter = ImGuiTextFilter{};
+    auto u      = 0;
 
-    g_port_id = show_input_port(gcompo, g_port_id);
+    con.x = show_input_port(tab.compo, con.x);
 
-    if (is_defined(g_port_id)) {
-        const auto new_selected = show_node_selection(filter, g, selected);
-        if (new_selected != selected) {
-            selected    = new_selected;
-            p_selected  = undefined<port_id>();
-            pp_selected = -1;
-        }
-    }
-
-    if (auto* ch = g.children.try_to_get(selected)) {
-        if (ch->type == child_type::component) {
-            if (ids.exists(ch->id.compo_id)) {
-                auto& sel_compo = ids.components[ch->id.compo_id];
-
-                temp = sel_compo.x.exists(p_selected)
-                         ? sel_compo.x.get<port_str>(p_selected).sv()
-                         : "-";
-
-                if (ImGui::BeginCombo("Port", temp.c_str())) {
-                    if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                        p_selected  = undefined<port_id>();
-                        pp_selected = -1;
-                    }
-
-                    for (const auto id : sel_compo.x) {
-                        ImGui::PushID(get_index(id));
-                        if (ImGui::Selectable(
-                              sel_compo.x.get<port_str>(id).c_str(),
-                              p_selected == id)) {
-                            p_selected = id;
-                        }
-                        ImGui::PopID();
-                    }
-
-                    ImGui::EndCombo();
-                }
-            }
-        } else {
-            const auto dyn_type = ch->id.mdl_type;
-            const auto dyn_port = get_input_port_names(dyn_type);
-            const auto dyn_size = static_cast<int>(dyn_port.size());
-
-            if (dyn_size > 0) {
-                temp = 0 <= pp_selected and pp_selected < dyn_size
-                         ? dyn_port[pp_selected]
-                         : "-";
-
-                if (ImGui::BeginCombo("Port", temp.c_str())) {
-                    if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                        p_selected  = undefined<port_id>();
-                        pp_selected = -1;
-                    }
-
-                    for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
-                        ImGui::PushID(i);
-                        name_str name(dyn_port[i]);
-                        if (ImGui::Selectable(name.c_str(), pp_selected == i)) {
-                            pp_selected = i;
-                        }
-                        ImGui::PopID();
-                    }
-
-                    ImGui::EndCombo();
-                }
-            }
+    if (is_defined(con.x)) {
+        const auto new_selected = show_node_selection(filter, g, con.dst);
+        if (new_selected != con.dst) {
+            con.dst = new_selected;
+            con.port.clear();
         }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            (is_defined(p_selected) or pp_selected >= 0)) {
-            if (connect_input(
-                  g_port_id, selected, p_selected, pp_selected, g, app)) {
-                g_port_id   = undefined<port_id>();
-                selected    = undefined<child_id>();
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
+        if (auto* ch = g.children.try_to_get(con.dst)) {
+            if (ch->type == child_type::component) {
+                if (ids.exists(ch->id.compo_id)) {
+                    auto& sel_compo = ids.components[ch->id.compo_id];
+
+                    temp = sel_compo.x.exists(con.port.compo)
+                             ? sel_compo.x.get<port_str>(con.port.compo).sv()
+                             : "-";
+
+                    if (ImGui::BeginCombo("Port", temp.c_str())) {
+                        if (ImGui::Selectable("-",
+                                              is_undefined(con.port.compo))) {
+                            con.port.clear();
+                        }
+
+                        for (const auto id : sel_compo.x) {
+                            ImGui::PushID(get_index(id));
+                            if (ImGui::Selectable(
+                                  sel_compo.x.get<port_str>(id).c_str(),
+                                  con.port.compo == id)) {
+                                con.port.compo = id;
+                            }
+                            ImGui::PopID();
+                        }
+
+                        ImGui::EndCombo();
+                    }
+                }
             } else {
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
+                const auto dyn_type = ch->id.mdl_type;
+                const auto dyn_port = get_input_port_names(dyn_type);
+                const auto dyn_size = static_cast<int>(dyn_port.size());
+
+                if (dyn_size > 0) {
+                    temp = 0 <= con.port.model and con.port.model < dyn_size
+                             ? dyn_port[con.port.model]
+                             : "-";
+
+                    if (ImGui::BeginCombo("Port", temp.c_str())) {
+                        if (ImGui::Selectable("-", con.port.model == -1)) {
+                            con.port.clear();
+                        }
+
+                        for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
+                            ImGui::PushID(i);
+                            name_str name(dyn_port[i]);
+                            if (ImGui::Selectable(name.c_str(),
+                                                  con.port.model == i)) {
+                                con.port.model = i;
+                            }
+                            ImGui::PopID();
+                        }
+
+                        ImGui::EndCombo();
+                    }
+                }
             }
         }
+
+        if (is_defined(con.x) and is_defined(con.dst) and
+            (is_defined(con.port.compo) or con.port.model >= 0)) {
+            if (connect_input(
+                  con.x, con.dst, con.port.compo, con.port.model, g, app)) {
+                con.clear();
+                ++u;
+            }
+        }
+    } else {
+        con.clear();
     }
+
+    return u > 0;
 }
 
 static bool connect_input(const port_id      g_port_id,
@@ -1073,101 +1079,97 @@ static bool connect_input(const port_id      g_port_id,
     return true;
 }
 
-static void show_output_connections_new(application&            app,
+static bool show_output_connections_new(application&            app,
                                         const component_access& ids,
-                                        generic_component&      g,
-                                        component&              gcompo) noexcept
+                                        component_editor::tab&  tab,
+                                        generic_component&      g) noexcept
 {
-    static ImGuiTextFilter filter;
-    static port_id         g_port_id   = undefined<port_id>();
-    static child_id        selected    = undefined<child_id>();
-    static port_id         p_selected  = undefined<port_id>();
-    static int             pp_selected = -1;
-    static std::string     temp;
+    auto& con    = tab.output_gen_con;
+    auto  filter = ImGuiTextFilter{};
+    auto  temp   = std::string{};
+    auto  u      = 0;
 
-    g_port_id = show_output_port(gcompo, g_port_id);
+    con.y = show_output_port(tab.compo, con.y);
 
-    if (is_defined(g_port_id)) {
-        const auto new_selected = show_node_selection(filter, g, selected);
-        if (new_selected != selected) {
-            selected    = new_selected;
-            p_selected  = undefined<port_id>();
-            pp_selected = -1;
-        }
-    }
-
-    if (auto* ch = g.children.try_to_get(selected)) {
-        if (ch->type == child_type::component) {
-            if (ids.exists(ch->id.compo_id)) {
-                auto& sel_compo = ids.components[ch->id.compo_id];
-
-                temp = sel_compo.y.exists(p_selected)
-                         ? sel_compo.y.get<port_str>(p_selected).sv()
-                         : "-";
-
-                if (ImGui::BeginCombo("Port", temp.c_str())) {
-                    if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                        p_selected  = undefined<port_id>();
-                        pp_selected = -1;
-                    }
-
-                    for (const auto id : sel_compo.x) {
-                        ImGui::PushID(get_index(id));
-                        if (ImGui::Selectable(
-                              sel_compo.y.get<port_str>(id).c_str(),
-                              p_selected == id)) {
-                            p_selected = id;
-                        }
-                        ImGui::PopID();
-                    }
-
-                    ImGui::EndCombo();
-                }
-            }
-        } else {
-            const auto dyn_type = ch->id.mdl_type;
-            const auto dyn_port = get_output_port_names(dyn_type);
-            const auto dyn_size = static_cast<int>(dyn_port.size());
-
-            if (dyn_size > 0) {
-                temp = 0 <= pp_selected and pp_selected < dyn_size
-                         ? dyn_port[pp_selected]
-                         : "-";
-
-                if (ImGui::BeginCombo("Port", temp.c_str())) {
-                    if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                        p_selected  = undefined<port_id>();
-                        pp_selected = -1;
-                    }
-
-                    for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
-                        ImGui::PushID(i);
-                        name_str name(dyn_port[i]);
-                        if (ImGui::Selectable(name.c_str(), pp_selected == i)) {
-                            pp_selected = i;
-                        }
-                        ImGui::PopID();
-                    }
-
-                    ImGui::EndCombo();
-                }
-            }
+    if (is_defined(con.y)) {
+        const auto new_selected = show_node_selection(filter, g, con.src);
+        if (new_selected != con.src) {
+            con.src = new_selected;
+            con.port.clear();
         }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            (is_defined(p_selected) or pp_selected >= 0)) {
-            if (connect_output(
-                  g_port_id, selected, p_selected, pp_selected, g, app)) {
-                g_port_id   = undefined<port_id>();
-                selected    = undefined<child_id>();
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
+        if (auto* ch = g.children.try_to_get(con.src)) {
+            if (ch->type == child_type::component) {
+                if (ids.exists(ch->id.compo_id)) {
+                    auto& sel_compo = ids.components[ch->id.compo_id];
+
+                    temp = sel_compo.y.exists(con.port.compo)
+                             ? sel_compo.y.get<port_str>(con.port.compo).sv()
+                             : "-";
+
+                    if (ImGui::BeginCombo("Port", temp.c_str())) {
+                        if (ImGui::Selectable("-",
+                                              is_undefined(con.port.compo))) {
+                            con.port.clear();
+                        }
+
+                        for (const auto id : sel_compo.x) {
+                            ImGui::PushID(get_index(id));
+                            if (ImGui::Selectable(
+                                  sel_compo.y.get<port_str>(id).c_str(),
+                                  con.port.compo == id)) {
+                                con.port.compo = id;
+                            }
+                            ImGui::PopID();
+                        }
+
+                        ImGui::EndCombo();
+                    }
+                }
             } else {
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
+                const auto dyn_type = ch->id.mdl_type;
+                const auto dyn_port = get_output_port_names(dyn_type);
+                const auto dyn_size = static_cast<int>(dyn_port.size());
+
+                if (dyn_size > 0) {
+                    temp = 0 <= con.port.model and con.port.model < dyn_size
+                             ? dyn_port[con.port.model]
+                             : "-";
+
+                    if (ImGui::BeginCombo("Port", temp.c_str())) {
+                        if (ImGui::Selectable("-", con.port.model == -1)) {
+                            con.port.clear();
+                        }
+
+                        for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
+                            ImGui::PushID(i);
+                            name_str name(dyn_port[i]);
+                            if (ImGui::Selectable(name.c_str(),
+                                                  con.port.model == i)) {
+                                con.port.model = i;
+                            }
+                            ImGui::PopID();
+                        }
+
+                        ImGui::EndCombo();
+                    }
+                }
             }
         }
+
+        if (is_defined(con.y) and is_defined(con.src) and
+            (is_defined(con.port.compo) or con.port.model >= 0)) {
+            if (connect_output(
+                  con.y, con.src, con.port.compo, con.port.model, g, app)) {
+                con.clear();
+                ++u;
+            }
+        }
+    } else {
+        con.clear();
     }
+
+    return u > 0;
 }
 
 static bool connect_output(const port_id      g_port_id,
@@ -1212,45 +1214,47 @@ static bool connect_output(const port_id      g_port_id,
     return true;
 }
 
-static void show_input_connections_new(application&            app,
+static bool show_input_connections_new(application&            app,
                                        const component_access& ids,
-                                       graph_component&        graph,
-                                       component&              gcompo) noexcept
+                                       component_editor::tab&  tab,
+                                       graph_component&        graph) noexcept
 {
-    static ImGuiTextFilter filter;
-    static port_id         g_port_id  = undefined<port_id>();
-    static graph_node_id   selected   = undefined<graph_node_id>();
-    static port_id         p_selected = undefined<port_id>();
-    static std::string     temp;
+    auto& con    = tab.input_graph_con;
+    auto  filter = ImGuiTextFilter{};
+    auto  temp   = std::string{};
+    auto  u      = 0;
 
-    g_port_id = show_input_port(gcompo, g_port_id);
+    con.x = show_input_port(tab.compo, con.x);
 
-    if (is_defined(g_port_id)) {
-        const auto new_selected = show_node_selection(filter, graph, selected);
-        if (new_selected != selected) {
-            selected   = new_selected;
-            p_selected = undefined<port_id>();
+    if (is_defined(con.x)) {
+        const auto new_selected = show_node_selection(filter, graph, con.v);
+        if (new_selected != con.v) {
+            con.v  = new_selected;
+            con.id = undefined<port_id>();
+            ++u;
         }
     }
 
-    if (is_defined(selected)) {
-        const auto sel_compo_id = graph.g.node_components[get_index(selected)];
+    if (is_defined(con.v)) {
+        const auto sel_compo_id = graph.g.node_components[get_index(con.v)];
         if (ids.exists(sel_compo_id)) {
             auto& sel_compo = ids.components[sel_compo_id];
-            temp            = sel_compo.x.exists(p_selected)
-                                ? sel_compo.x.get<port_str>(p_selected).sv()
+            temp            = sel_compo.x.exists(con.id)
+                                ? sel_compo.x.get<port_str>(con.id).sv()
                                 : "-";
 
             if (ImGui::BeginCombo("Port", temp.c_str())) {
-                if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                    p_selected = undefined<port_id>();
+                if (ImGui::Selectable("-", is_undefined(con.id))) {
+                    con.id = undefined<port_id>();
+                    ++u;
                 }
 
                 for (const auto id : sel_compo.x) {
                     ImGui::PushID(get_index(id));
                     if (ImGui::Selectable(sel_compo.x.get<port_str>(id).c_str(),
-                                          p_selected == id)) {
-                        p_selected = id;
+                                          con.id == id)) {
+                        con.id = id;
+                        ++u;
                     }
                     ImGui::PopID();
                 }
@@ -1259,11 +1263,8 @@ static void show_input_connections_new(application&            app,
             }
         }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            is_defined(p_selected)) {
-
-            if (auto ret = graph.connect_input(g_port_id, selected, p_selected);
-                not ret) {
+        if (is_defined(con.x) and is_defined(con.v) and is_defined(con.id)) {
+            if (auto ret = graph.connect_input(con.x, con.v, con.id); not ret) {
                 app.jn.push(
                   log_level::error,
                   [](auto& t, auto& m, auto ec) {
@@ -1280,54 +1281,56 @@ static void show_input_connections_new(application&            app,
                               "connection.";
                   },
                   ret.error());
+            } else {
+                ++u;
             }
-
-            g_port_id  = undefined<port_id>();
-            selected   = undefined<graph_node_id>();
-            p_selected = undefined<port_id>();
         }
     }
+
+    return u > 0;
 }
 
-static void show_output_connections_new(application&            app,
+static bool show_output_connections_new(application&            app,
                                         const component_access& ids,
-                                        graph_component&        graph,
-                                        component&              gcompo) noexcept
+                                        component_editor::tab&  tab,
+                                        graph_component&        graph) noexcept
 {
-    static ImGuiTextFilter filter;
-    static port_id         g_port_id  = undefined<port_id>();
-    static graph_node_id   selected   = undefined<graph_node_id>();
-    static port_id         p_selected = undefined<port_id>();
-    static std::string     temp;
+    auto& con    = tab.output_graph_con;
+    auto  filter = ImGuiTextFilter{};
+    auto  temp   = std::string{};
+    auto  u      = 0;
 
-    g_port_id = show_output_port(gcompo, g_port_id);
+    con.y = show_output_port(tab.compo, con.y);
 
-    if (is_defined(g_port_id)) {
-        const auto new_selected = show_node_selection(filter, graph, selected);
-        if (new_selected != selected) {
-            selected   = new_selected;
-            p_selected = undefined<port_id>();
+    if (is_defined(con.y)) {
+        const auto new_selected = show_node_selection(filter, graph, con.v);
+        if (new_selected != con.v) {
+            con.v  = new_selected;
+            con.id = undefined<port_id>();
         }
     }
 
-    if (is_defined(selected)) {
-        const auto sel_compo_id = graph.g.node_components[get_index(selected)];
+    if (is_defined(con.id)) {
+        const auto sel_compo_id = graph.g.node_components[get_index(con.v)];
+
         if (ids.exists(sel_compo_id)) {
             auto& sel_compo = ids.components[sel_compo_id];
-            temp            = sel_compo.y.exists(p_selected)
-                                ? sel_compo.y.get<port_str>(p_selected).sv()
+            temp            = sel_compo.y.exists(con.id)
+                                ? sel_compo.y.get<port_str>(con.id).sv()
                                 : "-";
 
             if (ImGui::BeginCombo("Port", temp.c_str())) {
-                if (ImGui::Selectable("-", is_undefined(p_selected))) {
-                    p_selected = undefined<port_id>();
+                if (ImGui::Selectable("-", is_undefined(con.id))) {
+                    con.id = undefined<port_id>();
+                    ++u;
                 }
 
                 for (const auto id : sel_compo.x) {
                     ImGui::PushID(get_index(id));
                     if (ImGui::Selectable(sel_compo.y.get<port_str>(id).c_str(),
-                                          p_selected == id)) {
-                        p_selected = id;
+                                          con.id == id)) {
+                        con.id = id;
+                        ++u;
                     }
                     ImGui::PopID();
                 }
@@ -1336,11 +1339,8 @@ static void show_output_connections_new(application&            app,
             }
         }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            is_defined(p_selected)) {
-
-            if (auto ret =
-                  graph.connect_output(g_port_id, selected, p_selected);
+        if (is_defined(con.y) and is_defined(con.v) and is_defined(con.id)) {
+            if (auto ret = graph.connect_output(con.y, con.v, con.id);
                 not ret) {
                 app.jn.push(
                   log_level::error,
@@ -1359,30 +1359,33 @@ static void show_output_connections_new(application&            app,
                               "connection.";
                   },
                   ret.error());
+            } else {
+                ++u;
             }
-
-            g_port_id  = undefined<port_id>();
-            selected   = undefined<graph_node_id>();
-            p_selected = undefined<port_id>();
         }
     }
+
+    return u > 0;
 }
 
-static void show_input_connections(application&            app,
+static bool show_input_connections(application&            app,
                                    const component_access& ids,
-                                   generic_component&      g,
-                                   component&              c) noexcept
+                                   component_editor::tab&  tab,
+                                   generic_component&      g) noexcept
 {
-    std::optional<input_connection_id> to_del;
+    auto to_del  = input_connection_id{ 0 };
+    auto u       = 0;
 
     for (auto& con : g.input_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.input_connections.get_id(con);
 
+        ImGui::PushID(ordinal(con_id));
         if (auto* child = g.children.try_to_get(con.dst);
-            child and c.x.exists(con.x)) {
+            child and tab.compo.x.exists(con.x)) {
 
             if (ImGui::Button("X"))
-                to_del = g.input_connections.get_id(con);
+                to_del = con_id;
+
             ImGui::SameLine();
 
             if (child->type == child_type::component) {
@@ -1392,49 +1395,56 @@ static void show_input_connections(application&            app,
                     if (sub_compo.x.exists(con.port.compo)) {
                         ImGui::TextFormat(
                           "{} connected to {}:{}",
-                          c.x.get<port_str>(con.x).sv(),
+                          tab.compo.x.get<port_str>(con.x).sv(),
                           g.children_names[get_index(con.dst)].sv(),
                           sub_compo.x.get<port_str>(con.port.compo).sv());
                     } else
-                        to_del = g.input_connections.get_id(con);
+                        to_del = con_id;
                 } else
-                    to_del = g.input_connections.get_id(con);
+                    to_del = con_id;
             } else {
                 const auto d_type = child->id.mdl_type;
                 const auto xnames = get_input_port_names(d_type);
 
                 ImGui::TextFormat("{} connected to {}:{}",
-                                  c.x.get<port_str>(con.x).sv(),
+                                  tab.compo.x.get<port_str>(con.x).sv(),
                                   g.children_names[get_index(con.dst)].sv(),
                                   xnames[con.port.model]);
             }
-        } else
-            to_del = g.input_connections.get_id(con);
+        } else {
+            to_del = con_id;
+        }
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.input_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.input_connections.free(to_del);
+        ++u;
+    }
 
-    show_input_connections_new(app, ids, g, c);
+    u += show_input_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_output_connections(application&            app,
+static bool show_output_connections(application&            app,
                                     const component_access& ids,
-                                    generic_component&      g,
-                                    component&              c) noexcept
+                                    component_editor::tab&  tab,
+                                    generic_component&      g) noexcept
 {
-    std::optional<output_connection_id> to_del;
+    auto to_del = output_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.output_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.output_connections.get_id(con);
+        ImGui::PushID(ordinal(con_id));
 
         if (auto* child = g.children.try_to_get(con.src);
-            child and c.y.exists(con.y)) {
+            child and tab.compo.y.exists(con.y)) {
 
             if (ImGui::Button("X"))
-                to_del = g.output_connections.get_id(con);
+                to_del = con_id;
             ImGui::SameLine();
 
             if (child->type == child_type::component) {
@@ -1444,46 +1454,52 @@ static void show_output_connections(application&            app,
                     if (sub_compo.x.exists(con.port.compo)) {
                         ImGui::TextFormat(
                           "{} connected to component {}:{}",
-                          c.x.get<port_str>(con.y).sv(),
+                          tab.compo.x.get<port_str>(con.y).sv(),
                           g.children_names[get_index(con.src)].sv(),
                           sub_compo.y.get<port_str>(con.port.compo).sv());
                     } else
-                        to_del = g.output_connections.get_id(con);
+                        to_del = con_id;
                 } else
-                    to_del = g.output_connections.get_id(con);
+                    to_del = con_id;
             } else {
                 const auto d_type = child->id.mdl_type;
                 const auto ynames = get_output_port_names(d_type);
 
                 ImGui::TextFormat("{} connected to {}:{}",
-                                  c.y.get<port_str>(con.y).sv(),
+                                  tab.compo.y.get<port_str>(con.y).sv(),
                                   g.children_names[get_index(con.src)].sv(),
                                   ynames[con.port.model]);
             }
         } else
-            to_del = g.output_connections.get_id(con);
+            to_del = con_id;
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.output_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.output_connections.free(to_del);
+        ++u;
+    }
 
-    show_output_connections_new(app, ids, g, c);
+    u += show_output_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_input_connections(application&            app,
+static bool show_input_connections(application&            app,
                                    const component_access& ids,
-                                   grid_component&         g,
-                                   component&              c) noexcept
+                                   component_editor::tab&  tab,
+                                   grid_component&         g) noexcept
 {
-    std::optional<input_connection_id> to_del;
+    auto to_del = input_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.input_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.input_connections.get_id(con);
+        ImGui::PushID(ordinal(con_id));
 
         if (ImGui::Button("X"))
-            to_del = g.input_connections.get_id(con);
+            to_del = con_id;
         ImGui::SameLine();
 
         if (g.is_coord_valid(con.row, con.col)) {
@@ -1496,39 +1512,45 @@ static void show_input_connections(application&            app,
                     ImGui::SetNextItemAllowOverlap();
 
                     ImGui::TextFormat("{} connected to node {}x{} port {}\n",
-                                      c.x.get<port_str>(con.x).sv(),
+                                      tab.compo.x.get<port_str>(con.x).sv(),
                                       con.row,
                                       con.col,
                                       sub_compo.x.get<port_str>(con.id).sv());
                 } else
-                    to_del = g.input_connections.get_id(con);
+                    to_del = con_id;
             } else
-                to_del = g.input_connections.get_id(con);
+                to_del = con_id;
         } else
-            to_del = g.input_connections.get_id(con);
+            to_del = con_id;
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.input_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.input_connections.free(to_del);
+        ++u;
+    }
 
-    show_input_connections_new(app, ids, g, c);
+    u += show_input_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_output_connections(application&            app,
+static bool show_output_connections(application&            app,
                                     const component_access& ids,
-                                    grid_component&         g,
-                                    component&              c) noexcept
+                                    component_editor::tab&  tab,
+                                    grid_component&         g) noexcept
 {
-    std::optional<output_connection_id> to_del;
+    auto to_del = output_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.output_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.output_connections.get_id(con);
+        ImGui::PushID(ordinal(con_id));
 
         ImGui::SameLine();
         if (ImGui::Button("X"))
-            to_del = g.output_connections.get_id(con);
+            to_del = con_id;
 
         if (g.is_coord_valid(con.row, con.col)) {
             const auto pos          = g.pos(con.row, con.col);
@@ -1541,39 +1563,44 @@ static void show_output_connections(application&            app,
                     ImGui::SetNextItemAllowOverlap();
 
                     ImGui::TextFormat("{} connected to node {}x{} port {}\n",
-                                      c.y.get<port_str>(con.y).sv(),
+                                      tab.compo.y.get<port_str>(con.y).sv(),
                                       con.row,
                                       con.col,
                                       sub_compo.y.get<port_str>(con.id).sv());
-                    to_del.reset();
                 } else
-                    to_del = g.output_connections.get_id(con);
+                    to_del = con_id;
             } else
-                to_del = g.output_connections.get_id(con);
+                to_del = con_id;
         } else
-            to_del = g.output_connections.get_id(con);
+            to_del = con_id;
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.output_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.output_connections.free(to_del);
+        ++u;
+    }
 
-    show_output_connections_new(app, ids, g, c);
+    u += show_output_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_input_connections(application&            app,
+static bool show_input_connections(application&            app,
                                    const component_access& ids,
-                                   graph_component&        g,
-                                   component&              c) noexcept
+                                   component_editor::tab&  tab,
+                                   graph_component&        g) noexcept
 {
-    std::optional<input_connection_id> to_del;
+    auto to_del = input_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.input_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.input_connections.get_id(con);
+        ImGui::PushID(ordinal(con_id));
 
         if (ImGui::Button("X"))
-            to_del = g.input_connections.get_id(con);
+            to_del = con_id;
         ImGui::SameLine();
 
         if (g.g.nodes.exists(con.v)) {
@@ -1581,93 +1608,104 @@ static void show_input_connections(application&            app,
             if (ids.exists(sub_compo_id)) {
                 auto& sub_compo = ids.components[sub_compo_id];
 
-                if (sub_compo.x.exists(con.id) and c.x.exists(con.x)) {
+                if (sub_compo.x.exists(con.id) and tab.compo.x.exists(con.x)) {
                     ImGui::SetNextItemAllowOverlap();
 
                     ImGui::TextFormat("{} connected to node {} port "
                                       "{}\n",
-                                      c.x.get<port_str>(con.x).sv(),
+                                      tab.compo.x.get<port_str>(con.x).sv(),
                                       g.g.node_names[get_index(con.v)],
                                       sub_compo.x.get<port_str>(con.id).sv());
                 } else
-                    to_del = g.input_connections.get_id(con);
+                    to_del = con_id;
             } else
-                to_del = g.input_connections.get_id(con);
+                to_del = con_id;
         } else
-            to_del = g.input_connections.get_id(con);
+            to_del = con_id;
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.input_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.input_connections.free(to_del);
+        ++u;
+    }
 
-    show_input_connections_new(app, ids, g, c);
+    u += show_input_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_output_connections(application&            app,
+static bool show_output_connections(application&            app,
                                     const component_access& ids,
-                                    graph_component&        g,
-                                    component&              c) noexcept
+                                    component_editor::tab&  tab,
+                                    graph_component&        g) noexcept
 {
-    std::optional<output_connection_id> to_del;
+    auto to_del = output_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.output_connections) {
-        ImGui::PushID(&con);
+        const auto con_id = g.output_connections.get_id(con);
+        ImGui::PushID(ordinal(con_id));
 
         if (ImGui::Button("X"))
-            to_del = g.output_connections.get_id(con);
+            to_del = con_id;
         ImGui::SameLine();
 
         if (g.g.nodes.exists(con.v)) {
             auto sub_compo_id = g.g.node_components[get_index(con.v)];
             if (ids.exists(sub_compo_id)) {
                 auto& sub_compo = ids.components[sub_compo_id];
-                if (sub_compo.y.exists(con.id) and c.y.exists(con.y)) {
+                if (sub_compo.y.exists(con.id) and tab.compo.y.exists(con.y)) {
                     ImGui::SetNextItemAllowOverlap();
 
                     ImGui::TextFormat("{} connected to node {} port "
                                       "{}\n",
-                                      c.y.get<port_str>(con.y).sv(),
+                                      tab.compo.y.get<port_str>(con.y).sv(),
                                       g.g.node_names[get_index(con.v)],
                                       sub_compo.y.get<port_str>(con.id).sv());
                 } else
-                    to_del = g.output_connections.get_id(con);
+                    to_del = con_id;
             } else
-                to_del = g.output_connections.get_id(con);
+                to_del = con_id;
         } else
-            to_del = g.output_connections.get_id(con);
+            to_del = con_id;
 
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
-        g.output_connections.free(*to_del);
+    if (is_defined(to_del)) {
+        g.output_connections.free(to_del);
+        ++u;
+    }
 
-    show_output_connections_new(app, ids, g, c);
+    u += show_output_connections_new(app, ids, tab, g);
+
+    return u > 0;
 }
 
-static void show_input_connections(application&            app,
+static bool show_input_connections(application&            app,
                                    const component_access& ids,
-                                   component&              compo) noexcept
+                                   component_editor::tab&  tab) noexcept
 {
-    switch (compo.type) {
+    switch (tab.compo.type) {
     case component_type::none:
         break;
 
     case component_type::generic:
-        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id))
-            show_input_connections(app, ids, *g, compo);
+        if (auto* g =
+              ids.generic_components.try_to_get(tab.compo.id.generic_id))
+            return show_input_connections(app, ids, tab, *g);
         break;
 
     case component_type::grid:
-        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
-            show_input_connections(app, ids, *g, compo);
+        if (auto* g = ids.grid_components.try_to_get(tab.compo.id.grid_id))
+            return show_input_connections(app, ids, tab, *g);
         break;
 
     case component_type::graph:
-        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id))
-            show_input_connections(app, ids, *g, compo);
+        if (auto* g = ids.graph_components.try_to_get(tab.compo.id.graph_id))
+            return show_input_connections(app, ids, tab, *g);
         break;
 
     case component_type::hsm:
@@ -1676,29 +1714,32 @@ static void show_input_connections(application&            app,
     case component_type::simulation:
         break;
     }
+
+    return false;
 }
 
-static void show_output_connections(application&            app,
+static bool show_output_connections(application&            app,
                                     const component_access& ids,
-                                    component&              compo) noexcept
+                                    component_editor::tab&  tab) noexcept
 {
-    switch (compo.type) {
+    switch (tab.compo.type) {
     case component_type::none:
         break;
 
     case component_type::generic:
-        if (auto* g = ids.generic_components.try_to_get(compo.id.generic_id))
-            show_output_connections(app, ids, *g, compo);
+        if (auto* g =
+              ids.generic_components.try_to_get(tab.compo.id.generic_id))
+            return show_output_connections(app, ids, tab, *g);
         break;
 
     case component_type::grid:
-        if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id))
-            show_output_connections(app, ids, *g, compo);
+        if (auto* g = ids.grid_components.try_to_get(tab.compo.id.grid_id))
+            return show_output_connections(app, ids, tab, *g);
         break;
 
     case component_type::graph:
-        if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id))
-            show_output_connections(app, ids, *g, compo);
+        if (auto* g = ids.graph_components.try_to_get(tab.compo.id.graph_id))
+            return show_output_connections(app, ids, tab, *g);
         break;
 
     case component_type::hsm:
@@ -1707,11 +1748,14 @@ static void show_output_connections(application&            app,
     case component_type::simulation:
         break;
     }
+
+    return false;
 }
 
-static void show_input_ports(component& compo) noexcept
+static bool show_input_ports(component& compo) noexcept
 {
-    std::optional<port_id> to_del;
+    auto to_del = std::optional<port_id>{};
+    auto u      = 0;
 
     auto&      names = compo.x.get<port_str>();
     auto&      types = compo.x.get<port_option>();
@@ -1738,6 +1782,7 @@ static void show_input_ports(component& compo) noexcept
                 if (ImGui::Selectable(port_option_names[i],
                                       i == ordinal(types[idx]))) {
                     types[idx] = enum_cast<port_option>(i);
+                    ++u;
                 }
             }
             ImGui::EndCombo();
@@ -1746,13 +1791,18 @@ static void show_input_ports(component& compo) noexcept
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
+    if (to_del.has_value()) {
         compo.x.free(*to_del);
+        ++u;
+    }
+
+    return u > 0;
 }
 
-static void show_output_ports(component& compo) noexcept
+static bool show_output_ports(component& compo) noexcept
 {
-    std::optional<port_id> to_del;
+    auto to_del = std::optional<port_id>{};
+    auto u      = 0;
 
     auto&      names = compo.y.get<port_str>();
     auto&      types = compo.y.get<port_option>();
@@ -1777,6 +1827,7 @@ static void show_output_ports(component& compo) noexcept
                 if (ImGui::Selectable(port_option_names[i],
                                       i == ordinal(types[idx]))) {
                     types[idx] = enum_cast<port_option>(i);
+                    ++u;
                 }
             }
             ImGui::EndCombo();
@@ -1785,88 +1836,101 @@ static void show_output_ports(component& compo) noexcept
         ImGui::PopID();
     }
 
-    if (to_del.has_value())
+    if (to_del.has_value()) {
         compo.y.free(*to_del);
+        ++u;
+    }
+
+    return u > 0;
 }
 
-static void show_input_connection_packs(application&            app,
-                                        const component_access& ids,
+static bool show_input_connection_packs(const component_access& ids,
                                         component_editor::tab&  tab) noexcept
 {
-    show_connection_pack(app.mod,
-                         ids,
-                         tab.compo,
-                         tab.compo.input_connection_pack,
-                         [](auto& compo) noexcept -> auto& { return compo.x; });
+    auto u = 0;
 
-    static auto p   = undefined<port_id>();
-    static auto c_p = undefined<port_id>();
-    static auto c   = undefined<component_id>();
+    u += show_connection_pack(
+      ids,
+      tab,
+      tab.compo.input_connection_pack,
+      [](auto& compo) noexcept -> auto& { return compo.x; });
 
-    p = combobox_port_id("input port", tab.compo.x, p);
+    auto& con = tab.input_pack_con;
+    con.parent_port =
+      combobox_port_id("input port", tab.compo.x, con.parent_port);
 
-    tab.uniq_component_children.read([&](const auto& vec,
-                                         auto /*version*/) noexcept {
-        const auto child =
-          combobox_component_id(ids, "child component", vec, c, c_p);
-        c   = child.first;
-        c_p = ids.exists(c) ? combobox_component_port_id(
-                                "child port", ids.components[c].x, child.second)
-                            : combobox_component_port_id_empty("child port");
+    if (is_defined(con.parent_port)) {
+        tab.uniq_component_children.read([&](const auto& vec,
+                                             auto /*version*/) noexcept {
+            const auto child = combobox_component_id(
+              ids, "child component", vec, con.child_component, con.child_port);
 
-        if (is_defined(p) and is_defined(c_p) and is_defined(c) and
-            std::ranges::none_of(
-              tab.compo.input_connection_pack, [&](const auto& con) {
-                  return con.parent_port == p and con.child_port == c_p and
-                         con.child_component == c;
-              })) {
-            tab.compo.input_connection_pack.push_back(connection_pack{
-              .parent_port = p, .child_port = c_p, .child_component = c });
-            p   = undefined<port_id>();
-            c_p = undefined<port_id>();
-            c   = undefined<component_id>();
-        }
-    });
+            con.child_component = child.first;
+            con.child_port      = ids.exists(con.child_component)
+                                    ? combobox_component_port_id(
+                                   "child port",
+                                   ids.components[con.child_component].x,
+                                   child.second)
+                                    : combobox_component_port_id_empty("child port");
+
+            if (is_defined(con.child_component) and
+                is_defined(con.child_port) and is_defined(con.parent_port) and
+                std::ranges::none_of(tab.compo.input_connection_pack,
+                                     [&](const auto& c) { return con == c; })) {
+                tab.compo.input_connection_pack.push_back(con);
+                con.clear();
+                ++u;
+            }
+        });
+    } else {
+        con.clear();
+    }
+
+    return u > 0;
 }
 
-static void show_output_connection_packs(application&            app,
-                                         const component_access& ids,
+static bool show_output_connection_packs(const component_access& ids,
                                          component_editor::tab&  tab) noexcept
 {
-    show_connection_pack(app.mod,
-                         ids,
-                         tab.compo,
-                         tab.compo.output_connection_pack,
-                         [](auto& compo) noexcept -> auto& { return compo.y; });
+    auto u = 0;
 
-    static auto p   = undefined<port_id>();
-    static auto c_p = undefined<port_id>();
-    static auto c   = undefined<component_id>();
+    u += show_connection_pack(
+      ids,
+      tab,
+      tab.compo.output_connection_pack,
+      [](auto& compo) noexcept -> auto& { return compo.y; });
 
-    p = combobox_port_id("output port", tab.compo.y, p);
+    auto& con = tab.output_pack_con;
+    con.parent_port =
+      combobox_port_id("output port", tab.compo.y, con.parent_port);
 
-    tab.uniq_component_children.read([&](const auto& vec,
-                                         const auto /*version*/) noexcept {
-        const auto child =
-          combobox_component_id(ids, "child component", vec, c, c_p);
-        c   = child.first;
-        c_p = ids.exists(c) ? combobox_component_port_id(
-                                "child port", ids.components[c].y, child.second)
-                            : combobox_component_port_id_empty("child port");
+    if (is_defined(con.parent_port)) {
+        tab.uniq_component_children.read([&](const auto& vec, auto) noexcept {
+            const auto child = combobox_component_id(
+              ids, "child component", vec, con.child_component, con.child_port);
 
-        if (is_defined(p) and is_defined(c_p) and is_defined(c) and
-            std::ranges::none_of(
-              tab.compo.output_connection_pack, [&](const auto& con) {
-                  return con.parent_port == p and con.child_port == c_p and
-                         con.child_component == c;
-              })) {
-            tab.compo.output_connection_pack.push_back(connection_pack{
-              .parent_port = p, .child_port = c_p, .child_component = c });
-            p   = undefined<port_id>();
-            c_p = undefined<port_id>();
-            c   = undefined<component_id>();
-        }
-    });
+            con.child_component = child.first;
+            con.child_port      = ids.exists(con.child_component)
+                                    ? combobox_component_port_id(
+                                   "child port",
+                                   ids.components[con.child_component].y,
+                                   child.second)
+                                    : combobox_component_port_id_empty("child port");
+
+            if (is_defined(con.child_component) and
+                is_defined(con.child_port) and is_defined(con.parent_port) and
+                std::ranges::none_of(tab.compo.output_connection_pack,
+                                     [&](const auto& c) { return con == c; })) {
+                tab.compo.output_connection_pack.push_back(con);
+                con.clear();
+                ++u;
+            }
+        });
+    } else {
+        con.clear();
+    }
+
+    return u > 0;
 }
 
 template<typename ComponentEditor>
@@ -2077,10 +2141,10 @@ static component_editor_result display_component_editor_subtable(
                         if (ImGui::TreeNode("Connections")) {
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input connection")) {
-                                app.mod.ids.read([&](const auto& ids,
-                                                     auto) noexcept {
-                                    show_input_connections(app, ids, tab.compo);
-                                });
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_input_connections(app, ids, tab);
+                                  });
                                 ImGui::TreePop();
                             }
 
@@ -2088,27 +2152,26 @@ static component_editor_result display_component_editor_subtable(
                                 ImGui::TreeNode("Output connection")) {
                                 app.mod.ids.read(
                                   [&](const auto& ids, auto) noexcept {
-                                      show_output_connections(
-                                        app, ids, tab.compo);
+                                      show_output_connections(app, ids, tab);
                                   });
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.x.empty() and
                                 ImGui::TreeNode("Input Connection pack")) {
-                                app.mod.ids.read([&](const auto& ids,
-                                                     auto) noexcept {
-                                    show_input_connection_packs(app, ids, tab);
-                                });
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_input_connection_packs(ids, tab);
+                                  });
                                 ImGui::TreePop();
                             }
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output Connection pack")) {
-                                app.mod.ids.read([&](const auto& ids,
-                                                     auto) noexcept {
-                                    show_output_connection_packs(app, ids, tab);
-                                });
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      show_output_connection_packs(ids, tab);
+                                  });
                                 ImGui::TreePop();
                             }
 
@@ -2186,7 +2249,7 @@ static auto display_component_editor(component_editor&      ed,
         tab.is_dock_init = true;
     }
 
-    bool              is_open = true;
+    bool is_open = true;
 
     if (not ImGui::Begin(make_title(tab.compo.name.sv(), tab.id).c_str(),
                          &is_open)) {
@@ -2407,7 +2470,7 @@ void component_editor::request_to_open(const component_id id) noexcept
     auto& app = container_of(this, &application::component_ed);
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
-        const auto& compo = ids.components[id];
+        const auto& compo  = ids.components[id];
         const auto  tab_id = find_in_tabs(tabs, id);
 
         if (tabs.try_to_get(tab_id)) {

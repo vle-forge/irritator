@@ -1473,6 +1473,18 @@ public:
         dir_path_id       dir_id  = undefined<dir_path_id>();
         file_path_id      file_id = undefined<file_path_id>();
 
+        // We used following attributes to define new input or output
+        // connections for all type of components.
+
+        generic_component::input_connection  input_gen_con;
+        generic_component::output_connection output_gen_con;
+        grid_component::input_connection     input_grid_con;
+        grid_component::output_connection    output_grid_con;
+        graph_component::input_connection    input_graph_con;
+        graph_component::output_connection   output_graph_con;
+        connection_pack                      input_pack_con;
+        connection_pack                      output_pack_con;
+
         u64 version = std::numeric_limits<u64>::max();
 
         /// Stores the list of type of component_id children (used by
