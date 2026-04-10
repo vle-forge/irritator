@@ -1020,11 +1020,11 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
       links, k, std::span(displacements.data(), displacements.size()));
 
     for (sz i_v = 0; i_v < size; ++i_v) {
-        const sz v = to_signed(get_index(nodes[i_v].mdl));
-
-        const float d2 = displacements[i_v].x * displacements[i_v].x +
-                         displacements[i_v].y * displacements[i_v].y;
-        const float d = std::sqrt(d2);
+        const auto idx = get_index(nodes[i_v].mdl);
+        const auto v   = static_cast<int>(idx);
+        const auto d2  = displacements[i_v].x * displacements[i_v].x +
+                        displacements[i_v].y * displacements[i_v].y;
+        const auto d = std::sqrt(d2);
 
         if (d > t) {
             const float coeff = t / d;
