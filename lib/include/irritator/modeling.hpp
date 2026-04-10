@@ -153,8 +153,14 @@ inline void position::reset() noexcept { x = y = 0.f; }
 
 struct connection {
     struct port {
-        port_id compo = port_id{};
-        int     model = 0;
+        port_id compo = undefined<port_id>();
+        int     model = -1;
+
+        void clear() noexcept
+        {
+            compo = undefined<port_id>();
+            model = -1;
+        }
 
         friend bool operator==(const port& left, const port& right) noexcept
         {
@@ -277,6 +283,8 @@ public:
     };
 
     struct input_connection {
+        input_connection() noexcept = default;
+
         input_connection(const port_id          x_,
                          const child_id         dst_,
                          const connection::port port_) noexcept
@@ -285,12 +293,24 @@ public:
           , port(port_)
         {}
 
-        port_id          x; // The port_id in this component.
-        child_id         dst;
+        void clear() noexcept
+        {
+            x   = undefined<port_id>();
+            dst = child_id{ 0 };
+            port.clear();
+        }
+
+        //! The input port_id in this component.
+        port_id x = undefined<port_id>();
+
+        //! The child destination of the input connection.
+        child_id         dst = child_id{ 0 };
         connection::port port;
     };
 
     struct output_connection {
+        output_connection() noexcept = default;
+
         output_connection(port_id          y_,
                           child_id         src_,
                           connection::port port_) noexcept
@@ -300,8 +320,16 @@ public:
           , port(port_)
         {}
 
-        port_id          y; // The port_id in this component.
-        child_id         src;
+        void clear() noexcept
+        {
+            y   = undefined<port_id>();
+            src = child_id{ 0 };
+            port.clear();
+        }
+
+        //! The output port_id in this component.
+        port_id          y   = undefined<port_id>();
+        child_id         src = child_id{ 0 };
         connection::port port;
     };
 
@@ -524,6 +552,8 @@ public:
     }
 
     struct input_connection {
+        input_connection() noexcept = default;
+
         input_connection(port_id x_, i32 row_, i32 col_, port_id id_) noexcept
           : x(x_)
           , row(row_)
@@ -531,13 +561,24 @@ public:
           , id(id_)
         {}
 
-        port_id x;   // The port_id in this component.
-        i32     row; // The row in children vector.
-        i32     col; // The col in children vector.
-        port_id id;  // The port_id of the @c children[idx].
+        void clear() noexcept
+        {
+            x   = undefined<port_id>();
+            row = -1;
+            col = -1;
+            id  = undefined<port_id>();
+        }
+
+        port_id x   = undefined<port_id>(); //! The port_id in this component.
+        i32     row = -1;                   //! The row in children vector.
+        i32     col = -1;                   //! The col in children vector.
+        port_id id =
+          undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     struct output_connection {
+        output_connection() noexcept = default;
+
         output_connection(port_id y_, i32 row_, i32 col_, port_id id_) noexcept
           : y(y_)
           , row(row_)
@@ -545,10 +586,19 @@ public:
           , id(id_)
         {}
 
-        port_id y;   // The port_id in this component.
-        i32     row; // The row in children vector.
-        i32     col; // The col in children vector.
-        port_id id;  // The port_id of the @c children[idx].
+        void clear() noexcept
+        {
+            y   = undefined<port_id>();
+            row = -1;
+            col = -1;
+            id  = undefined<port_id>();
+        }
+
+        port_id y   = undefined<port_id>(); //! The port_id in this component.
+        i32     row = -1;                   //! The row in children vector.
+        i32     col = -1;                   //! The col in children vector.
+        port_id id =
+          undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     //! @brief Check if the input connection already exits.
@@ -732,27 +782,48 @@ public:
     };
 
     struct input_connection {
+        input_connection() noexcept = default;
+
         input_connection(port_id x_, graph_node_id v_, port_id id_) noexcept
           : x(x_)
           , v(v_)
           , id(id_)
         {}
 
-        port_id       x;  // The port_id in this component.
-        graph_node_id v;  // The index in children vector.
-        port_id       id; // The port_id of the @c children[idx].
+        void clear() noexcept
+        {
+            x  = undefined<port_id>();
+            v  = graph_node_id{ 0 };
+            id = undefined<port_id>();
+        }
+
+        port_id x = undefined<port_id>();     //! The port_id in this component.
+        graph_node_id v = graph_node_id{ 0 }; //! The index in children vector.
+        port_id       id =
+          undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     struct output_connection {
+        output_connection() noexcept = default;
+
         output_connection(port_id y_, graph_node_id v_, port_id id_) noexcept
           : y(y_)
           , v(v_)
           , id(id_)
         {}
 
-        port_id       y;  // The port_id in this component.
-        graph_node_id v;  // The index in children vector.
-        port_id       id; // The port_id of the @c children[idx].
+        void clear() noexcept
+        {
+            y  = undefined<port_id>();
+            v  = graph_node_id{ 0 };
+            id = undefined<port_id>();
+        }
+
+        port_id y = undefined<port_id>(); //! The port_id in this component.
+        graph_node_id v =
+          graph_node_id{ 0 }; //! The graph_node_id in children vector.
+        port_id id =
+          undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     enum class connection_type : u8 {
@@ -885,7 +956,16 @@ struct connection_pack {
     port_id child_port = undefined<port_id>();
 
     /// The port identifier in the component @a component.
-    component_id child_component;
+    component_id child_component = undefined<component_id>();
+
+    void clear() noexcept
+    {
+        parent_port     = undefined<port_id>();
+        child_port      = undefined<port_id>();
+        child_component = undefined<component_id>();
+    }
+
+    auto operator<=>(const connection_pack&) const noexcept = default;
 };
 
 struct component {
