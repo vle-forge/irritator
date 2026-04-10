@@ -313,12 +313,11 @@ static bool show_connection(
     const auto con_id = 4096 + static_cast<int>(idx);
 
     if (compo.x.exists(con.x)) {
-        if (auto* c = gen.children.try_to_get(con.dst); c) {
+        if (auto* c = gen.children.try_to_get(con.dst)) {
             const auto id_src = pack_X(con.x);
             const auto id_dst = c->type == child_type::model
                                   ? pack_in(con.dst, con.port.model)
                                   : pack_in(con.dst, con.port.compo);
-
             ImNodes::Link(con_id, id_src, id_dst);
             return false;
         }
@@ -1321,7 +1320,7 @@ static bool show_selected_node(generic_component&        gen,
         name_str name = gen.children_names[idx];
         if (ImGui::InputFilteredString("name", name)) {
             gen.children_names[idx] = name;
-            is_modified = true;
+            is_modified             = true;
         }
 
         update_unique_id(gen, c);
