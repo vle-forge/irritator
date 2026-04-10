@@ -726,8 +726,8 @@ static void compute_automatic_layout(const project&           pj,
         float    y;
     };
 
-    vector<node>         nodes(gen.children.ssize(), reserve_tag);
-    table<child_id, u32> map(gen.children.ssize(), reserve_tag);
+    vector<node>        nodes(gen.children.ssize(), reserve_tag);
+    table<child_id, sz> map(gen.children.ssize(), reserve_tag);
     for (const auto& c : gen.children) {
         const auto c_id = gen.children.get_id(c);
         map.data.emplace_back(c_id, nodes.size());
