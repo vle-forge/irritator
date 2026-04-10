@@ -62,55 +62,61 @@ static bool push_back_if_not_find(application&          app,
     return true;
 };
 
-static void update_child_component_task(application&           app,
-                                        component_editor::tab& tab) noexcept
+static void update_child_component_task(
+  application&                   app,
+  const component_editor::tab_id tab_id) noexcept
 {
-    app.add_gui_task([&app, &tab]() noexcept {
-        tab.uniq_component_children.write([&](auto& vec) noexcept {
-            vec.clear();
+    app.add_gui_task([&app, tab_id]() noexcept {
+        if (auto* tab = app.component_ed.tabs.try_to_get(tab_id)) {
 
-            app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                if (not ids.exists(tab.id))
-                    return;
+            tab->uniq_component_children.write([&](auto& vec) noexcept {
+                vec.clear();
 
-                const auto& compo = ids.components[tab.id];
+                app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                    if (not ids.exists(tab->id))
+                        return;
 
-                switch (compo.type) {
-                case component_type::generic:
-                    for (const auto& c :
-                         ids.generic_components.get(compo.id.generic_id)
-                           .children)
-                        if (c.type == child_type::component)
-                            if (not push_back_if_not_find(
-                                  app, vec, c.id.compo_id))
+                    const auto& compo = ids.components[tab->id];
+
+                    switch (compo.type) {
+                    case component_type::generic:
+                        for (const auto& c :
+                             ids.generic_components.get(compo.id.generic_id)
+                               .children)
+                            if (c.type == child_type::component)
+                                if (not push_back_if_not_find(
+                                      app, vec, c.id.compo_id))
+                                    break;
+                        break;
+
+                    case component_type::grid:
+                        for (const auto id :
+                             ids.grid_components.get(compo.id.grid_id)
+                               .children())
+                            if (not push_back_if_not_find(app, vec, id))
                                 break;
-                    break;
+                        break;
 
-                case component_type::grid:
-                    for (const auto id :
-                         ids.grid_components.get(compo.id.grid_id).children())
-                        if (not push_back_if_not_find(app, vec, id))
-                            break;
-                    break;
+                    case component_type::graph:
+                        for (const auto id :
+                             ids.graph_components.get(compo.id.graph_id)
+                               .g.nodes) {
+                            const auto c_id =
+                              ids.graph_components.get(compo.id.graph_id)
+                                .g.node_components[id];
+                            if (not push_back_if_not_find(app, vec, c_id))
+                                break;
+                        }
+                        break;
 
-                case component_type::graph:
-                    for (const auto id :
-                         ids.graph_components.get(compo.id.graph_id).g.nodes) {
-                        const auto c_id =
-                          ids.graph_components.get(compo.id.graph_id)
-                            .g.node_components[id];
-                        if (not push_back_if_not_find(app, vec, c_id))
-                            break;
+                    default:
+                        break;
                     }
-                    break;
 
-                default:
-                    break;
-                }
-
-                std::ranges::sort(vec);
+                    std::ranges::sort(vec);
+                });
             });
-        });
+        }
     });
 }
 
@@ -2119,7 +2125,7 @@ static component_editor_result display_component_editor_subtable(
                     }
 
                     if (ImGui::Button("refresh i/o", size)) {
-                        update_child_component_task(app, tab);
+                        update_child_component_task(app, ed.tabs.get_id(tab));
                     }
 
                     if (not tab.compo.x.empty() or not tab.compo.y.empty()) {
@@ -2279,19 +2285,25 @@ static auto display_component_editor(component_editor&      ed,
         }
 
         if (action.any()) {
-            app.add_gui_task([&app, &tab, action]() {
+            const auto tab_id = ed.tabs.get_id(tab);
+
+            app.add_gui_task([&app, tab_id, action]() {
+                auto* tab = app.component_ed.tabs.try_to_get(tab_id);
+                if (not tab)
+                    return;
+
                 app.mod.ids.write([&](auto& ids) {
-                    if (not ids.exists(tab.id))
+                    if (not ids.exists(tab->id))
                         return;
 
                     if (action[component_editor_result_type::do_save_file]) {
-                        ids.components[tab.id]             = tab.compo;
-                        ids.component_file_paths[tab.id]   = tab.file;
-                        ids.component_descriptions[tab.id] = tab.desc;
-                        ids.components[tab.id]             = tab.compo;
+                        ids.components[tab->id]             = tab->compo;
+                        ids.component_file_paths[tab->id]   = tab->file;
+                        ids.component_descriptions[tab->id] = tab->desc;
+                        ids.components[tab->id]             = tab->compo;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
-                            if (auto ret = app.mod.save(ids, fs, tab.id);
+                            if (auto ret = app.mod.save(ids, fs, tab->id);
                                 not ret) {
                                 app.jn.push(
                                   log_level::error,
@@ -2299,7 +2311,7 @@ static auto display_component_editor(component_editor&      ed,
                                       title = "Component save error";
                                       format(msg,
                                              "Fail to save {} (part: {} {})",
-                                             tab.compo.name.sv(),
+                                             tab->compo.name.sv(),
                                              ordinal(ret.error().cat()),
                                              ret.error().value());
                                   });
@@ -2309,7 +2321,7 @@ static auto display_component_editor(component_editor&      ed,
                                                 title = "Component save";
                                                 format(msg,
                                                        "Save {} success",
-                                                       tab.compo.name.sv());
+                                                       tab->compo.name.sv());
                                             });
                             }
                         });
@@ -2319,18 +2331,19 @@ static auto display_component_editor(component_editor&      ed,
 
                     if (action
                           [component_editor_result_type::do_store_component]) {
-                        ids.components[tab.id] = tab.compo;
+                        ids.components[tab->id] = tab->compo;
+                        update_child_component_task(app, tab_id);
                     }
 
                     if (action
                           [component_editor_result_type::do_store_file_path]) {
-                        ids.component_file_paths[tab.id]   = tab.file;
-                        ids.component_descriptions[tab.id] = tab.desc;
+                        ids.component_file_paths[tab->id]   = tab->file;
+                        ids.component_descriptions[tab->id] = tab->desc;
                     }
 
                     if (action[component_editor_result_type::
                                  do_store_external_source]) {
-                        ids.components[tab.id] = tab.compo;
+                        ids.components[tab->id] = tab->compo;
                     }
                 });
             });
