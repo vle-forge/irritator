@@ -80,8 +80,8 @@ static void do_build_default(variables& v) noexcept
         }
     });
 
-    v.enable_notification_windows = true;
-    v.theme                       = 0;
+    v.loglevel = log_level::info;
+    v.theme    = 0;
 }
 
 static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
@@ -105,9 +105,8 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
       });
 
     fmt::print(file, "[options]\n");
-    fmt::print(file,
-               "notifications={}\n",
-               vars.enable_notification_windows ? "true" : "false");
+    fmt::print(
+      file, "log-level={}\n", log_level_names[ordinal(vars.loglevel.load())]);
 
     fmt::print(file, "[themes]\n");
     fmt::print(file, "selected={}\n", themes[vars.theme]);
@@ -213,14 +212,12 @@ static bool do_read_affect(variables&             vars,
         }
     }
 
-    if (current_section.test(section_options) and key == "notifications") {
-        if (val == std::string_view("true") or val == "1") {
-            vars.enable_notification_windows = true;
-            return true;
-        }
-        if (val == std::string_view("false") or val == "0") {
-            vars.enable_notification_windows = false;
-            return true;
+    if (current_section.test(section_options) and key == "log-level") {
+        for (sz i = 0; i < std::size(log_level_names); ++i) {
+            if (log_level_names[i] == val) {
+                vars.loglevel = static_cast<log_level>(i);
+                return true;
+            }
         }
     }
 

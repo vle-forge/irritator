@@ -857,12 +857,15 @@ application::application(journal_handler& jn_) noexcept
 
     task_mgr.start();
 
-    auto& msg = log_wnd.enqueue();
-    format(msg,
-           "Starting with {} ordered list {} unordered list and {} threads\n",
-           task_mgr.ordered_size(),
-           task_mgr.unordered_size(),
-           task_mgr.ordered_size() + task_mgr.unordered_size());
+    jn.push(log_level::info, [&](auto& t, auto& m) noexcept {
+        t = "irritator initialized";
+        format(
+          m,
+          "Starting with {} ordered list {} unordered list and {} threads\n",
+          task_mgr.ordered_size(),
+          task_mgr.unordered_size(),
+          task_mgr.ordered_size() + task_mgr.unordered_size());
+    });
 }
 
 application::~application() noexcept
@@ -1218,9 +1221,6 @@ auto application::show() noexcept -> show_result_t
 
     if (settings_wnd.is_open)
         settings_wnd.show();
-
-    if (config.vars.enable_notification_windows.load())
-        notifications.show();
 
     return ret;
 }

@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/archiver.hpp>
+#include <irritator/format.hpp>
 
 #include "application.hpp"
 #include "internal.hpp"
@@ -181,10 +182,18 @@ void settings_window::show() noexcept
         changes++;
     }
 
-    auto have_notif = app.config.vars.enable_notification_windows.load();
-    if (ImGui::Checkbox("Enable notification windows", &have_notif)) {
-        app.config.vars.enable_notification_windows.store(have_notif);
-        changes++;
+    auto       level   = app.config.vars.loglevel.load();
+    const auto preview = name_str{ log_level_names[ordinal(level)] };
+    if (ImGui::BeginCombo("Log level", preview.c_str())) {
+        for (sz i = 0, e = std::size(log_level_names); i != e; ++i) {
+            const auto label = name_str{ log_level_names[i] };
+
+            if (ImGui::Selectable(label.c_str(), i == ordinal(level))) {
+                app.config.vars.loglevel = enum_cast<log_level>(i);
+                changes++;
+            }
+        }
+        ImGui::EndCombo();
     }
 
     ImGui::End();
@@ -305,17 +314,6 @@ void settings_window::apply_style(const int theme) noexcept
     ImVec4*     colors = style->Colors;
 
     app.config.vars.colors.write([&](auto& cc) {
-        ccopy(colors[ImGuiCol_PlotHistogramHovered])
-          .alpha(0.f)
-          .to(cc[style_color::background_error_notification]);
-        ccopy(colors[ImGuiCol_PlotHistogram])
-          .alpha(0.f)
-          .to(cc[style_color::background_warning_notification]);
-        ccopy(colors[ImGuiCol_PlotHistogram])
-          .alpha(0.f)
-          .invert_red_blue()
-          .to(cc[style_color::background_info_notification]);
-
         ccopy(colors[ImGuiCol_FrameBg])
           .alpha(1.f)
           .to(cc[style_color::background]);

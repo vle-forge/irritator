@@ -21,12 +21,6 @@ constexpr static const char* themes[] = {
 };
 
 enum class style_color : u8 {
-    background_error_notification,   /**< Background of error notification
-                                        windows. */
-    background_warning_notification, /**< Background of warning notification
-                                        windows. */
-    background_info_notification, /**< Background of info notification windows.
-                                   */
     background, /** Background of generic, grid, graph, hsm components. */
     background_selection,
     inner_border,
@@ -42,6 +36,18 @@ enum class style_color : u8 {
     node_2_hovered,
     node_2_active,
     COUNT,
+};
+
+//! Enumeration class used everywhere in irritator to produce log data.
+enum class log_level : u8 {
+    emergency,
+    alert,
+    critical,
+    error,
+    warning,
+    notice,
+    info,
+    debug
 };
 
 struct theme_colors {
@@ -83,20 +89,8 @@ struct variables {
     shared_buffer<recorded_paths> rec_paths;
     shared_buffer<theme_colors>   colors;
 
-    std::atomic<int>  theme                       = 0;
-    std::atomic<bool> enable_notification_windows = true;
-};
-
-//! Enumeration class used everywhere in irritator to produce log data.
-enum class log_level : u8 {
-    emergency,
-    alert,
-    critical,
-    error,
-    warning,
-    notice,
-    info,
-    fatal
+    std::atomic<int>       theme    = 0;
+    std::atomic<log_level> loglevel = log_level::info;
 };
 
 /**

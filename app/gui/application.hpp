@@ -324,23 +324,6 @@ void show_combobox_external_sources(external_source_definition&     srcs,
                                     external_source_definition::id& elem_id,
                                     const char* name = "source") noexcept;
 
-//! @brief Show notification into small auto destructible windows in bottom
-//!  right/right.
-//!
-//! @details @c notification_manager is thread-safe to permit reporting of @c
-//! notification from gui-task. All function are thread-safe. The caller is
-//! blocked until a task releases the lock.
-class notification_manager
-{
-public:
-    static inline constexpr i32 notification_number   = 10;
-    static inline constexpr u32 notification_duration = 3000;
-
-    notification_manager() noexcept = default;
-
-    void show() noexcept;
-};
-
 //! @brief Show notification into a classical window in botton.
 //!
 //! @details It uses the same @c notification structure and copy it into a
@@ -350,26 +333,15 @@ class window_logger
 public:
     constexpr static inline const char* name = "Log";
 
-    static inline constexpr int string_length      = 510;
-    static inline constexpr int ring_buffer_length = 64;
+    window_logger() noexcept = default;
 
-    using string_t = small_string<string_length>;
-    using ring_t   = ring_buffer<string_t>;
-
-    window_logger() noexcept;
-
-    string_t& enqueue() noexcept;
     void      show() noexcept;
 
     bool is_open = true;
 
 private:
-    ring_t entries;
-
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
-
-    spin_mutex m_mutex;
 };
 
 class plot_observation_widget
@@ -1423,7 +1395,7 @@ inline bool project_editor::can_edit() const noexcept
 class component_editor
 {
 public:
-    constexpr static inline const char* name = "Component editor";
+    constexpr static inline const char* name    = "Component editor";
     constexpr static inline unsigned    max_tab = 32;
 
     enum class show_result_t {
@@ -1850,8 +1822,6 @@ public:
     grid_simulation_editor         grid_sim;
     hsm_simulation_editor          hsm_sim;
     project_external_source_editor data_ed;
-
-    notification_manager notifications;
 
     /// Try to allocate a project and affect a new name to the newly
     /// allocated project_window. If project allocation fails, a message is

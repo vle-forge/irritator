@@ -109,7 +109,7 @@ struct json_dearchiver::impl {
                  auto& stack,
                  auto& fmt,
                  auto  args) {
-                  format(title, "json error {}\n", path);
+                  format(title, "json error {}", path);
 
                   auto data      = msg.data();
                   sz   remaining = static_cast<int>(msg.capacity()) - 1;
@@ -127,14 +127,7 @@ struct json_dearchiver::impl {
                       remaining -= ret.size;
                   }
 
-                  auto ret = fmt::format_to_n(
-                    data, remaining, "{:{}}", "", stack.size() + 1);
-                  write += ret.size;
-                  msg.resize(write);
-                  data = ret.out;
-                  remaining -= ret.size;
-
-                  ret = fmt::vformat_to_n(data, remaining, fmt, args);
+                  auto ret = fmt::vformat_to_n(data, remaining, fmt, args);
                   msg.resize(write + ret.size);
               },
               m_path,

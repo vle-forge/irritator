@@ -2,25 +2,61 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/format.hpp>
+
 #include "application.hpp"
-#include "imgui.h"
+#include "internal.hpp"
 
 namespace irt {
 
-window_logger::window_logger() noexcept
-  : entries{ window_logger::ring_buffer_length }
-{}
+static inline constexpr std::string_view log_level_enhanced_names[] = {
+    "\ue003", // emergency
+    "\ue003", // alert
+    "\ue002", // critical
+    "\ue002", // error
+    "\ue004", // warning
+    "\ue077", // notice
+    "\ue08a", // info
+    "\ue08a", // debug
+};
 
-auto window_logger::enqueue() noexcept -> window_logger::string_t&
+static auto get_level(const log_level level, const log_level config) noexcept
+  -> std::string_view
+
 {
-    std::unique_lock lock(m_mutex);
-    debug::ensure(entries.capacity() > 0);
+    constexpr auto empty_string = std::string_view{};
 
-    if (entries.full())
-        entries.pop_head();
+    return std::string_view(ordinal(level) > ordinal(config)
+                              ? empty_string
+                              : log_level_enhanced_names[ordinal(level)]);
+}
 
-    entries.push_tail(small_string<string_length>(""));
-    return entries.back();
+static auto display_text(ImFont&                       font,
+                         std::string_view              level,
+                         const journal_handler::title& title,
+                         const journal_handler::descr& description) noexcept
+  -> void
+{
+    debug::ensure(not level.empty());
+
+    ImGui::PushFont(&font);
+    ImGui::TextFormat("{}", level);
+    ImGui::PopFont();
+
+    if (not title.empty()) {
+        ImGui::SameLine();
+        ImGui::TextFormat(" {}\n", title.sv());
+    }
+
+    if (not description.empty()) {
+        ImGui::PushFont(&font);
+        ImGui::TextUnformatted("\ue016");
+        ImGui::PopFont();
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", description.c_str());
+    }
+
+    ImGui::Separator();
 }
 
 void window_logger::show() noexcept
@@ -30,40 +66,49 @@ void window_logger::show() noexcept
         return;
     }
 
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        if (ImGui::BeginPopup("Options")) {
-            if (ImGui::Checkbox("Auto-scroll", &auto_scroll))
-                if (auto_scroll)
-                    scroll_to_bottom = true;
-            ImGui::EndPopup();
-        }
-
-        if (ImGui::Button("Options"))
-            ImGui::OpenPopup("Options");
-        ImGui::SameLine();
-        if (ImGui::Button("Clear"))
-            entries.clear();
-
-        ImGui::Separator();
-        ImGui::BeginChild("scrolling",
-                          ImVec2(0, 0),
-                          false,
-                          ImGuiWindowFlags_HorizontalScrollbar);
-
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-        auto it = entries.begin();
-        auto et = entries.end();
-
-        for (; it != et; ++it)
-            ImGui::TextUnformatted(it->c_str());
-
-        ImGui::PopStyleVar();
-
-        if (scroll_to_bottom)
-            ImGui::SetScrollHereY(1.0f);
-        scroll_to_bottom = false;
-        ImGui::EndChild();
+    auto& app = container_of(this, &application::log_wnd);
+    if (ImGui::BeginPopup("Options")) {
+        if (ImGui::Checkbox("Auto-scroll", &auto_scroll))
+            if (auto_scroll)
+                scroll_to_bottom = true;
+        ImGui::EndPopup();
     }
+
+    const auto level_min = app.config.vars.loglevel.load();
+
+    if (ImGui::Button("Options"))
+        ImGui::OpenPopup("Options");
+    ImGui::SameLine();
+    if (ImGui::Button("Clear"))
+        app.jn.clear();
+
+    ImGui::Separator();
+    ImGui::BeginChild(
+      "scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+    app.jn.read([&](const auto& ring,
+                    const auto& ids,
+                    const auto& titles,
+                    const auto& descriptions) noexcept {
+        for (const auto id : ring) {
+            if (not ids.exists(id))
+                continue;
+
+            const auto  level       = get_level(ids[id].second, level_min);
+            const auto& title       = titles[id];
+            const auto& description = descriptions[id];
+
+            display_text(*app.icons, level, title, description);
+        }
+    });
+
+    ImGui::PopStyleVar();
+
+    if (scroll_to_bottom)
+        ImGui::SetScrollHereY(1.0f);
+    scroll_to_bottom = false;
+    ImGui::EndChild();
 
     ImGui::End();
 }
