@@ -959,9 +959,9 @@ static bool show_input_connections_new(application&            app,
                                        generic_component&      g) noexcept
 {
     auto& con    = tab.input_gen_con;
-    auto temp   = std::string{};
-    auto filter = ImGuiTextFilter{};
-    auto u      = 0;
+    auto  temp   = std::string{};
+    auto  filter = ImGuiTextFilter{};
+    auto  u      = 0;
 
     con.x = show_input_port(tab.compo, con.x);
 
@@ -1379,8 +1379,8 @@ static bool show_input_connections(application&            app,
                                    component_editor::tab&  tab,
                                    generic_component&      g) noexcept
 {
-    auto to_del  = input_connection_id{ 0 };
-    auto u       = 0;
+    auto to_del = input_connection_id{ 0 };
+    auto u      = 0;
 
     for (auto& con : g.input_connections) {
         const auto con_id = g.input_connections.get_id(con);
@@ -1972,32 +1972,25 @@ static component_editor_result display_component_editor_subtable(
                           const auto selected = tab.file_select.combobox(
                             app,
                             fs,
-                            tab.reg_id,
-                            tab.dir_id,
-                            tab.file_id,
                             file_path::file_type::component_file,
                             file_selector::flags(
                               file_selector::flag::show_save_button,
                               file_selector::flag::show_cancel_button));
 
-                          tab.reg_id  = selected.reg_id;
-                          tab.dir_id  = selected.dir_id;
-                          tab.file_id = selected.file_id;
-                          component_editor_result ret;
-
                           if (selected.save) {
-                              tab.file.file = tab.file_id;
-
-                              ret |= component_editor_result_type::do_save_file;
-                              ret |=
-                                component_editor_result_type::do_close_menu;
+                              tab.file.file = selected.file_id;
+                              return component_editor_result{
+                                  component_editor_result_type::do_save_file,
+                                  component_editor_result_type::do_close_menu
+                              };
                           }
 
                           if (selected.close)
-                              ret |=
-                                component_editor_result_type::do_close_menu;
+                              return component_editor_result{
+                                  component_editor_result_type::do_close_menu
+                              };
 
-                          return ret;
+                          return component_editor_result{};
                       });
 
                     if (action[component_editor_result_type::do_close_menu])
@@ -2488,31 +2481,18 @@ void component_editor::request_to_open(const component_id id) noexcept
         if (tabs.try_to_get(tab_id)) {
             ImGui::SetWindowFocus(make_title(compo.name.sv(), id).c_str());
         } else {
-            auto reg_id  = undefined<registred_path_id>();
-            auto dir_id  = undefined<dir_path_id>();
-            auto file_id = ids.component_file_paths[id].file;
-
-            app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                if (const auto* f = fs.file_paths.try_to_get(file_id)) {
-                    if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
-                        if (const auto* r =
-                              fs.registred_paths.try_to_get(d->parent)) {
-                            reg_id = d->parent;
-                        }
-                        dir_id = f->parent;
-                    }
-                }
-            });
+            const auto file_access = app.mod.files.read(
+              [id = ids.component_file_paths[id].file](
+                const auto& fs,
+                auto) noexcept -> file_access::full_file_access_result {
+                  return fs.get_full_access(id);
+              });
 
             switch (compo.type) {
             case component_type::generic:
                 if (tabs.can_alloc(1) and app.generics.can_alloc(1)) {
-                    auto& t           = tabs.alloc();
-                    t.id              = id;
-                    t.type            = component_type::generic;
-                    t.reg_id          = reg_id;
-                    t.dir_id          = dir_id;
-                    t.file_id         = file_id;
+                    auto& t =
+                      tabs.alloc(id, component_type::generic, file_access);
                     t.data.generic    = app.generics.get_id(app.generics.alloc(
                       id,
                       compo,
@@ -2525,12 +2505,7 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::grid:
                 if (tabs.can_alloc(1) and app.grids.can_alloc(1)) {
-                    auto& t   = tabs.alloc();
-                    t.id      = id;
-                    t.type    = component_type::grid;
-                    t.reg_id  = reg_id;
-                    t.dir_id  = dir_id;
-                    t.file_id = file_id;
+                    auto& t = tabs.alloc(id, component_type::grid, file_access);
                     t.data.grid =
                       app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
                     m_request_to_open = id;
@@ -2540,12 +2515,8 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::graph:
                 if (tabs.can_alloc(1) and app.graphs.can_alloc(1)) {
-                    auto& t      = tabs.alloc();
-                    t.id         = id;
-                    t.type       = component_type::graph;
-                    t.reg_id     = reg_id;
-                    t.dir_id     = dir_id;
-                    t.file_id    = file_id;
+                    auto& t =
+                      tabs.alloc(id, component_type::graph, file_access);
                     t.data.graph = app.graphs.get_id(
                       app.graphs.alloc(id, compo.id.graph_id));
                     m_request_to_open = id;
@@ -2555,12 +2526,7 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::hsm:
                 if (tabs.can_alloc(1) and app.hsms.can_alloc(1)) {
-                    auto& t    = tabs.alloc();
-                    t.id       = id;
-                    t.type     = component_type::hsm;
-                    t.reg_id   = reg_id;
-                    t.dir_id   = dir_id;
-                    t.file_id  = file_id;
+                    auto& t = tabs.alloc(id, component_type::hsm, file_access);
                     t.data.hsm = app.hsms.get_id(
                       app.hsms.alloc(id,
                                      compo.id.hsm_id,
@@ -2572,12 +2538,8 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::simulation:
                 if (tabs.can_alloc(1) and app.sims.can_alloc(1)) {
-                    auto& t    = tabs.alloc();
-                    t.id       = id;
-                    t.type     = component_type::simulation;
-                    t.reg_id   = reg_id;
-                    t.dir_id   = dir_id;
-                    t.file_id  = file_id;
+                    auto& t =
+                      tabs.alloc(id, component_type::simulation, file_access);
                     t.data.sim = app.sims.get_id(
                       app.sims.alloc(id,
                                      compo.id.sim_id,

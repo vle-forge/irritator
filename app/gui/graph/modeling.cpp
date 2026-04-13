@@ -731,16 +731,9 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
                                             auto) noexcept -> bool {
             const auto selected = file_select.combobox_ro(
               fs,
-              reg,
-              dir,
-              file,
               file_path::file_type::dot_file,
               file_selector::flags(file_selector::flag::show_load_button,
                                    file_selector::flag::show_cancel_button));
-
-            reg  = selected.reg_id;
-            dir  = selected.dir_id;
-            file = selected.file_id;
 
             if (selected.save and not task_is_running.test_and_set()) {
                 m_graph.dot.file = selected.file_id;
@@ -867,13 +860,12 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             u += show_dot_file_menu(app);
             ImGui::Separator();
 
-            const auto already_saved_defined =
-              is_defined(reg) and is_defined(dir) and is_defined(file);
-            auto close = false;
+            const auto already_saved_defined = is_defined(m_graph.dot.file);
+            auto       close                 = false;
 
             ImGui::BeginDisabled(not already_saved_defined);
             if (ImGui::MenuItem("Save")) {
-                save_dot_file(app, m_graph.g, file);
+                save_dot_file(app, m_graph.g, m_graph.dot.file);
             }
             ImGui::EndDisabled();
 
@@ -883,20 +875,15 @@ bool graph_component_editor_data::graph_component_editor_data::show(
                       const auto selected = file_select.combobox(
                         app,
                         fs,
-                        reg,
-                        dir,
-                        file,
                         file_path::file_type::dot_file,
                         file_selector::flags(
                           file_selector::flag::show_save_button,
                           file_selector::flag::show_cancel_button));
 
-                      reg  = selected.reg_id;
-                      dir  = selected.dir_id;
-                      file = selected.file_id;
-
-                      if (selected.save)
-                          save_dot_file(app, m_graph.g, selected.file_id);
+                      if (selected.save) {
+                          m_graph.dot.file = selected.file_id;
+                          save_dot_file(app, m_graph.g, m_graph.dot.file);
+                      }
 
                       return selected.close;
                   });
@@ -972,13 +959,6 @@ bool graph_component_editor_data::graph_component_editor_data::show(
     u += show_graph(app, compo, m_graph);
 
     return u > 0;
-}
-
-void graph_component_editor_data::clear_file_access() noexcept
-{
-    reg  = undefined<registred_path_id>();
-    dir  = undefined<dir_path_id>();
-    file = undefined<file_path_id>();
 }
 
 graph_component_editor_data::graph_component_editor_data(

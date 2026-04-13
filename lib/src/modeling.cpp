@@ -1054,6 +1054,27 @@ expected<std::filesystem::path> file_access::get_fs_path(
     }
 }
 
+struct full_file_definition {
+    registred_path_id reg_id;
+    dir_path_id       dir_id;
+    file_path_id      file_id;
+};
+
+file_access::full_file_access_result file_access::get_full_access(
+  const file_path_id id) const noexcept
+{
+    if (const auto* f = file_paths.try_to_get(id))
+        if (const auto* d = dir_paths.try_to_get(f->parent))
+            if (const auto* r = registred_paths.try_to_get(d->parent))
+                return full_file_access_result{ .reg_id =
+                                                  registred_paths.get_id(*r),
+                                                .dir_id = dir_paths.get_id(*d),
+                                                .file_id =
+                                                  file_paths.get_id(*f) };
+
+    return full_file_access_result{};
+}
+
 expected<component_id> component_access::copy(
   const component_id src_id) noexcept
 {

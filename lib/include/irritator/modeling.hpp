@@ -1677,6 +1677,17 @@ struct file_access {
       const dir_path_id id) const noexcept;
     expected<std::filesystem::path> get_fs_path(
       const registred_path_id id) const noexcept;
+
+    struct full_file_access_result {
+        registred_path_id reg_id  = undefined<registred_path_id>();
+        dir_path_id       dir_id  = undefined<dir_path_id>();
+        file_path_id      file_id = undefined<file_path_id>();
+    };
+
+    /// Returns the full access to the @c file_id. If @c file_id, @c dir_path_id
+    /// or registred_path_id are undefined, the full struct is empty.
+    full_file_access_result get_full_access(
+      const file_path_id file_id) const noexcept;
 };
 
 class modeling

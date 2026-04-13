@@ -303,21 +303,6 @@ enum class file_path_selector_option : u8 {
     force_irt_extension
 };
 
-/**
- * Display @a ImGui::ComboBox widgets to select file, dir and recorded paths.
- * @param app @a application to get @a modeling, @a notifications etc.
- * @param opt Options to force file path extension.
- * @param [in-out] reg_id @a recorded_path identifier.
- * @param [in-out] dir_id @a dir_path identifier.
- * @param [in-out] file_id @a file_path identifier.
- * @return @a true if a change occured in idenfiers parameters.
- */
-auto file_path_selector(application&              app,
-                        file_path_selector_option opt,
-                        registred_path_id&        reg_id,
-                        dir_path_id&              dir_id,
-                        file_path_id&             file_id) noexcept -> bool;
-
 /** Display two combox, one per line. The first to select the source type,
  * second to select the source identifier. */
 void show_combobox_external_sources(external_source_definition&     srcs,
@@ -335,7 +320,7 @@ public:
 
     window_logger() noexcept = default;
 
-    void      show() noexcept;
+    void show() noexcept;
 
     bool is_open = true;
 
@@ -437,7 +422,8 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
 };
 
 /**
- * @brief The file_selector class display triple-combobox to select (new) file.
+ * @brief The file_selector class display triple-combobox to select a file,
+ * create new files or directories.
  */
 class file_selector
 {
@@ -448,37 +434,52 @@ public:
         show_cancel_button
     };
 
+    file_selector() noexcept = default;
+
+    file_selector(const file_access::full_file_access_result& fs) noexcept
+      : reg_id_{ fs.reg_id }
+      , dir_id_{ fs.dir_id }
+      , file_id_{ fs.file_id }
+    {}
+
     using flags = bitflags<flag>;
 
     constexpr static inline flags empty_option = flags{};
 
     struct combo_box_result {
-        registred_path_id reg_id  = undefined<registred_path_id>();
-        dir_path_id       dir_id  = undefined<dir_path_id>();
-        file_path_id      file_id = undefined<file_path_id>();
-
+        file_path_id file_id =
+          undefined<file_path_id>(); //!< The file selected by the user. If
+                                     //!< undefined, the user select nothing or
+                                     //!< cancel.
         int close = false; //<! @c true if user click on save or close.
         int save  = false; //<! @c true if user click on save.
     };
 
     combo_box_result combobox(application&               app,
                               const file_access&         fs,
-                              const registred_path_id    reg_id,
-                              const dir_path_id          dir_id,
-                              const file_path_id         file_id,
                               const file_path::file_type type,
                               const flags = empty_option) noexcept;
 
     combo_box_result combobox_ro(const file_access&         fs,
-                                 const registred_path_id    reg_id,
-                                 const dir_path_id          dir_id,
-                                 const file_path_id         file_id,
                                  const file_path::file_type type,
                                  const flags = empty_option) noexcept;
 
 private:
     atomic_request_buffer<dir_path_id>  new_dir_;
     atomic_request_buffer<file_path_id> new_file_;
+
+    registred_path_id reg_id_  = undefined<registred_path_id>();
+    dir_path_id       dir_id_  = undefined<dir_path_id>();
+    file_path_id      file_id_ = undefined<file_path_id>();
+
+    void combobox_reg(const file_access& fs) noexcept;
+    void combobox_dir(application& app, const file_access& fs) noexcept;
+    void combobox_dir_ro(const file_access& fs) noexcept;
+    void combobox_file(application&               app,
+                       const file_access&         fs,
+                       const file_path::file_type type) noexcept;
+    void combobox_file_ro(const file_access&         fs,
+                          const file_path::file_type type) noexcept;
 };
 
 struct plot_copy {
@@ -744,10 +745,6 @@ private:
 
     graph_component_id graph_id = undefined<graph_component_id>();
     component_id       m_id     = undefined<component_id>();
-
-    registred_path_id reg  = undefined<registred_path_id>();
-    dir_path_id       dir  = undefined<dir_path_id>();
-    file_path_id      file = undefined<file_path_id>();
 
     void automatic_layout_task(application& app) noexcept;
     bool compute_automatic_layout(graph_component& graph,
@@ -1375,11 +1372,8 @@ struct project_editor {
 
     small_string<64> title;
 
-    std::atomic_flag  save_in_progress;
-    file_selector     file_select;
-    registred_path_id reg_id  = undefined<registred_path_id>();
-    dir_path_id       dir_id  = undefined<dir_path_id>();
-    file_path_id      file_id = undefined<file_path_id>();
+    std::atomic_flag save_in_progress;
+    file_selector    file_select;
 };
 
 inline bool project_editor::can_edit() const noexcept
@@ -1432,7 +1426,13 @@ public:
     enum class tab_id : u32;
 
     struct tab {
-        tab() noexcept = default;
+        tab(const component_id&                         compo_id,
+            const component_type                        compo_type,
+            const file_access::full_file_access_result& fs) noexcept
+          : id{ compo_id }
+          , type{ compo_type }
+          , file_select{ fs }
+        {}
 
         component_id        id;
         component_type      type;
@@ -1440,10 +1440,7 @@ public:
         component_file_path file;
         description_str     desc;
 
-        file_selector     file_select;
-        registred_path_id reg_id  = undefined<registred_path_id>();
-        dir_path_id       dir_id  = undefined<dir_path_id>();
-        file_path_id      file_id = undefined<file_path_id>();
+        file_selector file_select;
 
         // We used following attributes to define new input or output
         // connections for all type of components.

@@ -19,67 +19,37 @@ namespace irt {
 
 static constexpr const char* empty = "-";
 
-struct combo_registred_path_result {
-    registred_path_id id      = undefined<registred_path_id>();
-    bool              updated = false;
-};
+void file_selector::combobox_reg(const file_access& fs) noexcept
+{
+    const auto* r       = fs.registred_paths.try_to_get(reg_id_);
+    const auto* preview = r ? r->path.c_str() : empty;
 
-struct combo_dir_path_result {
-    dir_path_id        id = undefined<dir_path_id>();
-    directory_path_str path;
-    bool               updated = false;
-};
-
-struct combo_file_path_result {
-    file_path_id  id = undefined<file_path_id>();
-    file_path_str path;
-    bool          updated = false;
-};
-
-struct combo_registred_path_fn {
-
-    auto operator()(const file_access&      fs,
-                    const registred_path_id reg_id) const noexcept
-      -> combo_registred_path_result
-    {
-        const auto* r       = fs.registred_paths.try_to_get(reg_id);
-        const auto* preview = r ? r->path.c_str() : empty;
-
-        auto id = reg_id;
-        auto up = 0;
-
-        if (ImGui::BeginCombo("Path", preview)) {
-            if (ImGui::Selectable(empty, r == nullptr)) {
-                if (is_defined(reg_id)) {
-                    id = undefined<registred_path_id>();
-                    ++up;
-                }
-            }
-
-            const registred_path* list = nullptr;
-            while (fs.registred_paths.next(list)) {
-                if (list->status == registred_path::state::error)
-                    continue;
-
-                ImGui::PushID(list);
-                if (ImGui::Selectable(list->path.c_str(), r == list)) {
-                    const auto list_id = fs.registred_paths.get_id(list);
-
-                    if (reg_id != list_id) {
-                        id = list_id;
-                        ++up;
-                    }
-                }
-
-                ImGui::PopID();
-            }
-
-            ImGui::EndCombo();
+    if (ImGui::BeginCombo("Path", preview)) {
+        if (ImGui::Selectable(empty, r == nullptr)) {
+            reg_id_  = undefined<registred_path_id>();
+            dir_id_  = undefined<dir_path_id>();
+            file_id_ = undefined<file_path_id>();
         }
 
-        return combo_registred_path_result{ .id = id, .updated = up > 0 };
+        const registred_path* list = nullptr;
+        while (fs.registred_paths.next(list)) {
+            if (list->status == registred_path::state::error)
+                continue;
+
+            ImGui::PushID(list);
+            if (ImGui::Selectable(list->path.c_str(), r == list)) {
+                if (r != list) {
+                    reg_id_  = fs.registred_paths.get_id(list);
+                    dir_id_  = undefined<dir_path_id>();
+                    file_id_ = undefined<file_path_id>();
+                }
+            }
+            ImGui::PopID();
+        }
+
+        ImGui::EndCombo();
     }
-};
+}
 
 dir_path_id get_dir_id(atomic_request_buffer<dir_path_id>& dir_ptr,
                        const dir_path_id                   other_id) noexcept
@@ -90,162 +60,145 @@ dir_path_id get_dir_id(atomic_request_buffer<dir_path_id>& dir_ptr,
         return other_id;
 }
 
-class combo_dir_path_fn
+static void new_file_task(application&                         app,
+                          dir_path_id                          dir_id,
+                          file_path::file_type                 type,
+                          std::unique_ptr<directory_path_str>  filename,
+                          atomic_request_buffer<file_path_id>& file_b) noexcept
 {
-private:
-    auto do_run(application&                        app,
-                const file_access&                  fs,
-                const registred_path_id             reg_id,
-                const dir_path_id                   dir_id,
-                atomic_request_buffer<dir_path_id>& dir_ptr) const noexcept
-      -> combo_dir_path_result
-    {
-        const auto& r       = fs.registred_paths.get(reg_id);
-        const auto* d       = fs.dir_paths.try_to_get(dir_id);
-        const auto* preview = d ? d->path.c_str() : empty;
+    app.add_gui_task(
+      [&app, dir_id, name = std::move(filename), type, &file_b]() {
+          app.mod.files.write([&](auto& fs) {
+              auto file_id = fs.alloc_file(dir_id, name->sv(), type);
+              if (is_undefined(file_id)) {
+                  app.jn.push(log_level::error, [&](auto& t, auto& /*m*/) {
+                      t = "Fail to allocate a new directory";
+                  });
+              } else {
+                  file_b.fulfill(file_id);
+              }
+          });
+      });
+}
 
-        auto buffer = directory_path_str{};
-        auto id     = dir_id;
-        auto up     = 0;
-
-        if (ImGui::BeginCombo("Directory", preview)) {
-            if (ImGui::Selectable(empty, d == nullptr)) {
-                if (is_defined(id)) {
-                    id = undefined<dir_path_id>();
-                    ++up;
-                }
-            }
-
-            for (const auto d_id : r.children) {
-                if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
-                    ImGui::PushID(dir);
-                    if (ImGui::Selectable(dir->path.c_str(), d_id == id)) {
-                        if (d_id != id) {
-                            id = d_id;
-                            ++up;
-                        }
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-
-        if (is_undefined(id)) {
-            if (ImGui::InputFilteredString("New directory", buffer)) {
-                const auto already_exist = [&]() {
-                    for (const auto d_id : r.children)
-                        if (const auto* dir = fs.dir_paths.try_to_get(d_id))
-                            if (dir->path == buffer.sv())
-                                return true;
-
-                    return false;
-                }();
-
-                if (not already_exist) {
-                    if (dir_ptr.should_request()) {
-                        auto buffer_ptr =
-                          std::make_unique<directory_path_str>(buffer);
-
-                        app.add_gui_task([&app,
-                                          reg_id,
-                                          buffer = std::move(buffer_ptr),
-                                          &dir_ptr]() {
-                            app.mod.files.write([&](auto& fs) {
-                                dir_ptr.fulfill(
-                                  fs.alloc_dir(reg_id, buffer->sv()));
-                            });
-                        });
-                    }
-                    id = undefined<dir_path_id>();
-                    ++up;
-                }
-            }
-        }
-
-        return combo_dir_path_result{ .id      = id,
-                                      .path    = buffer.sv(),
-                                      .updated = up > 0 };
-    }
-
-    auto do_run(const file_access&      fs,
-                const registred_path_id reg_id,
-                const dir_path_id       dir_id) const noexcept
-      -> combo_dir_path_result
-    {
-        const auto& r       = fs.registred_paths.get(reg_id);
-        const auto* d       = fs.dir_paths.try_to_get(dir_id);
-        const auto* preview = d ? d->path.c_str() : empty;
-
-        auto buffer = directory_path_str{};
-        auto id     = dir_id;
-        auto up     = 0;
-
-        if (ImGui::BeginCombo("Directory", preview)) {
-            if (ImGui::Selectable(empty, d == nullptr)) {
-                if (is_defined(id)) {
-                    id = undefined<dir_path_id>();
-                    ++up;
-                }
-            }
-
-            for (const auto d_id : r.children) {
-                if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
-                    ImGui::PushID(dir);
-                    if (ImGui::Selectable(dir->path.c_str(), d_id == id)) {
-                        if (d_id != id) {
-                            id = d_id;
-                            ++up;
-                        }
-                    }
-                    ImGui::PopID();
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-
-        return combo_dir_path_result{ .id      = id,
-                                      .path    = buffer.sv(),
-                                      .updated = up > 0 };
-    }
-
-public:
-    auto operator()(application&                        app,
-                    const file_access&                  fs,
-                    const registred_path_id             reg_id,
-                    const dir_path_id                   dir_id,
-                    atomic_request_buffer<dir_path_id>& dir_ptr) const noexcept
-      -> combo_dir_path_result
-    {
-        debug::ensure(fs.registred_paths.try_to_get(reg_id));
-
-        const auto d_id = get_dir_id(dir_ptr, dir_id);
-
-        return do_run(app, fs, reg_id, d_id, dir_ptr);
-    }
-
-    auto operator()(const file_access&      fs,
-                    const registred_path_id reg_id,
-                    const dir_path_id       dir_id) const noexcept
-      -> combo_dir_path_result
-    {
-        debug::ensure(fs.registred_paths.try_to_get(reg_id));
-
-        return do_run(fs, reg_id, dir_id);
-    }
-};
-
-static auto alloc_new_file(application&               app,
-                           const file_path::file_type type,
-                           const dir_path_id          dir_id,
-                           const std::string_view     file_path) noexcept
-  -> file_path_id
+static void new_directory_task(
+  application&                        app,
+  registred_path_id                   reg_id,
+  std::unique_ptr<directory_path_str> dirname,
+  atomic_request_buffer<dir_path_id>& dir_b) noexcept
 {
-    return app.mod.files.write([&](auto& fs) noexcept {
-        return fs.alloc_file(dir_id, file_path, type);
+    app.add_gui_task([&app, reg_id, name = std::move(dirname), &dir_b]() {
+        app.mod.files.write([&](auto& fs) {
+            auto dir_id = fs.alloc_dir(reg_id, name->sv());
+            if (is_undefined(dir_id)) {
+                app.jn.push(log_level::error, [&](auto& t, auto& /*m*/) {
+                    t = "Fail to allocate a new directory";
+                });
+            } else {
+                if (not fs.create_directories(dir_id)) {
+                    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                        t = "Fail to create a new directory";
+                        format(m,
+                               "Fail to open and create directory {}",
+                               name->sv());
+                    });
+
+                    fs.dir_paths.free(dir_id);
+                    dir_id = undefined<dir_path_id>();
+                }
+            }
+
+            dir_b.fulfill(dir_id);
+        });
     });
+}
+
+void file_selector::combobox_dir(application&       app,
+                                 const file_access& fs) noexcept
+{
+    debug::ensure(fs.registred_paths.try_to_get(reg_id_));
+
+    dir_id_             = get_dir_id(new_dir_, dir_id_);
+    const auto& r       = fs.registred_paths.get(reg_id_);
+    const auto* d       = fs.dir_paths.try_to_get(dir_id_);
+    const auto* preview = d ? d->path.c_str() : empty;
+    auto        buffer  = directory_path_str{};
+
+    if (ImGui::BeginCombo("Directory", preview)) {
+        if (ImGui::Selectable(empty, d == nullptr)) {
+            dir_id_  = undefined<dir_path_id>();
+            file_id_ = undefined<file_path_id>();
+        }
+
+        for (const auto d_id : r.children) {
+            if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
+                ImGui::PushID(dir);
+                if (ImGui::Selectable(dir->path.c_str(), d_id == dir_id_)) {
+                    if (dir_id_ != d_id) {
+                        dir_id_  = d_id;
+                        file_id_ = undefined<file_path_id>();
+                    }
+                }
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    if (is_undefined(dir_id_)) {
+        if (ImGui::InputFilteredString("New directory", buffer)) {
+            const auto already_exist = [&]() {
+                for (const auto d_id : r.children)
+                    if (const auto* dir = fs.dir_paths.try_to_get(d_id))
+                        if (dir->path == buffer.sv())
+                            return true;
+
+                return false;
+            }();
+
+            if (not already_exist) {
+                if (new_dir_.should_request()) {
+                    new_directory_task(
+                      app,
+                      reg_id_,
+                      std::make_unique<directory_path_str>(buffer),
+                      new_dir_);
+                }
+            }
+        }
+    }
+}
+
+void file_selector::combobox_dir_ro(const file_access& fs) noexcept
+{
+    debug::ensure(fs.registred_paths.try_to_get(reg_id_));
+
+    const auto& r       = fs.registred_paths.get(reg_id_);
+    const auto* d       = fs.dir_paths.try_to_get(dir_id_);
+    const auto* preview = d ? d->path.c_str() : empty;
+
+    if (ImGui::BeginCombo("Directory", preview)) {
+        if (ImGui::Selectable(empty, d == nullptr)) {
+            dir_id_  = undefined<dir_path_id>();
+            file_id_ = undefined<file_path_id>();
+        }
+
+        for (const auto d_id : r.children) {
+            if (const auto* dir = fs.dir_paths.try_to_get(d_id)) {
+                ImGui::PushID(dir);
+                if (ImGui::Selectable(dir->path.c_str(), d_id == dir_id_)) {
+                    if (dir_id_ != d_id) {
+                        dir_id_  = d_id;
+                        file_id_ = undefined<file_path_id>();
+                    }
+                }
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
 }
 
 file_path_id get_file_id(atomic_request_buffer<file_path_id>& file_ptr,
@@ -257,165 +210,99 @@ file_path_id get_file_id(atomic_request_buffer<file_path_id>& file_ptr,
         return other_id;
 }
 
-struct combo_file_path_fn {
+void file_selector::combobox_file(application&               app,
+                                  const file_access&         fs,
+                                  const file_path::file_type type) noexcept
+{
+    debug::ensure(fs.registred_paths.try_to_get(reg_id_) != nullptr);
+    debug::ensure(fs.dir_paths.try_to_get(dir_id_) != nullptr);
 
-    auto operator()(application&                         app,
-                    const file_access&                   fs,
-                    const registred_path_id              reg_id,
-                    const dir_path_id                    dir_id,
-                    const file_path_id                   file_id,
-                    const file_path::file_type           type,
-                    atomic_request_buffer<file_path_id>& file_ptr)
-      const noexcept -> combo_file_path_result
-    {
-        debug::ensure(fs.registred_paths.try_to_get(reg_id) != nullptr);
-        debug::ensure(fs.dir_paths.try_to_get(dir_id) != nullptr);
+    file_id_            = get_file_id(new_file_, file_id_);
+    const auto& d       = fs.dir_paths.get(dir_id_);
+    const auto* f       = fs.file_paths.try_to_get(file_id_);
+    const auto* preview = f ? f->path.c_str() : empty;
+    auto        buffer  = file_path_str{};
 
-        const auto& d    = fs.dir_paths.get(dir_id);
-        const auto  f_id = get_file_id(file_ptr, file_id);
+    if (ImGui::BeginCombo("File", preview)) {
+        if (ImGui::Selectable(empty, f == nullptr))
+            file_id_ = undefined<file_path_id>();
 
-        const auto* f       = fs.file_paths.try_to_get(f_id);
-        const auto* preview = f ? f->path.c_str() : empty;
-
-        auto buffer = file_path_str{};
-        auto id     = f_id;
-        auto up     = 0;
-
-        if (ImGui::BeginCombo("File", preview)) {
-            if (ImGui::Selectable(empty, f == nullptr)) {
-                if (is_defined(id)) {
-                    id = undefined<file_path_id>();
-                    ++up;
-                }
-            }
-
-            for (const auto f_id : d.children) {
-                if (const auto* file = fs.file_paths.try_to_get(f_id)) {
-                    if (file->type == type) {
-                        ImGui::PushID(file);
-                        if (ImGui::Selectable(file->path.c_str(), f_id == id)) {
-                            if (f_id != id) {
-                                id = f_id;
-                                ++up;
-                            }
-                        }
-                        ImGui::PopID();
-                    }
-                }
-            }
-
-            ImGui::EndCombo();
-        }
-
-        if (is_undefined(id)) {
-            if (ImGui::InputFilteredString("New file", buffer)) {
-                if (not has_extension(buffer.sv(), type)) {
-                    add_extension(buffer, type);
-                    if (file_ptr.should_request()) {
-                        auto buf_ptr = std::make_unique<file_path_str>(buffer);
-
-                        app.add_gui_task([&app,
-                                          type,
-                                          dir_id,
-                                          buffer = std::move(buf_ptr),
-                                          &file_ptr]() {
-                            file_ptr.fulfill(
-                              alloc_new_file(app, type, dir_id, buffer->sv()));
-                        });
-                    }
-                    id = undefined<file_path_id>();
-                    ++up;
+        for (const auto f_id : d.children) {
+            if (const auto* file = fs.file_paths.try_to_get(f_id)) {
+                if (file->type == type) {
+                    ImGui::PushID(file);
+                    if (ImGui::Selectable(file->path.c_str(), f_id == file_id_))
+                        file_id_ = f_id;
+                    ImGui::PopID();
                 }
             }
         }
 
-        return combo_file_path_result{ .id      = id,
-                                       .path    = buffer.sv(),
-                                       .updated = up > 0 };
+        ImGui::EndCombo();
     }
 
-    auto operator()(const file_access&         fs,
-                    const registred_path_id    reg_id,
-                    const dir_path_id          dir_id,
-                    const file_path_id         file_id,
-                    const file_path::file_type type) const noexcept
-      -> combo_file_path_result
-    {
-        debug::ensure(fs.registred_paths.try_to_get(reg_id) != nullptr);
-        debug::ensure(fs.dir_paths.try_to_get(dir_id) != nullptr);
+    if (is_undefined(file_id_)) {
+        if (ImGui::InputFilteredString("New file", buffer)) {
+            if (not has_extension(buffer.sv(), type))
+                add_extension(buffer, type);
 
-        const auto& d = fs.dir_paths.get(dir_id);
+            if (new_file_.should_request()) {
+                new_file_task(app,
+                              dir_id_,
+                              type,
+                              std::make_unique<file_path_str>(buffer),
+                              new_file_);
+            }
+        }
+    }
+}
 
-        const auto* f       = fs.file_paths.try_to_get(file_id);
-        const auto* preview = f ? f->path.c_str() : empty;
+void file_selector::combobox_file_ro(const file_access&         fs,
+                                     const file_path::file_type type) noexcept
+{
+    debug::ensure(fs.registred_paths.try_to_get(reg_id_) != nullptr);
+    debug::ensure(fs.dir_paths.try_to_get(dir_id_) != nullptr);
 
-        auto buffer = file_path_str{};
-        auto id     = file_id;
-        auto up     = 0;
+    const auto& d       = fs.dir_paths.get(dir_id_);
+    const auto* f       = fs.file_paths.try_to_get(file_id_);
+    const auto* preview = f ? f->path.c_str() : empty;
 
-        if (ImGui::BeginCombo("File", preview)) {
-            if (ImGui::Selectable(empty, f == nullptr)) {
-                if (is_defined(id)) {
-                    id = undefined<file_path_id>();
-                    ++up;
+    if (ImGui::BeginCombo("File", preview)) {
+        if (ImGui::Selectable(empty, f == nullptr))
+            file_id_ = undefined<file_path_id>();
+
+        for (const auto f_id : d.children) {
+            if (const auto* file = fs.file_paths.try_to_get(f_id)) {
+                if (file->type == type) {
+                    ImGui::PushID(file);
+                    if (ImGui::Selectable(file->path.c_str(), f_id == file_id_))
+                        file_id_ = f_id;
+                    ImGui::PopID();
                 }
             }
-
-            for (const auto f_id : d.children) {
-                if (const auto* file = fs.file_paths.try_to_get(f_id)) {
-                    if (file->type == type) {
-                        ImGui::PushID(file);
-                        if (ImGui::Selectable(file->path.c_str(), f_id == id)) {
-                            if (f_id != id) {
-                                id = f_id;
-                                ++up;
-                            }
-                        }
-                        ImGui::PopID();
-                    }
-                }
-            }
-
-            ImGui::EndCombo();
         }
 
-        return combo_file_path_result{ .id      = id,
-                                       .path    = buffer.sv(),
-                                       .updated = up > 0 };
+        ImGui::EndCombo();
     }
-};
-
-static inline combo_registred_path_fn combo_registred_path{};
-static inline combo_dir_path_fn       combo_dir_path{};
-static inline combo_file_path_fn      combo_file_path{};
+}
 
 auto file_selector::combobox(application&               app,
                              const file_access&         fs,
-                             const registred_path_id    reg_id,
-                             const dir_path_id          dir_id,
-                             const file_path_id         file_id,
                              const file_path::file_type type,
                              const flags flags) noexcept -> combo_box_result
 {
-    auto reg   = reg_id;
-    auto dir   = dir_id;
-    auto file  = file_id;
     auto save  = false;
     auto close = false;
 
-    const auto rc = combo_registred_path(fs, reg);
-    reg           = rc.id;
+    combobox_reg(fs);
 
-    if (is_defined(rc.id)) {
-        const auto dc = combo_dir_path(app, fs, reg, dir, new_dir_);
-        dir           = dc.id;
+    if (is_defined(reg_id_)) {
+        combobox_dir(app, fs);
 
-        if (is_defined(dc.id)) {
-            const auto fc =
-              combo_file_path(app, fs, reg, dir, file, type, new_file_);
-            file = fc.id;
+        if (is_defined(dir_id_)) {
+            combobox_file(app, fs, type);
 
-            if (is_defined(fc.id)) {
+            if (is_defined(file_id_)) {
                 const auto have_cancel = flags[flag::show_cancel_button];
                 const auto buttons     = have_cancel ? 2 : 1;
                 const auto size        = ImGui::ComputeButtonSize(buttons);
@@ -441,38 +328,27 @@ auto file_selector::combobox(application&               app,
         }
     }
 
-    return combo_box_result{ .reg_id  = reg,
-                             .dir_id  = dir,
-                             .file_id = file,
+    return combo_box_result{ .file_id = file_id_,
                              .close   = close,
                              .save    = save };
 }
 
 auto file_selector::combobox_ro(const file_access&         fs,
-                                const registred_path_id    reg_id,
-                                const dir_path_id          dir_id,
-                                const file_path_id         file_id,
                                 const file_path::file_type type,
                                 const flags flags) noexcept -> combo_box_result
 {
-    auto reg   = reg_id;
-    auto dir   = dir_id;
-    auto file  = file_id;
     auto save  = false;
     auto close = false;
 
-    const auto rc = combo_registred_path(fs, reg);
-    reg           = rc.id;
+    combobox_reg(fs);
 
-    if (is_defined(rc.id)) {
-        const auto dc = combo_dir_path(fs, reg, dir);
-        dir           = dc.id;
+    if (is_defined(reg_id_)) {
+        combobox_dir_ro(fs);
 
-        if (is_defined(dc.id)) {
-            const auto fc = combo_file_path(fs, reg, dir, file, type);
-            file          = fc.id;
+        if (is_defined(dir_id_)) {
+            combobox_file_ro(fs, type);
 
-            if (is_defined(fc.id)) {
+            if (is_defined(file_id_)) {
                 const auto have_cancel = flags[flag::show_cancel_button];
                 const auto buttons     = have_cancel ? 2 : 1;
                 const auto size        = ImGui::ComputeButtonSize(buttons);
@@ -498,211 +374,9 @@ auto file_selector::combobox_ro(const file_access&         fs,
         }
     }
 
-    return combo_box_result{ .reg_id  = reg,
-                             .dir_id  = dir,
-                             .file_id = file,
+    return combo_box_result{ .file_id = file_id_,
                              .close   = close,
                              .save    = save };
-}
-
-static auto get_reg_preview(const file_access&      fs,
-                            const registred_path_id id) noexcept -> const char*
-{
-    const auto* reg = fs.registred_paths.try_to_get(id);
-
-    return reg ? reg->name.c_str() : empty;
-}
-
-static auto get_dir_preview(const file_access& fs,
-                            const dir_path_id  id) noexcept -> const char*
-{
-    const auto* dir = fs.dir_paths.try_to_get(id);
-
-    return dir ? dir->path.c_str() : empty;
-}
-
-static auto combobox_reg(const file_access&      fs,
-                         const registred_path_id reg_id) noexcept
-  -> registred_path_id
-{
-    const char* preview = get_reg_preview(fs, reg_id);
-    auto        ret     = undefined<registred_path_id>();
-
-    if (ImGui::BeginCombo("Path", preview)) {
-        for (const auto& reg : fs.registred_paths) {
-            if (reg.status == registred_path::state::error)
-                continue;
-
-            ImGui::PushID(&reg);
-            const auto id = fs.registred_paths.get_id(reg);
-            if (ImGui::Selectable(
-                  reg.path.c_str(), reg_id == id, ImGuiSelectableFlags_None))
-                ret = id;
-            ImGui::PopID();
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return ret;
-}
-
-static auto combobox_dir(const file_access&    fs,
-                         const registred_path& reg,
-                         const dir_path_id     dir_id) noexcept -> dir_path_id
-{
-    auto* dir_preview = get_dir_preview(fs, dir_id);
-    auto  ret         = undefined<dir_path_id>();
-
-    if (ImGui::BeginCombo("Dir", dir_preview)) {
-        ImGui::PushID(0);
-        if (ImGui::Selectable("##empty-dir", is_undefined(dir_id))) {
-            ret = undefined<dir_path_id>();
-        }
-        ImGui::PopID();
-
-        for (const auto id : reg.children) {
-            if (const auto* dir = fs.dir_paths.try_to_get(id)) {
-                ImGui::PushID(dir);
-                if (ImGui::Selectable(dir->path.c_str(), dir_id == id))
-                    ret = id;
-                ImGui::PopID();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return ret;
-}
-
-static void alloc_dir_task(application&                        app,
-                           const registred_path_id             parent,
-                           const std::string_view              name,
-                           atomic_request_buffer<dir_path_id>& new_dir) noexcept
-{
-    app.add_gui_task([&app, &new_dir, parent, name]() {
-        app.mod.files.write([&](auto& fs) {
-            const auto newdir_id = fs.alloc_dir(parent, name);
-            fs.create_directories(newdir_id);
-            new_dir.fulfill(newdir_id);
-        });
-    });
-}
-
-static void combobox_newdir(application&                        app,
-                            atomic_request_buffer<dir_path_id>& new_dir,
-                            const file_access&                  fs,
-                            const registred_path_id             reg_id,
-                            dir_path_id&                        in_out) noexcept
-{
-    debug::ensure(fs.dir_paths.try_to_get(in_out) == nullptr);
-
-    if (fs.dir_paths.try_to_get(in_out) == nullptr) {
-        if (const auto newdir_id = new_dir.try_take()) {
-            in_out = *newdir_id;
-        } else {
-            directory_path_str dir_name;
-
-            if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
-                if (fs.find_directory_in_registry(reg_id, dir_name.sv()) ==
-                    undefined<dir_path_id>()) {
-                    if (new_dir.should_request()) {
-                        alloc_dir_task(app, reg_id, dir_name.sv(), new_dir);
-                    }
-                }
-            }
-        }
-    }
-}
-
-static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
-{
-    switch (opt) {
-    case file_path_selector_option::none:
-        return true;
-    case file_path_selector_option::force_irt_extension:
-        return has_extension(v, file_path::file_type::component_file);
-    case file_path_selector_option::force_dot_extension:
-        return has_extension(v, file_path::file_type::dot_file);
-    }
-
-    irt::unreachable();
-}
-
-static void copy_file_task(application&       app,
-                           file_path&         file,
-                           const file_path_id dst) noexcept
-{
-    auto file_ptr = std::make_unique<file_path>(std::move(file));
-
-    app.add_gui_task([&app, file = std::move(file_ptr), dst]() noexcept {
-        app.mod.files.write([&](auto& fs) noexcept {
-            if (auto* file_dst = fs.file_paths.try_to_get(dst)) {
-                *file_dst = *file;
-            }
-        });
-    });
-}
-
-static void alloc_file_task(
-  application&                         app,
-  const dir_path_id                    parent,
-  atomic_request_buffer<file_path_id>& new_file) noexcept
-{
-    app.add_gui_task([&app, &new_file, parent]() {
-        app.mod.files.write([&](auto& fs) {
-            const auto newfile_id = fs.alloc_file(parent, std::string_view());
-
-            new_file.fulfill(newfile_id);
-        });
-    });
-}
-
-static auto combobox_file(application&                         app,
-                          atomic_request_buffer<file_path_id>& new_file,
-                          const file_access&                   fs,
-                          const file_path_selector_option      opt,
-                          const dir_path_id                    parent,
-                          const file_path_id file_id) noexcept -> file_path_id
-{
-    auto ret = undefined<file_path_id>();
-
-    if (is_undefined(file_id)) {
-        if (const auto f = new_file.try_take()) {
-            ret = *f;
-        } else if (new_file.should_request()) {
-            app.add_gui_task([&app, &new_file, parent]() {
-                alloc_file_task(app, parent, new_file);
-            });
-        }
-    } else {
-        ret = file_id;
-    }
-
-    if (is_defined(ret)) {
-        auto&     file = fs.file_paths.get(ret);
-        file_path tmp(file);
-
-        if (ImGui::InputFilteredString("File##text", tmp.path)) {
-            if (not end_with(tmp.path.sv(), opt)) {
-                if (opt == file_path_selector_option::force_irt_extension) {
-                    add_extension(tmp.path,
-                                  file_path::file_type::component_file);
-                    if (is_valid_dot_filename(tmp.path.sv()))
-                        copy_file_task(app, tmp, ret);
-                }
-
-                if (opt == file_path_selector_option::force_dot_extension) {
-                    add_extension(tmp.path, file_path::file_type::dot_file);
-                    if (is_valid_dot_filename(tmp.path.sv()))
-                        copy_file_task(app, tmp, ret);
-                }
-            }
-        }
-    }
-
-    return ret;
 }
 
 auto get_component_color(const application& app, const component_id id) noexcept
@@ -723,39 +397,6 @@ auto get_component_u32color(const application& app,
                             const component_id id) noexcept -> ImU32
 {
     return to_ImU32(get_component_color(app, id));
-}
-
-auto file_path_selector(application&              app,
-                        file_path_selector_option opt,
-                        registred_path_id&        reg_id,
-                        dir_path_id&              dir_id,
-                        file_path_id&             file_id) noexcept -> bool
-{
-    return app.mod.files.read(
-      [&](const auto& fs, const auto /*vers*/) noexcept {
-          auto ret = false;
-
-          const auto newreg_id = combobox_reg(fs, reg_id);
-          if (auto* reg = fs.registred_paths.try_to_get(newreg_id)) {
-              reg_id = newreg_id;
-
-              const auto newdir_id = combobox_dir(fs, *reg, dir_id);
-              if (auto* dir = fs.dir_paths.try_to_get(newdir_id)) {
-                  dir_id = newdir_id;
-
-                  const auto newfile_id =
-                    combobox_file(app, app.new_file, fs, opt, dir_id, file_id);
-                  if (auto* file = fs.file_paths.try_to_get(newfile_id)) {
-                      file_id = newfile_id;
-                      return true;
-                  }
-              } else {
-                  combobox_newdir(app, app.new_dir, fs, newreg_id, dir_id);
-              }
-          }
-
-          return ret;
-      });
 }
 
 void simulation_to_cpp::show(const project_editor& ed) noexcept
@@ -859,12 +500,12 @@ application::application(journal_handler& jn_) noexcept
 
     jn.push(log_level::info, [&](auto& t, auto& m) noexcept {
         t = "irritator initialized";
-        format(
-          m,
-          "Starting with {} ordered list {} unordered list and {} threads\n",
-          task_mgr.ordered_size(),
-          task_mgr.unordered_size(),
-          task_mgr.ordered_size() + task_mgr.unordered_size());
+        format(m,
+               "Starting with {} ordered list {} unordered list and {} "
+               "threads\n",
+               task_mgr.ordered_size(),
+               task_mgr.unordered_size(),
+               task_mgr.ordered_size() + task_mgr.unordered_size());
     });
 }
 
