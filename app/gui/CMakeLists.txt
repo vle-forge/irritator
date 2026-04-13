@@ -6,11 +6,10 @@ set(gui_sources application.cpp application.hpp component-editor.cpp
     editor.cpp editor.hpp flat-simulation-editor.cpp icon-fonts.cpp imnodes.cpp
     imnodes.h imnodes_internal.h implot.cpp implot.h implot_demo.cpp
     implot_internal.h implot_items.cpp internal.cpp internal.hpp
-    library-window.cpp memory-window.cpp notification.cpp output-editor.cpp
-    plot-copy-widget.cpp plot-observation-widget.cpp
-    project-external-source-editor.cpp project-settings-editor.cpp
-    settings-window.cpp simulation-component.cpp project-editor.cpp
-    task-window.cpp window-logger.cpp
+    library-window.cpp memory-window.cpp output-editor.cpp plot-copy-widget.cpp
+    plot-observation-widget.cpp project-external-source-editor.cpp
+    project-settings-editor.cpp settings-window.cpp simulation-component.cpp
+    project-editor.cpp task-window.cpp window-logger.cpp
 
     generic/modeling.cpp
     generic/simulation.cpp
