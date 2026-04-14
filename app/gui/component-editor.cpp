@@ -468,9 +468,9 @@ static bool display_binary_source(
                 bin.file = undefined<file_path_id>();
                 return bin.file != undefined<file_path_id>();
             });
-
-            ImGui::TreePop();
         }
+
+        ImGui::TreePop();
     }
 
     return u > 0;
@@ -517,9 +517,9 @@ static bool display_text_source(
                 txt.file = undefined<file_path_id>();
                 return txt.file != undefined<file_path_id>();
             });
-
-            ImGui::TreePop();
         }
+
+        ImGui::TreePop();
     }
 
     return u > 0;
