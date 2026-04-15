@@ -48,7 +48,7 @@ using description_str    = small_string<1022>;
 using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<64 - 1>;
 using file_path_str      = small_string<64 - 1>;
-using color              = u32;
+using color              = std::array<float, 4>;
 using component_color    = std::array<float, 4>;
 
 /// Maximum deepth of the component tree.
@@ -1441,10 +1441,10 @@ public:
 
     //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
     //! already exists.
-    sub_id push_back(const tree_node_id tn,
-                     const model_id     mdl,
-                     const color                 = 0xFe1a0Fe,
-                     const type_options     t    = type_options::line,
+    sub_id push_back(const tree_node_id     tn,
+                     const model_id         mdl,
+                     const color&           c = color{ 0.5f, 0.5f, 0.5f, 0.f },
+                     const type_options     t = type_options::line,
                      const std::string_view name = std::string_view{}) noexcept;
 
     bool     exists(const sub_id id) const noexcept { return m_ids.exists(id); }

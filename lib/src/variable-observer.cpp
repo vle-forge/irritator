@@ -106,7 +106,7 @@ void variable_observer::erase(const sub_id i) noexcept
 variable_observer::sub_id variable_observer::push_back(
   const tree_node_id     tn,
   const model_id         mdl,
-  const color            c,
+  const color&           c,
   const type_options     t,
   const std::string_view name) noexcept
 {

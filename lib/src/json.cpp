@@ -4470,34 +4470,21 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool copy(const component_color& cc, color& c) noexcept
-    {
-        c = 0;
-        c = (u32)((int)(std::clamp(cc[0], 0.f, 1.f) * 255.f + 0.5f));
-        c |= ((u32)((int)(std::clamp(cc[1], 0.f, 1.f) * 255.0f + 0.5f)) << 8);
-        c |= ((u32)((int)(std::clamp(cc[2], 0.f, 1.f) * 255.0f + 0.5f)) << 16);
-        c |= ((u32)((int)(std::clamp(cc[3], 0.f, 1.f) * 255.0f + 0.5f)) << 24);
-        return true;
-    }
-
     bool read_color(const rapidjson::Value& val, color& c) noexcept
     {
-        auto_stack      s(this, "load color");
-        component_color cc{};
+        auto_stack s(this, "load color");
 
         return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
-                 val,
-                 [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_real(value) && copy_real_to(cc[i]);
-                 }) &&
-               copy(cc, c);
+                 val, [&](const auto i, const auto& value) noexcept -> bool {
+                     return read_temp_real(value) && copy_real_to(c[i]);
+                 });
     }
 
     bool plot_observation_init(variable_observer&                    plot,
                                const tree_node_id                    parent_id,
                                const model_id                        mdl_id,
-                               const color                           c,
+                               const color&                          c,
                                const variable_observer::type_options t,
                                const std::string_view name) noexcept
     {
@@ -4518,7 +4505,7 @@ struct json_dearchiver::impl {
         std::optional<tree_node_id> parent_id;
         std::optional<model_id>     mdl_id;
 
-        auto c = color(0xff0ff);
+        auto c = color{ 1.f, 0.5f, 1.0f, 0.f };
         auto t = variable_observer::type_options::line;
 
         return for_each_member(
@@ -6628,13 +6615,13 @@ struct json_archiver::impl {
      ****************************************************************************/
 
     template<typename Writer>
-    void write_color(Writer& w, std::array<u8, 4> color) noexcept
+    void write_color(Writer& w, const color& c) noexcept
     {
         w.StartArray();
-        w.Uint(color[0]);
-        w.Uint(color[1]);
-        w.Uint(color[2]);
-        w.Uint(color[3]);
+        w.Double(c[0]);
+        w.Double(c[1]);
+        w.Double(c[2]);
+        w.Double(c[3]);
         w.EndArray();
     }
 
@@ -6648,7 +6635,7 @@ struct json_archiver::impl {
         w.EndArray();
     }
 
-    constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
+    constexpr static std::array<float, 4> color_white{ 1.f, 1.f, 1.f, 0.f };
 
     template<typename Writer>
     void do_project_save_parameters(Writer& w, project& pj) noexcept
@@ -6677,10 +6664,11 @@ struct json_archiver::impl {
             w.StartArray();
             plot.for_each([&](const auto id) noexcept {
                 w.StartObject();
-                const auto idx = get_index(id);
-                const auto tn  = plot.get_tn_ids()[idx];
-                const auto mdl = plot.get_mdl_ids()[idx];
-                const auto str = plot.get_names()[idx];
+                const auto idx   = get_index(id);
+                const auto tn    = plot.get_tn_ids()[idx];
+                const auto mdl   = plot.get_mdl_ids()[idx];
+                const auto str   = plot.get_names()[idx];
+                const auto color = plot.get_colors()[idx];
 
                 if (not str.empty()) {
                     w.Key("name");
@@ -6692,7 +6680,7 @@ struct json_archiver::impl {
                 write_project_unique_id_path(w, path);
 
                 w.Key("color");
-                write_color(w, color_white);
+                write_color(w, color);
 
                 w.Key("type");
                 w.String("line");
