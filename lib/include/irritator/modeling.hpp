@@ -49,7 +49,6 @@ using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<64 - 1>;
 using file_path_str      = small_string<64 - 1>;
 using color              = std::array<float, 4>;
-using component_color    = std::array<float, 4>;
 
 /// Maximum deepth of the component tree.
 constexpr i32 max_component_stack_size = 16;
@@ -1507,7 +1506,7 @@ struct component_access {
 
     id_array<component_id>      ids;
     vector<component>           components;
-    vector<component_color>     component_colors;
+    vector<color>               component_colors;
     vector<component_file_path> component_file_paths;
     vector<description_str>     component_descriptions;
 

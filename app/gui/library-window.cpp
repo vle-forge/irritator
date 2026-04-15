@@ -245,7 +245,7 @@ void library_window::show_file_component(const file_access&      fs,
 
     ImGui::PushID(ordinal(id));
 
-    component_color im = ids.component_colors[id];
+    auto im = ids.component_colors[id];
 
     if (ImGui::ColorEdit4("Color selection",
                           im.data(),
@@ -326,7 +326,7 @@ void library_window::show_notsaved_content(
             const auto  is_not_saved = not fs.file_paths.try_to_get(f_id);
 
             if (is_not_saved) {
-                component_color color = ids.component_colors[id];
+                auto       color      = ids.component_colors[id];
                 const auto selected   = app.component_ed.is_component_open(id);
 
                 ImGui::PushID(reinterpret_cast<const void*>(&compo));
