@@ -479,20 +479,33 @@ void library_window::try_set_component_as_project(
   application&       app,
   const component_id compo_id) noexcept
 {
-    const auto pj_id = app.alloc_project_window();
-    if (app.pjs.try_to_get(pj_id)) {
-        app.add_gui_task([&app, compo_id, pj_id]() noexcept {
-            auto& pj = app.pjs.get(pj_id);
+    app.add_gui_task([&app, compo_id]() noexcept {
+        const auto pj_id = app.alloc_project_window();
+        if (auto* pj = app.pjs.try_to_get(pj_id)) {
+            const auto load = pj->pj.set(app.mod, compo_id);
+            if (load.has_error()) {
+                app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                    const auto cat = load.error().cat();
+                    const auto err = load.error().value();
 
-            if (not pj.pj.set(app.mod, compo_id)) {
-                app.jn.push(log_level::error, [](auto& title, auto& msg) {
-                    title = "Project failure",
-                    msg   = "Fail to import component as project";
+                    t = "Project: fail to set a new project";
+                    format(m,
+                           "Error during import (category: {} error: {})",
+                           ordinal(cat),
+                           err);
+
+                    app.pjs.free(pj_id);
                 });
+                return;
             }
-            pj.disable_access = false;
-        });
-    }
+            pj->disable_access = false;
+        } else {
+            app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                t = "Project: fail to create new project";
+                format(m, "Too many project opened ({})", app.pjs.size());
+            });
+        }
+    });
 }
 
 static auto is_component_used_in_components(const component_access& ids,
