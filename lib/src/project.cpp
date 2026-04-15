@@ -504,8 +504,12 @@ static auto make_tree_hsm_leaf(const simulation_copy&  sc,
     const auto id_param_0 = mod_parameter.integers[hsm_wrapper_tag::id];
     const auto compo_id   = enum_cast<component_id>(id_param_0);
 
-    if (not ids.exists(compo_id))
+    if (not ids.exists(compo_id)) {
+        sc.mod.journal.push(log_level::error, [&](auto& t, auto&) {
+            t = "hsm-wrapper initialization error: undefined component";
+        });
         return new_error(project_errc::component_unknown);
+    }
 
     const auto& compo = ids.components[compo_id];
     if (compo.type != component_type::hsm)
@@ -771,8 +775,18 @@ static status make_tree_recursive(simulation_copy&        sc,
                                          child_id,
                                          child);
 
-            if (not mdl_id)
+            if (not mdl_id) {
+                sc.mod.journal.push(
+                  log_level::error, [&](auto& t, auto& m) noexcept {
+                      t = "Project: import error in generic component";
+                      format(m,
+                             "model {} dynamics type {}",
+                             src.children_names[child_idx].sv(),
+                             dynamics_type_names[ordinal(mdl_type)]);
+                  });
+
                 return mdl_id.error();
+            }
 
             new_tree.children[child_id].set(*mdl_id);
         }
