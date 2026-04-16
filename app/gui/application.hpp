@@ -1221,7 +1221,8 @@ struct command {
 struct project_editor {
     enum class visualization_mode { flat, tree };
 
-    explicit project_editor(const std::string_view default_name) noexcept;
+    project_editor(const std::string_view default_name,
+                   project&&              project_) noexcept;
 
     ~project_editor() noexcept;
 
@@ -1278,8 +1279,7 @@ struct project_editor {
 
     raw_data_type save_simulation_raw_data = raw_data_type::none;
 
-    bool             is_dock_init   = false;
-    std::atomic_bool disable_access = true;
+    bool is_dock_init = false;
 
     /** Return true if a simulation is currently running.
      *
@@ -1486,14 +1486,19 @@ public:
 class library_window
 {
 public:
-    constexpr static inline const char* name = "Library";
+    constexpr static inline const char* name                = "Library";
+    constexpr static inline auto        open_file_list_size = 64;
+
+    union file_target {
+        project_id   pj_id = undefined<project_id>();
+        component_id compo_id;
+        graph_id     g_id;
+    };
 
     library_window() noexcept
       : stack(max_component_stack_size, reserve_tag)
+      , open_file_list(open_file_list_size, reserve_tag)
     {}
-
-    void try_set_component_as_project(application&       app,
-                                      const component_id id) noexcept;
 
     enum class is_component_deletable_t : u8 {
         deletable,
@@ -1509,10 +1514,19 @@ public:
 
     void show() noexcept;
 
+    void add_open_file(const file_path_id, const project_id) noexcept;
+    void add_open_file(const file_path_id, const component_id) noexcept;
+    void add_open_file(const file_path_id, const graph_id) noexcept;
+    std::optional<file_target> get_open_file(const file_path_id) noexcept;
+    void                       close_open_file(const file_path_id) noexcept;
+
     bool is_open = true;
 
 private:
     vector<tree_node*> stack;
+
+    /// Stores the list of opened files.
+    table<file_path_id, file_target> open_file_list;
 
     enum class file_type : u8 {
         none,
@@ -1551,7 +1565,10 @@ private:
     void show_file_component(const file_access&,
                              const component_access&,
                              const component_id) noexcept;
-    void show_file_project(const file_access&, const file_path_id) noexcept;
+    void show_file_project(const file_access&,
+                           const component_access&,
+                           const file_path&,
+                           const file_path_id) noexcept;
 };
 
 class settings_window
@@ -1820,17 +1837,27 @@ public:
     hsm_simulation_editor          hsm_sim;
     project_external_source_editor data_ed;
 
-    /// Try to allocate a project and affect a new name to the newly
-    /// allocated project_window. If project allocation fails, a message is
-    /// put in @c journal_handler.
-    project_id alloc_project_window() noexcept;
+    request_buffer<std::unique_ptr<project>> new_project_req;
 
-    /// Open a project window according to the @a file_id.
-    project_id open_project_window(const file_path_id file_id) noexcept;
+    void request_alloc_project_editor(std::unique_ptr<project> pj) noexcept
+    {
+        if (new_project_req.should_request())
+            new_project_req.fulfill(std::move(pj));
+    }
+
+    /// Open a new project window iff component @c id can be set as a project.
+    void try_set_component_as_project(const file_access&      files,
+                                      const component_access& ids,
+                                      const component_id      id) noexcept;
+
+    /// Open a new project window according to the @a file_id
+    void try_open_project_window(const file_access&      files,
+                                 const component_access& ids,
+                                 const file_path_id      file_id) noexcept;
 
     /// Close a project window according to the @a project_id but keep the
     /// correspondiing @c project_editor::file @c file_path_id.
-    file_path_id close_project_window(const project_id project_id) noexcept;
+    void close_project_window(const project_id project_id) noexcept;
 
     /// Free the @a project according to the @a project_id
     void free_project_window(const project_id id) noexcept;

@@ -307,10 +307,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             if (app.show() == irt::application::show_result_t::request_to_close)
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
 
-            for (const auto& pj : app.pjs) {
-                pj.simulation_state.load();
-            }
-
             // Rendering
             ImGui::Render();
             int display_w, display_h;

@@ -77,9 +77,6 @@ void memory_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Project", ImGuiTreeNodeFlags_DefaultOpen)) {
         for (const auto& p : app.pjs) {
-            if (p.disable_access)
-                continue;
-
             const auto id  = app.pjs.get_id(p);
             const auto idx = get_index(id);
 

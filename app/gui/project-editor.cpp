@@ -22,15 +22,13 @@
 
 namespace irt {
 
-project_editor::project_editor(const std::string_view default_name) noexcept
-  : graph_eds{ 16 }
+project_editor::project_editor(const std::string_view default_name,
+                               project&&              project_) noexcept
+  : pj(std::move(project_))
+  , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
     set_title_name(default_name);
-
-    pj.grid_observers.reserve(8);
-    pj.graph_observers.reserve(8);
-    pj.variable_observers.reserve(8);
 
     output_context = ImPlot::CreateContext();
 }
@@ -178,30 +176,28 @@ static bool show_local_simulation_plot_observers_table(
                         sub_obs_id = vobs.push_back(tn_id, mdl_id);
                         tn.variable_observer_ids.set(uid, vobs_id);
 
-                            if (ids.exists(tn.id)) {
-                                auto& c = ids.components[tn.id];
-                                if (c.type == component_type::generic) {
-                                    if (auto* g =
-                                          ids.generic_components.try_to_get(
-                                            c.id.generic_id);
-                                        g) {
-                                        for (auto& ch : g->children) {
-                                            const auto ch_id =
-                                              g->children.get_id(ch);
-                                            const auto ch_idx =
-                                              get_index(ch_id);
-                                            const auto ch_uid =
-                                              g->children_names[ch_idx].sv();
+                        if (ids.exists(tn.id)) {
+                            auto& c = ids.components[tn.id];
+                            if (c.type == component_type::generic) {
+                                if (auto* g = ids.generic_components.try_to_get(
+                                      c.id.generic_id);
+                                    g) {
+                                    for (auto& ch : g->children) {
+                                        const auto ch_id =
+                                          g->children.get_id(ch);
+                                        const auto ch_idx = get_index(ch_id);
+                                        const auto ch_uid =
+                                          g->children_names[ch_idx].sv();
 
-                                            if (ch_uid == uid) {
-                                                vobs.get_names()[get_index(
-                                                  sub_obs_id)] = ch_uid;
-                                                break;
-                                            }
+                                        if (ch_uid == uid) {
+                                            vobs.get_names()[get_index(
+                                              sub_obs_id)] = ch_uid;
+                                            break;
                                         }
                                     }
                                 }
                             }
+                        }
 
                     } else {
                         auto& vobs =
@@ -1052,9 +1048,6 @@ static void show_simulation_editor_treenode(application&    app,
 
 auto project_editor::show(application& app) noexcept -> show_result_t
 {
-    if (disable_access)
-        return show_result_t::success;
-
     if (not is_dock_init) {
         ImGui::SetNextWindowDockID(app.get_main_dock_id());
         is_dock_init = true;

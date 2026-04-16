@@ -330,12 +330,14 @@ int main()
 
                 expect(fatal(irt::is_defined(f_id)));
 
-                const auto compo_id =
-                  mod.files.read([&](const auto& fs,
-                                     const auto /*vers*/) -> irt::component_id {
-                      return fs.file_paths.get(f_id).component;
-                  });
+                const auto compo_id = [&]() {
+                    for (const auto id : ids)
+                        if (f_id == ids.component_file_paths[id].file)
+                            return id;
+                    return irt::undefined<irt::component_id>();
+                }();
 
+                expect(fatal(is_defined(compo_id)));
                 auto& component = ids.components[compo_id];
 
                 expect(fatal(component.type == irt::component_type::generic));

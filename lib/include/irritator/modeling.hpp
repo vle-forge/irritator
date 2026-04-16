@@ -1156,14 +1156,7 @@ struct file_path {
     };
 
     file_path_str path; /**< stores the file name as utf8 string. */
-    dir_path_id   parent{ 0 };
-
-    union {
-        component_id component{ 0 };
-        project_id   pj_id;
-        graph_id     g_id;
-    };
-
+    dir_path_id          parent = undefined<dir_path_id>();
     file_type            type   = file_type::undefined_file;
     state                status = state::unread;
     bitflags<file_flags> flags;
@@ -1638,8 +1631,7 @@ struct file_access {
       const dir_path_id          id,
       const std::string_view     name = std::string_view(),
       const file_path::file_type type = file_path::file_type::undefined_file,
-      const component_id         component = undefined<component_id>(),
-      const project_id           pj_id     = undefined<project_id>()) noexcept;
+      const component_id component    = undefined<component_id>()) noexcept;
 
     dir_path_id alloc_dir(
       const registred_path_id id,

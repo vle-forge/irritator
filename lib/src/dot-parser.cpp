@@ -877,7 +877,16 @@ private:
             return undefined<component_id>();
         }
 
-        return fp->component;
+        for (const auto id : ids)
+            if (ids.component_file_paths[id].file == file_id)
+                return id;
+
+        jn.push(log_level::error, [&](auto& t, auto& m) {
+            t = "Dot parser error";
+            format(m, "Fail to found component from string: `{}'", str);
+        });
+
+        return undefined<component_id>();
     }
 
     bool parse_attributes(const graph_node_id id) noexcept

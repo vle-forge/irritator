@@ -1752,7 +1752,14 @@ struct json_dearchiver::impl {
             return error(
               "unknown component file in {} / {} / {}", reg, dir, file);
 
-        const auto compo_id = f->component;
+        const auto compo_id = [&]() -> component_id {
+            for (const auto id : ids)
+                if (ids.component_file_paths[id].file == file_id)
+                    return id;
+
+            return undefined<component_id>();
+        }();
+
         if (not ids.exists(compo_id))
             return error("unknown component in {} / {} / {}", reg, dir, file);
 
@@ -3667,7 +3674,15 @@ struct json_dearchiver::impl {
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file:
             if (const auto* f = files.file_paths.try_to_get(graph.dot.file)) {
-                if (const auto* g = ids.graphs.try_to_get(f->g_id)) {
+                const auto g_id = [&]() -> graph_id {
+                    for (const auto& g : ids.graphs)
+                        if (g.file == graph.dot.file)
+                            return ids.graphs.get_id(g);
+
+                    return undefined<graph_id>();
+                }();
+
+                if (const auto* g = ids.graphs.try_to_get(g_id)) {
                     graph.g = *g;
                     graph.update_position();
                     return true;

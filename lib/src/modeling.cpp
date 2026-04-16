@@ -403,10 +403,8 @@ status modeling::fill_components() noexcept
                               ids.graphs.template grow<3, 2>()))
                           return new_error(modeling_errc::memory_error);
 
-                      auto&      g        = ids.graphs.alloc();
-                      const auto graph_id = ids.graphs.get_id(g);
-                      g.file              = fs.file_paths.get_id(f);
-                      f.g_id              = graph_id;
+                      auto& g = ids.graphs.alloc();
+                      g.file  = fs.file_paths.get_id(f);
                   }
               }
 
@@ -416,21 +414,15 @@ status modeling::fill_components() noexcept
               }
 
               for (auto& f : fs.file_paths) {
-                  if (f.type != file_path::file_type::component_file)
-                      continue;
+                  if (f.type == file_path::file_type::component_file) {
+                      const auto f_id = fs.file_paths.get_id(f);
 
-                  const auto f_id = fs.file_paths.get_id(f);
-
-                  if (not ids.exists(f.component)) {
-                      if (not ids.can_alloc_component(1)) {
+                      if (not ids.can_alloc_component(1))
                           return new_error(modeling_errc::memory_error);
-                      }
 
                       const auto compo_id = ids.alloc_component();
-                      f.component         = compo_id;
+                      ids.component_file_paths[compo_id].file = f_id;
                   }
-
-                  ids.component_file_paths[f.component].file = f_id;
               }
 
               for (auto& g : ids.graphs) {
@@ -723,18 +715,15 @@ auto file_access::find_directory_in_registry(
 file_path_id file_access::alloc_file(const dir_path_id          id,
                                      const std::string_view     name,
                                      const file_path::file_type type,
-                                     const component_id         compo_id,
-                                     const project_id project_id) noexcept
+                                     const component_id compo_id) noexcept
 {
     if (auto* d = dir_paths.try_to_get(id)) {
         if (file_paths.can_alloc(1) or file_paths.grow<3, 2>()) {
-            auto& file     = file_paths.alloc();
-            auto  fid      = file_paths.get_id(file);
-            file.path      = name;
-            file.component = compo_id;
-            file.pj_id     = project_id;
-            file.parent    = id;
-            file.type      = type;
+            auto& file  = file_paths.alloc();
+            auto  fid   = file_paths.get_id(file);
+            file.path   = name;
+            file.parent = id;
+            file.type   = type;
             d->children.push_back(fid);
             return fid;
         }

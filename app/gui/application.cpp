@@ -525,101 +525,105 @@ unordered_task_list& application::get_unordered_task_list() noexcept
     return task_mgr.unordered(0);
 }
 
-project_id application::alloc_project_window() noexcept
+void application::try_set_component_as_project(const file_access& /*files*/,
+                                               const component_access& ids,
+                                               const component_id id) noexcept
 {
-    if (not pjs.can_alloc(1)) {
-        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "Fail to allocate another project";
-            format(msg,
-                   "There is {} projects opened. Close one before.",
-                   pjs.size());
-        });
+    if (debug::check(ids.exists(id))) {
+        add_gui_task([this, id]() {
+            if (new_project_req.should_request()) {
+                auto pj = std::make_unique<project>();
 
-        return undefined<project_id>();
+                if (const auto ret = pj->set(mod, id); ret.has_error()) {
+                    jn.push(log_level::error, [&](auto& t, auto& m) {
+                        const auto cat = ret.error().cat();
+                        const auto err = ret.error().value();
+
+                        t = "Project: fail to set a new project";
+                        format(m,
+                               "Error during import (category: {} error: {})",
+                               ordinal(cat),
+                               err);
+                    });
+
+                    return;
+                }
+
+                new_project_req.fulfill(std::move(pj));
+            }
+        });
     }
-
-    name_str temp;
-    format(temp, "project-{}", pjs.next_key());
-
-    auto& pj = pjs.alloc(temp.sv());
-
-    return pjs.get_id(pj);
 }
 
-project_id application::open_project_window(const file_path_id file_id) noexcept
+void application::try_open_project_window(const file_access& /*files*/,
+                                          const component_access& /*ids*/,
+                                          const file_path_id file_id) noexcept
 {
-    if (not pjs.can_alloc(1))
+    const auto pj_ed_id = [this, file_id]() noexcept -> project_id {
+        for (const auto& pj_ed : pjs)
+            if (pj_ed.pj.file == file_id)
+                return pjs.get_id(pj_ed);
+
         return undefined<project_id>();
+    }();
 
-    const auto pj_id = alloc_project_window();
-    if (is_undefined(pj_id))
-        return undefined<project_id>();
+    // We found a project already open for this file, we set the focus on this
+    // opened project_editor.
+    if (is_defined(pj_ed_id)) {
+        auto& pj_ed = pjs.get(pj_ed_id);
+        ImGui::SetWindowFocus(pj_ed.title.c_str());
 
-    return mod.files.write([&](auto& fs) {
-        auto* file = fs.file_paths.try_to_get(file_id);
+    } else {
+        // Otherwise we try to open a new project_editor iff the file_id exists,
+        // file_id is a project file and file_id can be set as a new project.
 
-        debug::ensure(file);
-        debug::ensure(is_undefined(file->pj_id));
+        add_gui_task([this, file_id]() {
+            if (new_project_req.should_request()) {
+                auto pj  = std::make_unique<project>();
+                pj->file = file_id;
 
-        if (not file or is_defined(file->pj_id))
-            return undefined<project_id>();
+                if (const auto ret = pj->load(mod); ret.has_error()) {
+                    jn.push(log_level::error, [&](auto& t, auto& m) {
+                        const auto cat = ret.error().cat();
+                        const auto err = ret.error().value();
 
-        auto& pj    = pjs.get(pj_id);
-        file->pj_id = pj_id;
+                        t = "Project: fail to set a new project";
+                        format(m,
+                               "Error during import (category: {} error: {})",
+                               ordinal(cat),
+                               err);
+                    });
 
-        const auto filename    = file->path.sv();
-        const auto without_ext = filename.substr(0, filename.find_last_of('.'));
+                    return;
+                }
 
-        pj.set_title_name(without_ext);
-
-        return pj_id;
-    });
-}
-
-file_path_id application::close_project_window(const project_id pj_id) noexcept
-{
-    const auto* pj = pjs.try_to_get(pj_id);
-    debug::ensure(pj);
-
-    if (not pj)
-        return undefined<file_path_id>();
-
-    const auto file_id = pj->pj.file;
-
-    add_gui_task([&, file_id]() {
-        mod.files.write([&](auto& fs) {
-            if (auto* file = fs.file_paths.try_to_get(file_id))
-                file->pj_id = undefined<project_id>();
-
-            return file_id;
+                new_project_req.fulfill(std::move(pj));
+            }
         });
-    });
+    }
+}
 
-    pjs.free(pj_id);
-
-    return file_id;
+void application::close_project_window(const project_id pj_id) noexcept
+{
+    if (const auto* pj = pjs.try_to_get(pj_id))
+        pjs.free(pj_id);
 }
 
 void application::free_project_window(const project_id pj_id) noexcept
 {
-    const auto* pj = pjs.try_to_get(pj_id);
-    debug::ensure(pj);
+    if (const auto* pj = pjs.try_to_get(pj_id)) {
+        const auto file_id = pj->pj.file;
 
-    if (not pj)
-        return;
-
-    const auto file_id = pj->pj.file;
-
-    add_gui_task([&, file_id]() {
-        mod.files.write([&](auto& fs) {
-            if (auto* file = fs.file_paths.try_to_get(file_id)) {
-                file->pj_id = undefined<project_id>();
-                fs.remove_file(file_id);
-            }
+        add_gui_task([&, file_id]() {
+            mod.files.write([&](auto& fs) {
+                if (auto* file = fs.file_paths.try_to_get(file_id)) {
+                    fs.remove_file(file_id);
+                }
+            });
         });
-    });
 
-    pjs.free(pj_id);
+        pjs.free(pj_id);
+    }
 }
 
 bool application::init() noexcept
@@ -789,6 +793,45 @@ void application::show_dock() noexcept
     }
 
     component_ed.display();
+
+    if (auto new_pj = new_project_req.try_take(); new_pj.has_value()) {
+        if (not pjs.can_alloc(1)) {
+            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+                title = "Fail to allocate another project";
+                format(msg,
+                       "There is {} projects opened. Close one before.",
+                       pjs.size());
+            });
+        } else {
+            if (auto* pj_released = new_pj->release()) {
+                const auto opened =
+                  mod.files.read([&](const auto& fs, auto) noexcept -> bool {
+                      const auto  f_id = pj_released->file;
+                      const auto* f    = fs.file_paths.try_to_get(f_id);
+
+                      if (f) {
+                          const auto filename = f->path.sv();
+                          const auto dot      = filename.find_last_of('.');
+                          const auto label    = filename.substr(0, dot);
+
+                          auto& pj = pjs.alloc(label, std::move(*pj_released));
+                          const auto pj_id = pjs.get_id(pj);
+                          library_wnd.add_open_file(f_id, pj_id);
+                          return true;
+                      }
+
+                      return false;
+                  });
+
+                if (not opened) {
+                    const auto next_key = pjs.next_key();
+                    const auto label    = format_n<32>("project-{}", next_key);
+
+                    pjs.alloc(label.sv(), std::move(*pj_released));
+                }
+            }
+        }
+    }
 
     {
         project_editor* pj       = nullptr;
@@ -1013,8 +1056,6 @@ void application::start_load_project(const project_id pj_id) noexcept
             return;
 
         if (auto ret = pj->pj.load(mod); ret.has_value()) {
-            pj->disable_access = false;
-
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
                 mod.files.read([&](const auto& fs, const auto /*vesr*/) {
                     format(title,
