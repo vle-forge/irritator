@@ -1476,44 +1476,4 @@ status modeling::save(const component_access& ids,
     return success();
 }
 
-status modeling::save(const component_id compo_id) noexcept
-{
-    return ids.read([&](const auto& ids, auto) -> status {
-        if (not ids.exists(compo_id))
-            return new_error(modeling_errc::component_load_error);
-
-        const auto filenames = files.read(
-          [&](const auto& fs, auto) -> std::optional<component_filenames> {
-              return make_component_files(fs, ids, compo_id);
-          });
-
-        if (not filenames.has_value())
-            return new_error(modeling_errc::file_error);
-
-        auto cfile = file::open(filenames->component,
-                                file_mode{ file_open_options::write });
-        if (cfile.has_error()) [[unlikely]]
-            return cfile.error();
-
-        const auto ret = files.read([&](const auto& files, auto) -> status {
-            json_archiver j;
-            if (auto ret = j(*this, files, ids, compo_id, *cfile);
-                ret.has_error())
-                return ret.error();
-            return success();
-        });
-
-        auto dfile = file::open(filenames->description,
-                                file_mode{ file_open_options::write });
-
-        if (dfile.has_value()) [[likely]] {
-            const auto& str = ids.component_descriptions[compo_id];
-            if (not str.empty())
-                dfile->write(str.sv());
-        }
-
-        return ret;
-    });
-}
-
 } // namespace irt

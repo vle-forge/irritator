@@ -1155,7 +1155,7 @@ struct file_path {
         project_file,
     };
 
-    file_path_str path; /**< stores the file name as utf8 string. */
+    file_path_str        path; /**< stores the file name as utf8 string. */
     dir_path_id          parent = undefined<dir_path_id>();
     file_type            type   = file_type::undefined_file;
     state                status = state::unread;
@@ -1717,8 +1717,6 @@ public:
     journal_handler& journal;
 
     modeling_status state = modeling_status::unmodified;
-
-    status save(const component_id c) noexcept;
 
     status save(const component_access& ids,
                 const file_access&      fs,

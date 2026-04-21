@@ -277,14 +277,16 @@ int main()
                 return component_id;
             });
 
-            expect(mod.save(compo_id).has_value());
-
             mod.ids.read([&](const auto& ids, auto) {
-                expect(eq(ids.size(), 1u));
-                expect(eq(ids.generic_components.size(), 1u));
-            });
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(mod.save(ids, fs, compo_id).has_value());
 
-            expect(fatal(mod.save(compo_id).has_value()));
+                    expect(eq(ids.size(), 1u));
+                    expect(eq(ids.generic_components.size(), 1u));
+
+                    expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+                });
+            });
         }
 
         {
@@ -925,10 +927,14 @@ int main()
             cell_number = g.cells_number();
         });
 
-        expect(!!mod.save(c1_id));
-        expect(!!mod.save(c2_id));
-        expect(!!mod.save(c3_id));
-        expect(!!mod.save(cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& files, auto) {
+                expect(!!mod.save(ids, files, c1_id));
+                expect(!!mod.save(ids, files, c2_id));
+                expect(!!mod.save(ids, files, c3_id));
+                expect(!!mod.save(ids, files, cg_id));
+            });
+        });
 
         expect(!!pj.set(mod, cg_id));
         expect(eq(pj.tree_nodes_size().first, cell_number * 3 + 1));
@@ -1083,14 +1089,13 @@ int main()
             });
 
             mod.ids.read([&](const auto& ids, auto) noexcept {
-                for (int i = 0, e = irt::internal_component_count; i != e;
-                     ++i) {
-                    mod.ids.read([&](const auto& ids, auto) noexcept {
+                mod.files.read([&](const auto& files, auto) noexcept {
+                    for (int i = 0, e = irt::internal_component_count; i != e;
+                         ++i) {
                         expect(fatal(ids.exists(i_ids[i])));
-
-                        expect(mod.save(i_ids[i]).has_value());
-                    });
-                }
+                        expect(mod.save(ids, files, i_ids[i]).has_value());
+                    }
+                });
 
                 expect(eq(ids.ssize(), irt::internal_component_count));
             });

@@ -1180,25 +1180,27 @@ void application::start_save_component(const component_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         mod.ids.read([&](const auto& ids, auto) noexcept {
-            if (ids.exists(id)) {
-                const auto& compo = ids.components[id];
+            mod.files.read([&](const auto& fs, auto) noexcept {
+                if (ids.exists(id)) {
+                    const auto& compo = ids.components[id];
 
-                if (auto ret = mod.save(id); not ret) {
-                    jn.push(log_level::error, [&](auto& title, auto& msg) {
-                        title = "Component save error";
-                        format(msg,
-                               "Fail to save {} (part: {} {}",
-                               compo.name.sv(),
-                               ordinal(ret.error().cat()),
-                               ret.error().value());
-                    });
-                } else {
-                    jn.push(log_level::notice, [&](auto& title, auto& msg) {
-                        title = "Component save";
-                        format(msg, "Save {} success", compo.name.sv());
-                    });
+                    if (auto ret = mod.save(ids, fs, id); not ret) {
+                        jn.push(log_level::error, [&](auto& title, auto& msg) {
+                            title = "Component save error";
+                            format(msg,
+                                   "Fail to save {} (part: {} {}",
+                                   compo.name.sv(),
+                                   ordinal(ret.error().cat()),
+                                   ret.error().value());
+                        });
+                    } else {
+                        jn.push(log_level::notice, [&](auto& title, auto& msg) {
+                            title = "Component save";
+                            format(msg, "Save {} success", compo.name.sv());
+                        });
+                    }
                 }
-            }
+            });
         });
     });
 }
