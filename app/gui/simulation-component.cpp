@@ -105,13 +105,15 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
-    auto ret = [&]() noexcept -> status {
-        irt_check(ed.pj.set(app.mod, ed.pj.head()));
-        irt_check(ed.pj.sim.srcs.prepare());
-        irt_check(ed.pj.sim.initialize());
-        ed.simulation_state = simulation_status::initialized;
-        return success();
-    }();
+    const auto ret = app.mod.ids.read([&](const auto& ids, auto) -> status {
+        return app.mod.files.read([&](const auto& fs, auto) -> status{
+            irt_check(ed.pj.set(ids, fs, ed.pj.head(), app.jn));
+            irt_check(ed.pj.sim.srcs.prepare());
+            irt_check(ed.pj.sim.initialize());
+            ed.simulation_state = simulation_status::initialized;
+            return success();
+        });
+    });
 
     if (not ret.has_value()) {
         ed.simulation_state = simulation_status::not_started;

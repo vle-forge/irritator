@@ -1882,22 +1882,21 @@ public:
      * into the @c project and the number of @c irt::model and @c
      * irt::hierarchical_state_machine to fill the @C irt::simulation
      * structures. */
-    required_data compute_memory_required(const modeling&    mod,
+    required_data compute_memory_required(const component_access& ids,
                                           const component_id c) const noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling&               mod,
-               const component_access& ids,
-               const component_id      compo_id) noexcept;
-
-    /// Assign a new @c component head. The previously allocated tree_node
-    /// hierarchy is removed and a newly one is allocated.
-    status set(modeling& mod, const component_id compo_id) noexcept;
+    status set(const component_access& ids,
+               const file_access&      fs,
+               const component_id      compo_id,
+               journal_handler&        jn) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component
     /// head.
-    status rebuild(modeling& mod) noexcept;
+    status rebuild(const component_access& ids,
+                   const file_access&      fs,
+                   journal_handler&        jn) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;

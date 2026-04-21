@@ -152,7 +152,10 @@ int main()
                 for (auto i = 0; i < 17; ++i) {
                     pj.clear();
 
-                    expect(pj.set(mod, components[i]).has_value());
+                    mod.files.read([&](const auto& fs, auto) {
+                        expect(pj.set(ids, fs, components[i], jnl).has_value());
+                    });
+
                     pj.sim.limits.set_bound(0, 20);
 
                     expect(pj.sim.initialize().has_value());
@@ -438,7 +441,12 @@ int main()
             expect(eq(s3.connections.ssize(), 1));
         });
 
-        expect(!!pj.set(mod, c3_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, c3_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, 3));
 
         expect(eq(pj.sim.models.ssize(), 2));
@@ -479,7 +487,11 @@ int main()
             s3.alloc(c1_id);
         });
 
-        expect(!!pj.set(mod, c3_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, c3_id, jn));
+            });
+        });
         expect(eq(pj.tree_nodes_size().first, 3));
 
         expect(eq(pj.sim.models.ssize(), 2));
@@ -540,7 +552,12 @@ int main()
                                 irt::connection::port{ .compo = p11_id }));
         });
 
-        expect(!!pj.set(mod, c3_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, c3_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, 5));
 
         expect(eq(pj.sim.models.ssize(), 2));
@@ -583,7 +600,12 @@ int main()
             node_size = g.g.nodes.ssize();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, node_size + 1));
         expect(eq(pj.sim.models.ssize(), node_size));
     };
@@ -614,7 +636,12 @@ int main()
             node_size = g.g.nodes.ssize();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, node_size + 1));
         expect(eq(pj.sim.models.ssize(), node_size));
     };
@@ -656,7 +683,12 @@ int main()
             edge_size     = g.g.edges.ssize();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, node_size + 1));
         expect(eq(pj.sim.models.ssize(), node_size));
         expect(eq(get_connection_number(pj.sim), edge_size));
@@ -706,7 +738,12 @@ int main()
             edge_size = g.g.edges.ssize();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, node_size + 1));
         expect(eq(pj.sim.models.ssize(), node_size));
         expect(eq(get_connection_number(pj.sim), 2u * edge_size));
@@ -780,7 +817,12 @@ int main()
             edge_size = g.g.edges.ssize();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, node_size + 1));
         expect(eq(pj.sim.models.ssize(), node_size));
         expect(eq(get_connection_number(pj.sim), 2 * edge_size));
@@ -808,7 +850,12 @@ int main()
             cell_number = g.cells_number();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, cell_number + 1));
         expect(eq(pj.sim.models.ssize(), cell_number));
     };
@@ -841,7 +888,12 @@ int main()
             col = g.column();
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, (row - 2) * (col - 2) + 1));
         expect(eq(pj.sim.models.ssize(), (row - 2) * (col - 2)));
     };
@@ -936,7 +988,12 @@ int main()
             });
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, cell_number * 3 + 1));
 
         expect(eq(pj.sim.models.ssize(), cell_number * 2));
@@ -1022,7 +1079,11 @@ int main()
             return compo_id;
         });
 
-        expect(!!pj.set(mod, compo_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, compo_id, jn));
+            });
+        });
 
         pj.sim.limits.set_bound(0, 10);
         expect(!!pj.sim.srcs.prepare());
@@ -1206,7 +1267,12 @@ int main()
             return cg_id;
         });
 
-        expect(!!pj.set(mod, cg_id));
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.tree_nodes_size().first, cell_number * 3 + 1));
         expect(eq(pj.sim.models.ssize(), cell_number * 3));
 
@@ -1312,7 +1378,12 @@ int main()
                 return cg_id;
             });
 
-            expect(!!pj.set(mod, cg_id));
+            mod.ids.read([&](const auto& ids, auto) {
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(!!pj.set(ids, fs, cg_id, jn));
+                });
+            });
+
             expect(eq(pj.tree_nodes_size().first, cell_number * 3 + 1));
             expect(eq(pj.sim.models.ssize(), cell_number * 3));
 
@@ -1387,9 +1458,14 @@ int main()
             return cg_id;
         });
 
-        expect(pj.set(mod, cg_id).has_error()); /* Fail to build the project
-                                     since the constant models can not be
-                                     initialized with dyn.port equals to 17. */
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(
+                  pj.set(ids, fs, cg_id, jn).has_error()); /* Fail to build the
+                                project since the constant models can not be
+                                initialized with dyn.port equals to 17. */
+            });
+        });
 
         irt::on_error_callback = old_error_callback;
     };
@@ -1457,7 +1533,11 @@ int main()
             return cg_id;
         });
 
-        expect(pj.set(mod, cg_id).has_value());
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
 
         int nb_sum_model      = 0;
         int nb_counter_model  = 0;
@@ -1546,7 +1626,11 @@ int main()
             return cg_id;
         });
 
-        expect(pj.set(mod, cg_id).has_value());
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
 
         int nb_sum_model      = 0;
         int nb_counter_model  = 0;
@@ -1651,7 +1735,11 @@ int main()
                 return root_id;
             });
 
-            expect(pj.set(mod, root_id).has_value());
+            mod.ids.read([&](const auto& ids, auto) {
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(!!pj.set(ids, fs, root_id, jn));
+                });
+            });
 
             int nb_sum_model      = 0;
             int nb_counter_model  = 0;
@@ -1696,7 +1784,11 @@ int main()
                                         .child_component = compo_id });
             });
 
-            expect(pj.set(mod, root_id).has_value());
+            mod.ids.read([&](const auto& ids, auto) {
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(!!pj.set(ids, fs, root_id, jn));
+                });
+            });
 
             nb_sum_model      = 0;
             nb_counter_model  = 0;
@@ -1752,7 +1844,11 @@ int main()
                        irt::port_option::sum);
             });
 
-            expect(pj.set(mod, root_id).has_value());
+            mod.ids.read([&](const auto& ids, auto) {
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(!!pj.set(ids, fs, root_id, jn));
+                });
+            });
 
             nb_sum_model      = 0;
             nb_counter_model  = 0;
@@ -1881,7 +1977,12 @@ int main()
             edge_size = g.g.edges.size() * 2u * 2u;
         });
 
-        expect(pj.set(mod, cg_id).has_value());
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
+
         expect(eq(pj.sim.models.ssize(), 3 * 4));
         expect(eq(get_connection_number(pj.sim), edge_size));
     };
@@ -1987,7 +2088,11 @@ int main()
             edge_size = g.g.edges.size();
         });
 
-        expect(pj.set(mod, cg_id).has_value());
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, cg_id, jn));
+            });
+        });
 
         // Six components plus 2 automatic 4 sum models (5 input models
         // A,
@@ -2163,7 +2268,11 @@ int main()
             edge_size = g.g.edges.size();
         });
 
-        expect(pj.set(mod, head_id).has_value());
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(!!pj.set(ids, fs, head_id, jn));
+            });
+        });
 
         // Six components plus 2 automatic 4 sum models (5 input models
         // A,

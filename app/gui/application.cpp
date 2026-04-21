@@ -532,24 +532,30 @@ void application::try_set_component_as_project(const file_access& /*files*/,
     if (debug::check(ids.exists(id))) {
         add_gui_task([this, id]() {
             if (new_project_req.should_request()) {
-                auto pj = std::make_unique<project>();
+                mod.ids.read([&](const auto& ids, auto) noexcept {
+                    mod.files.read([&](const auto& fs, auto) noexcept {
+                        auto pj = std::make_unique<project>();
 
-                if (const auto ret = pj->set(mod, id); ret.has_error()) {
-                    jn.push(log_level::error, [&](auto& t, auto& m) {
-                        const auto cat = ret.error().cat();
-                        const auto err = ret.error().value();
+                        if (const auto ret = pj->set(ids, fs, id, jn);
+                            ret.has_error()) {
+                            jn.push(log_level::error, [&](auto& t, auto& m) {
+                                const auto cat = ret.error().cat();
+                                const auto err = ret.error().value();
 
-                        t = "Project: fail to set a new project";
-                        format(m,
-                               "Error during import (category: {} error: {})",
-                               ordinal(cat),
-                               err);
+                                t = "Project: fail to set a new project";
+                                format(m,
+                                       "Error during import (category: {} "
+                                       "error: {})",
+                                       ordinal(cat),
+                                       err);
+                            });
+
+                            return;
+                        }
+
+                        new_project_req.fulfill(std::move(pj));
                     });
-
-                    return;
-                }
-
-                new_project_req.fulfill(std::move(pj));
+                });
             }
         });
     }

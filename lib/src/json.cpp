@@ -4190,12 +4190,15 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool project_set(const component_access& ids, component_id c_id) noexcept
+    bool project_set(const component_access& ids,
+                     const file_access&      fs,
+                     component_id            c_id,
+                     journal_handler&        jn) noexcept
     {
         auto_stack s(this, "project set components");
 
         if (ids.exists(c_id)) {
-            if (auto ret = pj().set(mod(), ids, c_id); ret)
+            if (auto ret = pj().set(ids, fs, c_id, jn); ret)
                 return true;
             else
                 return error("fail to build project");
@@ -4205,7 +4208,8 @@ struct json_dearchiver::impl {
 
     bool read_project_top_component(const rapidjson::Value& val,
                                     const file_access&      files,
-                                    const component_access& ids) noexcept
+                                    const component_access& ids,
+                                    journal_handler&        jn) noexcept
     {
         auto_stack s(this, "project top component");
 
@@ -4237,7 +4241,7 @@ struct json_dearchiver::impl {
                                               dir_path.sv(),
                                               file_path.sv(),
                                               c_id) and
-               project_set(ids, c_id);
+               project_set(ids, files, c_id, jn);
     }
 
     template<typename T>
@@ -4693,14 +4697,15 @@ struct json_dearchiver::impl {
 
     bool read_project(const rapidjson::Value& val,
                       const file_access&      files,
-                      const component_access& ids) noexcept
+                      const component_access& ids,
+                      journal_handler&        jn) noexcept
     {
         auto_stack s(this, "project");
 
         double begin = { 0 };
         double end   = { 100 };
 
-        return read_project_top_component(val, files, ids) &&
+        return read_project_top_component(val, files, ids, jn) &&
                for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
@@ -4740,12 +4745,13 @@ struct json_dearchiver::impl {
 
     status parse_project(const rapidjson::Document& doc,
                          const file_access&         files,
-                         const component_access&    ids) noexcept
+                         const component_access&    ids,
+                         journal_handler&           jn) noexcept
     {
         pj().clear();
         sim().clear();
 
-        if (read_project(doc.GetObject(), files, ids))
+        if (read_project(doc.GetObject(), files, ids, jn))
             return success();
 
         return error_code(json_errc::invalid_project_format);
@@ -6964,7 +6970,7 @@ status json_dearchiver::operator()(project&                pj,
         return ret.error();
 
     json_dearchiver::impl i(*this, mod, sim, pj, path);
-    return i.parse_project(doc, files, ids);
+    return i.parse_project(doc, files, ids, mod.journal);
 }
 
 status json_dearchiver::operator()(modeling&          mod,
@@ -7008,7 +7014,7 @@ status json_dearchiver::operator()(project&                pj,
 
     return parse_json_data(io, doc).and_then([&]() {
         json_dearchiver::impl i(*this, mod, sim, pj);
-        return i.parse_project(doc, files, ids);
+        return i.parse_project(doc, files, ids, mod.journal);
     });
 }
 
