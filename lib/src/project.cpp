@@ -528,13 +528,13 @@ static auto make_tree_hsm_leaf(const simulation_copy&  sc,
     return success();
 }
 
-static auto make_tree_constant_leaf(simulation_copy&        sc,
+static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
                                     const component_access& ids,
                                     tree_node&              parent,
                                     const parameter&        mod_parameter,
                                     parameter&              sim_parameter,
                                     constant&               dyn,
-                                    journal_handler& jn) noexcept -> status
+                                    journal_handler& /*jn*/) noexcept -> status
 {
     const auto raw_type = mod_parameter.integers[constant_tag::i_type];
     debug::ensure(0 <= raw_type and raw_type < constant::init_type_count);
@@ -2058,9 +2058,9 @@ project::required_data project::compute_memory_required(
 static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
   simulation_copy&        sc,
   const component_access& ids,
-  const file_access&      fs,
-  const component_id      compo_id,
-  journal_handler&        jn) noexcept
+  const file_access& /*fs*/,
+  const component_id compo_id,
+  journal_handler& /*jn*/) noexcept
 {
     if (not sc.tree_nodes.can_alloc())
         return new_error(project_errc::memory_error);

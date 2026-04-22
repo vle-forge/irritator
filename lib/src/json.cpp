@@ -3673,7 +3673,7 @@ struct json_dearchiver::impl {
 
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file:
-            if (const auto* f = files.file_paths.try_to_get(graph.dot.file)) {
+            if (files.file_paths.try_to_get(graph.dot.file)) {
                 const auto g_id = [&]() -> graph_id {
                     for (const auto& g : ids.graphs)
                         if (g.file == graph.dot.file)

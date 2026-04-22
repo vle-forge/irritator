@@ -611,7 +611,7 @@ void application::try_open_project_window(const file_access& /*files*/,
 
 void application::close_project_window(const project_id pj_id) noexcept
 {
-    if (const auto* pj = pjs.try_to_get(pj_id))
+    if (pjs.try_to_get(pj_id))
         pjs.free(pj_id);
 }
 
