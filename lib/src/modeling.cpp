@@ -390,6 +390,60 @@ int file_access::browse_registreds(journal_handler& jn) noexcept
     return file_paths.ssize() - old;
 }
 
+static auto load_component(modeling&                    mod,
+                           const file_access&           files,
+                           component_access&            ids,
+                           const std::filesystem::path& filename,
+                           const component_id compo_id) noexcept -> status
+{
+    if (not ids.exists(compo_id))
+        return new_error(modeling_errc::component_load_error);
+
+    auto& compo = ids.components[compo_id];
+
+    try {
+        auto f = file::open(filename, file_mode{ file_open_options::read });
+
+        if (f.has_value()) {
+            json_dearchiver j;
+
+            if (not j(
+                  mod, files, ids, filename.string(), compo_id, compo, *f)) {
+                return error_code(modeling_errc::component_load_error);
+            }
+
+            compo.state = component_status::unmodified;
+
+            std::filesystem::path descfilename = filename;
+            descfilename.replace_extension(".desc");
+            auto ec = std::error_code{};
+
+            if (std::filesystem::exists(descfilename, ec) and not ec) {
+                auto d = file::open(descfilename,
+                                    file_mode{ file_open_options::read });
+
+                if (d.has_value()) {
+                    auto& desc = ids.component_descriptions[compo_id];
+                    auto  view = std::span<char>(desc.data(), desc.capacity());
+                    auto  fileview = d->read_entire_file(view);
+                    desc.resize(fileview.size());
+                }
+            }
+        } else {
+            compo.state = component_status::unreadable;
+            return f.error();
+        }
+    } catch (const std::bad_alloc& /*e*/) {
+        compo.state = component_status::unreadable;
+        return new_error(modeling_errc::memory_error);
+    } catch (...) {
+        compo.state = component_status::unreadable;
+        return new_error(modeling_errc::memory_error);
+    }
+
+    return success();
+}
+
 status modeling::fill_components() noexcept
 {
     return ids.write([&](auto& ids) noexcept -> status {
@@ -469,7 +523,8 @@ status modeling::fill_components() noexcept
 
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
-                        if (const auto ret = load_component(fs, ids, *f, id);
+                        if (const auto ret =
+                              load_component(*this, fs, ids, *f, id);
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
@@ -529,59 +584,6 @@ status modeling::fill_components() noexcept
 void modeling::browse_file_system() noexcept
 {
     files.write([&](file_access& fs) { fs.browse_registreds(journal); });
-}
-
-status modeling::load_component(const file_access&           files,
-                                component_access&            ids,
-                                const std::filesystem::path& filename,
-                                const component_id           compo_id) noexcept
-{
-    if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_load_error);
-
-    auto& compo = ids.components[compo_id];
-
-    try {
-        auto f = file::open(filename, file_mode{ file_open_options::read });
-
-        if (f.has_value()) {
-            json_dearchiver j;
-
-            if (not j(
-                  *this, files, ids, filename.string(), compo_id, compo, *f)) {
-                return error_code(modeling_errc::component_load_error);
-            }
-
-            compo.state = component_status::unmodified;
-
-            std::filesystem::path descfilename = filename;
-            descfilename.replace_extension(".desc");
-            auto ec = std::error_code{};
-
-            if (std::filesystem::exists(descfilename, ec) and not ec) {
-                auto d = file::open(descfilename,
-                                    file_mode{ file_open_options::read });
-
-                if (d.has_value()) {
-                    auto& desc = ids.component_descriptions[compo_id];
-                    auto  view = std::span<char>(desc.data(), desc.capacity());
-                    auto  fileview = d->read_entire_file(view);
-                    desc.resize(fileview.size());
-                }
-            }
-        } else {
-            compo.state = component_status::unreadable;
-            return f.error();
-        }
-    } catch (const std::bad_alloc& /*e*/) {
-        compo.state = component_status::unreadable;
-        return new_error(modeling_errc::memory_error);
-    } catch (...) {
-        compo.state = component_status::unreadable;
-        return new_error(modeling_errc::memory_error);
-    }
-
-    return success();
 }
 
 void file_access::remove(const file_path_id id) noexcept

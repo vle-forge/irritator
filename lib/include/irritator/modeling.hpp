@@ -1683,20 +1683,18 @@ struct file_access {
 class modeling
 {
 public:
-    //! Ctor parameters are used to initialized the default stock of all
-    //! data-array and observations objects.
-    //!
-    //! \param jnl
-    //! \param res
+    /**
+     * Ctor parameters are used to initialized the default stock of all
+     * data-array and observations objects.
+     *
+     * \todo Remove the journal attributes.
+     *
+     * \param jnl A journal handler reference stores in this class.
+     * \param res A definition of capacity for all containers.
+     */
     modeling(journal_handler&                   jnl,
              const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
-
-    //! Reads the component @c compo and all dependencies recursively.
-    status load_component(const file_access&           files,
-                          component_access&            ids,
-                          const std::filesystem::path& path,
-                          const component_id           compo_id) noexcept;
 
     /**
      * Browse the file system then reads the content of all components.
