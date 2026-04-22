@@ -143,7 +143,7 @@ void settings_window::show() noexcept
                     const auto newfiles =
                       fs.browse_registred(app.jn, to_refresh);
                     if (newfiles > 0) {
-                        app.mod.fill_components();
+                        app.mod.fill_components(app.jn);
 
                         app.jn.push(log_level::info,
                                     [newfiles](auto& title, auto& msg) {

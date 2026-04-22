@@ -145,64 +145,10 @@ component_access::component_access(
   , graphs(res.graph_compos.value())
 {}
 
-modeling::modeling(journal_handler&                   jnl,
-                   const modeling_reserve_definition& res) noexcept
+modeling::modeling(const modeling_reserve_definition& res) noexcept
   : ids(res)
   , files(res.regs.value(), res.dirs.value(), res.files.value())
-  , journal(jnl)
-{
-    files.read([&](const auto& fs, const auto) noexcept {
-        ids.read([&](const auto& ids, const auto) noexcept {
-            if (ids.generic_components.capacity() == 0 or
-                ids.grid_components.capacity() == 0 or
-                ids.graph_components.capacity() == 0 or
-                ids.hsm_components.capacity() == 0 or
-                ids.components.capacity() == 0 or
-                fs.registred_paths.capacity() == 0 or
-                fs.dir_paths.capacity() == 0 or fs.file_paths.capacity() == 0 or
-                ids.hsms.capacity() == 0 or ids.graphs.capacity() == 0 or
-                fs.recorded_paths.capacity() == 0)
-                journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
-                    t = "Modeling initialization error";
-                    format(m,
-                           "generic-components    {:>8} ({:>8})"
-                           "grid-components       {:>8} ({:>8})"
-                           "graph-components      {:>8} ({:>8})"
-                           "hsm-components        {:>8} ({:>8})"
-                           "components            {:>8} ({:>8})"
-                           "registred-paths       {:>8} ({:>8})"
-                           "dir-paths             {:>8} ({:>8})"
-                           "file-paths            {:>8} ({:>8})"
-                           "hsms                  {:>8} ({:>8})"
-                           "graphs                {:>8} ({:>8})"
-                           "component-repertories {:>8} ({:>8})",
-                           ids.generic_components.capacity(),
-                           res.generic_compos.value(),
-                           ids.grid_components.capacity(),
-                           res.grid_compos.value(),
-                           ids.graph_components.capacity(),
-                           res.graph_compos.value(),
-                           ids.hsm_components.capacity(),
-                           res.hsm_compos.value(),
-                           ids.components.capacity(),
-                           res.components.value(),
-                           fs.registred_paths.capacity(),
-                           res.regs.value(),
-                           fs.dir_paths.capacity(),
-                           res.dirs.value(),
-                           fs.file_paths.capacity(),
-                           res.files.value(),
-                           ids.hsms.capacity(),
-                           res.hsm_compos.value(),
-                           ids.graphs.capacity(),
-                           res.graph_compos.value(),
-                           res.components.value(),
-                           fs.recorded_paths.capacity(),
-                           res.regs.value());
-                });
-        });
-    });
-}
+{}
 
 dir_path_id registred_path::search(
   const data_array<dir_path, dir_path_id>& data,
@@ -443,12 +389,12 @@ static auto load_component(journal_handler&             jn,
     return success();
 }
 
-status modeling::fill_components() noexcept
+status modeling::fill_components(journal_handler& jn) noexcept
 {
     return ids.write([&](auto& ids) noexcept -> status {
         const auto file_read_status =
           files.write([&](auto& fs) noexcept -> status {
-              fs.browse_registreds(journal);
+              fs.browse_registreds(jn);
 
               for (auto& f : fs.file_paths) {
                   if (f.type == file_path::file_type::dot_file) {
@@ -482,12 +428,12 @@ status modeling::fill_components() noexcept
                   const auto file_id = g.file;
 
                   if (const auto file = fs.get_fs_path(file_id)) {
-                      if (auto ret = parse_dot_file(fs, ids, *file, journal);
+                      if (auto ret = parse_dot_file(fs, ids, *file, jn);
                           ret.has_value()) {
                           g      = std::move(*ret);
                           g.file = file_id;
                       } else {
-                          journal.push(
+                          jn.push(
                             log_level::warning,
                             [&](auto& t, auto& m, const auto& f) noexcept {
                                 t = "Modeling initialization error";
@@ -523,20 +469,20 @@ status modeling::fill_components() noexcept
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
                         if (const auto ret =
-                              load_component(journal, fs, ids, *f, id);
+                              load_component(jn, fs, ids, *f, id);
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
-                                journal.push(
-                                  log_level::warning,
-                                  [&](auto& t, auto& m) noexcept {
-                                      t = "Modeling initialization error";
-                                      format(m,
-                                             "Need to read dependency for "
-                                             "component {} ({})",
-                                             compo.name.sv(),
-                                             ordinal(id));
-                                  });
+                                jn.push(log_level::warning,
+                                        [&](auto& t, auto& m) noexcept {
+                                            t = "Modeling initialization error";
+                                            format(
+                                              m,
+                                              "Need to read dependency for "
+                                              "component {} ({})",
+                                              compo.name.sv(),
+                                              ordinal(id));
+                                        });
                                 have_unread_component = true;
                                 break;
 
@@ -549,14 +495,14 @@ status modeling::fill_components() noexcept
                                 break;
 
                             case component_status::unreadable:
-                                journal.push(
-                                  log_level::warning,
-                                  [&](auto& t, auto& m) noexcept {
-                                      t = "Modeling initialization error";
-                                      format(m,
-                                             "Fail to read component `{}'",
-                                             compo.name.sv());
-                                  });
+                                jn.push(log_level::warning,
+                                        [&](auto& t, auto& m) noexcept {
+                                            t = "Modeling initialization error";
+                                            format(
+                                              m,
+                                              "Fail to read component `{}'",
+                                              compo.name.sv());
+                                        });
                                 break;
                             }
                         } else {
@@ -580,9 +526,9 @@ status modeling::fill_components() noexcept
     return success();
 }
 
-void modeling::browse_file_system() noexcept
+void modeling::browse_file_system(journal_handler& jn) noexcept
 {
-    files.write([&](file_access& fs) { fs.browse_registreds(journal); });
+    files.write([&](file_access& fs) { fs.browse_registreds(jn); });
 }
 
 void file_access::remove(const file_path_id id) noexcept
@@ -1445,7 +1391,8 @@ void component_access::free(const component_id compo_id) noexcept
 
 status modeling::save(const component_access& ids,
                       const file_access&      fs,
-                      const component_id      id) noexcept
+                      const component_id      id,
+                      journal_handler&        jn) noexcept
 {
     if (not ids.exists(id))
         return new_error(modeling_errc::component_load_error);
@@ -1461,7 +1408,7 @@ status modeling::save(const component_access& ids,
         return cfile.error();
 
     json_archiver j;
-    if (auto ret = j(fs, ids, id, *cfile, journal); ret.has_error())
+    if (auto ret = j(fs, ids, id, *cfile, jn); ret.has_error())
         return ret.error();
 
     auto dfile =

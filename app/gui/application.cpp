@@ -482,7 +482,6 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 application::application(journal_handler& jn_) noexcept
   : task_mgr{ 4, 1 }
   , config(get_config_home(true))
-  , mod{ jn_ }
   , jn{ jn_ }
   , pjs(16)
   , grids{ 16 }
@@ -588,7 +587,7 @@ void application::try_open_project_window(const file_access& /*files*/,
                 auto pj  = std::make_unique<project>();
                 pj->file = file_id;
 
-                if (const auto ret = pj->load(mod); ret.has_error()) {
+                if (const auto ret = pj->load(mod, jn); ret.has_error()) {
                     jn.push(log_level::error, [&](auto& t, auto& m) {
                         const auto cat = ret.error().cat();
                         const auto err = ret.error().value();
@@ -661,7 +660,7 @@ bool application::init() noexcept
           });
       });
 
-    if (auto ret = mod.fill_components(); ret.has_error()) {
+    if (auto ret = mod.fill_components(jn); ret.has_error()) {
         jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
             title = "Modeling initialization error";
             msg   = "Fail to fill read component list";
@@ -1061,7 +1060,7 @@ void application::start_load_project(const project_id pj_id) noexcept
         if (not pj or is_undefined(pj->pj.file))
             return;
 
-        if (auto ret = pj->pj.load(mod); ret.has_value()) {
+        if (auto ret = pj->pj.load(mod, jn); ret.has_value()) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
                 mod.files.read([&](const auto& fs, const auto /*vesr*/) {
                     format(title,
@@ -1123,7 +1122,7 @@ void application::start_save_project(const project_id pj_id) noexcept
         if (not pj_ed)
             return;
 
-        if (auto ret = pj_ed->pj.save(mod); ret) {
+        if (auto ret = pj_ed->pj.save(mod, jn); ret) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
                 mod.files.read([&](const auto& fs, const auto /*vers*/) {
                     format(title,
@@ -1190,7 +1189,7 @@ void application::start_save_component(const component_id id) noexcept
                 if (ids.exists(id)) {
                     const auto& compo = ids.components[id];
 
-                    if (auto ret = mod.save(ids, fs, id); not ret) {
+                    if (auto ret = mod.save(ids, fs, id, jn); not ret) {
                         jn.push(log_level::error, [&](auto& title, auto& msg) {
                             title = "Component save error";
                             format(msg,

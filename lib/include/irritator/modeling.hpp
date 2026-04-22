@@ -1319,7 +1319,10 @@ public:
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
-    void init(project& pj, modeling& mod, simulation& sim) noexcept;
+    void init(project&         pj,
+              modeling&        mod,
+              simulation&      sim,
+              journal_handler& jn) noexcept;
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
@@ -1358,7 +1361,10 @@ public:
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
-    void init(project& pj, modeling& mod, simulation& sim) noexcept;
+    void init(project&         pj,
+              modeling&        mod,
+              simulation&      sim,
+              journal_handler& jn) noexcept;
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
@@ -1688,41 +1694,39 @@ public:
      *
      * \todo Remove the journal attributes.
      *
-     * \param jnl A journal handler reference stores in this class.
      * \param res A definition of capacity for all containers.
      */
-    modeling(journal_handler&                   jnl,
-             const modeling_reserve_definition& res =
+    modeling(const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
 
     /**
      * Browse the file system then reads the content of all components.
+     * \param jnl A journal handler reference stores in this class.
      */
-    status fill_components() noexcept;
+    status fill_components(journal_handler& jnl) noexcept;
 
     /**
      * Browse the file system to search components, projects and data file in
      * registred paths. The @c fill_components function use this function.
+     * \param jnl A journal handler reference stores in this class.
      */
-    void browse_file_system() noexcept;
-
-public:
-    shared_buffer<component_access> ids;
-    shared_buffer<file_access>      files;
-
-    journal_handler& journal;
-
-    modeling_status state = modeling_status::unmodified;
+    void browse_file_system(journal_handler& jnl) noexcept;
 
     status save(const component_access& ids,
                 const file_access&      fs,
-                const component_id      id) noexcept;
+                const component_id      id,
+                journal_handler&        jn) noexcept;
 
     status import(const component_id         src,
                   const component_id         dst,
                   const std::span<position>  positions  = {},
                   const std::span<name_str>  names      = {},
                   const std::span<parameter> parameters = {}) noexcept;
+
+    shared_buffer<component_access> ids;
+    shared_buffer<file_access>      files;
+
+    modeling_status state = modeling_status::unmodified;
 };
 
 class file_observers
@@ -1837,8 +1841,8 @@ public:
       const external_source_reserve_definition& srcs_res =
         external_source_reserve_definition()) noexcept;
 
-    status load(modeling& mod) noexcept;
-    status save(modeling& mod) noexcept;
+    status load(modeling& mod, journal_handler& jn) noexcept;
+    status save(modeling& mod, journal_handler& jn) noexcept;
 
     struct required_data {
         unsigned tree_node_nb{ 1u };

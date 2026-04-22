@@ -210,8 +210,7 @@ class main_parameters
 
 public:
     main_parameters(int ac, const char* av[])
-      : mod(jn)
-      , args{ av + 1, static_cast<std::size_t>(ac - 1) }
+      : args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
         mod.files.write([&](auto& fs) noexcept {
@@ -219,7 +218,7 @@ public:
             fs.browse_registreds(jn);
         });
 
-        if (auto ret = mod.fill_components(); ret.has_error()) {
+        if (auto ret = mod.fill_components(jn); ret.has_error()) {
             switch (ret.error().cat()) {
             case irt::category::modeling:
                 warning<ec::modeling_init_error>(ret.error().value());
@@ -242,12 +241,12 @@ public:
     void observation_initialize() noexcept
     {
         for (auto& o : pj.grid_observers) {
-            o.init(pj, mod, pj.sim);
+            o.init(pj, mod, pj.sim, jn);
             pj.file_obs.alloc(pj.grid_observers.get_id(o));
         }
 
         for (auto& o : pj.graph_observers) {
-            o.init(pj, mod, pj.sim);
+            o.init(pj, mod, pj.sim, jn);
             pj.file_obs.alloc(pj.graph_observers.get_id(o));
         }
 

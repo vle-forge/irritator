@@ -2295,7 +2295,8 @@ static auto display_component_editor(component_editor&      ed,
                         ids.components[tab->id]             = tab->compo;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
-                            if (auto ret = app.mod.save(ids, fs, tab->id);
+                            if (auto ret =
+                                  app.mod.save(ids, fs, tab->id, app.jn);
                                 not ret) {
                                 app.jn.push(
                                   log_level::error,

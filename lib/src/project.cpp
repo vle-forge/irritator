@@ -1876,7 +1876,7 @@ project::project(const project_reserve_definition&         res,
   , observation_dir{ undefined<registred_path_id>() }
 {}
 
-status project::load(modeling& mod) noexcept
+status project::load(modeling& mod, journal_handler& jn) noexcept
 {
     if (const auto filename = make_file(mod, file); filename.has_value()) {
         auto file = file::open(*filename, file_mode{ file_open_options::read });
@@ -1891,8 +1891,7 @@ status project::load(modeling& mod) noexcept
               [&](const auto& files, auto) noexcept -> status {
                   return mod.ids.read(
                     [&](const auto& ids, auto) noexcept -> status {
-                        return dearc(
-                          *this, sim, files, ids, view, *file, mod.journal);
+                        return dearc(*this, sim, files, ids, view, *file, jn);
                     });
               });
         } else
@@ -1902,7 +1901,7 @@ status project::load(modeling& mod) noexcept
     return new_error(project_errc::file_access_error);
 }
 
-status project::save(modeling& mod) noexcept
+status project::save(modeling& mod, journal_handler& jn) noexcept
 {
     if (const auto filename = make_file(mod, file); filename.has_value()) {
         auto file =
@@ -1920,7 +1919,7 @@ status project::save(modeling& mod) noexcept
                           files,
                           ids,
                           *file,
-                          mod.journal,
+                          jn,
                           json_archiver::print_option::indent_2_one_line_array);
                     });
               });

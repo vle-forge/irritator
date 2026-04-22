@@ -347,7 +347,7 @@ static bool show_project_simulation_settings(application&    app,
             app.add_gui_task([&app, pj_id]() {
                 auto& ed = app.pjs.get(pj_id);
 
-                if (auto ret = ed.pj.save(app.mod); ret) {
+                if (auto ret = ed.pj.save(app.mod, app.jn); ret) {
                     app.jn.push(
                       log_level::info,
                       [&](auto& title, auto& /*msg*/) noexcept {

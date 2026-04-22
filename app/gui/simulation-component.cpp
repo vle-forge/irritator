@@ -48,13 +48,15 @@ static expected<file> save_simulation_raw_data(
     }
 }
 
-static status simulation_init_observation(modeling& mod, project& pj) noexcept
+static status simulation_init_observation(modeling&        mod,
+                                          project&         pj,
+                                          journal_handler& jn) noexcept
 {
     for (auto& grid_obs : pj.grid_observers)
-        grid_obs.init(pj, mod, pj.sim);
+        grid_obs.init(pj, mod, pj.sim, jn);
 
     for (auto& graph_obs : pj.graph_observers)
-        graph_obs.init(pj, mod, pj.sim);
+        graph_obs.init(pj, mod, pj.sim, jn);
 
     for (auto& v_obs : pj.variable_observers)
         irt_check(v_obs.init(pj, pj.sim));
@@ -106,7 +108,7 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
     ed.simulation_state = simulation_status::initializing;
 
     const auto ret = app.mod.ids.read([&](const auto& ids, auto) -> status {
-        return app.mod.files.read([&](const auto& fs, auto) -> status{
+        return app.mod.files.read([&](const auto& fs, auto) -> status {
             irt_check(ed.pj.set(ids, fs, ed.pj.head(), app.jn));
             irt_check(ed.pj.sim.srcs.prepare());
             irt_check(ed.pj.sim.initialize());
@@ -147,7 +149,7 @@ static void simulation_init(application& app, project_editor& ed) noexcept
         ed.simulation_last_finite_t   = ed.pj.sim.limits.begin();
         ed.simulation_display_current = ed.pj.sim.limits.begin();
 
-        if (simulation_init_observation(app.mod, ed.pj) and
+        if (simulation_init_observation(app.mod, ed.pj, app.jn) and
             ed.pj.sim.srcs.prepare() and ed.pj.sim.initialize()) {
             ed.simulation_state = simulation_status::initialized;
         } else {
