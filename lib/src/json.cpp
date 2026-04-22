@@ -6172,24 +6172,22 @@ struct json_archiver::impl {
                 w.String(file->path.begin(), file->path.size());
             }
 
-            if (file) {
-                if (auto f = files.get_fs_path(p.file); f.has_value()) {
-                    if (not write_dot_file(files, ids, g.g, *f)) {
-                        jn.push(
-                          log_level::error,
-                          [](auto&       t,
-                             auto&       m,
-                             const auto& dir,
-                             const auto& file) noexcept {
-                              t = "Fail to write dot file";
-                              format(m,
-                                     "Fail to write {} in {}",
-                                     dir.path.c_str(),
-                                     file.path.c_str());
-                          },
-                          *dir,
-                          *file);
-                    }
+            if (auto f = files.get_fs_path(p.file); f.has_value()) {
+                if (not write_dot_file(files, ids, g.g, *f)) {
+                    jn.push(
+                                log_level::error,
+                                [](auto&       t,
+                                auto&       m,
+                                const auto& dir,
+                                const auto& file) noexcept {
+                        t = "Fail to write dot file";
+                        format(m,
+                               "Fail to write {} in {}",
+                               dir.path.c_str(),
+                               file.path.c_str());
+                    },
+                    *dir,
+                    *file);
                 }
             } else {
                 jn.push(log_level::error, [](auto& t, auto& m) noexcept {
