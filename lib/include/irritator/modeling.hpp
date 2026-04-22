@@ -395,8 +395,7 @@ public:
     //!
     //! @return `success()` or `already_exists_connection_error` or
     //! `incompatible_connection_error`.
-    status connect(const modeling&        mod,
-                   const child&           src,
+    status connect(const child&           src,
                    const connection::port p_src,
                    const child&           dst,
                    const connection::port p_dst) noexcept;

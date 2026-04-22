@@ -1891,7 +1891,8 @@ status project::load(modeling& mod) noexcept
               [&](const auto& files, auto) noexcept -> status {
                   return mod.ids.read(
                     [&](const auto& ids, auto) noexcept -> status {
-                        return dearc(*this, mod, sim, files, ids, view, *file);
+                        return dearc(
+                          *this, sim, files, ids, view, *file, mod.journal);
                     });
               });
         } else
@@ -1916,10 +1917,10 @@ status project::save(modeling& mod) noexcept
                     [&](const auto& ids, auto) noexcept -> status {
                         return arc(
                           *this,
-                          mod,
                           files,
                           ids,
                           *file,
+                          mod.journal,
                           json_archiver::print_option::indent_2_one_line_array);
                     });
               });

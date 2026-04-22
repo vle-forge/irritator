@@ -1061,7 +1061,6 @@ static bool is_link_created(application&            app,
                     auto port_in = static_cast<int>(ch_port_dst.second);
 
                     if (auto ret = s_parent.connect(
-                          app.mod,
                           *ch_src,
                           connection::port{ .model = port_out },
                           *ch_dst,
@@ -1081,7 +1080,6 @@ static bool is_link_created(application&            app,
                         return false;
 
                     if (auto ret = s_parent.connect(
-                          app.mod,
                           *ch_src,
                           connection::port{ .model = port_out },
                           *ch_dst,
@@ -1106,7 +1104,6 @@ static bool is_link_created(application&            app,
                     auto port_in = static_cast<int>(ch_port_dst.second);
 
                     if (auto ret = s_parent.connect(
-                          app.mod,
                           *ch_src,
                           connection::port{ .compo = port_out },
                           *ch_dst,
@@ -1127,7 +1124,6 @@ static bool is_link_created(application&            app,
                         return false;
 
                     if (auto ret = s_parent.connect(
-                          app.mod,
                           *ch_src,
                           connection::port{ .compo = port_out },
                           *ch_dst,

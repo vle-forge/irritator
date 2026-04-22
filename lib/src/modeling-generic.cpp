@@ -180,10 +180,9 @@ bool generic_component::exists(const child&           src,
     return false;
 }
 
-status generic_component::connect([[maybe_unused]] const modeling& mod,
-                                  const child&                     src,
-                                  const connection::port           p_src,
-                                  const child&                     dst,
+status generic_component::connect(const child&           src,
+                                  const connection::port p_src,
+                                  const child&           dst,
                                   const connection::port p_dst) noexcept
 {
     if (exists(src, p_src, dst, p_dst))

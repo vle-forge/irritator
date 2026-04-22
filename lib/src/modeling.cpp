@@ -390,7 +390,7 @@ int file_access::browse_registreds(journal_handler& jn) noexcept
     return file_paths.ssize() - old;
 }
 
-static auto load_component(modeling&                    mod,
+static auto load_component(journal_handler&             jn,
                            const file_access&           files,
                            component_access&            ids,
                            const std::filesystem::path& filename,
@@ -407,8 +407,7 @@ static auto load_component(modeling&                    mod,
         if (f.has_value()) {
             json_dearchiver j;
 
-            if (not j(
-                  mod, files, ids, filename.string(), compo_id, compo, *f)) {
+            if (not j(files, ids, filename.string(), compo_id, compo, *f, jn)) {
                 return error_code(modeling_errc::component_load_error);
             }
 
@@ -524,7 +523,7 @@ status modeling::fill_components() noexcept
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
                         if (const auto ret =
-                              load_component(*this, fs, ids, *f, id);
+                              load_component(journal, fs, ids, *f, id);
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
@@ -1462,7 +1461,7 @@ status modeling::save(const component_access& ids,
         return cfile.error();
 
     json_archiver j;
-    if (auto ret = j(*this, fs, ids, id, *cfile); ret.has_error())
+    if (auto ret = j(fs, ids, id, *cfile, journal); ret.has_error())
         return ret.error();
 
     auto dfile =

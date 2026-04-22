@@ -427,8 +427,7 @@ int main()
             auto& s3   = ids.generic_components.get(c3.id.generic_id);
             auto& ch31 = s3.alloc(c2_id);
             auto& ch32 = s3.alloc(c1_id);
-            expect(!!s3.connect(mod,
-                                ch31,
+            expect(!!s3.connect(ch31,
                                 irt::connection::port{ .compo = p2_id },
                                 ch32,
                                 irt::connection::port{ .compo = p1_id }));
@@ -545,8 +544,7 @@ int main()
             auto& ch31 = s3.alloc(c22_id);
             auto& ch32 = s3.alloc(c11_id);
 
-            expect(!!s3.connect(mod,
-                                ch31,
+            expect(!!s3.connect(ch31,
                                 irt::connection::port{ .compo = p22_id },
                                 ch32,
                                 irt::connection::port{ .compo = p11_id }));
@@ -937,8 +935,7 @@ int main()
             auto& s3   = ids.generic_components.get(c3.id.generic_id);
             auto& ch31 = s3.alloc(c2_id);
             auto& ch32 = s3.alloc(c1_id);
-            expect(!!s3.connect(mod,
-                                ch31,
+            expect(!!s3.connect(ch31,
                                 irt::connection::port{ .compo = p2_id },
                                 ch32,
                                 irt::connection::port{ .compo = p1_id }));
@@ -1003,10 +1000,10 @@ int main()
                 irt::json_archiver j;
                 expect(
                   j(pj,
-                    mod,
                     files,
                     ids,
                     buffer,
+                    jn,
                     irt::json_archiver::print_option::indent_2_one_line_array)
                     .has_value());
             });
@@ -1035,11 +1032,11 @@ int main()
                 mod.ids.read([&](const auto& ids, auto) noexcept {
                     irt::json_dearchiver j;
                     expect(j(pj,
-                             mod,
                              pj.sim,
                              files,
                              ids,
-                             std::span(buffer.data(), buffer.size()))
+                             std::span(buffer.data(), buffer.size()),
+                             jn)
                              .has_value());
                 });
             });
@@ -1243,8 +1240,7 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_all);
             p.integers[1] = 0;
 
-            expect(!!s3.connect(mod,
-                                ch3,
+            expect(!!s3.connect(ch3,
                                 irt::connection::port{ .compo = p2_id },
                                 ch4,
                                 irt::connection::port{ .compo = p1_id }));
@@ -1351,7 +1347,6 @@ int main()
                 p_ch5.integers[1] = ordinal(p31_id);
 
                 expect(!!s3.connect(
-                  mod,
                   ch3,
                   irt::connection::port{ .compo = compo_timef_out },
                   ch4,
@@ -1444,8 +1439,7 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = 17; // Impossible port
 
-            expect(!!s3.connect(mod,
-                                ch3,
+            expect(!!s3.connect(ch3,
                                 irt::connection::port{ .compo = p2_id },
                                 ch4,
                                 irt::connection::port{ .compo = p1_id }));
@@ -1725,7 +1719,6 @@ int main()
 
                 expect(root_gen
                          .connect(
-                           mod,
                            grid_child,
                            irt::connection::port{ .compo = cg_output_port_id },
                            counter_child,
@@ -2258,8 +2251,7 @@ int main()
             auto& ch_head_cnt   = gen_head.alloc(irt::dynamics_type::counter);
 
             expect(gen_head
-                     .connect(mod,
-                              ch_head_graph,
+                     .connect(ch_head_graph,
                               irt::connection::port{ .compo = p_cg_m_out },
                               ch_head_cnt,
                               irt::connection::port{ .model = 0 })
