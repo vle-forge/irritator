@@ -37,11 +37,11 @@ static auto display_text(ImFont&                       font,
                          const journal_handler::descr& description) noexcept
   -> void
 {
-    debug::ensure(not level.empty());
-
-    ImGui::PushFont(&font);
-    ImGui::TextFormat("{}", level);
-    ImGui::PopFont();
+    if (not level.empty()) {
+        ImGui::PushFont(&font);
+        ImGui::TextFormat("{}", level);
+        ImGui::PopFont();
+    }
 
     if (not title.empty()) {
         ImGui::SameLine();
