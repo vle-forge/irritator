@@ -1627,11 +1627,10 @@ struct file_access {
     registred_path_id find_registred_path_by_name(
       const std::string_view name) const noexcept;
 
-    file_path_id alloc_file(
-      const dir_path_id          id,
-      const std::string_view     name = std::string_view(),
-      const file_path::file_type type = file_path::file_type::undefined_file,
-      const component_id component    = undefined<component_id>()) noexcept;
+    file_path_id alloc_file(const dir_path_id      id,
+                            const std::string_view name = std::string_view(),
+                            const file_path::file_type type =
+                              file_path::file_type::undefined_file) noexcept;
 
     dir_path_id alloc_dir(
       const registred_path_id id,

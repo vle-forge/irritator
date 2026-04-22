@@ -714,8 +714,7 @@ auto file_access::find_directory_in_registry(
 
 file_path_id file_access::alloc_file(const dir_path_id          id,
                                      const std::string_view     name,
-                                     const file_path::file_type type,
-                                     const component_id compo_id) noexcept
+                                     const file_path::file_type type) noexcept
 {
     if (auto* d = dir_paths.try_to_get(id)) {
         if (file_paths.can_alloc(1) or file_paths.grow<3, 2>()) {
