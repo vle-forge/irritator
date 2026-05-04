@@ -1891,7 +1891,7 @@ status project::load(modeling& mod, journal_handler& jn) noexcept
               [&](const auto& files, auto) noexcept -> status {
                   return mod.ids.read(
                     [&](const auto& ids, auto) noexcept -> status {
-                        return dearc(*this, sim, files, ids, view, *file, jn);
+                        return dearc(*this, files, ids, view, *file, jn);
                     });
               });
         } else

@@ -6872,7 +6872,6 @@ status json_dearchiver::operator()(const file_access& files,
 }
 
 status json_dearchiver::operator()(project&                pj,
-                                   simulation&             sim,
                                    const file_access&      files,
                                    const component_access& ids,
                                    std::string_view        path,
@@ -6894,7 +6893,7 @@ status json_dearchiver::operator()(project&                pj,
         ret.has_error())
         return ret.error();
 
-    json_dearchiver::impl i(*this, jn, sim, pj, path);
+    json_dearchiver::impl i(*this, jn, pj.sim, pj, path);
     return i.parse_project(doc, files, ids);
 }
 
@@ -6928,7 +6927,6 @@ status json_dearchiver::operator()(const file_access& files,
 }
 
 status json_dearchiver::operator()(project&                pj,
-                                   simulation&             sim,
                                    const file_access&      files,
                                    const component_access& ids,
                                    std::span<char>         io,
@@ -6940,7 +6938,7 @@ status json_dearchiver::operator()(project&                pj,
     if (const auto ret = parse_json_data(io, doc); ret.has_error())
         return ret.error();
 
-    json_dearchiver::impl i(*this, jn, sim, pj);
+    json_dearchiver::impl i(*this, jn, pj.sim, pj);
     return i.parse_project(doc, files, ids);
 }
 

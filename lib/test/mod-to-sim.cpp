@@ -1033,7 +1033,6 @@ int main()
                 mod.ids.read([&](const auto& ids, auto) noexcept {
                     irt::json_dearchiver j;
                     expect(j(pj,
-                             pj.sim,
                              files,
                              ids,
                              std::span(buffer.data(), buffer.size()),

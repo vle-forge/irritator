@@ -38,7 +38,6 @@ public:
 
     //! Load a project from a project json file.
     status operator()(project&                pj,
-                      simulation&             sim,
                       const file_access&      files,
                       const component_access& ids,
                       std::string_view        path,
@@ -55,7 +54,6 @@ public:
 
     //! Load a project from a project json file.
     status operator()(project&                pj,
-                      simulation&             sim,
                       const file_access&      files,
                       const component_access& ids,
                       std::span<char>         io,
