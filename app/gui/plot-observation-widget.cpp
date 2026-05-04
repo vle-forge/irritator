@@ -28,14 +28,14 @@ void plot_observation_widget::show(project& pj) noexcept
               ImAxis_X1, pj.sim.limits.begin(), pj.sim.limits.end());
             ImPlot::SetupFinish();
 
-            for (const auto id : v_obs.m_vars) {
-                const auto obs_id = v_obs.m_vars.template get<observer_id>(id);
+            for (const auto id : v_obs.subs) {
+                const auto obs_id = v_obs.subs.template get<observer_id>(id);
                 auto*      obs    = pj.sim.observers.try_to_get(obs_id);
 
                 obs->linearized_buffer.read(
                   [&](auto& lbuf, const auto /*version*/) noexcept {
                       const auto opt =
-                        v_obs.m_vars
+                        v_obs.subs
                           .template get<variable_observer::type_options>(id);
 
                       switch (opt) {

@@ -9,10 +9,10 @@ namespace irt {
 
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
-    for (const auto id : m_vars) {
+    for (const auto id : subs) {
         auto       obs_id = undefined<observer_id>();
-        const auto tn_id  = m_vars.get<tree_node_id>(id);
-        const auto mdl_id = m_vars.get<model_id>(id);
+        const auto tn_id  = subs.get<tree_node_id>(id);
+        const auto mdl_id = subs.get<model_id>(id);
         auto*      tn     = pj.tree_nodes.try_to_get(tn_id);
         auto*      mdl    = sim.models.try_to_get(mdl_id);
 
@@ -41,20 +41,19 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
             }
         }
 
-        m_vars.get<observer_id>(id) = obs_id;
+        subs.get<observer_id>(id) = obs_id;
     }
 
     return success();
 }
 
-void variable_observer::clear() noexcept { m_vars.clear(); }
+void variable_observer::clear() noexcept { subs.clear(); }
 
 auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
   -> sub_id
 {
-    for (const auto id : m_vars)
-        if (m_vars.get<tree_node_id>(id) == tn and
-            m_vars.get<model_id>(id) == mdl)
+    for (const auto id : subs)
+        if (subs.get<tree_node_id>(id) == tn and subs.get<model_id>(id) == mdl)
             return id;
 
     return undefined<variable_observer::sub_id>();
@@ -62,8 +61,8 @@ auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
 
 bool variable_observer::exists(const tree_node_id tn) noexcept
 {
-    for (const auto id : m_vars)
-        if (m_vars.get<tree_node_id>(id) == tn)
+    for (const auto id : subs)
+        if (subs.get<tree_node_id>(id) == tn)
             return true;
 
     return false;
@@ -72,16 +71,15 @@ bool variable_observer::exists(const tree_node_id tn) noexcept
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {
-    for (const auto id : m_vars)
-        if (m_vars.get<tree_node_id>(id) == tn and
-            m_vars.get<model_id>(id) == mdl)
-            m_vars.free(id);
+    for (const auto id : subs)
+        if (subs.get<tree_node_id>(id) == tn and subs.get<model_id>(id) == mdl)
+            subs.free(id);
 }
 
 void variable_observer::erase(const sub_id i) noexcept
 {
-    if (m_vars.exists(i))
-        m_vars.free(i);
+    if (subs.exists(i))
+        subs.free(i);
 }
 
 variable_observer::sub_id variable_observer::push_back(
@@ -91,20 +89,20 @@ variable_observer::sub_id variable_observer::push_back(
   const type_options     t,
   const std::string_view name) noexcept
 {
-    if (not m_vars.can_alloc(1) or m_vars.grow<3, 2>(1))
+    if (not subs.can_alloc(1) or subs.grow<3, 2>(1))
         return undefined<variable_observer::sub_id>();
 
     if (const auto id = find(tn, mdl); is_defined(id))
         return id;
 
-    const auto id = m_vars.alloc_id();
+    const auto id = subs.alloc_id();
 
-    m_vars.get<tree_node_id>(id) = tn;
-    m_vars.get<model_id>(id)     = mdl;
-    m_vars.get<observer_id>(id)  = undefined<observer_id>();
-    m_vars.get<color>(id)        = c;
-    m_vars.get<type_options>(id) = t;
-    m_vars.get<name_str>(id)     = name;
+    subs.get<tree_node_id>(id) = tn;
+    subs.get<model_id>(id)     = mdl;
+    subs.get<observer_id>(id)  = undefined<observer_id>();
+    subs.get<color>(id)        = c;
+    subs.get<type_options>(id) = t;
+    subs.get<name_str>(id)     = name;
 
     return id;
 }

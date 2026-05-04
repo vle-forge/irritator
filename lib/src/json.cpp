@@ -6610,12 +6610,12 @@ struct json_archiver::impl {
             w.Key("models");
             w.StartArray();
 
-            for (const auto id : plot.m_vars) {
+            for (const auto id : plot.subs) {
                 w.StartObject();
-                const auto tn  = plot.m_vars.template get<tree_node_id>(id);
-                const auto mdl = plot.m_vars.template get<model_id>(id);
-                const auto str = plot.m_vars.template get<name_str>(id);
-                const auto col = plot.m_vars.template get<color>(id);
+                const auto tn  = plot.subs.template get<tree_node_id>(id);
+                const auto mdl = plot.subs.template get<model_id>(id);
+                const auto str = plot.subs.template get<name_str>(id);
+                const auto col = plot.subs.template get<color>(id);
 
                 if (not str.empty()) {
                     w.Key("name");

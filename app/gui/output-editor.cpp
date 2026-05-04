@@ -22,16 +22,16 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
     for (auto& vobs : ed.pj.variable_observers) {
         auto to_copy = std::optional<variable_observer::sub_id>();
 
-        for (const auto id : vobs.m_vars) {
+        for (const auto id : vobs.subs) {
             const auto  idx    = get_index(id);
-            const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
+            const auto  obs_id = vobs.subs.template get<observer_id>(id);
             const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
             ImGui::InputFilteredString("##name",
-                                       vobs.m_vars.template get<name_str>(id));
+                                       vobs.subs.template get<name_str>(id));
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
@@ -48,12 +48,12 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
 
             ImGui::TableNextColumn();
             int plot_type = ordinal(
-              vobs.m_vars.template get<variable_observer::type_options>(id));
+              vobs.subs.template get<variable_observer::type_options>(id));
             if (ImGui::Combo("##plot",
                              &plot_type,
                              plot_type_str,
                              IM_ARRAYSIZE(plot_type_str)))
-                vobs.m_vars.template get<variable_observer::type_options>(id) =
+                vobs.subs.template get<variable_observer::type_options>(id) =
                   enum_cast<variable_observer::type_options>(plot_type);
 
             ImGui::TableNextColumn();
@@ -75,11 +75,11 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
         if (to_copy.has_value()) {
             const auto copy = *to_copy;
 
-            const auto obs_id = vobs.m_vars.template get<observer_id>(copy);
+            const auto obs_id = vobs.subs.template get<observer_id>(copy);
             const auto obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
             auto& new_obs = app.copy_obs.alloc();
-            new_obs.name  = vobs.m_vars.template get<name_str>(copy).sv();
+            new_obs.name  = vobs.subs.template get<name_str>(copy).sv();
 
             obs->linearized_buffer.read(
               [&new_obs](auto& lbuf, const auto /*version*/) noexcept {
@@ -170,11 +170,11 @@ static void write(project&                        pj,
                   const variable_observer&        vobs,
                   const variable_observer::sub_id id) noexcept
 {
-    const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
+    const auto  obs_id = vobs.subs.template get<observer_id>(id);
     const auto* obs    = pj.sim.observers.try_to_get(obs_id);
 
     ofs.imbue(std::locale::classic());
-    ofs << "t," << vobs.m_vars.template get<name_str>(id).sv() << '\n';
+    ofs << "t," << vobs.subs.template get<name_str>(id).sv() << '\n';
 
     obs->linearized_buffer.read(
       [&](const auto& lbuf, const auto /*version*/) noexcept {
@@ -297,9 +297,9 @@ void output_editor::show() noexcept
                 ImGui::PushID(get_index(id));
 
                 for (auto& vobs : pj.pj.variable_observers) {
-                    for (const auto id : vobs.m_vars) {
+                    for (const auto id : vobs.subs) {
                         const auto obs_id =
-                          vobs.m_vars.template get<observer_id>(id);
+                          vobs.subs.template get<observer_id>(id);
                         const auto* obs =
                           pj.pj.sim.observers.try_to_get(obs_id);
 
@@ -307,12 +307,12 @@ void output_editor::show() noexcept
                             return;
 
                         const auto opts =
-                          vobs.m_vars
+                          vobs.subs
                             .template get<variable_observer::type_options>(id);
 
                         if (opts != variable_observer::type_options::none) {
                             const auto& name =
-                              vobs.m_vars.template get<name_str>(id);
+                              vobs.subs.template get<name_str>(id);
 
                             app.plot_obs.show_plot_line(*obs, opts, name);
                         }

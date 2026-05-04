@@ -39,11 +39,11 @@ static void do_initialize(const variable_observer& vars,
 {
     std::fputs("t,", file);
 
-    const auto& names = vars.m_vars.get<name_str>();
+    const auto& names = vars.subs.get<name_str>();
     const auto  nb    = vars.ssize();
     auto        i     = 0;
 
-    for (const auto id : vars.m_vars) {
+    for (const auto id : vars.subs) {
         if (i + 1 < nb)
             fmt::print("{}-{},", names[id].sv(), i++);
         else
@@ -60,8 +60,8 @@ static void do_update(const simulation&        sim,
     else
         fmt::print(file, "{:e}\n", sim.current_time());
 
-    for (const auto id : vars.m_vars) {
-        const auto& obs_ids = vars.m_vars.get<observer_id>();
+    for (const auto id : vars.subs) {
+        const auto& obs_ids = vars.subs.get<observer_id>();
         const auto  obs_id  = obs_ids[get_index(id)];
 
         if (const auto* obs = sim.observers.try_to_get(obs_id)) {

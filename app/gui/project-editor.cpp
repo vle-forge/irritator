@@ -190,7 +190,7 @@ static bool show_local_simulation_plot_observers_table(
                                           g->children_names[ch_idx].sv();
 
                                         if (ch_uid == uid) {
-                                            vobs.m_vars.template get<name_str>(
+                                            vobs.subs.template get<name_str>(
                                               sub_obs_id) = ch_uid;
                                             break;
                                         }
@@ -219,7 +219,7 @@ static bool show_local_simulation_plot_observers_table(
                             ImGui::PushItemWidth(-1.f);
                             if (ImGui::InputSmallString(
                                   "name",
-                                  vobs->m_vars.template get<name_str>(
+                                  vobs->subs.template get<name_str>(
                                     sub_obs_id)))
                                 is_modified++;
                             ImGui::PopItemWidth();
@@ -245,17 +245,16 @@ static bool show_local_simulation_plot_observers_table(
                             const auto old_sub_id = o->find(tn_id, mdl_id);
                             auto       new_sub_id = n->push_back(tn_id, mdl_id);
 
-                            auto& colors = n->m_vars.template get<color>();
-                            auto& opts   = n->m_vars.template get<
+                            auto& colors = n->subs.template get<color>();
+                            auto& opts   = n->subs.template get<
                                 variable_observer::type_options>();
-                            auto& names = n->m_vars.template get<name_str>();
+                            auto& names = n->subs.template get<name_str>();
 
-                            const auto& ccolors =
-                              o->m_vars.template get<color>();
-                            const auto& copts = o->m_vars.template get<
-                              variable_observer::type_options>();
+                            const auto& ccolors = o->subs.template get<color>();
+                            const auto& copts   = o->subs.template get<
+                                variable_observer::type_options>();
                             const auto& cnames =
-                              o->m_vars.template get<name_str>();
+                              o->subs.template get<name_str>();
 
                             colors(new_sub_id) = ccolors(old_sub_id);
                             opts(new_sub_id)   = copts(old_sub_id);
@@ -386,20 +385,20 @@ static void show_local_variables_plot(application&       app,
                                       variable_observer& v_obs,
                                       tree_node_id       tn_id) noexcept
 {
-    for (const auto id : v_obs.m_vars) {
-        const auto obs_id = v_obs.m_vars.template get<observer_id>(id);
+    for (const auto id : v_obs.subs) {
+        const auto obs_id = v_obs.subs.template get<observer_id>(id);
         auto*      obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
         if (not obs)
             continue;
 
-        const auto tn = v_obs.m_vars.template get<tree_node_id>(id);
+        const auto tn = v_obs.subs.template get<tree_node_id>(id);
         if (tn_id != tn)
             continue;
 
         const auto opts =
-          v_obs.m_vars.template get<variable_observer::type_options>(id);
-        const auto& name = v_obs.m_vars.template get<name_str>(id);
+          v_obs.subs.template get<variable_observer::type_options>(id);
+        const auto& name = v_obs.subs.template get<name_str>(id);
 
         app.plot_obs.show_plot_line(*obs, opts, name);
     }
@@ -863,16 +862,16 @@ static void show_subplots(application&       app,
           ImAxis_X1, ed.pj.sim.limits.begin(), ed.pj.sim.limits.end());
         ImPlot::SetupFinish();
 
-        for (const auto id : vobs.m_vars) {
-            const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
+        for (const auto id : vobs.subs) {
+            const auto  obs_id = vobs.subs.template get<observer_id>(id);
             const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
             if (not obs)
                 continue;
 
             const auto opts =
-              vobs.m_vars.template get<variable_observer::type_options>(id);
-            const auto& name = vobs.m_vars.template get<name_str>(id);
+              vobs.subs.template get<variable_observer::type_options>(id);
+            const auto& name = vobs.subs.template get<name_str>(id);
 
             app.plot_obs.show_plot_line(*obs, opts, name);
         }

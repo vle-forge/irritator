@@ -1403,6 +1403,15 @@ public:
 
     enum class sub_id : u32;
 
+    /** A DOD structure to store sub-variable observers with:
+     *
+     * tree_node_id `tree_node` parent of the model.
+     * model_id      `model` to observe.
+     * observer_id   `observer` connected to `model`.
+     * color         Colors used for observers.
+     * type_options> Line, dash etc. for observers.
+     * name_str>     Name of the observation.
+     */
     id_data_array<void,
                   sub_id,
                   irt::allocator<new_delete_memory_resource>,
@@ -1412,15 +1421,7 @@ public:
                   color,
                   type_options,
                   name_str>
-      m_vars;
-
-    // id_array<sub_id>     m_ids;
-    // vector<tree_node_id> m_tn_ids;  //!< `tree_node` parent of the model.
-    // vector<model_id>     m_mdl_ids; //!< `model` to observe.
-    // vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
-    // vector<color>        m_colors;  //!< Colors used for observers.
-    // vector<type_options> m_options; //!< Line, dash etc. for observers.
-    // vector<name_str>     m_names;   //!< Name of the observation.
+      subs;
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1454,9 +1455,9 @@ public:
                      const type_options     t = type_options::line,
                      const std::string_view name = std::string_view{}) noexcept;
 
-    bool exists(const sub_id id) const noexcept { return m_vars.exists(id); }
-    unsigned size() const noexcept { return m_vars.size(); }
-    int      ssize() const noexcept { return m_vars.ssize(); }
+    bool     exists(const sub_id id) const noexcept { return subs.exists(id); }
+    unsigned size() const noexcept { return subs.size(); }
+    int      ssize() const noexcept { return subs.ssize(); }
 };
 
 struct modeling_reserve_definition {
