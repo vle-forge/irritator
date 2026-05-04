@@ -1864,21 +1864,46 @@ static auto make_tree_from(simulation_copy&                     sc,
     return data.get_id(new_tree);
 }
 
-project::project(const project_reserve_definition&         res,
-                 const simulation_reserve_definition&      sim_res,
-                 const external_source_reserve_definition& srcs_res) noexcept
-  : sim{ sim_res, srcs_res }
-  , tree_nodes{ res.nodes.value() }
-  , variable_observers{ res.vars.value() }
-  , grid_observers{ res.grids.value() }
-  , graph_observers{ res.graphs.value() }
-  , parameters{ sim_res.models.value() }
-  , observation_dir{ undefined<registred_path_id>() }
-{}
-
-status project::load(modeling& mod, journal_handler& jn) noexcept
+expected<project> project::load(const file_access&      fs,
+                                const component_access& cs,
+                                const std::span<char>   buffer,
+                                journal_handler&        jn) noexcept
 {
-    if (const auto filename = make_file(mod, file); filename.has_value()) {
+    json_dearchiver dearc;
+    project         pj{};
+    const auto      ret = dearc(pj, fs, cs, buffer, jn);
+
+    return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
+}
+
+expected<project> project::load(const file_access&      fs,
+                                const component_access& cs,
+                                const file_path_id      file_id,
+                                journal_handler&        jn) noexcept
+{
+    const auto filename = make_file(fs, file_id);
+    if (not filename.has_value())
+        return new_error(project_errc::file_access_error);
+
+    auto file = file::open(*filename, file_mode{ file_open_options::read });
+    if (not file.has_value())
+        return file.error();
+
+    json_dearchiver dearc;
+    project         pj{};
+    pj.file        = file_id;
+    const auto ret = dearc(pj, fs, cs, filename->string(), *file, jn);
+
+    return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
+}
+
+status project::load(const file_access&      fs,
+                     const component_access& ids,
+                     journal_handler&        jn) noexcept
+{
+    clear();
+
+    if (const auto filename = make_file(fs, file); filename.has_value()) {
         auto file = file::open(*filename, file_mode{ file_open_options::read });
 
         if (file.has_value()) {
@@ -1887,13 +1912,7 @@ status project::load(modeling& mod, journal_handler& jn) noexcept
               reinterpret_cast<const char*>(u8str.data()), u8str.size());
 
             json_dearchiver dearc;
-            return mod.files.read(
-              [&](const auto& files, auto) noexcept -> status {
-                  return mod.ids.read(
-                    [&](const auto& ids, auto) noexcept -> status {
-                        return dearc(*this, files, ids, view, *file, jn);
-                    });
-              });
+            return dearc(*this, fs, ids, view, *file, jn);
         } else
             return file.error();
     }
@@ -1901,28 +1920,23 @@ status project::load(modeling& mod, journal_handler& jn) noexcept
     return new_error(project_errc::file_access_error);
 }
 
-status project::save(modeling& mod, journal_handler& jn) noexcept
+status project::save(const file_access&      fs,
+                     const component_access& ids,
+                     journal_handler&        jn) noexcept
 {
-    if (const auto filename = make_file(mod, file); filename.has_value()) {
+    if (const auto filename = make_file(fs, file); filename.has_value()) {
         auto file =
           file::open(*filename, file_mode{ file_open_options::write });
 
         if (file.has_value()) {
             json_archiver arc;
 
-            return mod.files.read(
-              [&](const auto& files, auto) noexcept -> status {
-                  return mod.ids.read(
-                    [&](const auto& ids, auto) noexcept -> status {
-                        return arc(
-                          *this,
-                          files,
-                          ids,
-                          *file,
-                          jn,
-                          json_archiver::print_option::indent_2_one_line_array);
-                    });
-              });
+            return arc(*this,
+                       fs,
+                       ids,
+                       *file,
+                       jn,
+                       json_archiver::print_option::indent_2_one_line_array);
         } else
             return file.error();
     }

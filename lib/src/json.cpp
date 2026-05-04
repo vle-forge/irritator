@@ -95,38 +95,38 @@ struct json_dearchiver::impl {
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
         jn.push(
-                    log_level::error,
-                    [](auto& title,
-                    auto& msg,
-                    auto  path,
-                    auto& stack,
-                    auto& fmt,
-                    auto  args) {
-            format(title, "json error {}", path);
+          log_level::error,
+          [](auto& title,
+             auto& msg,
+             auto  path,
+             auto& stack,
+             auto& fmt,
+             auto  args) {
+              format(title, "json error {}", path);
 
-            auto data      = msg.data();
-            sz   remaining = static_cast<int>(msg.capacity()) - 1;
-            sz   write     = 0;
+              auto data      = msg.data();
+              sz   remaining = static_cast<int>(msg.capacity()) - 1;
+              sz   write     = 0;
 
-            for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                auto ret = fmt::format_to_n(data,
-                                            remaining,
-                                            "  {}: {}\n",
-                                            static_cast<int>(i),
-                                            stack[i]);
-                write += ret.size;
-                msg.resize(write);
-                data = ret.out;
-                remaining -= ret.size;
-            }
+              for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
+                  auto ret = fmt::format_to_n(data,
+                                              remaining,
+                                              "  {}: {}\n",
+                                              static_cast<int>(i),
+                                              stack[i]);
+                  write += ret.size;
+                  msg.resize(write);
+                  data = ret.out;
+                  remaining -= ret.size;
+              }
 
-            auto ret = fmt::vformat_to_n(data, remaining, fmt, args);
-            msg.resize(write + ret.size);
-        },
-        m_path,
-        std::as_const(stack),
-        fmt,
-        fmt::make_format_args(args...));
+              auto ret = fmt::vformat_to_n(data, remaining, fmt, args);
+              msg.resize(write + ret.size);
+          },
+          m_path,
+          std::as_const(stack),
+          fmt,
+          fmt::make_format_args(args...));
 
         has_error = true;
 
@@ -4486,12 +4486,12 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool plot_observation_init(variable_observer&                    plot,
-                               const tree_node_id                    parent_id,
-                               const model_id                        mdl_id,
-                               const color&                          c,
+    bool plot_observation_init(variable_observer&      plot,
+                               const tree_node_id      parent_id,
+                               const model_id          mdl_id,
+                               const color&            c,
                                const plot_type_options t,
-                               const std::string_view name) noexcept
+                               const std::string_view  name) noexcept
     {
         if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
             plot.push_back(parent_id, mdl_id, c, t, name);
@@ -6039,13 +6039,13 @@ struct json_archiver::impl {
             if (auto* c = gen.children.try_to_get(con.dst); c)
                 if (compo.x.exists(con.x))
                     write_input_connection(
-                                ids, compo, gen, con.x, *c, con.port, w);
+                      ids, compo, gen, con.x, *c, con.port, w);
 
         for (const auto& con : gen.output_connections)
             if (auto* c = gen.children.try_to_get(con.src); c)
                 if (compo.y.exists(con.y))
                     write_output_connection(
-                                ids, compo, gen, con.y, *c, con.port, w);
+                      ids, compo, gen, con.y, *c, con.port, w);
 
         write_connection_packs(files, ids, compo, w);
 
@@ -6153,7 +6153,7 @@ struct json_archiver::impl {
         switch (g.g_type) {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
-            auto&           p    = g.dot;
+            auto& p = g.dot;
 
             registred_path* reg  = nullptr;
             dir_path*       dir  = nullptr;
@@ -6176,19 +6176,19 @@ struct json_archiver::impl {
             if (auto f = files.get_fs_path(p.file); f.has_value()) {
                 if (not write_dot_file(files, ids, g.g, *f)) {
                     jn.push(
-                                log_level::error,
-                                [](auto&       t,
-                                auto&       m,
-                                const auto* dir,
-                                const auto* file) noexcept {
-                        t = "Fail to write dot file";
-                        format(m,
-                               "Fail to write {} in {}",
-                               dir ? dir->path.c_str() : "?",
-                               file ? file->path.c_str() : "?");
-                    },
-                    dir,
-                    file);
+                      log_level::error,
+                      [](auto&       t,
+                         auto&       m,
+                         const auto* dir,
+                         const auto* file) noexcept {
+                          t = "Fail to write dot file";
+                          format(m,
+                                 "Fail to write {} in {}",
+                                 dir ? dir->path.c_str() : "?",
+                                 file ? file->path.c_str() : "?");
+                      },
+                      dir,
+                      file);
                 }
             } else {
                 jn.push(log_level::error, [](auto& t, auto& m) noexcept {

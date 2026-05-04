@@ -347,75 +347,90 @@ static bool show_project_simulation_settings(application&    app,
             app.add_gui_task([&app, pj_id]() {
                 auto& ed = app.pjs.get(pj_id);
 
-                if (auto ret = ed.pj.save(app.mod, app.jn); ret) {
-                    app.jn.push(
-                      log_level::info,
-                      [&](auto& title, auto& /*msg*/) noexcept {
-                          app.mod.files.read(
-                            [&](const auto& fs, const auto /*vers*/) {
-                                format(title,
-                                       "Saving project file {} success",
-                                       fs.file_paths.get(ed.pj.file).path.sv());
-                            });
-                      });
-                } else {
-                    app.jn.push(
-                      log_level::error, [&](auto& title, auto& msg) noexcept {
-                          const small_string<127> name = app.mod.files.read(
-                            [&](const auto& fs, const auto /*vers*/) {
-                                const auto* f =
-                                  fs.file_paths.try_to_get(ed.pj.file);
-                                return f ? f->path.sv()
-                                         : std::string_view{ "-" };
-                            });
+                app.mod.files.read([&](const auto& fs, auto) noexcept {
+                    app.mod.ids.read([&](const auto& ids, auto) noexcept {
+                        if (auto ret = ed.pj.save(fs, ids, app.jn); ret) {
+                            app.jn.push(
+                              log_level::info,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  app.mod.files.read(
+                                    [&](const auto& fs, const auto /*vers*/) {
+                                        format(title,
+                                               "Saving project file {} success",
+                                               fs.file_paths.get(ed.pj.file)
+                                                 .path.sv());
+                                    });
+                              });
+                        } else {
+                            app.jn.push(
+                              log_level::error,
+                              [&](auto& title, auto& msg) noexcept {
+                                  const small_string<127> name =
+                                    app.mod.files.read(
+                                      [&](const auto& fs, const auto /*vers*/) {
+                                          const auto* f =
+                                            fs.file_paths.try_to_get(
+                                              ed.pj.file);
+                                          return f ? f->path.sv()
+                                                   : std::string_view{ "-" };
+                                      });
 
-                          format(
-                            title, "Saving project file {} error", name.sv());
+                                  format(title,
+                                         "Saving project file {} error",
+                                         name.sv());
 
-                          if (ret.error().cat() == category::project) {
-                              if (static_cast<project_errc>(
-                                    ret.error().value()) ==
-                                  project_errc::file_access_error) {
-                                  msg = "Access error.";
-                              }
-                          } else if (ret.error().cat() == category::json) {
-                              switch (
-                                static_cast<json_errc>(ret.error().value())) {
-                              case json_errc::memory_error:
-                                  format(msg,
-                                         "json archiving memory error: not "
-                                         "enough memory\n");
-                                  break;
+                                  if (ret.error().cat() == category::project) {
+                                      if (static_cast<project_errc>(
+                                            ret.error().value()) ==
+                                          project_errc::file_access_error) {
+                                          msg = "Access error.";
+                                      }
+                                  } else if (ret.error().cat() ==
+                                             category::json) {
+                                      switch (static_cast<json_errc>(
+                                        ret.error().value())) {
+                                      case json_errc::memory_error:
+                                          format(
+                                            msg,
+                                            "json archiving memory error: not "
+                                            "enough memory\n");
+                                          break;
 
-                              case json_errc::arg_error:
-                                  format(msg,
-                                         "json archiving internal error\n");
-                                  break;
+                                      case json_errc::arg_error:
+                                          format(
+                                            msg,
+                                            "json archiving internal error\n");
+                                          break;
 
-                              case json_errc::file_error:
-                                  format(msg,
-                                         "json archiving memory error: not "
-                                         "enough memory\n");
-                                  break;
+                                      case json_errc::file_error:
+                                          format(
+                                            msg,
+                                            "json archiving memory error: not "
+                                            "enough memory\n");
+                                          break;
 
-                              case json_errc::invalid_project_format:
-                                  format(msg,
-                                         "json archiving json format error "
-                                         "`{}' at offset "
-                                         "{}\n",
-                                         0,
-                                         0);
-                                  break;
+                                      case json_errc::invalid_project_format:
+                                          format(
+                                            msg,
+                                            "json archiving json format error "
+                                            "`{}' at offset "
+                                            "{}\n",
+                                            0,
+                                            0);
+                                          break;
 
-                              default:
-                                  format(msg,
-                                         "json de-archiving unknown error\n");
-                              }
-                          }
-                      });
-                }
+                                      default:
+                                          format(msg,
+                                                 "json de-archiving unknown "
+                                                 "error\n");
+                                      }
+                                  }
+                              });
+                        }
 
-                ed.save_in_progress.clear();
+                        ed.save_in_progress.clear();
+                    });
+                });
             });
         }
     });

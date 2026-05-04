@@ -1784,25 +1784,25 @@ struct project_reserve_definition {
 class project
 {
 public:
-    //! Ctor parameters are used to initialized the default stock of
-    //! simulation and observations objects.
-    //!
-    //! \param models Stocks of models in the simulation.
-    //! \param nodes Stocks of simulation tree-nodes or coupled models.
-    //! \param grids Stocks of grid observations.
-    //! \param graphs Stocks of graph observations.
-    //! \param vars Stocks of variables observations.
-    //! \param parameters  Stocks of parameters in the simulation.
-    //!
-    project(
-      const project_reserve_definition&    res = project_reserve_definition(),
-      const simulation_reserve_definition& sim_res =
-        simulation_reserve_definition(),
-      const external_source_reserve_definition& srcs_res =
-        external_source_reserve_definition()) noexcept;
+    project() noexcept = default;
 
-    status load(modeling& mod, journal_handler& jn) noexcept;
-    status save(modeling& mod, journal_handler& jn) noexcept;
+    static expected<project> load(const file_access&      fs,
+                                  const component_access& cs,
+                                  const std::span<char>   buffer,
+                                  journal_handler&        jn) noexcept;
+
+    static expected<project> load(const file_access&      fs,
+                                  const component_access& cs,
+                                  const file_path_id      file_id,
+                                  journal_handler&        jn) noexcept;
+
+    status load(const file_access&      fs,
+                const component_access& ids,
+                journal_handler&        jn) noexcept;
+
+    status save(const file_access&      fs,
+                const component_access& ids,
+                journal_handler&        jn) noexcept;
 
     struct required_data {
         unsigned tree_node_nb{ 1u };

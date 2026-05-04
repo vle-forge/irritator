@@ -132,7 +132,7 @@ static bool show_local_simulation_plot_observers_table(
   const component_access& ids,
   tree_node&              tn) noexcept
 {
-    debug::ensure(!component_is_grid_or_graph(app.mod, tn));
+    debug::ensure(!component_is_grid_or_graph(ids, tn));
 
     auto is_modified = 0;
 

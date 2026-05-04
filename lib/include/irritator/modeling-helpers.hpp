@@ -227,32 +227,26 @@ inline std::optional<std::filesystem::path> make_file(
 }
 
 inline std::optional<std::filesystem::path> make_file(
-  const modeling&  mod,
-  const file_path& f) noexcept
+  const file_access& fs,
+  const file_path&   f) noexcept
 {
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept
-                            -> std::optional<std::filesystem::path> {
-        if (auto* dir = fs.dir_paths.try_to_get(f.parent))
-            if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
-                return make_file(*reg, *dir, f);
+    if (auto* dir = fs.dir_paths.try_to_get(f.parent))
+        if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
+            return make_file(*reg, *dir, f);
 
-        return std::nullopt;
-    });
+    return std::nullopt;
 }
 
 inline std::optional<std::filesystem::path> make_file(
-  const modeling&    mod,
+  const file_access& fs,
   const file_path_id f) noexcept
 {
-    return mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept
-                            -> std::optional<std::filesystem::path> {
-        if (auto* file = fs.file_paths.try_to_get(f))
-            if (auto* dir = fs.dir_paths.try_to_get(file->parent))
-                if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
-                    return make_file(*reg, *dir, *file);
+    if (auto* file = fs.file_paths.try_to_get(f))
+        if (auto* dir = fs.dir_paths.try_to_get(file->parent))
+            if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
+                return make_file(*reg, *dir, *file);
 
-        return std::nullopt;
-    });
+    return std::nullopt;
 }
 
 inline expected<file> open_file(
@@ -273,12 +267,12 @@ inline expected<file> open_file(
 }
 
 inline expected<file> open_file(
-  const modeling&    mod,
+  const file_access& fs,
   const file_path_id id,
   const file_mode    mode = file_mode(file_open_options::read)) noexcept
 {
     try {
-        if (const auto filename = make_file(mod, id); filename.has_value()) {
+        if (const auto filename = make_file(fs, id); filename.has_value()) {
             return file::open(*filename, mode);
         }
 
@@ -293,46 +287,16 @@ inline expected<file> open_file(
 /// \return true in the underlying \c component in the \c tree_node \c is a
 /// graph or a grid otherwise return false. If the component does not exists
 /// this function returns false.
-inline bool component_is_grid_or_graph(const modeling&  mod,
-                                       const tree_node& tn) noexcept
+inline bool component_is_grid_or_graph(const component_access& ids,
+                                       const tree_node&        tn) noexcept
 {
-    return mod.ids.read([&](const auto& ids, auto) noexcept {
-        if (ids.exists(tn.id)) {
-            return any_equal(ids.components[tn.id].type,
-                             component_type::graph,
-                             component_type::grid);
-        }
+    if (ids.exists(tn.id)) {
+        return any_equal(ids.components[tn.id].type,
+                         component_type::graph,
+                         component_type::grid);
+    }
 
-        return false;
-    });
-}
-
-template<typename Function>
-void for_each_component(const modeling& mod, Function&& f) noexcept
-{
-    mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
-        for (const auto reg_id : fs.recorded_paths) {
-            if (const auto* reg = fs.registred_paths.try_to_get(reg_id)) {
-                for (const auto dir_id : reg->children) {
-                    if (const auto* dir = fs.dir_paths.try_to_get(dir_id)) {
-                        for (const auto file_id : dir->children) {
-                            if (const auto* file =
-                                  fs.file_paths.try_to_get(file_id)) {
-                                mod.ids.read(
-                                  [&](const auto& ids, auto) noexcept {
-                                      if (ids.exists(file->component))
-                                          f(*reg,
-                                            *dir,
-                                            *file,
-                                            ids.components[file->component]);
-                                  });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    });
+    return false;
 }
 
 //! Call \c f for each model found into \c tree_node::nodes_v table.

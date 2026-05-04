@@ -587,22 +587,28 @@ void application::try_open_project_window(const file_access& /*files*/,
                 auto pj  = std::make_unique<project>();
                 pj->file = file_id;
 
-                if (const auto ret = pj->load(mod, jn); ret.has_error()) {
-                    jn.push(log_level::error, [&](auto& t, auto& m) {
-                        const auto cat = ret.error().cat();
-                        const auto err = ret.error().value();
+                mod.files.read([&](const auto& fs, auto) noexcept {
+                    mod.ids.read([&](const auto& ids, auto) noexcept {
+                        if (const auto ret = pj->load(fs, ids, jn);
+                            ret.has_error()) {
+                            jn.push(log_level::error, [&](auto& t, auto& m) {
+                                const auto cat = ret.error().cat();
+                                const auto err = ret.error().value();
 
-                        t = "Project: fail to set a new project";
-                        format(m,
-                               "Error during import (category: {} error: {})",
-                               ordinal(cat),
-                               err);
+                                t = "Project: fail to set a new project";
+                                format(m,
+                                       "Error during import (category: {} "
+                                       "error: {})",
+                                       ordinal(cat),
+                                       err);
+                            });
+
+                            return;
+                        }
+
+                        new_project_req.fulfill(std::move(pj));
                     });
-
-                    return;
-                }
-
-                new_project_req.fulfill(std::move(pj));
+                });
             }
         });
     }
@@ -1060,58 +1066,70 @@ void application::start_load_project(const project_id pj_id) noexcept
         if (not pj or is_undefined(pj->pj.file))
             return;
 
-        if (auto ret = pj->pj.load(mod, jn); ret.has_value()) {
-            jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-                mod.files.read([&](const auto& fs, const auto /*vesr*/) {
-                    format(title,
-                           "Loading project file {} success",
-                           fs.file_paths.get(pj->pj.file).path.sv());
-                });
-            });
-        } else {
-            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                mod.files.read([&](const auto& fs, const auto /*vesr*/) {
-                    format(title,
-                           "Loading project file {} error",
-                           fs.file_paths.get(pj->pj.file).path.sv());
-                });
+        mod.files.read([&](const auto& fs, auto) noexcept {
+            mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (auto ret = pj->pj.load(fs, ids, jn); ret.has_value()) {
+                    jn.push(log_level::info,
+                            [&](auto& title, auto& /*msg*/) noexcept {
+                                mod.files.read([&](const auto& fs,
+                                                   const auto /*vesr*/) {
+                                    format(
+                                      title,
+                                      "Loading project file {} success",
+                                      fs.file_paths.get(pj->pj.file).path.sv());
+                                });
+                            });
+                } else {
+                    jn.push(
+                      log_level::error, [&](auto& title, auto& msg) noexcept {
+                          mod.files.read([&](const auto& fs,
+                                             const auto /*vesr*/) {
+                              format(title,
+                                     "Loading project file {} error",
+                                     fs.file_paths.get(pj->pj.file).path.sv());
+                          });
 
-                if (ret.error().cat() == category::project) {
-                    if (static_cast<project_errc>(ret.error().value()) ==
-                        project_errc::file_access_error) {
-                        msg = "Access error.";
-                    }
-                } else if (ret.error().cat() == category::json) {
-                    switch (static_cast<json_errc>(ret.error().value())) {
-                    case json_errc::memory_error:
-                        msg = "json de-archiving memory error: not "
-                              "enough memory\n";
-                        break;
+                          if (ret.error().cat() == category::project) {
+                              if (static_cast<project_errc>(
+                                    ret.error().value()) ==
+                                  project_errc::file_access_error) {
+                                  msg = "Access error.";
+                              }
+                          } else if (ret.error().cat() == category::json) {
+                              switch (
+                                static_cast<json_errc>(ret.error().value())) {
+                              case json_errc::memory_error:
+                                  msg = "json de-archiving memory error: not "
+                                        "enough memory\n";
+                                  break;
 
-                    case json_errc::arg_error:
-                        msg = "json de-archiving internal error\n";
-                        break;
+                              case json_errc::arg_error:
+                                  msg = "json de-archiving internal error\n";
+                                  break;
 
-                    case json_errc::file_error:
-                        msg = "json de-archiving memory error: not "
-                              "enough memory\n";
-                        break;
+                              case json_errc::file_error:
+                                  msg = "json de-archiving memory error: not "
+                                        "enough memory\n";
+                                  break;
 
-                    case json_errc::invalid_project_format:
-                        format(msg,
-                               "json de-archiving json format error "
-                               "`{}' at offset "
-                               "{}\n",
-                               0,
-                               0);
-                        break;
+                              case json_errc::invalid_project_format:
+                                  format(msg,
+                                         "json de-archiving json format error "
+                                         "`{}' at offset "
+                                         "{}\n",
+                                         0,
+                                         0);
+                                  break;
 
-                    default:
-                        format(msg, "json de-archiving unknown error\n");
-                    }
+                              default:
+                                  format(msg,
+                                         "json de-archiving unknown error\n");
+                              }
+                          }
+                      });
                 }
             });
-        }
+        });
     });
 }
 
@@ -1122,62 +1140,78 @@ void application::start_save_project(const project_id pj_id) noexcept
         if (not pj_ed)
             return;
 
-        if (auto ret = pj_ed->pj.save(mod, jn); ret) {
-            jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-                mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                    format(title,
-                           "Saving project file {} success",
-                           fs.file_paths.get(pj_ed->pj.file).path.sv());
-                });
-            });
-        } else {
-            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                const small_string<127> name =
-                  mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                      const auto* f = fs.file_paths.try_to_get(pj_ed->pj.file);
-                      return f ? f->path.sv() : std::string_view{ "-" };
-                  });
+        mod.files.read([&](const auto& fs, auto) noexcept {
+            mod.ids.read([&](const auto& ids, auto) noexcept {
+                if (auto ret = pj_ed->pj.save(fs, ids, jn); ret) {
+                    jn.push(
+                      log_level::info,
+                      [&](auto& title, auto& /*msg*/) noexcept {
+                          mod.files.read(
+                            [&](const auto& fs, const auto /*vers*/) {
+                                format(
+                                  title,
+                                  "Saving project file {} success",
+                                  fs.file_paths.get(pj_ed->pj.file).path.sv());
+                            });
+                      });
+                } else {
+                    jn.push(
+                      log_level::error, [&](auto& title, auto& msg) noexcept {
+                          const small_string<127> name = mod.files.read(
+                            [&](const auto& fs, const auto /*vers*/) {
+                                const auto* f =
+                                  fs.file_paths.try_to_get(pj_ed->pj.file);
+                                return f ? f->path.sv()
+                                         : std::string_view{ "-" };
+                            });
 
-                format(title, "Saving project file {} error", name.sv());
+                          format(
+                            title, "Saving project file {} error", name.sv());
 
-                if (ret.error().cat() == category::project) {
-                    if (static_cast<project_errc>(ret.error().value()) ==
-                        project_errc::file_access_error) {
-                        msg = "Access error.";
-                    }
-                } else if (ret.error().cat() == category::json) {
-                    switch (static_cast<json_errc>(ret.error().value())) {
-                    case json_errc::memory_error:
-                        format(msg,
-                               "json archiving memory error: not "
-                               "enough memory\n");
-                        break;
+                          if (ret.error().cat() == category::project) {
+                              if (static_cast<project_errc>(
+                                    ret.error().value()) ==
+                                  project_errc::file_access_error) {
+                                  msg = "Access error.";
+                              }
+                          } else if (ret.error().cat() == category::json) {
+                              switch (
+                                static_cast<json_errc>(ret.error().value())) {
+                              case json_errc::memory_error:
+                                  format(msg,
+                                         "json archiving memory error: not "
+                                         "enough memory\n");
+                                  break;
 
-                    case json_errc::arg_error:
-                        format(msg, "json archiving internal error\n");
-                        break;
+                              case json_errc::arg_error:
+                                  format(msg,
+                                         "json archiving internal error\n");
+                                  break;
 
-                    case json_errc::file_error:
-                        format(msg,
-                               "json archiving memory error: not "
-                               "enough memory\n");
-                        break;
+                              case json_errc::file_error:
+                                  format(msg,
+                                         "json archiving memory error: not "
+                                         "enough memory\n");
+                                  break;
 
-                    case json_errc::invalid_project_format:
-                        format(msg,
-                               "json archiving json format error "
-                               "`{}' at offset "
-                               "{}\n",
-                               0,
-                               0);
-                        break;
+                              case json_errc::invalid_project_format:
+                                  format(msg,
+                                         "json archiving json format error "
+                                         "`{}' at offset "
+                                         "{}\n",
+                                         0,
+                                         0);
+                                  break;
 
-                    default:
-                        format(msg, "json de-archiving unknown error\n");
-                    }
+                              default:
+                                  format(msg,
+                                         "json de-archiving unknown error\n");
+                              }
+                          }
+                      });
                 }
             });
-        }
+        });
     });
 }
 
