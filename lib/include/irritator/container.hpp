@@ -1316,6 +1316,26 @@ public:
         return operator[](g_get_index(id));
     }
 
+    constexpr T& operator()(std::integral auto position) noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    constexpr const T& operator()(std::integral auto position) const noexcept
+    {
+        return *(reinterpret_cast<const T*>(m_buffer) + position);
+    }
+
+    constexpr T& operator()(identifier auto id) noexcept
+    {
+        return operator()(g_get_index(id));
+    }
+
+    constexpr const T& operator()(identifier auto id) const noexcept
+    {
+        return operator()(g_get_index(id));
+    }
+
     constexpr void swap(buffer_view& o) noexcept
     {
         std::swap(m_buffer, o.m_buffer);
