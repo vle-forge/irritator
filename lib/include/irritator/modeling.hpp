@@ -416,23 +416,6 @@ public:
     expected<child_id> copy_to(const child&       c,
                                generic_component& dst) const noexcept;
 
-    /// @brief Import children, connections and optionaly properties.
-    ///
-    /// @details Copy children and connections into the this
-    /// `generic_component` and initialize of copy properties if exsits.
-    ///
-    /// @return `success()` or `modeling::connection_error`,
-    /// `modeling::child_error`.
-    status import(const modeling&            mod,
-                  const component&           compo,
-                  const std::span<position>  positions  = {},
-                  const std::span<name_str>  names      = {},
-                  const std::span<parameter> parameters = {}) noexcept;
-
-    status import(const graph_component& graph) noexcept;
-    status import(const grid_component& graph) noexcept;
-    status import(const generic_component& graph) noexcept;
-
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const child_id from_id) const noexcept;
 };
