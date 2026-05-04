@@ -47,14 +47,14 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             ImGui::TextUnformatted("-");
 
             ImGui::TableNextColumn();
-            int plot_type = ordinal(
-              vobs.subs.template get<variable_observer::type_options>(id));
+            int plot_type =
+              ordinal(vobs.subs.template get<plot_type_options>(id));
             if (ImGui::Combo("##plot",
                              &plot_type,
                              plot_type_str,
                              IM_ARRAYSIZE(plot_type_str)))
-                vobs.subs.template get<variable_observer::type_options>(id) =
-                  enum_cast<variable_observer::type_options>(plot_type);
+                vobs.subs.template get<plot_type_options>(id) =
+                  enum_cast<plot_type_options>(plot_type);
 
             ImGui::TableNextColumn();
             const bool can_copy = app.copy_obs.can_alloc(1);
@@ -307,10 +307,9 @@ void output_editor::show() noexcept
                             return;
 
                         const auto opts =
-                          vobs.subs
-                            .template get<variable_observer::type_options>(id);
+                          vobs.subs.template get<plot_type_options>(id);
 
-                        if (opts != variable_observer::type_options::none) {
+                        if (opts != plot_type_options::none) {
                             const auto& name =
                               vobs.subs.template get<name_str>(id);
 

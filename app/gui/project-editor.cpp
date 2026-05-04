@@ -246,13 +246,13 @@ static bool show_local_simulation_plot_observers_table(
                             auto       new_sub_id = n->push_back(tn_id, mdl_id);
 
                             auto& colors = n->subs.template get<color>();
-                            auto& opts   = n->subs.template get<
-                                variable_observer::type_options>();
+                            auto& opts =
+                              n->subs.template get<plot_type_options>();
                             auto& names = n->subs.template get<name_str>();
 
                             const auto& ccolors = o->subs.template get<color>();
-                            const auto& copts   = o->subs.template get<
-                                variable_observer::type_options>();
+                            const auto& copts =
+                              o->subs.template get<plot_type_options>();
                             const auto& cnames =
                               o->subs.template get<name_str>();
 
@@ -396,8 +396,7 @@ static void show_local_variables_plot(application&       app,
         if (tn_id != tn)
             continue;
 
-        const auto opts =
-          v_obs.subs.template get<variable_observer::type_options>(id);
+        const auto  opts = v_obs.subs.template get<plot_type_options>(id);
         const auto& name = v_obs.subs.template get<name_str>(id);
 
         app.plot_obs.show_plot_line(*obs, opts, name);
@@ -869,8 +868,7 @@ static void show_subplots(application&       app,
             if (not obs)
                 continue;
 
-            const auto opts =
-              vobs.subs.template get<variable_observer::type_options>(id);
+            const auto  opts = vobs.subs.template get<plot_type_options>(id);
             const auto& name = vobs.subs.template get<name_str>(id);
 
             app.plot_obs.show_plot_line(*obs, opts, name);

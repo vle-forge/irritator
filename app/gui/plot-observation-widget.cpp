@@ -35,11 +35,10 @@ void plot_observation_widget::show(project& pj) noexcept
                 obs->linearized_buffer.read(
                   [&](auto& lbuf, const auto /*version*/) noexcept {
                       const auto opt =
-                        v_obs.subs
-                          .template get<variable_observer::type_options>(id);
+                        v_obs.subs.template get<plot_type_options>(id);
 
                       switch (opt) {
-                      case variable_observer::type_options::line:
+                      case plot_type_options::line:
                           ImPlot::PlotLineG(
                             name.c_str(),
                             ring_buffer_getter,
@@ -48,7 +47,7 @@ void plot_observation_widget::show(project& pj) noexcept
                             lbuf.ssize());
                           break;
 
-                      case variable_observer::type_options::dash:
+                      case plot_type_options::dash:
                           ImPlot::PlotScatterG(
                             name.c_str(),
                             ring_buffer_getter,
@@ -69,13 +68,12 @@ void plot_observation_widget::show(project& pj) noexcept
     }
 }
 
-static void show_discrete_plot_line(
-  const variable_observer::type_options options,
-  const name_str&                       name,
-  const observer&                       obs) noexcept
+static void show_discrete_plot_line(const plot_type_options options,
+                                    const name_str&         name,
+                                    const observer&         obs) noexcept
 {
     switch (options) {
-    case variable_observer::type_options::line:
+    case plot_type_options::line:
         obs.linearized_buffer.read(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
               ImPlot::PlotStairsG(
@@ -87,7 +85,7 @@ static void show_discrete_plot_line(
           name);
         break;
 
-    case variable_observer::type_options::dash:
+    case plot_type_options::dash:
         obs.linearized_buffer.read(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
               ImPlot::PlotBarsG(
@@ -115,15 +113,14 @@ inline static auto local_ring_buffer_getter(int idx, void* data) noexcept
     return ImPlotPoint(values.x, values.y);
 };
 
-static void show_continuous_plot_line(
-  const variable_observer::type_options options,
-  const name_str&                       name,
-  const observer&                       obs) noexcept
+static void show_continuous_plot_line(const plot_type_options options,
+                                      const name_str&         name,
+                                      const observer&         obs) noexcept
 {
     obs.linearized_buffer.try_read(
       [&](const auto& lbuf, const auto /*version*/) noexcept {
           switch (options) {
-          case variable_observer::type_options::line:
+          case plot_type_options::line:
               ImPlot::PlotLineG(
                 name.c_str(),
                 local_ring_buffer_getter,
@@ -131,7 +128,7 @@ static void show_continuous_plot_line(
                 lbuf.ssize());
               break;
 
-          case variable_observer::type_options::dash:
+          case plot_type_options::dash:
               ImPlot::PlotScatterG(
                 name.c_str(),
                 local_ring_buffer_getter,
@@ -145,10 +142,9 @@ static void show_continuous_plot_line(
       });
 }
 
-void plot_observation_widget::show_plot_line(
-  const observer&                       obs,
-  const variable_observer::type_options options,
-  const name_str&                       name) noexcept
+void plot_observation_widget::show_plot_line(const observer&         obs,
+                                             const plot_type_options options,
+                                             const name_str& name) noexcept
 {
     ImGui::PushID(&obs);
 

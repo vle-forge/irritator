@@ -4490,7 +4490,7 @@ struct json_dearchiver::impl {
                                const tree_node_id                    parent_id,
                                const model_id                        mdl_id,
                                const color&                          c,
-                               const variable_observer::type_options t,
+                               const plot_type_options t,
                                const std::string_view name) noexcept
     {
         if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
@@ -4511,7 +4511,7 @@ struct json_dearchiver::impl {
         std::optional<model_id>     mdl_id;
 
         auto c = color{ 1.f, 0.5f, 1.0f, 0.f };
-        auto t = variable_observer::type_options::line;
+        auto t = plot_type_options::line;
 
         return for_each_member(
                  val,
@@ -4538,13 +4538,13 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool copy_string_to(variable_observer::type_options& type) noexcept
+    bool copy_string_to(plot_type_options& type) noexcept
     {
         if (temp_string == "line")
-            type = variable_observer::type_options::line;
+            type = plot_type_options::line;
 
         if (temp_string == "dash")
-            type = variable_observer::type_options::dash;
+            type = plot_type_options::dash;
 
         return error("unknown element {}", temp_string);
     }

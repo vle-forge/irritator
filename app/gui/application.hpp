@@ -348,9 +348,9 @@ public:
      * @attention Use this function after the call to ImPlot::BeginPlot() and
      * before the call to ImPlot::EndPlot().
      */
-    void show_plot_line(const observer&                       obs,
-                        const variable_observer::type_options options,
-                        const name_str&                       name) noexcept;
+    void show_plot_line(const observer&         obs,
+                        const plot_type_options options,
+                        const name_str&         name) noexcept;
 };
 
 /** A class to compute 3D projection of 3D points using three rotation

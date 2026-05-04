@@ -1381,17 +1381,17 @@ public:
     i32   color_map = 0;
 };
 
+enum class plot_type_options : u8 {
+    none,
+    line,
+    dash,
+};
+
 class variable_observer
 {
 public:
     spin_mutex mutex; //!< To write-protect the swap between buffers
                       //!< (values and values_2nd).
-
-    enum class type_options : u8 {
-        none,
-        line,
-        dash,
-    };
 
     name_str                               name;
     static_bounded_value<i32, 8, 64>       max_observers          = 8;
@@ -1409,8 +1409,8 @@ public:
      * model_id      `model` to observe.
      * observer_id   `observer` connected to `model`.
      * color         Colors used for observers.
-     * type_options> Line, dash etc. for observers.
-     * name_str>     Name of the observation.
+     * plot_type_options Line, dash etc. for observers.
+     * name_str      Name of the observation.
      */
     id_data_array<void,
                   sub_id,
@@ -1419,7 +1419,7 @@ public:
                   model_id,
                   observer_id,
                   color,
-                  type_options,
+                  plot_type_options,
                   name_str>
       subs;
 
@@ -1449,10 +1449,10 @@ public:
 
     //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
     //! already exists.
-    sub_id push_back(const tree_node_id     tn,
-                     const model_id         mdl,
-                     const color&           c = color{ 0.5f, 0.5f, 0.5f, 0.f },
-                     const type_options     t = type_options::line,
+    sub_id push_back(const tree_node_id      tn,
+                     const model_id          mdl,
+                     const color&            c = color{ 0.5f, 0.5f, 0.5f, 0.f },
+                     const plot_type_options t = plot_type_options::line,
                      const std::string_view name = std::string_view{}) noexcept;
 
     bool     exists(const sub_id id) const noexcept { return subs.exists(id); }

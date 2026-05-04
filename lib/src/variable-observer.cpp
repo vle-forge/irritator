@@ -83,11 +83,11 @@ void variable_observer::erase(const sub_id i) noexcept
 }
 
 variable_observer::sub_id variable_observer::push_back(
-  const tree_node_id     tn,
-  const model_id         mdl,
-  const color&           c,
-  const type_options     t,
-  const std::string_view name) noexcept
+  const tree_node_id      tn,
+  const model_id          mdl,
+  const color&            c,
+  const plot_type_options t,
+  const std::string_view  name) noexcept
 {
     if (not subs.can_alloc(1) or subs.grow<3, 2>(1))
         return undefined<variable_observer::sub_id>();
@@ -97,12 +97,12 @@ variable_observer::sub_id variable_observer::push_back(
 
     const auto id = subs.alloc_id();
 
-    subs.get<tree_node_id>(id) = tn;
-    subs.get<model_id>(id)     = mdl;
-    subs.get<observer_id>(id)  = undefined<observer_id>();
-    subs.get<color>(id)        = c;
-    subs.get<type_options>(id) = t;
-    subs.get<name_str>(id)     = name;
+    subs.get<tree_node_id>(id)      = tn;
+    subs.get<model_id>(id)          = mdl;
+    subs.get<observer_id>(id)       = undefined<observer_id>();
+    subs.get<color>(id)             = c;
+    subs.get<plot_type_options>(id) = t;
+    subs.get<name_str>(id)          = name;
 
     return id;
 }
