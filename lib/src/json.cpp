@@ -6154,6 +6154,7 @@ struct json_archiver::impl {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
             auto&           p    = g.dot;
+
             registred_path* reg  = nullptr;
             dir_path*       dir  = nullptr;
             file_path*      file = nullptr;
@@ -6178,16 +6179,16 @@ struct json_archiver::impl {
                                 log_level::error,
                                 [](auto&       t,
                                 auto&       m,
-                                const auto& dir,
-                                const auto& file) noexcept {
+                                const auto* dir,
+                                const auto* file) noexcept {
                         t = "Fail to write dot file";
                         format(m,
                                "Fail to write {} in {}",
                                dir ? dir->path.c_str() : "?",
-                               file.path.c_str());
+                               file ? file->path.c_str() : "?");
                     },
                     dir,
-                    *file);
+                    file);
                 }
             } else {
                 jn.push(log_level::error, [](auto& t, auto& m) noexcept {
