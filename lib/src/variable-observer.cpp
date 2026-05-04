@@ -2,28 +2,19 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
-static bool check(const sz tn_ids,
-                  const sz mdl_ids,
-                  const sz obs_ids,
-                  const sz colors,
-                  const sz options) noexcept
-{
-    return tn_ids == mdl_ids and tn_ids == obs_ids and tn_ids == colors and
-           tn_ids == options;
-}
-
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
-    for (sz i = 0, e = m_tn_ids.size(); i != e; ++i) {
-        auto  obs_id = undefined<observer_id>();
-        auto* tn     = pj.tree_nodes.try_to_get(m_tn_ids[i]);
-        auto* mdl    = sim.models.try_to_get(m_mdl_ids[i]);
+    for (const auto id : m_vars) {
+        auto       obs_id = undefined<observer_id>();
+        const auto tn_id  = m_vars.get<tree_node_id>(id);
+        const auto mdl_id = m_vars.get<model_id>(id);
+        auto*      tn     = pj.tree_nodes.try_to_get(tn_id);
+        auto*      mdl    = sim.models.try_to_get(mdl_id);
 
         if (tn and mdl) {
             auto* obs = sim.observers.try_to_get(mdl->obs_id);
@@ -50,38 +41,30 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
             }
         }
 
-        m_obs_ids[i] = obs_id;
+        m_vars.get<observer_id>(id) = obs_id;
     }
 
     return success();
 }
 
-void variable_observer::clear() noexcept
-{
-    std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
-}
+void variable_observer::clear() noexcept { m_vars.clear(); }
 
 auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
   -> sub_id
 {
-    for (const auto id : m_ids) {
-        const auto idx = get_index(id);
-
-        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
+    for (const auto id : m_vars)
+        if (m_vars.get<tree_node_id>(id) == tn and
+            m_vars.get<model_id>(id) == mdl)
             return id;
-    }
 
     return undefined<variable_observer::sub_id>();
 }
 
 bool variable_observer::exists(const tree_node_id tn) noexcept
 {
-    for (const auto id : m_ids) {
-        const auto idx = get_index(id);
-
-        if (m_tn_ids[idx] == tn)
+    for (const auto id : m_vars)
+        if (m_vars.get<tree_node_id>(id) == tn)
             return true;
-    }
 
     return false;
 }
@@ -89,18 +72,16 @@ bool variable_observer::exists(const tree_node_id tn) noexcept
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {
-    for (const auto id : m_ids) {
-        const auto idx = get_index(id);
-
-        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
-            erase(id);
-    }
+    for (const auto id : m_vars)
+        if (m_vars.get<tree_node_id>(id) == tn and
+            m_vars.get<model_id>(id) == mdl)
+            m_vars.free(id);
 }
 
 void variable_observer::erase(const sub_id i) noexcept
 {
-    if (const auto idx_opt = m_ids.get(i); idx_opt.has_value())
-        m_ids.free(i);
+    if (m_vars.exists(i))
+        m_vars.free(i);
 }
 
 variable_observer::sub_id variable_observer::push_back(
@@ -110,39 +91,20 @@ variable_observer::sub_id variable_observer::push_back(
   const type_options     t,
   const std::string_view name) noexcept
 {
-    check(m_tn_ids.size(),
-          m_mdl_ids.size(),
-          m_obs_ids.size(),
-          m_colors.size(),
-          m_options.size());
+    if (not m_vars.can_alloc(1) or m_vars.grow<3, 2>(1))
+        return undefined<variable_observer::sub_id>();
 
-    if (not m_ids.capacity()) {
-        m_ids.reserve(max_observers.value());
-        m_tn_ids.resize(max_observers.value());
-        m_mdl_ids.resize(max_observers.value());
-        m_obs_ids.resize(max_observers.value());
-        m_colors.resize(max_observers.value());
-        m_options.resize(max_observers.value());
-        m_names.resize(max_observers.value());
-    }
+    if (const auto id = find(tn, mdl); is_defined(id))
+        return id;
 
-    for (auto id : m_ids) {
-        const auto idx = get_index(id);
+    const auto id = m_vars.alloc_id();
 
-        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
-            return id;
-    }
-
-    debug::ensure(m_ids.can_alloc(1));
-
-    const auto id  = m_ids.alloc();
-    const auto idx = get_index(id);
-    m_tn_ids[idx]  = tn;
-    m_mdl_ids[idx] = mdl;
-    m_obs_ids[idx] = undefined<observer_id>();
-    m_colors[idx]  = c;
-    m_options[idx] = t;
-    m_names[idx]   = name;
+    m_vars.get<tree_node_id>(id) = tn;
+    m_vars.get<model_id>(id)     = mdl;
+    m_vars.get<observer_id>(id)  = undefined<observer_id>();
+    m_vars.get<color>(id)        = c;
+    m_vars.get<type_options>(id) = t;
+    m_vars.get<name_str>(id)     = name;
 
     return id;
 }

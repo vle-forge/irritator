@@ -1403,14 +1403,24 @@ public:
 
     enum class sub_id : u32;
 
-private:
-    id_array<sub_id>     m_ids;
-    vector<tree_node_id> m_tn_ids;  //!< `tree_node` parent of the model.
-    vector<model_id>     m_mdl_ids; //!< `model` to observe.
-    vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
-    vector<color>        m_colors;  //!< Colors used for observers.
-    vector<type_options> m_options; //!< Line, dash etc. for observers.
-    vector<name_str>     m_names;   //!< Name of the observation.
+    id_data_array<void,
+                  sub_id,
+                  irt::allocator<new_delete_memory_resource>,
+                  tree_node_id,
+                  model_id,
+                  observer_id,
+                  color,
+                  type_options,
+                  name_str>
+      m_vars;
+
+    // id_array<sub_id>     m_ids;
+    // vector<tree_node_id> m_tn_ids;  //!< `tree_node` parent of the model.
+    // vector<model_id>     m_mdl_ids; //!< `model` to observe.
+    // vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
+    // vector<color>        m_colors;  //!< Colors used for observers.
+    // vector<type_options> m_options; //!< Line, dash etc. for observers.
+    // vector<name_str>     m_names;   //!< Name of the observation.
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1444,43 +1454,9 @@ public:
                      const type_options     t = type_options::line,
                      const std::string_view name = std::string_view{}) noexcept;
 
-    bool     exists(const sub_id id) const noexcept { return m_ids.exists(id); }
-    unsigned size() const noexcept { return m_ids.size(); }
-    int      ssize() const noexcept { return m_ids.ssize(); }
-
-    template<typename Function>
-    void if_exists_do(const sub_id id, Function&& fn) noexcept
-    {
-        if (m_ids.exists(id))
-            std::invoke(std::forward<Function>(fn), id);
-    }
-
-    template<typename Function>
-    void for_each(Function&& fn) noexcept
-    {
-        for (const auto id : m_ids)
-            std::invoke(std::forward<Function>(fn), id);
-    }
-
-    template<typename Function>
-    void for_each(Function&& fn) const noexcept
-    {
-        for (const auto id : m_ids)
-            std::invoke(std::forward<Function>(fn), id);
-    }
-
-    std::span<tree_node_id>       get_tn_ids() noexcept;
-    std::span<const tree_node_id> get_tn_ids() const noexcept;
-    std::span<model_id>           get_mdl_ids() noexcept;
-    std::span<const model_id>     get_mdl_ids() const noexcept;
-    std::span<observer_id>        get_obs_ids() noexcept;
-    std::span<const observer_id>  get_obs_ids() const noexcept;
-    std::span<name_str>           get_names() noexcept;
-    std::span<const name_str>     get_names() const noexcept;
-    std::span<color>              get_colors() noexcept;
-    std::span<const color>        get_colors() const noexcept;
-    std::span<type_options>       get_options() noexcept;
-    std::span<const type_options> get_options() const noexcept;
+    bool exists(const sub_id id) const noexcept { return m_vars.exists(id); }
+    unsigned size() const noexcept { return m_vars.size(); }
+    int      ssize() const noexcept { return m_vars.ssize(); }
 };
 
 struct modeling_reserve_definition {
@@ -2098,70 +2074,6 @@ inline generic_component::child::child(component_id component) noexcept
   : id{ .compo_id = component }
   , type{ child_type::component }
 {}
-
-inline std::span<tree_node_id> variable_observer::get_tn_ids() noexcept
-{
-    return m_tn_ids;
-}
-
-inline std::span<const tree_node_id> variable_observer::get_tn_ids()
-  const noexcept
-{
-    return m_tn_ids;
-}
-
-inline std::span<model_id> variable_observer::get_mdl_ids() noexcept
-{
-    return m_mdl_ids;
-}
-
-inline std::span<const model_id> variable_observer::get_mdl_ids() const noexcept
-{
-    return m_mdl_ids;
-}
-
-inline std::span<observer_id> variable_observer::get_obs_ids() noexcept
-{
-    return m_obs_ids;
-}
-
-inline std::span<const observer_id> variable_observer::get_obs_ids()
-  const noexcept
-{
-    return m_obs_ids;
-}
-
-inline std::span<name_str> variable_observer::get_names() noexcept
-{
-    return m_names;
-}
-
-inline std::span<const name_str> variable_observer::get_names() const noexcept
-{
-    return m_names;
-}
-
-inline std::span<color> variable_observer::get_colors() noexcept
-{
-    return m_colors;
-}
-
-inline std::span<const color> variable_observer::get_colors() const noexcept
-{
-    return m_colors;
-}
-
-inline std::span<variable_observer::type_options>
-variable_observer::get_options() noexcept
-{
-    return m_options;
-}
-
-inline std::span<const variable_observer::type_options>
-variable_observer::get_options() const noexcept
-{
-    return m_options;
-}
 
 inline tree_node::tree_node(component_id           id_,
                             const std::string_view uid) noexcept

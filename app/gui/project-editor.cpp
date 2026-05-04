@@ -190,8 +190,8 @@ static bool show_local_simulation_plot_observers_table(
                                           g->children_names[ch_idx].sv();
 
                                         if (ch_uid == uid) {
-                                            vobs.get_names()[get_index(
-                                              sub_obs_id)] = ch_uid;
+                                            vobs.m_vars.template get<name_str>(
+                                              sub_obs_id) = ch_uid;
                                             break;
                                         }
                                     }
@@ -219,7 +219,8 @@ static bool show_local_simulation_plot_observers_table(
                             ImGui::PushItemWidth(-1.f);
                             if (ImGui::InputSmallString(
                                   "name",
-                                  vobs->get_names()[get_index(sub_obs_id)]))
+                                  vobs->m_vars.template get<name_str>(
+                                    sub_obs_id)))
                                 is_modified++;
                             ImGui::PopItemWidth();
                         }
@@ -244,12 +245,21 @@ static bool show_local_simulation_plot_observers_table(
                             const auto old_sub_id = o->find(tn_id, mdl_id);
                             auto       new_sub_id = n->push_back(tn_id, mdl_id);
 
-                            n->get_colors()[get_index(new_sub_id)] =
-                              o->get_colors()[get_index(old_sub_id)];
-                            n->get_options()[get_index(new_sub_id)] =
-                              o->get_options()[get_index(old_sub_id)];
-                            n->get_names()[get_index(new_sub_id)] =
-                              o->get_names()[get_index(old_sub_id)];
+                            auto& colors = n->m_vars.template get<color>();
+                            auto& opts   = n->m_vars.template get<
+                                variable_observer::type_options>();
+                            auto& names = n->m_vars.template get<name_str>();
+
+                            const auto& ccolors =
+                              o->m_vars.template get<color>();
+                            const auto& copts = o->m_vars.template get<
+                              variable_observer::type_options>();
+                            const auto& cnames =
+                              o->m_vars.template get<name_str>();
+
+                            colors(new_sub_id) = ccolors(old_sub_id);
+                            opts(new_sub_id)   = copts(old_sub_id);
+                            names(new_sub_id)  = cnames(old_sub_id);
 
                             o->erase(tn_id, mdl_id);
                             tn.variable_observer_ids.set(uid, vobs_id);
@@ -376,14 +386,23 @@ static void show_local_variables_plot(application&       app,
                                       variable_observer& v_obs,
                                       tree_node_id       tn_id) noexcept
 {
-    v_obs.for_each([&](const auto id) noexcept {
-        const auto idx = get_index(id);
-        auto* obs = ed.pj.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
+    for (const auto id : v_obs.m_vars) {
+        const auto obs_id = v_obs.m_vars.template get<observer_id>(id);
+        auto*      obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
-        if (obs and v_obs.get_tn_ids()[idx] == tn_id)
-            app.plot_obs.show_plot_line(
-              *obs, v_obs.get_options()[idx], v_obs.get_names()[idx]);
-    });
+        if (not obs)
+            continue;
+
+        const auto tn = v_obs.m_vars.template get<tree_node_id>(id);
+        if (tn_id != tn)
+            continue;
+
+        const auto opts =
+          v_obs.m_vars.template get<variable_observer::type_options>(id);
+        const auto& name = v_obs.m_vars.template get<name_str>(id);
+
+        app.plot_obs.show_plot_line(*obs, opts, name);
+    }
 }
 
 // @TODO merge the three next functions with a template on
@@ -830,6 +849,38 @@ static int show_part_visualisation_editor(application&    app,
     return current_pos;
 }
 
+static void show_subplots(application&       app,
+                          project_editor&    ed,
+                          const ImVec2&      sub_obs_size,
+                          variable_observer& vobs) noexcept
+{
+    if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
+        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+        ImPlot::SetupLegend(ImPlotLocation_NorthWest);
+        ImPlot::SetupAxisLimits(
+          ImAxis_X1, ed.pj.sim.limits.begin(), ed.pj.sim.limits.end());
+        ImPlot::SetupFinish();
+
+        for (const auto id : vobs.m_vars) {
+            const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
+            const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
+
+            if (not obs)
+                continue;
+
+            const auto opts =
+              vobs.m_vars.template get<variable_observer::type_options>(id);
+            const auto& name = vobs.m_vars.template get<name_str>(id);
+
+            app.plot_obs.show_plot_line(*obs, opts, name);
+        }
+
+        ImPlot::PopStyleVar(2);
+        ImPlot::EndPlot();
+    }
+}
 static bool show_project_observations(application&    app,
                                       project_editor& ed) noexcept
 {
@@ -884,30 +935,9 @@ static bool show_project_observations(application&    app,
                 for (auto& vobs : ed.pj.variable_observers) {
                     ImGui::PushID(&vobs);
                     ImGui::BeginChild("##vobs", sub_obs_size);
-                    if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
-                        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                        ImPlot::SetupLegend(ImPlotLocation_NorthWest);
-                        ImPlot::SetupAxisLimits(ImAxis_X1,
-                                                ed.pj.sim.limits.begin(),
-                                                ed.pj.sim.limits.end());
-                        ImPlot::SetupFinish();
+                    show_subplots(app, ed, sub_obs_size, vobs);
 
-                        vobs.for_each([&](const auto id) noexcept {
-                            const auto idx = get_index(id);
-                            if (const auto* obs =
-                                  ed.pj.sim.observers.try_to_get(
-                                    vobs.get_obs_ids()[idx]))
-                                app.plot_obs.show_plot_line(
-                                  *obs,
-                                  vobs.get_options()[idx],
-                                  vobs.get_names()[idx]);
-                        });
-
-                        ImPlot::PopStyleVar(2);
-                        ImPlot::EndPlot();
-                    }
                     ImGui::EndChild();
                     ImGui::PopID();
 

@@ -22,15 +22,16 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
     for (auto& vobs : ed.pj.variable_observers) {
         auto to_copy = std::optional<variable_observer::sub_id>();
 
-        vobs.for_each([&](const auto id) noexcept {
+        for (const auto id : vobs.m_vars) {
             const auto  idx    = get_index(id);
-            const auto  obs_id = vobs.get_obs_ids()[idx];
+            const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
             const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            ImGui::InputFilteredString("##name", vobs.get_names()[idx]);
+            ImGui::InputFilteredString("##name",
+                                       vobs.m_vars.template get<name_str>(id));
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
@@ -46,12 +47,13 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             ImGui::TextUnformatted("-");
 
             ImGui::TableNextColumn();
-            int plot_type = ordinal(vobs.get_options()[idx]);
+            int plot_type = ordinal(
+              vobs.m_vars.template get<variable_observer::type_options>(id));
             if (ImGui::Combo("##plot",
                              &plot_type,
                              plot_type_str,
                              IM_ARRAYSIZE(plot_type_str)))
-                vobs.get_options()[idx] =
+                vobs.m_vars.template get<variable_observer::type_options>(id) =
                   enum_cast<variable_observer::type_options>(plot_type);
 
             ImGui::TableNextColumn();
@@ -68,14 +70,16 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
                                        id);
 
             ImGui::PopID();
-        });
+        }
 
         if (to_copy.has_value()) {
-            const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
+            const auto copy = *to_copy;
+
+            const auto obs_id = vobs.m_vars.template get<observer_id>(copy);
             const auto obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
             auto& new_obs = app.copy_obs.alloc();
-            new_obs.name  = vobs.get_names()[get_index(*to_copy)].sv();
+            new_obs.name  = vobs.m_vars.template get<name_str>(copy).sv();
 
             obs->linearized_buffer.read(
               [&new_obs](auto& lbuf, const auto /*version*/) noexcept {
@@ -161,15 +165,16 @@ static void show_observation_table(application& app) noexcept
     }
 }
 
-static void write(project&                 pj,
-                  std::ofstream&           ofs,
-                  const variable_observer& vobs,
-                  const unsigned           idx) noexcept
+static void write(project&                        pj,
+                  std::ofstream&                  ofs,
+                  const variable_observer&        vobs,
+                  const variable_observer::sub_id id) noexcept
 {
-    const auto* obs = pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+    const auto  obs_id = vobs.m_vars.template get<observer_id>(id);
+    const auto* obs    = pj.sim.observers.try_to_get(obs_id);
 
     ofs.imbue(std::locale::classic());
-    ofs << "t," << vobs.get_names()[idx].sv() << '\n';
+    ofs << "t," << vobs.m_vars.template get<name_str>(id).sv() << '\n';
 
     obs->linearized_buffer.read(
       [&](const auto& lbuf, const auto /*version*/) noexcept {
@@ -182,13 +187,13 @@ static void write(application&                    app,
                   project&                        pj,
                   std::ofstream&                  ofs,
                   const variable_observer_id      vobs_id,
-                  const variable_observer::sub_id obs_id) noexcept
+                  const variable_observer::sub_id sub_id) noexcept
 {
     ofs.imbue(std::locale::classic());
 
     if (const auto* vobs = pj.variable_observers.try_to_get(vobs_id);
-        vobs and vobs->exists(obs_id))
-        write(pj, ofs, *vobs, get_index(obs_id));
+        vobs and vobs->exists(sub_id))
+        write(pj, ofs, *vobs, sub_id);
     else
         app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Output editor";
@@ -292,22 +297,26 @@ void output_editor::show() noexcept
                 ImGui::PushID(get_index(id));
 
                 for (auto& vobs : pj.pj.variable_observers) {
-                    vobs.for_each([&](const auto id) noexcept {
-                        const auto idx = get_index(id);
-
-                        const auto  obs_id = vobs.get_obs_ids()[idx];
+                    for (const auto id : vobs.m_vars) {
+                        const auto obs_id =
+                          vobs.m_vars.template get<observer_id>(id);
                         const auto* obs =
                           pj.pj.sim.observers.try_to_get(obs_id);
 
                         if (not obs)
                             return;
 
-                        if (vobs.get_options()[idx] !=
-                            variable_observer::type_options::none)
-                            app.plot_obs.show_plot_line(*obs,
-                                                        vobs.get_options()[idx],
-                                                        vobs.get_names()[idx]);
-                    });
+                        const auto opts =
+                          vobs.m_vars
+                            .template get<variable_observer::type_options>(id);
+
+                        if (opts != variable_observer::type_options::none) {
+                            const auto& name =
+                              vobs.m_vars.template get<name_str>(id);
+
+                            app.plot_obs.show_plot_line(*obs, opts, name);
+                        }
+                    }
                 }
 
                 ImGui::PopID();

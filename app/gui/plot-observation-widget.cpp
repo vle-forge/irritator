@@ -28,14 +28,17 @@ void plot_observation_widget::show(project& pj) noexcept
               ImAxis_X1, pj.sim.limits.begin(), pj.sim.limits.end());
             ImPlot::SetupFinish();
 
-            v_obs.for_each([&](const auto id) noexcept {
-                const auto idx    = get_index(id);
-                const auto obs_id = v_obs.get_obs_ids()[idx];
+            for (const auto id : v_obs.m_vars) {
+                const auto obs_id = v_obs.m_vars.template get<observer_id>(id);
                 auto*      obs    = pj.sim.observers.try_to_get(obs_id);
 
                 obs->linearized_buffer.read(
                   [&](auto& lbuf, const auto /*version*/) noexcept {
-                      switch (v_obs.get_options()[idx]) {
+                      const auto opt =
+                        v_obs.m_vars
+                          .template get<variable_observer::type_options>(id);
+
+                      switch (opt) {
                       case variable_observer::type_options::line:
                           ImPlot::PlotLineG(
                             name.c_str(),
@@ -58,7 +61,7 @@ void plot_observation_widget::show(project& pj) noexcept
                           unreachable();
                       }
                   });
-            });
+            }
 
             ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();

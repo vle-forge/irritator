@@ -6183,10 +6183,10 @@ struct json_archiver::impl {
                         t = "Fail to write dot file";
                         format(m,
                                "Fail to write {} in {}",
-                               dir.path.c_str(),
+                               dir ? dir->path.c_str() : "?",
                                file.path.c_str());
                     },
-                    *dir,
+                    dir,
                     *file);
                 }
             } else {
@@ -6608,13 +6608,13 @@ struct json_archiver::impl {
 
             w.Key("models");
             w.StartArray();
-            plot.for_each([&](const auto id) noexcept {
+
+            for (const auto id : plot.m_vars) {
                 w.StartObject();
-                const auto idx   = get_index(id);
-                const auto tn    = plot.get_tn_ids()[idx];
-                const auto mdl   = plot.get_mdl_ids()[idx];
-                const auto str   = plot.get_names()[idx];
-                const auto color = plot.get_colors()[idx];
+                const auto tn  = plot.m_vars.template get<tree_node_id>(id);
+                const auto mdl = plot.m_vars.template get<model_id>(id);
+                const auto str = plot.m_vars.template get<name_str>(id);
+                const auto col = plot.m_vars.template get<color>(id);
 
                 if (not str.empty()) {
                     w.Key("name");
@@ -6626,12 +6626,12 @@ struct json_archiver::impl {
                 write_project_unique_id_path(w, path);
 
                 w.Key("color");
-                write_color(w, color);
+                write_color(w, col);
 
                 w.Key("type");
                 w.String("line");
                 w.EndObject();
-            });
+            }
             w.EndArray();
 
             w.EndObject();

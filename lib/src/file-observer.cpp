@@ -39,18 +39,16 @@ static void do_initialize(const variable_observer& vars,
 {
     std::fputs("t,", file);
 
-    const auto names = vars.get_names();
-    const auto nb    = vars.ssize();
-    auto       i     = 0;
+    const auto& names = vars.m_vars.get<name_str>();
+    const auto  nb    = vars.ssize();
+    auto        i     = 0;
 
-    vars.for_each([&](const auto id) noexcept {
-        const auto idx = get_index(id);
-
+    for (const auto id : vars.m_vars) {
         if (i + 1 < nb)
-            fmt::print("{}-{},", names[idx].sv(), i++);
+            fmt::print("{}-{},", names[id].sv(), i++);
         else
-            fmt::print("{}-{}\n", names[idx].sv(), i);
-    });
+            fmt::print("{}-{}\n", names[id].sv(), i);
+    }
 }
 
 static void do_update(const simulation&        sim,
@@ -62,11 +60,11 @@ static void do_update(const simulation&        sim,
     else
         fmt::print(file, "{:e}\n", sim.current_time());
 
-    vars.for_each([&](const auto id) noexcept {
-        const auto& obs_ids = vars.get_obs_ids();
+    for (const auto id : vars.m_vars) {
+        const auto& obs_ids = vars.m_vars.get<observer_id>();
+        const auto  obs_id  = obs_ids[get_index(id)];
 
-        if (const auto* obs =
-              sim.observers.try_to_get(obs_ids[get_index(id)])) {
+        if (const auto* obs = sim.observers.try_to_get(obs_id)) {
             obs->linearized_buffer.read(
               [&](const auto& buf, const auto /*version*/) noexcept {
                   fmt::print(file, "{:e},", buf.front().y);
@@ -74,7 +72,7 @@ static void do_update(const simulation&        sim,
         } else {
             fmt::print(file, "0,");
         }
-    });
+    }
 
     fmt::print(file, "\n");
 }
