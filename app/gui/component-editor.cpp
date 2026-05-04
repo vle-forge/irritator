@@ -678,7 +678,7 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
         for (const auto& elem : g.children) {
             const auto id  = g.children.get_id(elem);
             const auto idx = get_index(id);
-            ImGui::PushID(&elem);
+            ImGui::PushID(idx);
 
             if (not g.children_names[idx].empty()) {
                 const auto temp = std::string{ g.children_names[idx].sv() };

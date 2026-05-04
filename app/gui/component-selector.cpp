@@ -35,8 +35,8 @@ void component_selector::data_type::update(const modeling& mod) noexcept
             ids_version = version;
 
             for (const auto c_id : ids) {
-                const auto  type   = ids.components[c_id].type;
-                const auto  name   = ids.components[c_id].name.sv();
+                const auto  type    = ids.components[c_id].type;
+                const auto  name    = ids.components[c_id].name.sv();
                 const auto& filep   = ids.component_file_paths[c_id];
                 const auto  file_id = filep.file;
 
@@ -257,18 +257,18 @@ component_selector::result_t component_selector::combobox(
                                         data.by_hsms,
                                         data.by_sims);
 
-            for (const auto& name : names) {
-                ImGui::PushID(&name);
-                const auto col = get_component_color(app, name.first);
+            for (sz i = 0, e = names.size(); i != e; ++i) {
+                ImGui::PushID(static_cast<int>(i));
+                const auto col = get_component_color(app, names[i].first);
                 const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
                 ImGui::ColorButton("Component",
                                    im,
                                    ImGuiColorEditFlags_NoInputs |
                                      ImGuiColorEditFlags_NoLabel);
                 ImGui::SameLine(30.f);
-                if (ImGui::Selectable(name.second.c_str(),
-                                      name.first == current)) {
-                    id      = name.first;
+                if (ImGui::Selectable(names[i].second.c_str(),
+                                      names[i].first == current)) {
+                    id      = names[i].first;
                     is_done = true;
                 }
                 ImGui::PopID();

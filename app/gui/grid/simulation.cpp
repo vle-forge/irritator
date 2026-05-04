@@ -200,7 +200,7 @@ bool show_local_observers(application&    app,
         for_specified_data(
           ed.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
               const auto id = ed.pj.grid_observers.get_id(grid);
-              ImGui::PushID(&grid);
+              ImGui::PushID(get_index(id));
 
               ImGui::TableNextRow();
               ImGui::TableNextColumn();

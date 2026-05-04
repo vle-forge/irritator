@@ -162,7 +162,7 @@ static bool show_local_simulation_plot_observers_table(
                     }
                 }
 
-                ImGui::PushID(&mdl);
+                ImGui::PushID(get_index(mdl_id));
 
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -424,7 +424,7 @@ static bool show_simulation_table_grid_observers(application& /*app*/,
         ImGui::TableHeadersRow();
 
         for (auto& grid : ed.pj.grid_observers) {
-            ImGui::PushID(&grid);
+            ImGui::PushID(get_index(ed.pj.grid_observers.get_id(grid)));
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -491,7 +491,7 @@ static bool show_simulation_table_graph_observers(application& /*app*/,
         ImGui::TableHeadersRow();
 
         for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
-            ImGui::PushID(&graph);
+            ImGui::PushID(get_index(ed.pj.graph_observers.get_id(graph)));
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -564,7 +564,7 @@ static bool show_simulation_table_variable_observers(
         ImGui::TableHeadersRow();
 
         for_each_data(ed.pj.variable_observers, [&](auto& variable) noexcept {
-            ImGui::PushID(&variable);
+            ImGui::PushID(get_index(ed.pj.variable_observers.get_id(variable)));
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
@@ -930,7 +930,8 @@ static bool show_project_observations(application&    app,
                   app, ed, pos, *ed.tree_node_observation);
 
                 for (auto& vobs : ed.pj.variable_observers) {
-                    ImGui::PushID(&vobs);
+                    ImGui::PushID(
+                      get_index(ed.pj.variable_observers.get_id(vobs)));
                     ImGui::BeginChild("##vobs", sub_obs_size);
 
                     show_subplots(app, ed, sub_obs_size, vobs);
@@ -991,7 +992,8 @@ static void show_component_observations(application&    app,
         for (auto& vobs : sim_ed.pj.variable_observers) {
             const auto tn_id = sim_ed.pj.tree_nodes.get_id(selected);
             if (vobs.exists(tn_id)) {
-                ImGui::PushID(&vobs);
+                ImGui::PushID(
+                  get_index(sim_ed.pj.variable_observers.get_id(vobs)));
                 if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
                     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);

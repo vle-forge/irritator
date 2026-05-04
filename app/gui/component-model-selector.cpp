@@ -112,7 +112,7 @@ void component_model_selector::observable_model_treenode(const project& pj,
                            ordinal(tn.id));
 
             if (compo.type == component_type::generic) {
-                ImGui::PushID(&tn);
+                ImGui::PushID(get_index(pj.tree_nodes.get_id(tn)));
                 if (ImGui::TreeNodeEx(label.c_str(),
                                       ImGuiTreeNodeFlags_DefaultOpen)) {
                     for_each_model(
