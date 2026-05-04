@@ -2085,68 +2085,42 @@ public:
      * @endexample */
     void free(const identifier_type id) noexcept;
 
-    /** Get the underlying @c vector in @c tuple using an index. (read
-     * @c std::get). */
-    template<std::size_t Index>
-    auto& get() noexcept;
+    // subtype buffer access
 
     /** Get the underlying @c vector in @c tuple using a type (read @c
      * std::get). */
     template<typename Type>
-    auto& get() noexcept;
-
-    /** Get the underlying object at position @c id @c vector in @c
-     * tuple using an index. (read @c std::get). */
-    template<std::size_t Index>
-    auto& get(const identifier_type id) noexcept;
-
-    /** Get the underlying object at position @c id in @c vector in @c
-     * tuple using a type (read @c std::get). */
-    template<typename Type>
-    auto& get(const identifier_type id) noexcept;
-
-    /** Get the underlying @c vector in @c tuple using an index. (read
-     * @c std::get). */
-    template<std::size_t Index>
-    auto& get() const noexcept;
+    buffer_view<Type>& get() noexcept;
 
     /** Get the underlying @c vector in @c tuple using a type (read @c
      * std::get). */
     template<typename Type>
-    auto& get() const noexcept;
+    const buffer_view<Type>& get() const noexcept;
 
-    /** Get the underlying object at position @c id @c vector in @c
-     * tuple using an index. (read @c std::get). */
-    template<std::size_t Index>
-    auto& get(const identifier_type id) const noexcept;
+    // Subtype element access
 
     /** Get the underlying object at position @c id in @c vector in @c
      * tuple using a type (read @c std::get). */
     template<typename Type>
-    auto& get(const identifier_type id) const noexcept;
+    const Type& get(const identifier_type id) const noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    template<typename Type>
+    Type& get(const identifier_type id) noexcept;
 
     template<typename Type>
     identifier_type get_id(const Type& t) const noexcept;
 
-    /** Get the underlying object at position @c id @c vector in @c
-     * tuple using an index. (read @c std::get). */
-    template<std::size_t Index>
-    auto* try_to_get(const identifier_type id) const noexcept;
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    template<typename Type>
+    const Type* try_to_get(const identifier_type id) const noexcept;
 
     /** Get the underlying object at position @c id in @c vector in @c
      * tuple using a type (read @c std::get). */
     template<typename Type>
-    auto* try_to_get(const identifier_type id) const noexcept;
-
-    /** Get the underlying object at position @c id @c vector in @c
-     * tuple using an index. (read @c std::get). */
-    template<std::size_t Index>
-    auto* try_to_get(const identifier_type id) noexcept;
-
-    /** Get the underlying object at position @c id in @c vector in @c
-     * tuple using a type (read @c std::get). */
-    template<typename Type>
-    auto* try_to_get(const identifier_type id) noexcept;
+    Type* try_to_get(const identifier_type id) noexcept;
 
     //! Call the @c fn function if @c id is valid.
     //!
@@ -4027,33 +4001,25 @@ void id_data_array<T, Identifier, A, Ts...>::free(
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto& id_data_array<T, Identifier, A, Ts...>::get() noexcept
-{
-    return std::get<Index>(m_col);
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<T, Identifier, A, Ts...>::get() noexcept
+auto id_data_array<T, Identifier, A, Ts...>::get() noexcept
+-> buffer_view<Type>&
 {
     return std::get<buffer_view<Type>>(m_col);
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto& id_data_array<T, Identifier, A, Ts...>::get(
-  const identifier_type id) noexcept
+template<typename Type>
+auto id_data_array<T, Identifier, A, Ts...>::get() const noexcept
+-> const buffer_view<Type>&
 {
-    debug::ensure(m_ids.exists(id));
-
-    return std::get<Index>(m_col)[get_index(id)];
+    return std::get<buffer_view<Type>>(m_col);
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<T, Identifier, A, Ts...>::get(
-  const identifier_type id) noexcept
+auto id_data_array<T, Identifier, A, Ts...>::get(
+  const identifier_type id) noexcept -> Type&
 {
     debug::ensure(m_ids.exists(id));
 
@@ -4061,33 +4027,9 @@ auto& id_data_array<T, Identifier, A, Ts...>::get(
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto& id_data_array<T, Identifier, A, Ts...>::get() const noexcept
-{
-    return std::get<Index>(m_col);
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<T, Identifier, A, Ts...>::get() const noexcept
-{
-    return std::get<buffer_view<Type>>(m_col);
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto& id_data_array<T, Identifier, A, Ts...>::get(
-  const identifier_type id) const noexcept
-{
-    debug::ensure(m_ids.exists(id));
-
-    return std::get<Index>(m_col)[get_index(id)];
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
-template<typename Type>
-auto& id_data_array<T, Identifier, A, Ts...>::get(
-  const identifier_type id) const noexcept
+auto id_data_array<T, Identifier, A, Ts...>::get(
+  const identifier_type id) const noexcept -> const Type&
 {
     debug::ensure(m_ids.exists(id));
 
@@ -4111,19 +4053,9 @@ id_data_array<T, Identifier, A, Ts...>::get_id(const Type& t) const noexcept
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
-  const identifier_type id) const noexcept
-{
-    return m_ids.exists(id)
-             ? std::addressof(std::get<Index>(m_col)[get_index(id)])
-             : nullptr;
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
-  const identifier_type id) const noexcept
+auto id_data_array<T, Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) const noexcept -> const Type*
 {
     return m_ids.exists(id)
              ? std::addressof(std::get<buffer_view<Type>>(m_col)[get_index(id)])
@@ -4131,19 +4063,9 @@ auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-template<std::size_t Index>
-auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
-  const identifier_type id) noexcept
-{
-    return m_ids.exists(id)
-             ? std::addressof(std::get<Index>(m_col)[get_index(id)])
-             : nullptr;
-}
-
-template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
-  const identifier_type id) noexcept
+auto id_data_array<T, Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) noexcept -> Type*
 {
     return m_ids.exists(id)
              ? std::addressof(std::get<buffer_view<Type>>(m_col)[get_index(id)])
