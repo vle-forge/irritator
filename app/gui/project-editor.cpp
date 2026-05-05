@@ -548,9 +548,11 @@ static bool show_simulation_table_variable_observers(
   project_editor& ed) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
-    bool is_modified = false;
+    auto       is_modified = false;
+    const auto can_alloc   = ed.pj.variable_observers.can_alloc(1) or
+                           not ed.pj.variable_observers.grow<3, 2>();
 
-    if (not ed.pj.variable_observers.can_alloc(1))
+    if (can_alloc)
         ImGui::TextFormatDisabled(
           "Can not allocate more multi-plot observers (max reached: {})",
           ed.pj.variable_observers.capacity());
@@ -608,7 +610,7 @@ static bool show_simulation_table_variable_observers(
         ImGui::EndTable();
     }
 
-    if (ed.pj.variable_observers.can_alloc(1)) {
+    if (can_alloc) {
         if (ImGui::Button("new plot")) {
             auto& o = ed.pj.alloc_variable_observer();
             o.clear();
