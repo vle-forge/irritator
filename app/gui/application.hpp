@@ -42,6 +42,7 @@ enum class hsm_editor_data_id : u32;
 enum class simulation_editor_data_id : u32;
 
 enum class graph_editor_id : u32;
+enum class text_file_viewer_id : u32;
 
 enum class task_status : u8 { not_started, started, finished };
 enum class main_task : u8 { simulation_0 = 0, simulation_1, simulation_2, gui };
@@ -402,6 +403,38 @@ private:
     std::array<float, 9> m_rot_x{ 0, 0, 0 };
     std::array<float, 9> m_rot_y{ 0, 0, 0 };
     std::array<float, 9> m_rot_z{ 0, 0, 0 };
+};
+
+enum class window_status : u8 {
+    keep_open,    /**< Nothing to do. */
+    request_close /**< The window must be closed by the called. */
+};
+
+class text_file_viewer
+{
+public:
+    text_file_viewer() noexcept = default;
+
+    /** Display the content of a text file into a ImGui::BeginChild() /
+     * ImGui::EndChild() widget. The content of the @c shared_buffer is
+     * displayed. */
+    window_status show(application& app, const char* title) noexcept;
+
+    /** The content is read from the file system using the @c fs file access and
+     * the @c file_id identifier.
+     *
+     * @param fs The file access to read the file content.
+     * @param file_id The identifier of the file to read.
+     */
+    void update(application& app, const file_path_id file_id) noexcept;
+
+private:
+    file_path_id file_id = undefined<file_path_id>();
+
+    request_buffer<vector<char>> content_request;
+    shared_buffer<vector<char>>  content;
+
+    bool is_dock_init = false;
 };
 
 /// Use to display a grid_observation_system into ImGui widget. An instance of
@@ -1789,7 +1822,8 @@ public:
     modeling         mod;
     journal_handler& jn;
 
-    data_array<project_editor, project_id> pjs;
+    data_array<project_editor, project_id>            pjs;
+    data_array<text_file_viewer, text_file_viewer_id> file_viewers;
 
     enum class show_result_t {
         success,          /**< Nothing to do. */

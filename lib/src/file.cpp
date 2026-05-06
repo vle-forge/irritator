@@ -127,8 +127,8 @@ static constexpr auto get_mode(const file_mode c) noexcept
 
 expected<file> file::open_tmp() noexcept
 {
-    const auto m = file_mode(file_open_options::write,
-                             file_open_options::extended);
+    const auto m =
+      file_mode(file_open_options::write, file_open_options::extended);
 
 #if defined(_WIN32)
     std::FILE* tmpf = nullptr;
@@ -197,9 +197,7 @@ irt::vector<char> file::read_entire_file() noexcept
                                      static_cast<size_t>(size),
                                      to_file());
 
-                        // @TODO We must handle reading error
-                        if (std::cmp_equal(read_size, buffer.size()))
-                            buffer.clear();
+                        buffer.resize(read_size);
                     }
                 }
             }

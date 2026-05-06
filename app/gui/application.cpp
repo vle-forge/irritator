@@ -484,6 +484,7 @@ application::application(journal_handler& jn_) noexcept
   , config(get_config_home(true))
   , jn{ jn_ }
   , pjs(16)
+  , file_viewers{ 16 }
   , grids{ 16 }
   , graphs{ 16 }
   , generics{ 16 }
@@ -866,6 +867,32 @@ void application::show_dock() noexcept
 
         if (to_close)
             close_project_window(pjs.get_id(*to_close));
+    }
+
+    {
+        text_file_viewer* viewer   = nullptr;
+        text_file_viewer* to_close = nullptr;
+        while (file_viewers.next(viewer)) {
+            if (to_close) {
+                file_viewers.free(*to_close);
+                to_close = nullptr;
+            }
+
+            ImGui::PushID(get_index(file_viewers.get_id(viewer)));
+
+            const auto title = format_n<64>(
+              "file-viewer-{}", get_index(file_viewers.get_id(viewer)));
+
+            if (viewer->show(*this, title.c_str()) ==
+                window_status::request_close) {
+                to_close = viewer;
+            }
+
+            ImGui::PopID();
+        }
+
+        if (to_close)
+            file_viewers.free(*to_close);
     }
 
     for_each_cond(sim_wnds, [&](const auto& v) noexcept {
@@ -1300,6 +1327,97 @@ void application::start_dir_path_refresh(const dir_path_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         mod.files.write([&](auto& fs) { fs.refresh(id); });
+    });
+}
+
+// text_file_viewer implementation
+
+window_status text_file_viewer::show(application& app,
+                                     const char*  title) noexcept
+{
+    if (not is_dock_init) {
+        ImGui::SetNextWindowDockID(app.get_main_dock_id());
+        is_dock_init = true;
+    }
+
+    bool is_open = true;
+    if (not ImGui::Begin(title, &is_open)) {
+        ImGui::End();
+        return is_open ? window_status::keep_open
+                       : window_status::request_close;
+    }
+
+    if (auto vec = content_request.try_take(); vec.has_value()) {
+        content.write([&](auto& buffer) noexcept { buffer = std::move(*vec); });
+    }
+
+    app.mod.files.read([&](const auto& fs, auto) noexcept {
+        if (const auto* f = fs.file_paths.try_to_get(file_id)) {
+            ImGui::TextFormat("File name: {}", f->path.sv());
+        }
+
+        content.read([&](const auto& buffer, auto /*vers*/) noexcept {
+            ImGui::TextWrapped("%.*s", buffer.size(), buffer.data());
+        });
+    });
+
+    ImGui::End();
+
+    return is_open ? window_status::keep_open : window_status::request_close;
+}
+
+void text_file_viewer::update(application&       app,
+                              const file_path_id file_id_) noexcept
+{
+    app.add_gui_task([&, file_id_]() noexcept {
+        const auto limit =
+          app.config.vars.text_file_viewer_max_file_size.load();
+        const auto filename =
+          app.mod.files.read([&](const auto& fs, auto) noexcept {
+              return make_file(fs, file_id_);
+          });
+
+        if (not filename.has_value()) {
+            app.jn.push(log_level::error, [&](auto& title, auto& msg) {
+                title = "Text file viewer error";
+                msg   = "Fail to create file name";
+            });
+            return;
+        }
+
+        auto file = file::open(
+          *filename,
+          file_mode{ file_open_options::read, file_open_options::text });
+
+        if (file.has_error()) {
+            app.jn.push(log_level::error, [&](auto& title, auto& msg) {
+                title = "Text file viewer error";
+                format(msg,
+                       "Fail to open file {} (part: {} {})",
+                       filename->string(),
+                       ordinal(file.error().cat()),
+                       file.error().value());
+            });
+            return;
+        }
+
+        if (file->length() > 1024 * 1024) {
+            app.jn.push(log_level::error, [&](auto& title, auto& msg) {
+                title = "Text file viewer error";
+                format(msg,
+                       "File {} is too big to be loaded ({} bytes)",
+                       filename->string(),
+                       file->length());
+            });
+            return;
+        }
+
+        auto content = file->read_entire_file();
+
+        if (content_request.should_request()) {
+            content_request.fulfill(std::move(content));
+            file_id = file_id_;
+        }
     });
 }
 

@@ -107,6 +107,9 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
     fmt::print(file, "[options]\n");
     fmt::print(
       file, "log-level={}\n", log_level_names[ordinal(vars.loglevel.load())]);
+    fmt::print(file,
+               "text-file-viewer-max-file-size={}\n",
+               vars.text_file_viewer_max_file_size.load());
 
     fmt::print(file, "[themes]\n");
     fmt::print(file, "selected={}\n", themes[vars.theme]);
@@ -169,6 +172,18 @@ static bool do_read_section(variables& /*vars*/,
     return true;
 }
 
+std::optional<i64> do_read_integer(const std::string_view value) noexcept
+{
+    i64 i = 0;
+    if (const auto ec =
+          std::from_chars(value.data(), value.data() + value.size(), i);
+        ec.ec == std::errc{}) {
+        return i;
+    } else {
+        return std::nullopt;
+    }
+}
+
 static bool do_read_affect(variables&             vars,
                            const std::bitset<3>&  current_section,
                            const std::string_view key,
@@ -221,6 +236,16 @@ static bool do_read_affect(variables&             vars,
         }
     }
 
+    if (current_section.test(section_options) and
+        key == "text-file-viewer-max-file-size") {
+        const auto i = do_read_integer(val);
+        if (not i.has_value())
+            return false;
+
+        vars.text_file_viewer_max_file_size.store(*i);
+        return true;
+    }
+
     return false;
 }
 
@@ -238,18 +263,6 @@ static recorded_path_id find_name(const recorded_paths&  rec_paths,
     }
 
     return undefined<recorded_path_id>();
-}
-
-std::optional<int> do_read_integer(const std::string_view value) noexcept
-{
-    int i = 0;
-    if (const auto ec =
-          std::from_chars(value.data(), value.data() + value.size(), i);
-        ec.ec == std::errc{}) {
-        return i;
-    } else {
-        return std::nullopt;
-    }
 }
 
 static bool do_read_elem(variables&             vars,
@@ -284,7 +297,8 @@ static bool do_read_elem(variables&             vars,
 
             rec_paths.names[idx]      = name;
             rec_paths.paths[idx]      = path;
-            rec_paths.priorities[idx] = do_read_integer(priority).value_or(10);
+            rec_paths.priorities[idx] = static_cast<int>(std::clamp(
+              do_read_integer(priority).value_or(10), i64{ 0 }, i64{ 100 }));
 
             if (rec_paths.names[idx].empty() or rec_paths.paths[idx].empty()) {
                 rec_paths.ids.free(id);

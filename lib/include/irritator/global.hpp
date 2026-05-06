@@ -89,8 +89,9 @@ struct variables {
     shared_buffer<recorded_paths> rec_paths;
     shared_buffer<theme_colors>   colors;
 
-    std::atomic<int>       theme    = 0;
-    std::atomic<log_level> loglevel = log_level::info;
+    std::atomic<i64>       text_file_viewer_max_file_size = 1024 * 1024;
+    std::atomic<int>       theme                          = 0;
+    std::atomic<log_level> loglevel                       = log_level::info;
 };
 
 /**

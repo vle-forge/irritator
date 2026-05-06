@@ -88,6 +88,13 @@ static void show_component_popup_menu(application&            app,
             app.component_sel.task_update();
         }
 
+        if (ImGui::MenuItem("Open as text file")) {
+            if (app.file_viewers.can_alloc(1)) {
+                auto& viewer = app.file_viewers.alloc();
+                viewer.update(app, ids.component_file_paths[compo_id].file);
+            }
+        }
+
         if (ImGui::MenuItem("Set as main project model")) {
             app.try_set_component_as_project(fs, ids, compo_id);
         }
