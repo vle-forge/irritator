@@ -1357,7 +1357,8 @@ window_status text_file_viewer::show(application& app,
         }
 
         content.read([&](const auto& buffer, auto /*vers*/) noexcept {
-            ImGui::TextWrapped("%.*s", buffer.size(), buffer.data());
+            ImGui::TextWrapped(
+              "%.*s", static_cast<int>(buffer.size()), buffer.data());
         });
     });
 
@@ -1370,8 +1371,6 @@ void text_file_viewer::update(application&       app,
                               const file_path_id file_id_) noexcept
 {
     app.add_gui_task([&, file_id_]() noexcept {
-        const auto limit =
-          app.config.vars.text_file_viewer_max_file_size.load();
         const auto filename =
           app.mod.files.read([&](const auto& fs, auto) noexcept {
               return make_file(fs, file_id_);
@@ -1401,7 +1400,10 @@ void text_file_viewer::update(application&       app,
             return;
         }
 
-        if (file->length() > 1024 * 1024) {
+        const auto limit =
+          app.config.vars.text_file_viewer_max_file_size.load();
+
+        if (file->length() > limit) {
             app.jn.push(log_level::error, [&](auto& title, auto& msg) {
                 title = "Text file viewer error";
                 format(msg,
