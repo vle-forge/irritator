@@ -81,13 +81,13 @@ enum class file_type : u8 {
     project_file,
 };
 
-enum class file_flag : u8 {
+enum class fs_flag : u8 {
     read,
     read_only,
     access_error,
 };
 
-using file_flags = bitflags<file_flag>;
+using fs_flags = bitflags<fs_flag>;
 
 enum class child_type : u8 { model, component };
 
@@ -1081,7 +1081,7 @@ struct registred_path {
 
     vector<dir_path_id> children;
 
-    file_flags          flags;
+    fs_flags            flags;
     i8                  priority = 0;
 };
 
@@ -1092,7 +1092,7 @@ struct dir_path {
 
     vector<file_path_id> children;
 
-    file_flags flags;
+    fs_flags flags;
 
     bool exist(const file_path_id id) const noexcept
     {
@@ -1107,7 +1107,7 @@ struct file_path {
 
     dir_path_id          parent = undefined<dir_path_id>();
     file_type            type   = file_type::undefined_file;
-    file_flags           flags;
+    fs_flags             flags;
 };
 
 struct component_file_path {

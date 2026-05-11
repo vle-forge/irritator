@@ -349,7 +349,7 @@ void library_window::show_dirpath_content(
   const dir_path&           dir,
   const bitflags<file_type> flags) noexcept
 {
-    if (dir.flags[file_flag::access_error]) {
+    if (dir.flags[fs_flag::access_error]) {
         ImGui::TextFormatDisabled("{} (error)", dir.path.sv());
         return;
     }
@@ -411,7 +411,7 @@ void library_window::show_repertories_content(
 {
     for (const auto id : fs.recorded_paths) {
         const auto* reg_dir = fs.registred_paths.try_to_get(id);
-        if (not reg_dir or reg_dir->flags[file_flag::access_error])
+        if (not reg_dir or reg_dir->flags[fs_flag::access_error])
             continue;
 
         const auto label = format_n<32>(
@@ -423,7 +423,7 @@ void library_window::show_repertories_content(
         if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
             for (const auto dir_id : reg_dir->children) {
                 auto* dir = fs.dir_paths.try_to_get(dir_id);
-                if (dir and not dir->flags[file_flag::access_error])
+                if (dir and not dir->flags[fs_flag::access_error])
                     show_dirpath_content(fs, ids, *dir, flags);
             }
             ImGui::TreePop();

@@ -33,7 +33,7 @@ void file_selector::combobox_reg(const file_access& fs) noexcept
 
         const registred_path* list = nullptr;
         while (fs.registred_paths.next(list)) {
-            if (list->flags[file_flag::access_error])
+            if (list->flags[fs_flag::access_error])
                 continue;
 
             ImGui::PushID(list);

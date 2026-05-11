@@ -106,9 +106,9 @@ void settings_window::show() noexcept
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
                 ImGui::TextFormat("read: {} read-only: {} access-error: {}",
-                                  dir->flags[file_flag::read],
-                                  dir->flags[file_flag::read_only],
-                                  dir->flags[file_flag::access_error]);
+                                  dir->flags[fs_flag::read],
+                                  dir->flags[fs_flag::read_only],
+                                  dir->flags[fs_flag::access_error]);
 
                 ImGui::PopItemWidth();
 

@@ -288,12 +288,12 @@ int file_access::browse_registred(journal_handler&        jn,
             if (std::filesystem::exists(p, ec)) {
                 if (const auto ret = browse_dirs_registred(jn, *this, *r, p);
                     ret.has_error()) {
-                    r->flags[file_flag::access_error];
+                    r->flags[fs_flag::access_error];
                 } else {
-                    r->flags[file_flag::read];
+                    r->flags[fs_flag::read];
                 }
             } else {
-                r->flags[file_flag::access_error];
+                r->flags[fs_flag::access_error];
 
                 jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
                     t = "Modeling initialization error";
@@ -582,10 +582,10 @@ void file_access::refresh(const dir_path_id id) noexcept
                         it = it.increment(ec);
                     }
                 } else {
-                    d->flags.set(file_flag::access_error);
+                    d->flags.set(fs_flag::access_error);
                 }
             } catch (const std::exception& /*e*/) {
-                d->flags.set(file_flag::access_error);
+                d->flags.set(fs_flag::access_error);
             }
         }
     }
