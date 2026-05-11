@@ -82,7 +82,7 @@ enum class file_type : u8 {
 };
 
 enum class file_flag : u8 {
-    unread,
+    read,
     read_only,
     access_error,
 };
@@ -1055,20 +1055,6 @@ struct dir_path;
 struct file_path;
 
 struct registred_path {
-    enum class state : u8 {
-        lock,   /**< `dir-path` is locked during I/O operation. Do not use
-                   this class in writing mode. */
-        read,   /**< underlying directory is read and the `children` vector is
-                   filled. */
-        unread, /**< underlying directory is not read. */
-        error,  /**< an error occurred during the read. */
-    };
-
-    enum class reg_flags : u8 {
-        access_error,
-        read_only,
-    };
-
     /**
      * Linear search a directory with the name @a dir_name in the @a
      * children vector.
@@ -1095,34 +1081,18 @@ struct registred_path {
 
     vector<dir_path_id> children;
 
-    state               status = state::unread;
-    bitflags<reg_flags> flags;
+    file_flags          flags;
     i8                  priority = 0;
 };
 
 struct dir_path {
-    enum class state : u8 {
-        lock,   /**< `dir-path` is locked during I/O operation. Do not use
-                   this class in writing mode. */
-        read,   /**< underlying directory is read and the `children` vector is
-                   filled. */
-        unread, /**< underlying directory is not read. */
-        error,  /**< an error occurred during the read. */
-    };
-
-    enum class dir_flags : u8 {
-        too_many_file,
-        access_error,
-        read_only,
-    };
 
     directory_path_str path; /**< stores a directory name in utf8. */
     registred_path_id  parent{ 0 };
 
     vector<file_path_id> children;
 
-    state               status = state::unread;
-    bitflags<dir_flags> flags;
+    file_flags flags;
 
     bool exist(const file_path_id id) const noexcept
     {
@@ -1137,7 +1107,7 @@ struct file_path {
 
     dir_path_id          parent = undefined<dir_path_id>();
     file_type            type   = file_type::undefined_file;
-    file_flags           flags  = file_flag::unread;
+    file_flags           flags;
 };
 
 struct component_file_path {

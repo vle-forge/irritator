@@ -55,8 +55,6 @@ void settings_window::show() noexcept
     ImGui::Separator();
     ImGui::TextUnformatted("Dir paths");
 
-    static const char* dir_status[] = { "none", "read", "unread", "error" };
-
     auto& app     = container_of(this, &application::settings_wnd);
     int   changes = false;
 
@@ -70,8 +68,8 @@ void settings_window::show() noexcept
         ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
 
-        registred_path_id to_delete{ 0 };
-        registred_path_id to_refresh{ 0 };
+        auto to_delete  = registred_path_id{ 0 };
+        auto to_refresh = registred_path_id{ 0 };
 
         app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
             const registred_path* dir = nullptr;
@@ -107,7 +105,11 @@ void settings_window::show() noexcept
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
-                ImGui::TextUnformatted(dir_status[ordinal(dir->status)]);
+                ImGui::TextFormat("read: {} read-only: {} access-error: {}",
+                                  dir->flags[file_flag::read],
+                                  dir->flags[file_flag::read_only],
+                                  dir->flags[file_flag::access_error]);
+
                 ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
@@ -119,9 +121,8 @@ void settings_window::show() noexcept
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
-                if (dir->status != registred_path::state::lock)
-                    if (ImGui::Button("Delete"))
-                        to_delete = reg_id;
+                if (ImGui::Button("Delete"))
+                    to_delete = reg_id;
                 ImGui::PopItemWidth();
 
                 ImGui::PopID();
@@ -164,7 +165,6 @@ void settings_window::show() noexcept
                 if (fs.registred_paths.can_alloc(1)) {
                     auto& ndir    = fs.registred_paths.alloc();
                     auto  id      = fs.registred_paths.get_id(ndir);
-                    ndir.status   = registred_path::state::unread;
                     ndir.path     = "";
                     ndir.priority = 127;
                     app.request_open_directory_dlg(id);

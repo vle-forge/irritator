@@ -241,7 +241,6 @@ static status browse_dirs_registred(journal_handler&             jn,
                     auto& dir    = fs.dir_paths.alloc();
                     auto  dir_id = fs.dir_paths.get_id(dir);
                     dir.path     = cstr;
-                    dir.status   = dir_path::state::unread;
                     dir.parent   = fs.registred_paths.get_id(reg_dir);
 
                     reg_dir.children.emplace_back(dir_id);
@@ -289,12 +288,12 @@ int file_access::browse_registred(journal_handler&        jn,
             if (std::filesystem::exists(p, ec)) {
                 if (const auto ret = browse_dirs_registred(jn, *this, *r, p);
                     ret.has_error()) {
-                    r->status = registred_path::state::error;
+                    r->flags[file_flag::access_error];
                 } else {
-                    r->status = registred_path::state::read;
+                    r->flags[file_flag::read];
                 }
             } else {
-                r->status = registred_path::state::error;
+                r->flags[file_flag::access_error];
 
                 jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
                     t = "Modeling initialization error";
@@ -583,10 +582,10 @@ void file_access::refresh(const dir_path_id id) noexcept
                         it = it.increment(ec);
                     }
                 } else {
-                    d->flags.set(dir_path::dir_flags::access_error);
+                    d->flags.set(file_flag::access_error);
                 }
             } catch (const std::exception& /*e*/) {
-                d->flags.set(dir_path::dir_flags::access_error);
+                d->flags.set(file_flag::access_error);
             }
         }
     }
@@ -686,7 +685,6 @@ dir_path_id file_access::alloc_dir(const registred_path_id id,
             auto  dir_id = dir_paths.get_id(dir);
             dir.path     = path;
             dir.parent   = id;
-            dir.status   = dir_path::state::unread;
             r->children.push_back(dir_id);
             return dir_id;
         }
