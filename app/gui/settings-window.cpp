@@ -58,12 +58,14 @@ void settings_window::show() noexcept
     auto& app     = container_of(this, &application::settings_wnd);
     int   changes = false;
 
-    if (ImGui::BeginTable("Recorded Paths", 6)) {
+    if (ImGui::BeginTable("Recorded Paths", 8)) {
         ImGui::TableSetupColumn(
           "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
         ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Priority", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Read", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Read/Only", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Error", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Refresh", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
@@ -84,7 +86,22 @@ void settings_window::show() noexcept
                 ImGui::TextFormat("{}", dir->path.sv());
 
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", dir->name.sv());
+                auto name = dir->name;
+                ImGui::PushItemWidth(-1.f);
+                if (ImGui::InputSmallString(
+                      "##reg-name",
+                      name,
+                      ImGuiInputTextFlags_EnterReturnsTrue)) {
+                    app.add_gui_task([&app, reg_id, name]() {
+                        app.mod.files.write([&](auto& fs) {
+                            if (auto* t = fs.registred_paths.try_to_get(reg_id))
+                                t->name = name;
+                        });
+                    });
+
+                    ++changes;
+                }
+                ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
@@ -104,19 +121,27 @@ void settings_window::show() noexcept
                 ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
-                ImGui::PushItemWidth(60.f);
-                ImGui::TextFormat("read: {} read-only: {} access-error: {}",
-                                  dir->flags[fs_flag::read],
-                                  dir->flags[fs_flag::read_only],
-                                  dir->flags[fs_flag::access_error]);
+                ImGui::PushItemWidth(-1.f);
+                auto read = dir->flags[fs_flag::read];
+                ImGui::Checkbox("##reg-rw", &read);
+                ImGui::PopItemWidth();
 
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1.f);
+                auto read_only = dir->flags[fs_flag::read_only];
+                ImGui::Checkbox("##reg-ro", &read_only);
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1.f);
+                auto access_error = dir->flags[fs_flag::access_error];
+                ImGui::Checkbox("##reg-ae", &access_error);
                 ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
-                if (ImGui::Button("Refresh")) {
+                if (ImGui::Button("Refresh"))
                     to_refresh = reg_id;
-                }
                 ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
@@ -159,16 +184,52 @@ void settings_window::show() noexcept
         ImGui::EndTable();
     }
 
-    if (ImGui::Button("Add new path")) {
-        app.add_gui_task([&app]() {
+    if (const auto new_id = new_reg_dir_id.try_take(); new_id.has_value()) {
+        choose_new_dir = true;
+        new_dir_id     = *new_id;
+    }
+
+    if (choose_new_dir) {
+        const auto* title = "Choose a new registry path";
+
+        ImGui::OpenPopup(title);
+        if (app.f_dialog.show_select_directory(title)) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                app.add_gui_task([&app, id = new_dir_id]() {
+                    app.mod.files.write([&](auto& fs) {
+                        if (auto* reg = fs.registred_paths.try_to_get(id)) {
+                            reg->path = app.f_dialog.result.string();
+                            fs.browse_registred(app.jn, id);
+                        }
+                    });
+                });
+            } else if (app.f_dialog.state == file_dialog::status::cancel) {
+                app.add_gui_task([&app, id = new_dir_id]() {
+                    app.mod.files.write(
+                      [&](auto& fs) { fs.registred_paths.free(id); });
+                });
+            } else {
+                irt::debug::breakpoint();
+            }
+
+            changes++;
+            choose_new_dir = false;
+            new_dir_id     = undefined<registred_path_id>();
+            app.f_dialog.clear();
+        }
+    } else if (ImGui::Button("Add new path")) {
+        app.add_gui_task([&app, req = &new_reg_dir_id]() {
             app.mod.files.write([&](auto& fs) {
-                if (fs.registred_paths.can_alloc(1)) {
-                    auto& ndir    = fs.registred_paths.alloc();
-                    auto  id      = fs.registred_paths.get_id(ndir);
-                    ndir.path     = "";
-                    ndir.priority = 127;
-                    app.request_open_directory_dlg(id);
-                    fs.recorded_paths.emplace_back(id);
+                if (fs.registred_paths.can_alloc(1) or
+                    fs.registred_paths.template grow<3, 2>()) {
+                    if (req->should_request()) {
+                        auto& ndir    = fs.registred_paths.alloc();
+                        auto  id      = fs.registred_paths.get_id(ndir);
+                        ndir.path     = "";
+                        ndir.priority = 127;
+                        fs.recorded_paths.emplace_back(id);
+                        req->fulfill(id);
+                    }
                 }
             });
         });

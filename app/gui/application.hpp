@@ -1611,6 +1611,14 @@ public:
     std::chrono::time_point<std::chrono::steady_clock> last_change;
 
     bool timer_started = false;
+
+private:
+    /** To share new registred_path identifier between task and main gui thread.
+     */
+    atomic_request_buffer<registred_path_id> new_reg_dir_id;
+
+    registred_path_id new_dir_id     = undefined<registred_path_id>();
+    bool              choose_new_dir = false;
 };
 
 struct task_window {

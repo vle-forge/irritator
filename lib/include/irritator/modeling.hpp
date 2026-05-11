@@ -1080,7 +1080,6 @@ struct registred_path {
                                 configuration file. */
 
     vector<dir_path_id> children;
-
     fs_flags            flags;
     i8                  priority = 0;
 };
@@ -1105,9 +1104,9 @@ struct dir_path {
 struct file_path {
     file_path_str path; /**< stores the file name as utf8 string. */
 
-    dir_path_id          parent = undefined<dir_path_id>();
-    file_type            type   = file_type::undefined_file;
-    fs_flags             flags;
+    dir_path_id parent = undefined<dir_path_id>();
+    file_type   type   = file_type::undefined_file;
+    fs_flags    flags;
 };
 
 struct component_file_path {
