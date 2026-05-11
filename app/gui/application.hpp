@@ -1615,10 +1615,11 @@ public:
 private:
     /** To share new registred_path identifier between task and main gui thread.
      */
-    atomic_request_buffer<registred_path_id> new_reg_dir_id;
+    atomic_request_buffer<recorded_path_id> new_reg_dir_id;
 
-    registred_path_id new_dir_id     = undefined<registred_path_id>();
+    recorded_path_id  new_dir_id     = undefined<recorded_path_id>();
     bool              choose_new_dir = false;
+    bool              need_restart   = false;
 };
 
 struct task_window {

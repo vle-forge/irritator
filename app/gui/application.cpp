@@ -641,16 +641,26 @@ void application::free_project_window(const project_id pj_id) noexcept
 bool application::init() noexcept
 {
     config.vars.rec_paths.read(
-      [&](const auto& paths, const auto /*vers*/) noexcept {
+      [&](const auto& conf, const auto /*vers*/) noexcept {
+          const auto& paths =
+            conf.recs.template get<recorded_paths::long_path_str>();
+          const auto& names =
+            conf.recs.template get<recorded_paths::name_str>();
+          const auto& priorities = conf.recs.template get<i8>();
+
           mod.files.write([&](auto& fs) {
-              for (const auto id : paths.ids) {
+              if (not(fs.registred_paths.can_alloc(conf.recs.size()) or
+                      fs.registred_paths.template grow<2, 1>()))
+                  return;
+
+              for (const auto id : conf.recs) {
                   const auto idx = get_index(id);
 
                   auto& new_dir    = fs.registred_paths.alloc();
                   auto  new_dir_id = fs.registred_paths.get_id(new_dir);
-                  new_dir.name     = paths.names[idx].sv();
-                  new_dir.path     = paths.paths[idx].sv();
-                  new_dir.priority = paths.priorities[idx];
+                  new_dir.name     = names[idx].sv();
+                  new_dir.path     = paths[idx].sv();
+                  new_dir.priority = priorities[idx];
 
                   jn.push(log_level::info,
                           [&new_dir](auto& title, auto& msg) noexcept {

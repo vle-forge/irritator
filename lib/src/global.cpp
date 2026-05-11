@@ -44,38 +44,43 @@ constexpr Iterator sorted_vector_find(Iterator begin,
 static void do_build_default(variables& v) noexcept
 {
     v.rec_paths.write([&](recorded_paths& paths) noexcept {
-        paths.ids.reserve(16);
-        paths.paths.resize(16);
-        paths.priorities.resize(16);
-        paths.names.resize(16);
+        paths.recs.grow<2, 1>(16);
 
         if (auto sys = get_system_component_dir(); sys.has_value()) {
             std::error_code ec;
             if (std::filesystem::exists(*sys, ec)) {
-                const auto idx        = paths.ids.alloc();
-                paths.paths[idx]      = (const char*)sys->u8string().c_str();
-                paths.priorities[idx] = 20;
-                paths.names[idx]      = "system";
+                const auto id = paths.recs.alloc_id();
+
+                paths.recs.template get<recorded_paths::long_path_str>(id) =
+                  (const char*)sys->u8string().c_str();
+                paths.recs.template get<recorded_paths::name_str>(id) =
+                  "system";
+                paths.recs.template get<i8>(id) = 20;
             }
         }
 
         if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
             std::error_code ec;
             if (std::filesystem::exists(*sys, ec)) {
-                const auto idx        = paths.ids.alloc();
-                paths.paths[idx]      = (const char*)sys->u8string().c_str();
-                paths.priorities[idx] = 10;
-                paths.names[idx]      = "p-system";
+                const auto id = paths.recs.alloc_id();
+
+                paths.recs.template get<recorded_paths::long_path_str>(id) =
+                  (const char*)sys->u8string().c_str();
+                paths.recs.template get<recorded_paths::name_str>(id) =
+                  "p-system";
+                paths.recs.template get<i8>(id) = 10;
             }
         }
 
         if (auto sys = get_default_user_component_dir(); sys.has_value()) {
             std::error_code ec;
             if (std::filesystem::exists(*sys, ec)) {
-                const auto idx        = paths.ids.alloc();
-                paths.paths[idx]      = (const char*)sys->u8string().c_str();
-                paths.priorities[idx] = 0;
-                paths.names[idx]      = "user";
+                const auto id = paths.recs.alloc_id();
+
+                paths.recs.template get<recorded_paths::long_path_str>(id) =
+                  (const char*)sys->u8string().c_str();
+                paths.recs.template get<recorded_paths::name_str>(id) = "user";
+                paths.recs.template get<i8>(id)                       = 0;
             }
         }
     });
@@ -88,21 +93,24 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
 {
     fmt::print(file, "[paths]\n");
 
-    vars.rec_paths.read(
-      [&](const recorded_paths& paths, const auto /*vers*/) noexcept {
-          for (const auto id : paths.ids) {
-              const auto idx = get_index(id);
+    vars.rec_paths.read([&](const recorded_paths& conf,
+                            const auto /*vers*/) noexcept {
+        const auto& paths =
+          conf.recs.template get<recorded_paths::long_path_str>();
+        const auto& names = conf.recs.template get<recorded_paths::name_str>();
+        const auto& priorities = conf.recs.template get<i8>();
 
-              if (paths.names[idx].empty() or paths.paths[idx].empty())
-                  continue;
+        for (const auto id : conf.recs) {
+            if (paths[id].empty() or names[id].empty())
+                continue;
 
-              fmt::print(file,
-                         "{} {} {}\n",
-                         paths.names[idx].sv(),
-                         paths.priorities[idx],
-                         paths.paths[idx].sv());
-          }
-      });
+            fmt::print(file,
+                       "{} {} {}\n",
+                       names[id].sv(),
+                       static_cast<int>(priorities[id]),
+                       paths[id].sv());
+        }
+    });
 
     fmt::print(file, "[options]\n");
     fmt::print(
@@ -252,12 +260,11 @@ static bool do_read_affect(variables&             vars,
 static recorded_path_id find_name(const recorded_paths&  rec_paths,
                                   const recorded_path_id search) noexcept
 {
-    const auto search_idx = get_index(search);
+    const auto& names = rec_paths.recs.get<recorded_paths::name_str>();
 
-    for (const auto id : rec_paths.ids) {
+    for (const auto id : rec_paths.recs) {
         if (id != search) {
-            const auto idx = get_index(id);
-            if (rec_paths.names[idx] == rec_paths.names[search_idx])
+            if (names[id] == names[search])
                 return id;
         }
     }
@@ -271,15 +278,19 @@ static bool do_read_elem(variables&             vars,
 {
     return vars.rec_paths.write([&](recorded_paths& rec_paths) noexcept {
         if (current_section.test(section_paths)) {
-            if (not rec_paths.ids.can_alloc(1))
+            if (not(rec_paths.recs.can_alloc(1) or rec_paths.recs.grow<3, 2>()))
                 return false;
 
-            const auto id  = rec_paths.ids.alloc();
+            const auto id  = rec_paths.recs.alloc_id();
             const auto idx = get_index(id);
 
-            rec_paths.priorities[idx] = 0;
-            rec_paths.names[idx].clear();
-            rec_paths.paths[idx].clear();
+            auto& paths = rec_paths.recs.get<recorded_paths::long_path_str>();
+            auto& names = rec_paths.recs.get<recorded_paths::name_str>();
+            auto& priorities = rec_paths.recs.get<i8>();
+
+            priorities[idx] = 0;
+            names[idx].clear();
+            paths[idx].clear();
 
             const auto sep_1 = element.find(' ');
             if (sep_1 == std::string_view::npos or sep_1 + 1 > element.size())
@@ -295,16 +306,18 @@ static bool do_read_elem(variables&             vars,
             const auto priority = priority_and_path.substr(0, sep_2);
             const auto path     = priority_and_path.substr(sep_2 + 1);
 
-            rec_paths.names[idx]      = name;
-            rec_paths.paths[idx]      = path;
-            rec_paths.priorities[idx] = static_cast<int>(std::clamp(
-              do_read_integer(priority).value_or(10), i64{ 0 }, i64{ 100 }));
+            names[idx]      = name;
+            paths[idx]      = path;
+            priorities[idx] = static_cast<int>(
+              std::clamp(do_read_integer(priority).value_or(10),
+                         i64{ INT8_MIN },
+                         i64{ INT8_MAX }));
 
-            if (rec_paths.names[idx].empty() or rec_paths.paths[idx].empty()) {
-                rec_paths.ids.free(id);
+            if (names[idx].empty() or paths[idx].empty()) {
+                rec_paths.recs.free(id);
             } else if (const auto f_id = find_name(rec_paths, id);
                        is_defined(f_id)) {
-                rec_paths.ids.free(f_id);
+                rec_paths.recs.free(f_id);
             }
 
             return true;
@@ -437,19 +450,19 @@ static std::error_code do_load(const std::filesystem::path& filename,
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
 {
-    vector<recorded_path_id> ret(ids.size(), reserve_tag);
+    vector<recorded_path_id> ret(recs.size(), reserve_tag);
 
-    if (ids.capacity() >= ids.ssize()) {
-        for (auto id : ids)
+    if (recs.capacity() >= recs.size()) {
+        for (auto id : recs)
             ret.emplace_back(id);
 
-        std::sort(
-          ret.begin(), ret.end(), [&](const auto a, const auto b) noexcept {
-              const auto idx_a = get_index(a);
-              const auto idx_b = get_index(b);
+        std::ranges::sort(ret, [&](const auto a, const auto b) noexcept {
+            const auto& priorities = recs.template get<i8>();
+            const auto  idx_a      = get_index(a);
+            const auto  idx_b      = get_index(b);
 
-              return priorities[idx_a] < priorities[idx_b];
-          });
+            return priorities[idx_a] < priorities[idx_b];
+        });
     }
 
     return ret;

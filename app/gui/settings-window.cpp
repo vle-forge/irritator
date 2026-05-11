@@ -47,107 +47,103 @@ void settings_window::show() noexcept
     ImGui::SetNextWindowPos(ImVec2(640, 480), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(640, 480), ImGuiCond_Once);
 
-    if (!ImGui::Begin(settings_window::name, &is_open)) {
+    if (not ImGui::Begin(settings_window::name, &is_open)) {
         ImGui::End();
         return;
     }
 
-    ImGui::Separator();
+    if (need_restart) {
+        ImGuiStyle& style = ImGui::GetStyle();
+
+        ImGui::TextColored(style.Colors[ImGuiCol_TextLink], "Restart Required");
+        ImGui::Separator();
+    }
+
     ImGui::TextUnformatted("Dir paths");
 
     auto& app     = container_of(this, &application::settings_wnd);
     int   changes = false;
 
-    if (ImGui::BeginTable("Recorded Paths", 8)) {
+    if (ImGui::BeginTable("Recorded Paths", 4)) {
         ImGui::TableSetupColumn(
-          "Path", ImGuiTableColumnFlags_WidthStretch, -FLT_MIN);
-        ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed);
+          "Path", ImGuiTableColumnFlags_WidthStretch, .7f);
+        ImGui::TableSetupColumn(
+          "Name", ImGuiTableColumnFlags_WidthStretch, .2f);
         ImGui::TableSetupColumn("Priority", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Read", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Read/Only", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Error", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Refresh", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn("Delete", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
 
-        auto to_delete  = registred_path_id{ 0 };
-        auto to_refresh = registred_path_id{ 0 };
+        auto to_delete = undefined<recorded_path_id>();
 
-        app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-            const registred_path* dir = nullptr;
+        app.config.vars.rec_paths.read([&](const auto& conf,
+                                           const auto /*vers*/) {
+            const auto& paths =
+              conf.recs.template get<recorded_paths::long_path_str>();
+            const auto& names =
+              conf.recs.template get<recorded_paths::name_str>();
+            const auto& priorities = conf.recs.template get<i8>();
 
-            while (fs.registred_paths.next(dir)) {
-                const auto reg_id = fs.registred_paths.get_id(*dir);
-
-                ImGui::PushID(dir);
+            for (const auto id : conf.recs) {
+                ImGui::PushID(ordinal(id));
                 ImGui::TableNextRow();
 
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", dir->path.sv());
+                ImGui::PushItemWidth(-1.f);
+                ImGui::InputText("##reg-path",
+                                 const_cast<char*>(paths[id].c_str()),
+                                 paths[id].capacity(),
+                                 ImGuiInputTextFlags_ReadOnly);
+                ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
-                auto name = dir->name;
+                auto name = names[id];
                 ImGui::PushItemWidth(-1.f);
                 if (ImGui::InputSmallString(
                       "##reg-name",
                       name,
                       ImGuiInputTextFlags_EnterReturnsTrue)) {
-                    app.add_gui_task([&app, reg_id, name]() {
-                        app.mod.files.write([&](auto& fs) {
-                            if (auto* t = fs.registred_paths.try_to_get(reg_id))
-                                t->name = name;
+                    app.add_gui_task([&app, id, name]() {
+                        app.config.vars.rec_paths.write([&](auto& conf) {
+                            if (conf.recs.exists(id)) {
+                                conf.recs
+                                  .template get<recorded_paths::name_str>(id) =
+                                  name;
+                            }
                         });
                     });
 
+                    need_restart = true;
+                    ++changes;
+                }
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1.f);
+                constexpr i8 p_min    = INT8_MIN;
+                constexpr i8 p_max    = INT8_MAX;
+                auto         priority = priorities[id];
+
+                if (ImGui::SliderScalar(
+                      "##input", ImGuiDataType_S8, &priority, &p_min, &p_max)) {
+                    app.add_gui_task([&app, id, priority]() {
+                        app.config.vars.rec_paths.write([&](auto& conf) {
+                            if (conf.recs.exists(id)) {
+                                conf.recs.template get<i8>(id) = priority;
+                            }
+                        });
+                    });
+
+                    need_restart = true;
                     ++changes;
                 }
                 ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(60.f);
-                constexpr i8 p_min    = INT8_MIN;
-                constexpr i8 p_max    = INT8_MAX;
-                auto         priority = dir->priority;
-
-                if (ImGui::SliderScalar(
-                      "##input", ImGuiDataType_S8, &priority, &p_min, &p_max)) {
-                    app.add_gui_task([&app, priority, reg_id]() {
-                        app.mod.files.write([&](auto& fs) {
-                            if (auto* t = fs.registred_paths.try_to_get(reg_id))
-                                t->priority = priority;
-                        });
-                    });
+                if (ImGui::Button("Delete")) {
+                    need_restart = true;
+                    to_delete    = id;
                 }
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                ImGui::PushItemWidth(-1.f);
-                auto read = dir->flags[fs_flag::read];
-                ImGui::Checkbox("##reg-rw", &read);
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                ImGui::PushItemWidth(-1.f);
-                auto read_only = dir->flags[fs_flag::read_only];
-                ImGui::Checkbox("##reg-ro", &read_only);
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                ImGui::PushItemWidth(-1.f);
-                auto access_error = dir->flags[fs_flag::access_error];
-                ImGui::Checkbox("##reg-ae", &access_error);
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                ImGui::PushItemWidth(60.f);
-                if (ImGui::Button("Refresh"))
-                    to_refresh = reg_id;
-                ImGui::PopItemWidth();
-
-                ImGui::TableNextColumn();
-                ImGui::PushItemWidth(60.f);
-                if (ImGui::Button("Delete"))
-                    to_delete = reg_id;
                 ImGui::PopItemWidth();
 
                 ImGui::PopID();
@@ -156,26 +152,9 @@ void settings_window::show() noexcept
 
         if (is_defined(to_delete)) {
             app.add_gui_task([&app, to_delete]() {
-                app.mod.files.write([&](auto& fs) {
-                    if (auto* reg = fs.registred_paths.try_to_get(to_delete))
-                        fs.registred_paths.free(to_delete);
-                });
-            });
-        }
-
-        if (is_defined(to_refresh)) {
-            app.add_gui_task([&app, to_refresh]() {
-                app.mod.files.write([&](auto& fs) {
-                    const auto newfiles =
-                      fs.browse_registred(app.jn, to_refresh);
-                    if (newfiles > 0) {
-                        app.mod.fill_components(app.jn);
-
-                        app.jn.push(log_level::info,
-                                    [newfiles](auto& title, auto& msg) {
-                                        title = "Refresh components";
-                                        format(msg, "{} files added", newfiles);
-                                    });
+                app.config.vars.rec_paths.write([&](auto& conf) {
+                    if (conf.recs.exists(to_delete)) {
+                        conf.recs.free(to_delete);
                     }
                 });
             });
@@ -196,17 +175,19 @@ void settings_window::show() noexcept
         if (app.f_dialog.show_select_directory(title)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
                 app.add_gui_task([&app, id = new_dir_id]() {
-                    app.mod.files.write([&](auto& fs) {
-                        if (auto* reg = fs.registred_paths.try_to_get(id)) {
-                            reg->path = app.f_dialog.result.string();
-                            fs.browse_registred(app.jn, id);
+                    app.config.vars.rec_paths.write([&](auto& fs) {
+                        if (fs.recs.exists(id)) {
+                            fs.recs.template get<recorded_paths::long_path_str>(
+                              id) = app.f_dialog.result.string();
                         }
                     });
                 });
             } else if (app.f_dialog.state == file_dialog::status::cancel) {
                 app.add_gui_task([&app, id = new_dir_id]() {
-                    app.mod.files.write(
-                      [&](auto& fs) { fs.registred_paths.free(id); });
+                    app.config.vars.rec_paths.write([&](auto& fs) {
+                        if (fs.recs.exists(id))
+                            fs.recs.free(id);
+                    });
                 });
             } else {
                 irt::debug::breakpoint();
@@ -214,20 +195,20 @@ void settings_window::show() noexcept
 
             changes++;
             choose_new_dir = false;
-            new_dir_id     = undefined<registred_path_id>();
+            new_dir_id     = undefined<recorded_path_id>();
             app.f_dialog.clear();
         }
     } else if (ImGui::Button("Add new path")) {
         app.add_gui_task([&app, req = &new_reg_dir_id]() {
-            app.mod.files.write([&](auto& fs) {
-                if (fs.registred_paths.can_alloc(1) or
-                    fs.registred_paths.template grow<3, 2>()) {
+            app.config.vars.rec_paths.write([&](auto& fs) {
+                if (fs.recs.can_alloc(1) or fs.recs.template grow<3, 2>()) {
                     if (req->should_request()) {
-                        auto& ndir    = fs.registred_paths.alloc();
-                        auto  id      = fs.registred_paths.get_id(ndir);
-                        ndir.path     = "";
-                        ndir.priority = 127;
-                        fs.recorded_paths.emplace_back(id);
+                        auto id = fs.recs.alloc_id();
+                        fs.recs.template get<recorded_paths::long_path_str>(id)
+                          .clear();
+                        fs.recs.template get<recorded_paths::name_str>(id)
+                          .clear();
+                        fs.recs.template get<i8>(id) = 0;
                         req->fulfill(id);
                     }
                 }
@@ -266,7 +247,7 @@ void settings_window::show() noexcept
         const auto end_at   = std::chrono::steady_clock::now();
         const auto duration = end_at - last_change;
 
-        if (duration > std::chrono::seconds(5)) {
+        if (duration > std::chrono::seconds(1)) {
             timer_started = false;
             app.add_gui_task([&app]() noexcept {
                 if (auto ret = app.config.save(); ret) {

@@ -76,11 +76,16 @@ struct theme_colors {
 };
 
 struct recorded_paths {
-    id_array<recorded_path_id> ids;
+    using long_path_str = small_string<256 * 16 - 2>;
+    using name_str      = small_string<32 - 1>;
 
-    vector<small_string<256 * 16 - 2>> paths;
-    vector<small_string<31>>           names;
-    vector<int>                        priorities;
+    id_data_array<void,
+                  recorded_path_id,
+                  allocator<new_delete_memory_resource>,
+                  long_path_str,
+                  name_str,
+                  i8>
+      recs;
 
     vector<recorded_path_id> sort_by_priorities() const noexcept;
 };
