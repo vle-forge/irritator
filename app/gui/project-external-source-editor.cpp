@@ -122,7 +122,7 @@ auto show_data_file_input(const file_access& fs,
                 if (const auto* file = fs.file_paths.try_to_get(f_id)) {
                     const auto sv = file->path.sv();
 
-                    if (has_extension(sv, file_path::file_type::data_file)) {
+                    if (has_extension(sv, file_type::data_file)) {
                         if (ImGui::Selectable(file->path.c_str(),
                                               file_id == f_id)) {
                             ret = f_id;

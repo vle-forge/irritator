@@ -731,7 +731,7 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
                                             auto) noexcept -> bool {
             const auto selected = file_select.combobox_ro(
               fs,
-              file_path::file_type::dot_file,
+              file_type::dot_file,
               file_selector::flags(file_selector::flag::show_load_button,
                                    file_selector::flag::show_cancel_button));
 
@@ -875,7 +875,7 @@ bool graph_component_editor_data::graph_component_editor_data::show(
                       const auto selected = file_select.combobox(
                         app,
                         fs,
-                        file_path::file_type::dot_file,
+                        file_type::dot_file,
                         file_selector::flags(
                           file_selector::flag::show_save_button,
                           file_selector::flag::show_cancel_button));

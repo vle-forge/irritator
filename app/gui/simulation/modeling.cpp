@@ -51,7 +51,7 @@ bool simulation_component_editor_data::show(component_editor&       ed,
     if (ImGui::CollapsingHeader("projects")) {
         mod.files.read([](const auto& fs, const auto /*vers*/) {
             for (const auto& f : fs.file_paths) {
-                if (f.type == file_path::file_type::project_file) {
+                if (f.type == file_type::project_file) {
                     ImGui::TextFormat("project-file: {}", f.path.sv());
                 }
             }

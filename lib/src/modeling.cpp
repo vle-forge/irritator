@@ -184,7 +184,7 @@ static status browse_directory(journal_handler&      jn,
                 continue;
 
             const auto type = get_extension(it->path().filename().string());
-            if (type == file_path::file_type::undefined_file)
+            if (type == file_type::undefined_file)
                 continue;
 
             if (not(fs.file_paths.can_alloc(1) or fs.file_paths.grow<3, 2>()))
@@ -397,7 +397,7 @@ status modeling::fill_components(journal_handler& jn) noexcept
               fs.browse_registreds(jn);
 
               for (auto& f : fs.file_paths) {
-                  if (f.type == file_path::file_type::dot_file) {
+                  if (f.type == file_type::dot_file) {
                       if (not(ids.graphs.can_alloc(1) or
                               ids.graphs.template grow<3, 2>()))
                           return new_error(modeling_errc::memory_error);
@@ -408,12 +408,12 @@ status modeling::fill_components(journal_handler& jn) noexcept
               }
 
               for (auto& f : fs.file_paths) {
-                  if (f.type == file_path::file_type::project_file) {
+                  if (f.type == file_type::project_file) {
                   }
               }
 
               for (auto& f : fs.file_paths) {
-                  if (f.type == file_path::file_type::component_file) {
+                  if (f.type == file_type::component_file) {
                       const auto f_id = fs.file_paths.get_id(f);
 
                       if (not ids.can_alloc_component(1))
@@ -568,7 +568,7 @@ void file_access::refresh(const dir_path_id id) noexcept
                         if (it->is_regular_file()) {
                             const auto type =
                               get_extension(it->path().filename().string());
-                            if (type != file_path::file_type::undefined_file) {
+                            if (type != file_type::undefined_file) {
                                 const auto f = find_file_in_directory(
                                   id, it->path().string());
                                 if (is_undefined(f)) {
@@ -592,17 +592,16 @@ void file_access::refresh(const dir_path_id id) noexcept
     }
 }
 
-auto file_access::find_file_in_directory(
-  const dir_path_id          id,
-  const std::string_view     filename,
-  const file_path::file_type type) const noexcept -> file_path_id
+auto file_access::find_file_in_directory(const dir_path_id      id,
+                                         const std::string_view filename,
+                                         const file_type type) const noexcept
+  -> file_path_id
 {
     if (const auto* dir = dir_paths.try_to_get(id))
         for (const auto f_id : dir->children)
             if (const auto* file = file_paths.try_to_get(f_id))
                 if (filename == file->path.sv() and
-                    (type == file->type or
-                     type == file_path::file_type::undefined_file))
+                    (type == file->type or type == file_type::undefined_file))
                     return f_id;
 
     return undefined<file_path_id>();
@@ -659,9 +658,9 @@ auto file_access::find_directory_in_registry(
     return undefined<dir_path_id>();
 }
 
-file_path_id file_access::alloc_file(const dir_path_id          id,
-                                     const std::string_view     name,
-                                     const file_path::file_type type) noexcept
+file_path_id file_access::alloc_file(const dir_path_id      id,
+                                     const std::string_view name,
+                                     const file_type        type) noexcept
 {
     if (auto* d = dir_paths.try_to_get(id)) {
         if (file_paths.can_alloc(1) or file_paths.grow<3, 2>()) {

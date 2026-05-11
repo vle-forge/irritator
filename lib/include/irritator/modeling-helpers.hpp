@@ -77,9 +77,8 @@ constexpr bool path_exist(const data_array<T, Identifier>& data,
 }
 
 /// Adds the extension to the file path string according to @c type extension.
-inline void add_extension(
-  file_path_str&       file,
-  file_path::file_type type = file_path::file_type::component_file) noexcept
+inline void add_extension(file_path_str& file,
+                          file_type type = file_type::component_file) noexcept
 {
     const std::decay_t<decltype(file)> tmp(file);
 
@@ -87,21 +86,20 @@ inline void add_extension(
         format(file,
                "{}{}",
                tmp.sv().substr(0, dot),
-               file_path::file_type_names[ordinal(type)]);
+               file_type_names[ordinal(type)]);
     } else {
-        format(
-          file, "{}{}", tmp.sv(), file_path::file_type_names[ordinal(type)]);
+        format(file, "{}{}", tmp.sv(), file_type_names[ordinal(type)]);
     }
 }
 
 /// Checks if the file path string has the corresponding @c type extension.
 constexpr bool has_extension(
   const std::string_view filename,
-  file_path::file_type   type = file_path::file_type::component_file) noexcept
+  file_type              type = file_type::component_file) noexcept
 {
     if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
         const auto ext = filename.substr(dot);
-        return ext == file_path::file_type_names[ordinal(type)];
+        return ext == file_type_names[ordinal(type)];
     }
 
     return false;
@@ -114,18 +112,17 @@ constexpr bool has_extension(
 /// @return The irritator file type known or @c file_type::undefined_file
 /// otherwise.
 ///
-constexpr file_path::file_type get_extension(
-  const std::string_view filename) noexcept
+constexpr file_type get_extension(const std::string_view filename) noexcept
 {
     if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
         const auto ext = filename.substr(dot);
 
-        for (sz i = 0; i < std::size(file_path::file_type_names); ++i)
-            if (file_path::file_type_names[i] == ext)
-                return enum_cast<file_path::file_type>(i);
+        for (sz i = 0; i < std::size(file_type_names); ++i)
+            if (file_type_names[i] == ext)
+                return enum_cast<file_type>(i);
     }
 
-    return file_path::file_type::undefined_file;
+    return file_type::undefined_file;
 }
 
 /// Checks if the file path string has an extension equals to any one of
@@ -135,7 +132,7 @@ constexpr bool has_irritator_extension(const std::string_view filename) noexcept
     if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
         const auto ext = filename.substr(dot);
 
-        for (const auto& valid_extension : file_path::file_type_names)
+        for (const auto& valid_extension : file_type_names)
             if (valid_extension == ext)
                 return true;
     }
@@ -147,16 +144,15 @@ constexpr bool has_irritator_extension(const std::string_view filename) noexcept
 /// corresponding @c type extension.
 constexpr bool is_valid_filename(
   const std::string_view filename,
-  file_path::file_type   type = file_path::file_type::component_file) noexcept
+  file_type              type = file_type::component_file) noexcept
 {
     return not filename.empty() and filename[0] != '.' and
            filename[0] != '-' and all_char_valid(filename) and
-           filename.ends_with(file_path::file_type_names[ordinal(type)]);
+           filename.ends_with(file_type_names[ordinal(type)]);
 }
 
 static_assert(is_valid_filename("file.irt"));
-static_assert(is_valid_filename("file.pirt",
-                                file_path::file_type::project_file));
+static_assert(is_valid_filename("file.pirt", file_type::project_file));
 
 inline std::optional<std::filesystem::path> make_file(
   const registred_path& r,

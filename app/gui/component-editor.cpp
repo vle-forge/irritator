@@ -1972,7 +1972,7 @@ static component_editor_result display_component_editor_subtable(
                           const auto selected = tab.file_select.combobox(
                             app,
                             fs,
-                            file_path::file_type::component_file,
+                            file_type::component_file,
                             file_selector::flags(
                               file_selector::flag::show_save_button,
                               file_selector::flag::show_cancel_button));

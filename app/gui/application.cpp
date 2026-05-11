@@ -62,7 +62,7 @@ dir_path_id get_dir_id(atomic_request_buffer<dir_path_id>& dir_ptr,
 
 static void new_file_task(application&                         app,
                           dir_path_id                          dir_id,
-                          file_path::file_type                 type,
+                          file_type                            type,
                           std::unique_ptr<directory_path_str>  filename,
                           atomic_request_buffer<file_path_id>& file_b) noexcept
 {
@@ -210,9 +210,9 @@ file_path_id get_file_id(atomic_request_buffer<file_path_id>& file_ptr,
         return other_id;
 }
 
-void file_selector::combobox_file(application&               app,
-                                  const file_access&         fs,
-                                  const file_path::file_type type) noexcept
+void file_selector::combobox_file(application&       app,
+                                  const file_access& fs,
+                                  const file_type    type) noexcept
 {
     debug::ensure(fs.registred_paths.try_to_get(reg_id_) != nullptr);
     debug::ensure(fs.dir_paths.try_to_get(dir_id_) != nullptr);
@@ -257,8 +257,8 @@ void file_selector::combobox_file(application&               app,
     }
 }
 
-void file_selector::combobox_file_ro(const file_access&         fs,
-                                     const file_path::file_type type) noexcept
+void file_selector::combobox_file_ro(const file_access& fs,
+                                     const file_type    type) noexcept
 {
     debug::ensure(fs.registred_paths.try_to_get(reg_id_) != nullptr);
     debug::ensure(fs.dir_paths.try_to_get(dir_id_) != nullptr);
@@ -286,9 +286,9 @@ void file_selector::combobox_file_ro(const file_access&         fs,
     }
 }
 
-auto file_selector::combobox(application&               app,
-                             const file_access&         fs,
-                             const file_path::file_type type,
+auto file_selector::combobox(application&       app,
+                             const file_access& fs,
+                             const file_type    type,
                              const flags flags) noexcept -> combo_box_result
 {
     auto save  = false;
@@ -333,8 +333,8 @@ auto file_selector::combobox(application&               app,
                              .save    = save };
 }
 
-auto file_selector::combobox_ro(const file_access&         fs,
-                                const file_path::file_type type,
+auto file_selector::combobox_ro(const file_access& fs,
+                                const file_type    type,
                                 const flags flags) noexcept -> combo_box_result
 {
     auto save  = false;

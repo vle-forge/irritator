@@ -273,7 +273,7 @@ int main()
                     auto file_id =
                       fs.alloc_file(dir_id,
                                     "external-source.irt",
-                                    irt::file_path::file_type::component_file);
+                                    irt::file_type::component_file);
 
                     ids.component_file_paths[component_id].file = file_id;
                 });
@@ -960,13 +960,13 @@ int main()
                 fs.create_directories(dir_id);
 
                 const auto c1_id = fs.alloc_file(
-                  dir_id, "c1.irt", irt::file_path::file_type::component_file);
+                  dir_id, "c1.irt", irt::file_type::component_file);
                 const auto c2_id = fs.alloc_file(
-                  dir_id, "c2.irt", irt::file_path::file_type::component_file);
+                  dir_id, "c2.irt", irt::file_type::component_file);
                 const auto c3_id = fs.alloc_file(
-                  dir_id, "c3.irt", irt::file_path::file_type::component_file);
+                  dir_id, "c3.irt", irt::file_type::component_file);
                 const auto cg_id = fs.alloc_file(
-                  dir_id, "cg.irt", irt::file_path::file_type::component_file);
+                  dir_id, "cg.irt", irt::file_type::component_file);
 
                 ids.component_file_paths[c1_id].file = c1_id;
                 ids.component_file_paths[c2_id].file = c2_id;
@@ -1129,10 +1129,10 @@ int main()
 
                         const auto filename = irt::format_n<64>(
                           "{}.irt", irt::internal_component_names[i]);
-                        auto f_id = fs.alloc_file(
-                          dir_id,
-                          filename.sv(),
-                          irt::file_path::file_type::component_file);
+                        auto f_id =
+                          fs.alloc_file(dir_id,
+                                        filename.sv(),
+                                        irt::file_type::component_file);
 
                         ids.component_file_paths[c_id].file = f_id;
 

@@ -68,6 +68,27 @@ struct relative_id_path {
     unique_id_path ids;
 };
 
+constexpr static std::string_view file_type_names[] = { ".undefined", ".irt",
+                                                        ".dot",       ".txt",
+                                                        ".data",      ".pirt" };
+
+enum class file_type : u8 {
+    undefined_file,
+    component_file,
+    dot_file,
+    txt_file,
+    data_file,
+    project_file,
+};
+
+enum class file_flag : u8 {
+    unread,
+    read_only,
+    access_error,
+};
+
+using file_flags = bitflags<file_flag>;
+
 enum class child_type : u8 { model, component };
 
 enum class internal_component : u8 {
@@ -1112,36 +1133,11 @@ struct dir_path {
 };
 
 struct file_path {
-    enum class state : u8 {
-        lock,   /**< `file-path` is locked during I/O operation. Do not use
-                   this   class in writing mode. */
-        read,   /**< underlying file is read. */
-        unread, /**< underlying file  is not read. */
-    };
+    file_path_str path; /**< stores the file name as utf8 string. */
 
-    enum class file_flags : u8 {
-        access_error,
-        read_only,
-    };
-
-    constexpr static std::string_view file_type_names[] = {
-        ".undefined", ".irt", ".dot", ".txt", ".data", ".pirt"
-    };
-
-    enum class file_type : u8 {
-        undefined_file,
-        component_file,
-        dot_file,
-        txt_file,
-        data_file,
-        project_file,
-    };
-
-    file_path_str        path; /**< stores the file name as utf8 string. */
     dir_path_id          parent = undefined<dir_path_id>();
     file_type            type   = file_type::undefined_file;
-    state                status = state::unread;
-    bitflags<file_flags> flags;
+    file_flags           flags  = file_flag::unread;
 };
 
 struct component_file_path {
@@ -1564,10 +1560,9 @@ struct file_access {
     /// the type @c type. Use @c undefined_file to select any file with
     /// the corresponding @c filename.
     file_path_id find_file_in_directory(
-      const dir_path_id          id,
-      const std::string_view     filename,
-      const file_path::file_type type =
-        file_path::file_type::undefined_file) const noexcept;
+      const dir_path_id      id,
+      const std::string_view filename,
+      const file_type        type = file_type::undefined_file) const noexcept;
 
     /**
      * @brief find_file Search a @c file_path_id from strings.
@@ -1592,10 +1587,10 @@ struct file_access {
     registred_path_id find_registred_path_by_name(
       const std::string_view name) const noexcept;
 
-    file_path_id alloc_file(const dir_path_id      id,
-                            const std::string_view name = std::string_view(),
-                            const file_path::file_type type =
-                              file_path::file_type::undefined_file) noexcept;
+    file_path_id alloc_file(
+      const dir_path_id      id,
+      const std::string_view name = std::string_view(),
+      const file_type        type = file_type::undefined_file) noexcept;
 
     dir_path_id alloc_dir(
       const registred_path_id id,

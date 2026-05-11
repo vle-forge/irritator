@@ -488,13 +488,13 @@ public:
         int save  = false; //<! @c true if user click on save.
     };
 
-    combo_box_result combobox(application&               app,
-                              const file_access&         fs,
-                              const file_path::file_type type,
+    combo_box_result combobox(application&       app,
+                              const file_access& fs,
+                              const file_type    type,
                               const flags = empty_option) noexcept;
 
-    combo_box_result combobox_ro(const file_access&         fs,
-                                 const file_path::file_type type,
+    combo_box_result combobox_ro(const file_access& fs,
+                                 const file_type    type,
                                  const flags = empty_option) noexcept;
 
 private:
@@ -508,11 +508,10 @@ private:
     void combobox_reg(const file_access& fs) noexcept;
     void combobox_dir(application& app, const file_access& fs) noexcept;
     void combobox_dir_ro(const file_access& fs) noexcept;
-    void combobox_file(application&               app,
-                       const file_access&         fs,
-                       const file_path::file_type type) noexcept;
-    void combobox_file_ro(const file_access&         fs,
-                          const file_path::file_type type) noexcept;
+    void combobox_file(application&       app,
+                       const file_access& fs,
+                       const file_type    type) noexcept;
+    void combobox_file_ro(const file_access& fs, const file_type type) noexcept;
 };
 
 struct plot_copy {
@@ -1561,20 +1560,11 @@ private:
     /// Stores the list of opened files.
     table<file_path_id, file_target> open_file_list;
 
-    enum class file_type : u8 {
-        none,
-        component,
-        project,
-        txt,
-        data,
-        dot,
-    };
-
-    bitflags<file_type> flags = bitflags<file_type>(file_type::component,
-                                                    file_type::project,
-                                                    file_type::txt,
-                                                    file_type::data,
-                                                    file_type::dot);
+    bitflags<file_type> flags = bitflags<file_type>(file_type::component_file,
+                                                    file_type::project_file,
+                                                    file_type::txt_file,
+                                                    file_type::data_file,
+                                                    file_type::dot_file);
 
     is_component_deletable_t is_component_deletable(
       const application&      app,

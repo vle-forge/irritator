@@ -145,7 +145,7 @@ void library_window::show_file_project(const file_access&      fs,
                                        const file_path&        file,
                                        const file_path_id      file_id) noexcept
 {
-    debug::ensure(file.type == file_path::file_type::project_file);
+    debug::ensure(file.type == file_type::project_file);
 
     auto& app = container_of(this, &application::library_wnd);
 
@@ -276,7 +276,7 @@ void library_window::show_notsaved_content(
 {
     auto& app = container_of(this, &application::library_wnd);
 
-    if (flags[file_type::component]) {
+    if (flags[file_type::component_file]) {
         for (const auto id : ids) {
             const auto& compo        = ids.components[id];
             const auto& file         = ids.component_file_paths[id];
@@ -317,7 +317,7 @@ void library_window::show_notsaved_content(
         }
     }
 
-    if (flags[file_type::project]) {
+    if (flags[file_type::project_file]) {
         for (const auto& pj : app.pjs) {
             const auto pj_id = app.pjs.get_id(pj);
             const auto have_file =
@@ -359,7 +359,7 @@ void library_window::show_dirpath_content(
     const auto label  = format_n<32>("{}##{}", dir.path.sv(), ordinal(dir_id));
 
     if (ImGui::TreeNodeEx(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (flags[file_type::component]) {
+        if (flags[file_type::component_file]) {
             for (const auto id : ids.ids) {
                 const auto& file = ids.component_file_paths[id];
 
@@ -377,23 +377,23 @@ void library_window::show_dirpath_content(
             ImGui::PushID(file);
 
             switch (file->type) {
-            case file_path::file_type::data_file:
+            case file_type::data_file:
                 break;
 
-            case file_path::file_type::dot_file:
+            case file_type::dot_file:
                 break;
 
-            case file_path::file_type::component_file:
+            case file_type::component_file:
                 break;
 
-            case file_path::file_type::txt_file:
+            case file_type::txt_file:
                 break;
 
-            case file_path::file_type::undefined_file:
+            case file_type::undefined_file:
                 break;
 
-            case file_path::file_type::project_file:
-                if (flags[file_type::project])
+            case file_type::project_file:
+                if (flags[file_type::project_file])
                     show_file_project(fs, ids, *file, file_id);
                 break;
             }
@@ -559,21 +559,21 @@ void library_window::show_menu() noexcept
         }
 
         if (ImGui::BeginMenu("Options")) {
-            auto show_component = flags[file_type::component];
+            auto show_component = flags[file_type::component_file];
             if (ImGui::MenuItem("Display components", nullptr, &show_component))
-                flags.set(file_type::component, show_component);
-            auto show_project = flags[file_type::project];
+                flags.set(file_type::component_file, show_component);
+            auto show_project = flags[file_type::project_file];
             if (ImGui::MenuItem("Display projects", nullptr, &show_project))
-                flags.set(file_type::project, show_project);
-            auto show_txt = flags[file_type::txt];
+                flags.set(file_type::project_file, show_project);
+            auto show_txt = flags[file_type::txt_file];
             if (ImGui::MenuItem("Display text files", nullptr, &show_txt))
-                flags.set(file_type::txt, show_txt);
-            auto show_data = flags[file_type::data];
+                flags.set(file_type::txt_file, show_txt);
+            auto show_data = flags[file_type::data_file];
             if (ImGui::MenuItem("Display data files", nullptr, &show_data))
-                flags.set(file_type::data, show_data);
-            auto show_dot = flags[file_type::dot];
+                flags.set(file_type::data_file, show_data);
+            auto show_dot = flags[file_type::dot_file];
             if (ImGui::MenuItem("Display dot files", nullptr, &show_dot))
-                flags.set(file_type::dot, show_dot);
+                flags.set(file_type::dot_file, show_dot);
             ImGui::EndMenu();
         }
 
@@ -660,13 +660,13 @@ void library_window::show() noexcept
             if (ImGui::BeginTabBar("Library")) {
                 if (ImGui::BeginTabItem("Components")) {
                     show_file_treeview(
-                      fs, ids, bitflags<file_type>(file_type::component));
+                      fs, ids, bitflags<file_type>(file_type::component_file));
                     ImGui::EndTabItem();
                 }
 
                 if (ImGui::BeginTabItem("Projects")) {
                     show_file_treeview(
-                      fs, ids, bitflags<file_type>(file_type::project));
+                      fs, ids, bitflags<file_type>(file_type::project_file));
                     ImGui::EndTabItem();
                 }
 

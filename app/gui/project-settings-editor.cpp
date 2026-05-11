@@ -338,7 +338,7 @@ static bool show_project_simulation_settings(application&    app,
         const auto selected = ed.file_select.combobox(
           app,
           fs,
-          file_path::file_type::project_file,
+          file_type::project_file,
           file_selector::flags(file_selector::flag::show_save_button));
         if (selected.save and not ed.save_in_progress.test_and_set()) {
             const auto pj_id = app.pjs.get_id(ed);
