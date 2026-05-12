@@ -5827,8 +5827,11 @@ struct model {
     dynamics_type type;
     observer_id   obs_id = observer_id{ 0 };
 
-    alignas(8) std::byte dyn[max_size_in_bytes()];
+    alignas(alignof(std::max_align_t)) std::byte dyn[max_size_in_bytes()];
 };
+
+static_assert(std::is_standard_layout_v<model>,
+              "model must be standard-layout");
 
 template<dynamics Dynamics>
 static constexpr dynamics_type dynamics_typeof() noexcept
@@ -6581,31 +6584,44 @@ constexpr auto dispatch(model& mdl, Function&& f, Args&&... args) noexcept
 template<dynamics Dynamics>
 Dynamics& get_dyn(model& mdl) noexcept
 {
+    static_assert(sizeof(Dynamics) <= max_size_in_bytes(),
+                  "Dynamics too large for model::dyn");
+    static_assert(alignof(Dynamics) <= alignof(std::max_align_t),
+                  "Dynamics alignment too strict");
     debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
-
-    return *reinterpret_cast<Dynamics*>(&mdl.dyn);
-}
-
-template<dynamics Dynamics>
-const Dynamics& get_dyn(const model& mdl) noexcept
-{
-    debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
-
-    return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
-}
-
-template<dynamics Dynamics>
-constexpr const model& get_model(const Dynamics& d) noexcept
-{
-    const Dynamics* __mptr = &d;
-    return *(const model*)((const char*)__mptr - offsetof(model, dyn));
+    return *std::launder(reinterpret_cast<Dynamics*>(&mdl.dyn));
 }
 
 template<dynamics Dynamics>
 constexpr model& get_model(Dynamics& d) noexcept
 {
-    Dynamics* __mptr = &d;
-    return *(model*)((char*)__mptr - offsetof(model, dyn));
+    static_assert(sizeof(Dynamics) <= max_size_in_bytes(),
+                  "Dynamics too large for model::dyn");
+    static_assert(alignof(Dynamics) <= alignof(std::max_align_t),
+                  "Dynamics alignment too strict");
+
+    return *std::launder(reinterpret_cast<model*>(reinterpret_cast<char*>(&d) -
+                                                  offsetof(model, dyn)));
+}
+
+template<dynamics Dynamics>
+const Dynamics& get_dyn(const model& mdl) noexcept
+{
+    static_assert(sizeof(Dynamics) <= max_size_in_bytes(),
+                  "Dynamics too large for model::dyn");
+
+    debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
+    return *std::launder(reinterpret_cast<const Dynamics*>(&mdl.dyn));
+}
+
+template<dynamics Dynamics>
+constexpr const model& get_model(const Dynamics& d) noexcept
+{
+    static_assert(sizeof(Dynamics) <= max_size_in_bytes(),
+                  "Dynamics too large for model::dyn");
+
+    return *std::launder(reinterpret_cast<const model*>(
+                             reinterpret_cast<const char*>(&d) - offsetof(model, dyn)));
 }
 
 // inline expected<message_id> get_input_port(model& src, int port_src)
@@ -8913,7 +8929,8 @@ inline bool is_ports_compatible(const model& mdl_src,
 //                             }
 //                         }
 //
-//                         return make_error(simulation_errc::output_port_error);
+//                         return
+//                         make_error(simulation_errc::output_port_error);
 //                     });
 // }
 
