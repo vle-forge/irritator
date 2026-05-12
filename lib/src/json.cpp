@@ -6767,25 +6767,25 @@ struct json_archiver::impl {
         const auto& file  = ids.component_file_paths[compo_id];
 
         if (is_undefined(file.file))
-            return new_error(modeling_errc::file_error);
+            return make_error(modeling_errc::file_error);
 
         const auto* fil = files.file_paths.try_to_get(file.file);
         if (!fil)
-            return new_error(modeling_errc::file_error);
+            return make_error(modeling_errc::file_error);
 
         const auto* dir = files.dir_paths.try_to_get(fil->parent);
         if (!dir)
-            return new_error(modeling_errc::directory_error);
+            return make_error(modeling_errc::directory_error);
         if (dir->path.empty())
-            return new_error(modeling_errc::directory_error);
+            return make_error(modeling_errc::directory_error);
 
         const auto* reg = files.registred_paths.try_to_get(dir->parent);
         if (!reg)
-            return new_error(modeling_errc::recorded_directory_error);
+            return make_error(modeling_errc::recorded_directory_error);
         if (reg->path.empty())
-            return new_error(modeling_errc::directory_error);
+            return make_error(modeling_errc::directory_error);
         if (reg->name.empty())
-            return new_error(modeling_errc::file_error);
+            return make_error(modeling_errc::file_error);
 
         w.StartObject();
 
@@ -6827,7 +6827,7 @@ status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
         buffer.resize(buffer_size);
 
         if (std::cmp_less(buffer.capacity(), buffer_size))
-            return new_error(json_errc::memory_error);
+            return make_error(json_errc::memory_error);
     }
 
     return success();
@@ -6957,7 +6957,7 @@ status json_archiver::operator()(const file_access&          files,
 
     if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
                               io.get_mode()[file_open_options::extended])))
-        return new_error(file_errc::open_error);
+        return make_error(file_errc::open_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     buffer.resize(4096);
@@ -6973,7 +6973,7 @@ status json_archiver::operator()(const file_access&          files,
     json_archiver::impl i{ *this, jn };
 
     if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_not_found);
 
     const auto& compo = ids.components[compo_id];
 
@@ -7012,7 +7012,7 @@ status json_archiver::operator()(const file_access&          files,
     json_archiver::impl i{ *this, jn };
 
     if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_not_found);
 
     const auto& compo = ids.components[compo_id];
 
@@ -7074,16 +7074,16 @@ status json_archiver::operator()(project&                pj,
 
     if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
                               io.get_mode()[file_open_options::extended])))
-        return new_error(file_errc::open_error);
+        return make_error(file_errc::open_error);
 
     const auto head_id = pj.head();
 
     if (not ids.exists(head_id))
-        return new_error(project_errc::empty_project);
+        return make_error(project_errc::empty_project);
 
     auto* parent = pj.tn_head();
     if (not parent)
-        return new_error(project_errc::empty_project);
+        return make_error(project_errc::empty_project);
 
     debug::ensure(head_id == parent->id);
 
@@ -7127,11 +7127,11 @@ status json_archiver::operator()(project&                pj,
     const auto head_id = pj.head();
 
     if (not ids.exists(head_id))
-        return new_error(project_errc::empty_project);
+        return make_error(project_errc::empty_project);
 
     auto* parent = pj.tn_head();
     if (not parent)
-        return new_error(project_errc::empty_project);
+        return make_error(project_errc::empty_project);
 
     debug::ensure(head_id == parent->id);
 

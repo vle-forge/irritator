@@ -20,7 +20,7 @@ static status try_allocate_external_source(application&    app,
 {
     if (not d.can_alloc(1)) {
         if (not d.template grow<3, 2>())
-            return new_error(external_source_errc::memory_error);
+            return make_error(external_source_errc::memory_error);
     }
 
     [[maybe_unused]] auto& src = d.alloc();

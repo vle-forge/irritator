@@ -188,10 +188,10 @@ static status browse_directory(journal_handler&      jn,
                 continue;
 
             if (not(fs.file_paths.can_alloc(1) or fs.file_paths.grow<3, 2>()))
-                return new_error(modeling_errc::memory_error);
+                return make_error(modeling_errc::memory_error);
 
             if (not(dir.children.can_alloc(1) or dir.children.grow<3, 2>()))
-                return new_error(modeling_errc::memory_error);
+                return make_error(modeling_errc::memory_error);
 
             const auto u8str   = it->path().filename().u8string();
             auto*      cstr    = reinterpret_cast<const char*>(u8str.c_str());
@@ -210,7 +210,7 @@ static status browse_directory(journal_handler&      jn,
         });
     }
 
-    return new_error(modeling_errc::memory_error);
+    return make_error(modeling_errc::memory_error);
 }
 
 static status browse_dirs_registred(journal_handler&             jn,
@@ -230,11 +230,11 @@ static status browse_dirs_registred(journal_handler&             jn,
                     not it->path().filename().string().starts_with('.')) {
                     if (not(fs.dir_paths.can_alloc(1) or
                             fs.dir_paths.grow<3, 2>()))
-                        return new_error(modeling_errc::memory_error);
+                        return make_error(modeling_errc::memory_error);
 
                     if (not(reg_dir.children.can_alloc(1) or
                             reg_dir.children.grow<3, 2>()))
-                        return new_error(modeling_errc::memory_error);
+                        return make_error(modeling_errc::memory_error);
 
                     auto  u8str  = it->path().filename().u8string();
                     auto  cstr   = reinterpret_cast<const char*>(u8str.c_str());
@@ -342,7 +342,7 @@ static auto load_component(journal_handler&             jn,
                            const component_id compo_id) noexcept -> status
 {
     if (not ids.exists(compo_id))
-        return new_error(modeling_errc::component_load_error);
+        return make_error(modeling_errc::component_load_error);
 
     auto& compo = ids.components[compo_id];
 
@@ -379,10 +379,10 @@ static auto load_component(journal_handler&             jn,
         }
     } catch (const std::bad_alloc& /*e*/) {
         compo.state = component_status::unreadable;
-        return new_error(modeling_errc::memory_error);
+        return make_error(modeling_errc::memory_error);
     } catch (...) {
         compo.state = component_status::unreadable;
-        return new_error(modeling_errc::memory_error);
+        return make_error(modeling_errc::memory_error);
     }
 
     return success();
@@ -399,7 +399,7 @@ status modeling::fill_components(journal_handler& jn) noexcept
                   if (f.type == file_type::dot_file) {
                       if (not(ids.graphs.can_alloc(1) or
                               ids.graphs.template grow<3, 2>()))
-                          return new_error(modeling_errc::memory_error);
+                          return make_error(modeling_errc::memory_error);
 
                       auto& g = ids.graphs.alloc();
                       g.file  = fs.file_paths.get_id(f);
@@ -416,7 +416,7 @@ status modeling::fill_components(journal_handler& jn) noexcept
                       const auto f_id = fs.file_paths.get_id(f);
 
                       if (not ids.can_alloc_component(1))
-                          return new_error(modeling_errc::memory_error);
+                          return make_error(modeling_errc::memory_error);
 
                       const auto compo_id = ids.alloc_component();
                       ids.component_file_paths[compo_id].file = f_id;
@@ -945,13 +945,13 @@ expected<std::filesystem::path> file_access::get_fs_path(
                     p /= file->path.sv();
                     return p;
                 }
-                return new_error(modeling_errc::recorded_directory_error);
+                return make_error(modeling_errc::recorded_directory_error);
             }
-            return new_error(modeling_errc::directory_error);
+            return make_error(modeling_errc::directory_error);
         }
-        return new_error(modeling_errc::file_error);
+        return make_error(modeling_errc::file_error);
     } catch (...) {
-        return new_error(modeling_errc::file_error);
+        return make_error(modeling_errc::file_error);
     }
 }
 
@@ -965,11 +965,11 @@ expected<std::filesystem::path> file_access::get_fs_path(
                 p /= dir->path.sv();
                 return p;
             }
-            return new_error(modeling_errc::recorded_directory_error);
+            return make_error(modeling_errc::recorded_directory_error);
         }
-        return new_error(modeling_errc::directory_error);
+        return make_error(modeling_errc::directory_error);
     } catch (...) {
-        return new_error(modeling_errc::file_error);
+        return make_error(modeling_errc::file_error);
     }
 }
 
@@ -980,9 +980,9 @@ expected<std::filesystem::path> file_access::get_fs_path(
         if (auto* reg = registred_paths.try_to_get(id)) {
             return std::filesystem::path{ reg->path.sv() };
         }
-        return new_error(modeling_errc::recorded_directory_error);
+        return make_error(modeling_errc::recorded_directory_error);
     } catch (...) {
-        return new_error(modeling_errc::file_error);
+        return make_error(modeling_errc::file_error);
     }
 }
 
@@ -1011,10 +1011,10 @@ expected<component_id> component_access::copy(
   const component_id src_id) noexcept
 {
     if (not ids.exists(src_id))
-        return new_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_not_found);
 
     if (not can_alloc_component(1))
-        return new_error(modeling_errc::component_container_full);
+        return make_error(modeling_errc::component_container_full);
 
     const auto& src    = components[src_id];
     auto        dst_id = undefined<component_id>();
@@ -1022,14 +1022,14 @@ expected<component_id> component_access::copy(
     switch (src.type) {
     case component_type::none:
         if (not can_alloc_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id = alloc_component();
         break;
 
     case component_type::generic: {
         if (not can_alloc_generic_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id           = alloc_generic_component();
         auto  sub_dst_id = components[dst_id].id.generic_id;
@@ -1040,7 +1040,7 @@ expected<component_id> component_access::copy(
 
     case component_type::grid: {
         if (not can_alloc_grid_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id           = alloc_grid_component();
         auto  sub_dst_id = components[dst_id].id.grid_id;
@@ -1051,7 +1051,7 @@ expected<component_id> component_access::copy(
 
     case component_type::graph: {
         if (not can_alloc_graph_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id           = alloc_graph_component();
         auto  sub_dst_id = components[dst_id].id.graph_id;
@@ -1062,7 +1062,7 @@ expected<component_id> component_access::copy(
 
     case component_type::hsm: {
         if (not can_alloc_hsm_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id           = alloc_hsm_component();
         auto  sub_dst_id = components[dst_id].id.hsm_id;
@@ -1073,7 +1073,7 @@ expected<component_id> component_access::copy(
 
     case component_type::simulation: {
         if (not can_alloc_sim_component(1))
-            return new_error(modeling_errc::component_container_full);
+            return make_error(modeling_errc::component_container_full);
 
         dst_id           = alloc_sim_component();
         auto  sub_dst_id = components[dst_id].id.sim_id;
@@ -1086,10 +1086,10 @@ expected<component_id> component_access::copy(
     auto& dst = components[dst_id];
 
     if (not dst.x.can_alloc(src.x.size()))
-        return new_error(modeling_errc::component_input_container_full);
+        return make_error(modeling_errc::component_input_container_full);
 
     if (not dst.y.can_alloc(src.y.size()))
-        return new_error(modeling_errc::component_output_container_full);
+        return make_error(modeling_errc::component_output_container_full);
 
     src.x.for_each([&](auto /*id*/,
                        const auto  type,
@@ -1392,12 +1392,12 @@ status modeling::save(const component_access& ids,
                       journal_handler&        jn) noexcept
 {
     if (not ids.exists(id))
-        return new_error(modeling_errc::component_load_error);
+        return make_error(modeling_errc::component_load_error);
 
     const auto filenames = make_component_files(fs, ids, id);
 
     if (not filenames.has_value())
-        return new_error(modeling_errc::file_error);
+        return make_error(modeling_errc::file_error);
 
     auto cfile =
       file::open(filenames->component, file_mode{ file_open_options::write });

@@ -89,16 +89,16 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
 {
     if (auto* embedded = sim.sims.try_to_get(sim_id)) {
         if (embedded->srcs.prepare().has_error())
-            return new_error(simulation_errc::embedded_simulation_source_error);
+            return make_error(simulation_errc::embedded_simulation_source_error);
 
         if (embedded->initialize().has_error())
-            return new_error(
+            return make_error(
               simulation_errc::embedded_simulation_initialization_error);
 
         return success();
     }
 
-    return new_error(simulation_errc::embedded_simulation_search_error);
+    return make_error(simulation_errc::embedded_simulation_search_error);
 }
 
 status simulation_wrapper::transition(simulation& sim,
@@ -112,7 +112,7 @@ status simulation_wrapper::transition(simulation& sim,
 
     auto* embedded = sim.sims.try_to_get(sim_id);
     if (not embedded)
-        return new_error(simulation_errc::embedded_simulation_search_error);
+        return make_error(simulation_errc::embedded_simulation_search_error);
 
     const auto init_msg  = get_message(sim, x[input_init]);
     const auto run_msg   = get_message(sim, x[input_run]);
@@ -143,10 +143,10 @@ status simulation_wrapper::transition(simulation& sim,
         // done before run().
 
         if (embedded->srcs.prepare().has_error())
-            return new_error(simulation_errc::embedded_simulation_source_error);
+            return make_error(simulation_errc::embedded_simulation_source_error);
 
         if (embedded->initialize().has_error())
-            return new_error(
+            return make_error(
               simulation_errc::embedded_simulation_initialization_error);
 
         sigma = time_domain<time>::infinity;
@@ -202,7 +202,7 @@ status simulation_wrapper::finalize(simulation& sim) noexcept
 {
     if (auto* embedded = sim.sims.try_to_get(sim_id)) {
         if (embedded->finalize().has_error())
-            return new_error(
+            return make_error(
               simulation_errc::embedded_simulation_finalization_error);
     }
 

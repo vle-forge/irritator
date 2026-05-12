@@ -343,7 +343,7 @@ int main()
             if (a == b)
                 return {};
             else
-                return irt::error_code(0, irt::category::generic);
+                return irt::error_code(1, irt::category::generic);
         };
 
         {
@@ -367,7 +367,7 @@ int main()
             if (a == b)
                 return irt::expected<counters>();
             else
-                return irt::error_code(0, irt::category::generic);
+                return irt::error_code(1, irt::category::generic);
         };
 
         {
@@ -375,6 +375,113 @@ int main()
             auto ret_2 = fn_2(1, 1);
             expect(ret_1.has_error());
             expect(ret_2.has_value());
+        }
+    };
+
+    "test_expected_all_functions"_test = [] {
+        {
+            expected_tester t(false);
+            auto ret = t.make().and_then([](int /*v*/) -> irt::expected<int> {
+                expected_tester_2 t2(false);
+                return t2.make();
+            });
+
+            expect(ret.has_value() >> fatal);
+            expect(eq(ret.value(), 2));
+        }
+
+        {
+            expected_tester t(false);
+            auto            ret = t.make().map([](int v) { return v * 10; });
+
+            expect(ret.has_value() >> fatal);
+            expect(eq(ret.value(), 10));
+        }
+
+        {
+            expected_tester t(true);
+            auto ret = t.make().map_error([](irt::error_code /*ec*/) {
+                return irt::make_error(irt::file_errc::memory_error);
+            });
+
+            expect(!ret.has_value() >> fatal);
+            expect(ret.error().value() ==
+                   static_cast<std::int16_t>(irt::file_errc::memory_error));
+        }
+
+        {
+            expected_tester t(true);
+            auto            ret = t.make().or_else(
+              [](irt::error_code /*ec*/) -> irt::expected<int> { return 42; });
+
+            expect(ret.has_value() >> fatal);
+            expect(eq(ret.value(), 42));
+        }
+
+        {
+            expected_tester t(true);
+            int             val = t.make().unwrap_or(100);
+
+            expect(eq(val, 100));
+        }
+
+        {
+            expected_tester t(true);
+            int val = t.make().unwrap_or_else([](irt::error_code ec) {
+                return static_cast<int>(ec.value()) * 10;
+            });
+
+            expect(eq(val, 1 * 10));
+        }
+
+        {
+            expected_tester t(false);
+            auto            ret =
+              t.make()
+                .and_then([](int /*v*/) -> irt::expected<int> {
+                    expected_tester_2 t2(false);
+                    return t2.make();
+                })
+                .map([](int v) { return v * 5; })
+                .map_error([](irt::error_code /*ec*/) {
+                    return irt::make_error(irt::file_errc::empty);
+                })
+                .or_else([](irt::error_code /*ec*/) -> irt::expected<int> {
+                    return 99;
+                });
+
+            expect(ret.has_value() >> fatal);
+            expect(eq(ret.value(), 10));
+        }
+
+        {
+            expected_tester t(true);
+            int             val = t.make()
+                        .and_then([](int /*v*/) -> irt::expected<int> {
+                            expected_tester_2 t2(false);
+                            return t2.make();
+                        })
+                        .map_error([](irt::error_code /*ec*/) {
+                            return irt::make_error(irt::file_errc::empty);
+                        })
+                        .unwrap_or_else([](irt::error_code ec) {
+                            return static_cast<int>(ec.value()) + 100;
+                        });
+
+            expect(eq(val, static_cast<int>(irt::file_errc::empty) + 100));
+        }
+
+        {
+            irt::expected<void> maybe_void =
+              irt::make_error(irt::file_errc::open_error);
+            bool error_handled = false;
+            maybe_void.unwrap_or_else([&](irt::error_code ec) {
+                error_handled = true;
+                expect(
+                  eq(ec.value(),
+                     static_cast<std::int16_t>(irt::file_errc::open_error)));
+            });
+            expect(error_handled >> fatal);
         }
     };
 

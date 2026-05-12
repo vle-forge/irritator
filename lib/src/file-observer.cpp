@@ -21,7 +21,7 @@ static expected<file> open_buffered_file(const std::string_view   output_dir,
                                     : std::filesystem::path{ output_dir };
 
         if (not std::filesystem::exists(p, ec))
-            return new_error(file_errc::open_error);
+            return make_error(file_errc::open_error);
 
         const auto filename = name.empty()
                                 ? fmt::format("{}-empty-observer-name.csv", idx)
@@ -30,7 +30,7 @@ static expected<file> open_buffered_file(const std::string_view   output_dir,
 
         return file::open(p, file_mode{ file_open_options::write });
     } catch (...) {
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
     }
 }
 

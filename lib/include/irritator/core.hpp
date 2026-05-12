@@ -1829,10 +1829,10 @@ struct abstract_integrator<1> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(simulation_errc::abstract_integrator_x_error);
+            return make_error(simulation_errc::abstract_integrator_x_error);
 
         if (!(std::isfinite(dQ) && dQ > zero))
-            return new_error(simulation_errc::abstract_integrator_dq_error);
+            return make_error(simulation_errc::abstract_integrator_dq_error);
 
         q = std::floor(X / dQ) * dQ;
         u = zero;
@@ -1950,10 +1950,10 @@ struct abstract_integrator<2> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(simulation_errc::abstract_integrator_x_error);
+            return make_error(simulation_errc::abstract_integrator_x_error);
 
         if (!(std::isfinite(dQ) && dQ > zero))
-            return new_error(simulation_errc::abstract_integrator_dq_error);
+            return make_error(simulation_errc::abstract_integrator_dq_error);
 
         u  = zero;
         mu = zero;
@@ -2115,10 +2115,10 @@ struct abstract_integrator<3> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(simulation_errc::abstract_integrator_x_error);
+            return make_error(simulation_errc::abstract_integrator_x_error);
 
         if (!(std::isfinite(dQ) && dQ > zero))
-            return new_error(simulation_errc::abstract_integrator_dq_error);
+            return make_error(simulation_errc::abstract_integrator_dq_error);
 
         u     = zero;
         mu    = zero;
@@ -2444,7 +2444,7 @@ struct abstract_power {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (not std::isfinite(n))
-            return new_error(simulation_errc::abstract_power_n_error);
+            return make_error(simulation_errc::abstract_power_n_error);
 
         value.fill(zero);
 
@@ -2805,7 +2805,7 @@ struct abstract_wsum {
     {
         for (const auto elem : input_coeffs)
             if (not std::isfinite(elem))
-                return new_error(simulation_errc::abstract_wsum_coeff_error);
+                return make_error(simulation_errc::abstract_wsum_coeff_error);
 
         values.fill(zero);
 
@@ -3006,7 +3006,7 @@ struct abstract_inverse {
     status lambda(simulation& sim) noexcept
     {
         if (is_zero(values[0]))
-            return new_error(simulation_errc::abstract_log_input_error);
+            return make_error(simulation_errc::abstract_log_input_error);
 
         if constexpr (QssLevel == 1) {
             return send_message(sim, y[0], one / values[0]);
@@ -3382,7 +3382,7 @@ struct abstract_compare {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (not std::isfinite(output[0]) or not std::isfinite(output[1]))
-            return new_error(
+            return make_error(
               simulation_errc::abstract_compare_output_value_error);
 
         a.fill(zero);
@@ -3628,7 +3628,7 @@ struct abstract_log {
     status lambda(simulation& sim) noexcept
     {
         if (is_zero(value[0]) or value[0] < 0)
-            return new_error(simulation_errc::abstract_log_input_error);
+            return make_error(simulation_errc::abstract_log_input_error);
 
         if constexpr (QssLevel == 1)
             return send_message(sim, y[0], std::log(value[0]));
@@ -4074,7 +4074,7 @@ struct generator {
         if (flags[option::ta_use_source]) {
             if (sim.srcs.initialize_source(*this, source_ta, src_data)
                   .has_error())
-                return new_error(
+                return make_error(
                   simulation_errc::generator_ta_initialization_error);
 
             sigma = source_ta.next();
@@ -4084,7 +4084,7 @@ struct generator {
         if (flags[option::value_use_source]) {
             if (sim.srcs.initialize_source(*this, source_value, src_data)
                   .has_error())
-                return new_error(
+                return make_error(
                   simulation_errc::generator_source_initialization_error);
 
             value = source_value.next();
@@ -4141,7 +4141,7 @@ struct generator {
                 sigma = source_ta.next();
 
                 if (not std::isfinite(sigma) or std::signbit(sigma))
-                    return new_error(simulation_errc::ta_abnormal);
+                    return make_error(simulation_errc::ta_abnormal);
             }
         }
 
@@ -4252,10 +4252,10 @@ struct constant {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (not std::isfinite(value))
-            return new_error(simulation_errc::constant_value_error);
+            return make_error(simulation_errc::constant_value_error);
 
         if (not std::isfinite(offset) or offset < zero)
-            return new_error(simulation_errc::constant_offset_error);
+            return make_error(simulation_errc::constant_offset_error);
 
         sigma = offset;
 
@@ -4312,7 +4312,7 @@ struct abstract_filter {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (lower_threshold >= upper_threshold)
-            return new_error(
+            return make_error(
               simulation_errc::abstract_filter_threshold_condition_error);
 
         reach_lower_threshold = false;
@@ -5443,10 +5443,10 @@ struct time_func {
     status initialize(simulation& sim) noexcept
     {
         if (not std::isfinite(offset) or offset < zero)
-            return new_error(simulation_errc::time_func_offset_error);
+            return make_error(simulation_errc::time_func_offset_error);
 
         if (not std::isfinite(timestep) or timestep <= zero)
-            return new_error(simulation_errc::time_func_timestep_error);
+            return make_error(simulation_errc::time_func_timestep_error);
 
         sigma = offset;
         value = call_function(sim.current_time());
@@ -5497,7 +5497,7 @@ struct queue {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (ta <= 0)
-            return new_error(simulation_errc::queue_ta_error);
+            return make_error(simulation_errc::queue_ta_error);
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -6809,14 +6809,14 @@ inline status external_source::initialize_source(Dynamics&    dyn,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->init(src, data);
 
-        return new_error(external_source_errc::binary_file_unknown);
+        return make_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->init(src, data);
 
-        return new_error(external_source_errc::constant_unknown);
+        return make_error(external_source_errc::constant_unknown);
     } break;
 
     case source_type::random: {
@@ -6826,7 +6826,7 @@ inline status external_source::initialize_source(Dynamics&    dyn,
             return rnd_src->init(
               sim.srcs.seed, sim.models.get_id(get_model(dyn)), src, data);
 
-        return new_error(external_source_errc::random_unknown);
+        return make_error(external_source_errc::random_unknown);
 
     } break;
 
@@ -6834,7 +6834,7 @@ inline status external_source::initialize_source(Dynamics&    dyn,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->init(src, data);
 
-        return new_error(external_source_errc::text_file_unknown);
+        return make_error(external_source_errc::text_file_unknown);
     } break;
     }
 
@@ -6850,21 +6850,21 @@ inline status external_source::restore_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->restore(src, data);
 
-        return new_error(external_source_errc::binary_file_unknown);
+        return make_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->restore(src, data);
 
-        return new_error(external_source_errc::constant_unknown);
+        return make_error(external_source_errc::constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->restore(src, data);
 
-        return new_error(external_source_errc::random_unknown);
+        return make_error(external_source_errc::random_unknown);
 
     } break;
 
@@ -6872,7 +6872,7 @@ inline status external_source::restore_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->restore(src, data);
 
-        return new_error(external_source_errc::text_file_unknown);
+        return make_error(external_source_errc::text_file_unknown);
     } break;
     }
 
@@ -6888,21 +6888,21 @@ inline status external_source::update_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->update(src, data);
 
-        return new_error(external_source_errc::binary_file_unknown);
+        return make_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->update(src, data);
 
-        return new_error(external_source_errc::constant_unknown);
+        return make_error(external_source_errc::constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->update(src, data);
 
-        return new_error(external_source_errc::random_unknown);
+        return make_error(external_source_errc::random_unknown);
 
     } break;
 
@@ -6910,7 +6910,7 @@ inline status external_source::update_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->update(src, data);
 
-        return new_error(external_source_errc::text_file_unknown);
+        return make_error(external_source_errc::text_file_unknown);
     } break;
     }
 
@@ -6926,21 +6926,21 @@ inline status external_source::finalize_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->finalize(src, data);
 
-        return new_error(external_source_errc::binary_file_unknown);
+        return make_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->finalize(src, data);
 
-        return new_error(external_source_errc::constant_unknown);
+        return make_error(external_source_errc::constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->finalize(src, data);
 
-        return new_error(external_source_errc::random_unknown);
+        return make_error(external_source_errc::random_unknown);
 
     } break;
 
@@ -6948,7 +6948,7 @@ inline status external_source::finalize_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->finalize(src, data);
 
-        return new_error(external_source_errc::text_file_unknown);
+        return make_error(external_source_errc::text_file_unknown);
     } break;
     }
 
@@ -7038,7 +7038,7 @@ inline status send_message(simulation&    sim,
 
         if (not sim.active_output_ports.can_alloc(1) and
             not sim.active_output_ports.grow<3, 2>())
-            return new_error(simulation_errc::emitting_output_ports_full);
+            return make_error(simulation_errc::emitting_output_ports_full);
 
         sim.active_output_ports.push_back(output_port);
     }
@@ -7141,7 +7141,7 @@ inline auto get_hierarchical_state_machine(simulation&  sim,
     if (auto* hsm = sim.hsms.try_to_get(id))
         return hsm;
 
-    return new_error(simulation_errc::hsm_unknown);
+    return make_error(simulation_errc::hsm_unknown);
 }
 
 //
@@ -8045,17 +8045,17 @@ inline status simulation::connect(model&       src,
                                   int          port_dst) noexcept
 {
     if (not is_ports_compatible(src, port_src, dst, port_dst))
-        return new_error(simulation_errc::connection_incompatible);
+        return make_error(simulation_errc::connection_incompatible);
 
     if (not can_connect(src, port_src, dst, port_dst))
-        return new_error(simulation_errc::connection_already_exists);
+        return make_error(simulation_errc::connection_already_exists);
 
     auto ret = dispatch(dst, [&]<typename Dynamics>(Dynamics& dyn) -> status {
         if constexpr (has_input_port<Dynamics>) {
             if (0 <= port_dst and port_dst < length(dyn.x))
                 return success();
 
-            return new_error(simulation_errc::input_port_error);
+            return make_error(simulation_errc::input_port_error);
         }
 
         irt::unreachable();
@@ -8091,7 +8091,7 @@ inline status simulation::connect(output_port& port,
 
     if (not block) {
         if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
-            return new_error(simulation_errc::connection_container_full);
+            return make_error(simulation_errc::connection_container_full);
 
         auto& new_block = nodes.alloc();
         new_block.nodes.emplace_back(dst, port_dst);
@@ -8120,7 +8120,7 @@ inline status simulation::connect(output_port& port,
     debug::ensure(prev != nullptr);
 
     if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
-        return new_error(simulation_errc::connection_container_full);
+        return make_error(simulation_errc::connection_container_full);
 
     auto& new_block = nodes.alloc();
     new_block.nodes.emplace_back(dst, port_dst);
@@ -8136,7 +8136,7 @@ inline status simulation::connect(output_port_id& port,
 
     if (not y) {
         if (not output_ports.can_alloc(1) and not output_ports.grow<2, 1>())
-            return new_error(simulation_errc::output_port_error);
+            return make_error(simulation_errc::output_port_error);
 
         auto& new_y = output_ports.alloc();
         port        = output_ports.get_id(new_y);
@@ -8541,7 +8541,7 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
     //    sched.update(*mdl, t);
 
     //    if (not messages.can_alloc(1))
-    //        return new_error(simulation_errc::messages_container_full);
+    //        return make_error(simulation_errc::messages_container_full);
 
     //    auto  port = emitting_output_ports[i].port;
     //    auto& msg  = emitting_output_ports[i].msg;
@@ -8864,7 +8864,7 @@ inline bool is_ports_compatible(const model& mdl_src,
 //               }
 //           }
 //
-//           return new_error(simulation_errc::input_port_error);
+//           return make_error(simulation_errc::input_port_error);
 //       });
 // }
 //
@@ -8881,7 +8881,7 @@ inline bool is_ports_compatible(const model& mdl_src,
 //                             }
 //                         }
 //
-//                         return new_error(simulation_errc::input_port_error);
+//                         return make_error(simulation_errc::input_port_error);
 //                     });
 // }
 //
@@ -8895,7 +8895,7 @@ inline bool is_ports_compatible(const model& mdl_src,
 //                   return dyn.y[port_dst];
 //           }
 //
-//           return new_error(simulation_errc::output_port_error);
+//           return make_error(simulation_errc::output_port_error);
 //       });
 // }
 //
@@ -8913,7 +8913,7 @@ inline bool is_ports_compatible(const model& mdl_src,
 //                             }
 //                         }
 //
-//                         return new_error(simulation_errc::output_port_error);
+//                         return make_error(simulation_errc::output_port_error);
 //                     });
 // }
 
@@ -8934,7 +8934,7 @@ inline status queue::transition(simulation& sim,
         if (not lst.empty()) {
             for (const auto& msg : lst) {
                 if (!sim.dated_messages.can_alloc(1))
-                    return new_error(
+                    return make_error(
                       simulation_errc::dated_messages_container_full);
 
                 ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
@@ -8969,7 +8969,7 @@ inline status dynamic_queue::transition(simulation& sim,
         if (not lst.empty()) {
             for (const auto& msg : lst) {
                 if (!sim.dated_messages.can_alloc(1))
-                    return new_error(
+                    return make_error(
                       simulation_errc::dated_messages_container_full);
 
                 if (source_ta.is_empty())
@@ -9000,7 +9000,7 @@ inline status priority_queue::try_to_insert(simulation&    sim,
                                             const message& msg) noexcept
 {
     if (not sim.dated_messages.can_alloc(1))
-        return new_error(simulation_errc::dated_messages_container_full);
+        return make_error(simulation_errc::dated_messages_container_full);
 
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
         ar->push_head({ irt::real(t), msg[0], msg[1], msg[2] });
@@ -9034,7 +9034,7 @@ inline status priority_queue::transition(simulation& sim,
                 if (auto ret =
                       try_to_insert(sim, static_cast<real>(value) + t, msg);
                     !ret)
-                    return new_error(
+                    return make_error(
                       simulation_errc::dated_messages_container_full);
             }
         }

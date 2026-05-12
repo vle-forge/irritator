@@ -139,7 +139,7 @@ expected<file> file::open_tmp() noexcept
         return file{ tmpf, m };
 #endif
 
-    return new_error(file_errc::open_error);
+    return make_error(file_errc::open_error);
 }
 
 template<typename File>
@@ -502,7 +502,7 @@ inline expected<file> file::open(const char8_t*  filename,
     debug::ensure(filename != nullptr);
 
     if (not filename)
-        return new_error(file_errc::empty);
+        return make_error(file_errc::empty);
 
     try {
         const auto m = ::irt::get_mode(mode);
@@ -512,9 +512,9 @@ inline expected<file> file::open(const char8_t*  filename,
         if (auto f = ::irt::open_file(v, m.data()))
             return file{ f, mode };
         else
-            return new_error(file_errc::open_error);
+            return make_error(file_errc::open_error);
     } catch (...) {
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
     }
 }
 
@@ -528,9 +528,9 @@ expected<file> file::open(const std::filesystem::path& path,
         if (auto f = ::irt::open_file(v, m.data()))
             return file{ f, mode };
         else
-            return new_error(file_errc::open_error);
+            return make_error(file_errc::open_error);
     } catch (...) {
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
     }
 }
 
@@ -539,11 +539,11 @@ expected<memory> memory::make(const i64 length) noexcept
     debug::ensure(1 <= length and length <= INT32_MAX);
 
     if (not(1 <= length and length <= INT32_MAX))
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
 
     memory mem(length);
     if (not std::cmp_equal(mem.data.size(), length))
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
 
     return mem;
 }

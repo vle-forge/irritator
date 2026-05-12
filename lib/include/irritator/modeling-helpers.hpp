@@ -61,21 +61,6 @@ inline file_path_id get_file_from_component(const component_access& ids,
     return undefined<file_path_id>();
 }
 
-/// Check if a @c T with name @c name exists in the @c data_array @c data. Used
-/// for @c file_path, @c dir_path and @c reg_path.
-template<typename T, typename Identifier>
-constexpr bool path_exist(const data_array<T, Identifier>& data,
-                          const vector<Identifier>&        container,
-                          std::string_view                 name) noexcept
-{
-    for (const auto id : container)
-        if (const auto* item = data.try_to_get(id))
-            if (item->path.sv() == name)
-                return true;
-
-    return false;
-}
-
 /// Adds the extension to the file path string according to @c type extension.
 inline void add_extension(file_path_str& file,
                           file_type type = file_type::component_file) noexcept
@@ -123,21 +108,6 @@ constexpr file_type get_extension(const std::string_view filename) noexcept
     }
 
     return file_type::undefined_file;
-}
-
-/// Checks if the file path string has an extension equals to any one of
-/// irritator files (.irt, .pirt, .data, etc.).
-constexpr bool has_irritator_extension(const std::string_view filename) noexcept
-{
-    if (auto dot = filename.find_last_of('.'); dot != std::string_view::npos) {
-        const auto ext = filename.substr(dot);
-
-        for (const auto& valid_extension : file_type_names)
-            if (valid_extension == ext)
-                return true;
-    }
-
-    return false;
 }
 
 /// Checks if the file path string has a valid filename and has the
@@ -258,7 +228,7 @@ inline expected<file> open_file(
 
         return file::open(p, mode);
     } catch (...) {
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
     }
 }
 
@@ -272,9 +242,9 @@ inline expected<file> open_file(
             return file::open(*filename, mode);
         }
 
-        return new_error(file_errc::open_error);
+        return make_error(file_errc::open_error);
     } catch (...) {
-        return new_error(file_errc::memory_error);
+        return make_error(file_errc::memory_error);
     }
 }
 

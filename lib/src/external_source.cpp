@@ -182,25 +182,25 @@ status binary_file_source::init() noexcept
 
         auto size = std::filesystem::file_size(file_path, ec);
         if (!ec)
-            return new_error(external_source_errc::binary_file_access_error);
+            return make_error(external_source_errc::binary_file_access_error);
 
         auto number = size / sizeof(double);
         if (number <= 0)
-            return new_error(external_source_errc::binary_file_size_error);
+            return make_error(external_source_errc::binary_file_size_error);
 
         auto chunks = number / external_source_chunk_size;
         if (chunks < max_clients)
-            return new_error(external_source_errc::binary_file_size_error);
+            return make_error(external_source_errc::binary_file_size_error);
 
         max_reals = static_cast<u64>(number);
     } catch (const std::exception& /*e*/) {
-        return new_error(external_source_errc::binary_file_access_error);
+        return make_error(external_source_errc::binary_file_access_error);
     }
 
     ifs.open(file_path);
 
     if (!ifs)
-        return new_error(external_source_errc::binary_file_access_error);
+        return make_error(external_source_errc::binary_file_access_error);
 
     return success();
 }
@@ -230,14 +230,14 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
     const auto to_seek = data.chunk_id[1] * sizeof(double);
 
     if (!ext.seekg(static_cast<long>(to_seek)))
-        return new_error(external_source_errc::binary_file_eof_error);
+        return make_error(external_source_errc::binary_file_eof_error);
 
     if (!ext.read(src, external_source_chunk_size))
-        return new_error(external_source_errc::binary_file_eof_error);
+        return make_error(external_source_errc::binary_file_eof_error);
 
     const auto tellg = ext.tellg();
     if (tellg < 0)
-        return new_error(external_source_errc::binary_file_eof_error);
+        return make_error(external_source_errc::binary_file_eof_error);
 
     const auto current_position = static_cast<u64>(tellg) / sizeof(double);
     data.chunk_id[1]            = current_position;
@@ -258,7 +258,7 @@ status binary_file_source::init(source& src, source_data& data) noexcept
     next_offset += external_source_chunk_size;
 
     if (!(next_offset < max_reals))
-        return new_error(external_source_errc::binary_file_eof_error);
+        return make_error(external_source_errc::binary_file_eof_error);
 
     return binary_file_source_fill_buffer(*this, src, data);
 }
@@ -269,7 +269,7 @@ status binary_file_source::update(source& src, source_data& data) noexcept
     const auto next     = data.chunk_id[1] + distance;
 
     if (!(next + external_source_chunk_size < max_reals))
-        return new_error(external_source_errc::binary_file_eof_error);
+        return make_error(external_source_errc::binary_file_eof_error);
 
     src.index = 0;
 
@@ -317,7 +317,7 @@ status text_file_source::init() noexcept
 
     ifs.open(file_path);
     if (!ifs)
-        return new_error(external_source_errc::text_file_access_error);
+        return make_error(external_source_errc::text_file_access_error);
 
     offset = 0;
 
@@ -336,7 +336,7 @@ static status text_file_source_fill_buffer(text_file_source& ext,
                                            source& /*src*/) noexcept
 {
     if (not ext.read_chunk())
-        return new_error(external_source_errc::text_file_eof_error);
+        return make_error(external_source_errc::text_file_eof_error);
 
     return success();
 }
@@ -359,7 +359,7 @@ status text_file_source::init(source& src, source_data& data) noexcept
 
     const auto tellg = ifs.tellg();
     if (tellg == -1)
-        return new_error(external_source_errc::text_file_eof_error);
+        return make_error(external_source_errc::text_file_eof_error);
 
     data.chunk_id[0] = static_cast<u64>(tellg);
     offset           = static_cast<u64>(tellg);
@@ -379,7 +379,7 @@ status text_file_source::update(source& src, source_data& data) noexcept
 
     const auto tellg = ifs.tellg();
     if (tellg == -1)
-        return new_error(external_source_errc::text_file_eof_error);
+        return make_error(external_source_errc::text_file_eof_error);
 
     data.chunk_id[0] = static_cast<u64>(tellg);
     offset           = static_cast<u64>(tellg);
@@ -393,14 +393,14 @@ status text_file_source::restore(source& src, source_data& data) noexcept
 
     if (offset != data.chunk_id[0]) {
         if (!(is_numeric_castable<std::ifstream::off_type>(data.chunk_id[0])))
-            return new_error(external_source_errc::text_file_eof_error);
+            return make_error(external_source_errc::text_file_eof_error);
 
         if (!ifs.seekg(numeric_cast<std::ifstream::off_type>(data.chunk_id[0])))
-            return new_error(external_source_errc::text_file_eof_error);
+            return make_error(external_source_errc::text_file_eof_error);
 
         const auto tellg = ifs.tellg();
         if (!(tellg < 0))
-            return new_error(external_source_errc::text_file_eof_error);
+            return make_error(external_source_errc::text_file_eof_error);
 
         offset = static_cast<u64>(tellg);
     }

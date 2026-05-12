@@ -166,7 +166,7 @@ private:
     status add_output_sum_model(simulation& sim) noexcept
     {
         if (not sim.models.can_alloc(1) and not sim.grow_models<2, 1>())
-            return new_error(project_errc::component_cache_error);
+            return make_error(project_errc::component_cache_error);
 
         output_mdl = sim.models.get_id(sim.alloc(dynamics_type::qss3_sum_4));
         mdl        = output_mdl;
@@ -183,11 +183,11 @@ private:
         debug::ensure(is_defined(output_mdl));
 
         if (not sim.models.can_alloc(1) and not sim.grow_models<2, 1>())
-            return new_error(project_errc::component_cache_error);
+            return make_error(project_errc::component_cache_error);
 
         auto& new_mdl = sim.alloc(dynamics_type::qss3_sum_4);
         if (not sim.can_connect(1) and not sim.grow_connections<2, 1>())
-            return new_error(project_errc::component_cache_error);
+            return make_error(project_errc::component_cache_error);
 
         const auto& old_mdl = sim.models.get(mdl);
         mdl                 = sim.models.get_id(new_mdl);
@@ -286,7 +286,7 @@ struct simulation_copy {
 
         for (const auto& modhsm : ids.hsm_components) {
             if (not pj.sim.hsms.can_alloc())
-                return new_error(project_errc::memory_error);
+                return make_error(project_errc::memory_error);
 
             auto& sim_hsm     = pj.sim.hsms.alloc(modhsm.machine);
             sim_hsm.parent_id = ordinal(ids.hsm_components.get_id(modhsm));
@@ -320,7 +320,7 @@ struct simulation_copy {
                                grid_caches.data.back().value.cache_names);
 
             if (ret.has_error())
-                return new_error(project_errc::component_cache_error);
+                return make_error(project_errc::component_cache_error);
         }
 
         for (const auto& graph : ids.graph_components) {
@@ -334,7 +334,7 @@ struct simulation_copy {
               graph_caches.data.back().value.cache_names);
 
             if (ret.has_error())
-                return new_error(project_errc::component_cache_error);
+                return make_error(project_errc::component_cache_error);
         }
 
         grid_caches.sort();
@@ -400,19 +400,19 @@ static auto get_incoming_connection(const component_access& ids,
                                     const port_id id) noexcept -> expected<int>
 {
     if (not ids.exists(tn.id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     const auto& compo = ids.components[tn.id];
 
     if (not compo.x.exists(id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     if (compo.type == component_type::generic) {
         auto* gen = ids.generic_components.try_to_get(compo.id.generic_id);
         return gen ? get_incoming_connection(*gen, id) : 0;
     }
 
-    return new_error(project_errc::import_error);
+    return make_error(project_errc::import_error);
 }
 
 static auto get_incoming_connection(const component_access& ids,
@@ -420,7 +420,7 @@ static auto get_incoming_connection(const component_access& ids,
   -> expected<int>
 {
     if (not ids.exists(tn.id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     const auto& compo = ids.components[tn.id];
     auto        nb    = 0;
@@ -456,19 +456,19 @@ static auto get_outcoming_connection(const component_access& ids,
                                      const port_id id) noexcept -> expected<int>
 {
     if (not ids.exists(tn.id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     const auto& compo = ids.components[tn.id];
 
     if (not compo.y.exists(id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     if (compo.type == component_type::generic) {
         auto* gen = ids.generic_components.try_to_get(compo.id.generic_id);
         return gen ? get_outcoming_connection(*gen, id) : 0;
     }
 
-    return new_error(project_errc::import_error);
+    return make_error(project_errc::import_error);
 }
 
 static auto get_outcoming_connection(const component_access& ids,
@@ -476,7 +476,7 @@ static auto get_outcoming_connection(const component_access& ids,
   -> expected<int>
 {
     if (not ids.exists(tn.id))
-        return new_error(project_errc::import_error);
+        return make_error(project_errc::import_error);
 
     const auto& compo = ids.components[tn.id];
     auto        nb    = 0;
@@ -506,12 +506,12 @@ static auto make_tree_hsm_leaf(const simulation_copy&  sc,
         jn.push(log_level::error, [&](auto& t, auto&) {
             t = "hsm-wrapper initialization error: undefined component";
         });
-        return new_error(project_errc::component_unknown);
+        return make_error(project_errc::component_unknown);
     }
 
     const auto& compo = ids.components[compo_id];
     if (compo.type != component_type::hsm)
-        return new_error(project_errc::component_unknown);
+        return make_error(project_errc::component_unknown);
 
     const auto hsm_id = compo.id.hsm_id;
 
@@ -569,10 +569,10 @@ static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
         const auto id   = enum_cast<port_id>(port);
 
         if (not ids.exists(parent.id))
-            return new_error(project_errc::import_error);
+            return make_error(project_errc::import_error);
 
         if (not ids.components[parent.id].x.exists(id))
-            return new_error(project_errc::component_port_x_unknown);
+            return make_error(project_errc::component_port_x_unknown);
 
         if (auto nb = get_incoming_connection(ids, parent, id);
             nb.has_value()) {
@@ -588,10 +588,10 @@ static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
         const auto id   = enum_cast<port_id>(port);
 
         if (not ids.exists(parent.id))
-            return new_error(project_errc::import_error);
+            return make_error(project_errc::import_error);
 
         if (not ids.components[parent.id].y.exists(id))
-            return new_error(project_errc::component_port_y_unknown);
+            return make_error(project_errc::component_port_y_unknown);
 
         if (auto nb = get_outcoming_connection(ids, parent, id);
             nb.has_value()) {
@@ -623,7 +623,7 @@ static auto make_tree_leaf(simulation_copy&                sc,
 
         if (not data_array_reserve_add(sc.pj.sim.models, increase) or
             not vector_reserve_add(sc.pj.sim.parameters, increase))
-            return new_error(project_errc::memory_error);
+            return make_error(project_errc::memory_error);
     }
 
     const auto ch_idx     = get_index(ch_id);
@@ -712,11 +712,11 @@ static auto make_tree_leaf(simulation_copy&                sc,
                                                        name_str(uid));
         if (not sc.pj.parameters.can_alloc(1) and
             not sc.pj.parameters.grow<2, 1>())
-            return new_error(project_errc::memory_error);
+            return make_error(project_errc::memory_error);
 
         if (not parent.parameters_ids.data.can_alloc(1) and
             not parent.parameters_ids.data.grow<2, 1>())
-            return new_error(project_errc::memory_error);
+            return make_error(project_errc::memory_error);
 
         const auto id = sc.pj.parameters.alloc_id();
 
@@ -904,7 +904,7 @@ static status external_source_copy(const file_access&                fs,
 {
     if (not external_sources_reserve_add(src, dst) or
         not vector_reserve_add(v, src.data.size()))
-        return new_error(external_source_errc::memory_error);
+        return make_error(external_source_errc::memory_error);
 
     const auto& src_elems =
       src.data.get<external_source_definition::source_element>();
@@ -1017,7 +1017,7 @@ static auto make_tree_recursive(simulation_copy&        sc,
   -> expected<tree_node_id>
 {
     if (not sc.tree_nodes.can_alloc())
-        return new_error(project_errc::memory_error);
+        return make_error(project_errc::memory_error);
 
     debug::ensure(ids.exists(compo_id));
 
@@ -1079,7 +1079,7 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
                                        sim.models.get(dst.mdl),
                                        dst.port);
                 !ret)
-                return new_error(project_errc::import_error);
+                return make_error(project_errc::import_error);
         }
     }
 
@@ -1502,7 +1502,7 @@ static auto prepare_sum_connections(
                 if (c.x.get<port_option>(port_id) == port_option::sum) {
                     if (not sc.sum_input_connections.can_alloc(1) and
                         not sc.sum_input_connections.grow<2, 1>())
-                        return new_error(project_errc::component_cache_error);
+                        return make_error(project_errc::component_cache_error);
 
                     if (not contains(sc.sum_input_connections, tn, port_id))
                         sc.sum_input_connections.emplace_back(tn, port_id);
@@ -1521,7 +1521,7 @@ static auto prepare_sum_connections(
                 if (c.y.get<port_option>(port_id) == port_option::sum) {
                     if (not sc.sum_output_connections.can_alloc(1) and
                         not sc.sum_output_connections.grow<2, 1>())
-                        return new_error(project_errc::component_cache_error);
+                        return make_error(project_errc::component_cache_error);
 
                     if (not contains(sc.sum_output_connections, tn, port_id))
                         sc.sum_output_connections.emplace_back(tn, port_id);
@@ -1692,7 +1692,7 @@ static status simulation_copy_connections(
         }
 
         if (input_type == port_option::sum and output_type == port_option::sum)
-            return new_error(project_errc::component_cache_error);
+            return make_error(project_errc::component_cache_error);
 
         if (input_type == port_option::classic) {
             if (output_type == port_option::classic) {
@@ -1717,7 +1717,7 @@ static status simulation_copy_connections(
                                                   sc.sum_input_connections,
                                                   sc.pj.sim));
             } else {
-                return new_error(project_errc::component_cache_error);
+                return make_error(project_errc::component_cache_error);
             }
         }
     }
@@ -1808,7 +1808,7 @@ static auto make_tree_from(simulation_copy&                     sc,
   -> expected<tree_node_id>
 {
     if (not data.can_alloc())
-        return new_error(project_errc::memory_error);
+        return make_error(project_errc::memory_error);
 
     const auto& compo    = ids.components[parent];
     auto&       new_tree = data.alloc(parent, std::string_view{});
@@ -1883,7 +1883,7 @@ expected<project> project::load(const file_access&      fs,
 {
     const auto filename = make_file(fs, file_id);
     if (not filename.has_value())
-        return new_error(project_errc::file_access_error);
+        return make_error(project_errc::file_access_error);
 
     auto file = file::open(*filename, file_mode{ file_open_options::read });
     if (not file.has_value())
@@ -1917,7 +1917,7 @@ status project::load(const file_access&      fs,
             return file.error();
     }
 
-    return new_error(project_errc::file_access_error);
+    return make_error(project_errc::file_access_error);
 }
 
 status project::save(const file_access&      fs,
@@ -1941,7 +1941,7 @@ status project::save(const file_access&      fs,
             return file.error();
     }
 
-    return new_error(project_errc::file_access_error);
+    return make_error(project_errc::file_access_error);
 }
 
 std::optional<std::filesystem::path> project::get_observation_dir(
@@ -2077,7 +2077,7 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
   journal_handler& /*jn*/) noexcept
 {
     if (not sc.tree_nodes.can_alloc())
-        return new_error(project_errc::memory_error);
+        return make_error(project_errc::memory_error);
 
     auto& compo = ids.components[compo_id];
     auto& tn    = sc.tree_nodes.alloc(compo_id, std::string_view{});
@@ -2085,15 +2085,15 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
 
     auto* com_hsm = ids.hsm_components.try_to_get(compo.id.hsm_id);
     if (not com_hsm)
-        return new_error(project_errc::component_unknown);
+        return make_error(project_errc::component_unknown);
 
     auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
     if (not sim_hsm_id)
-        return new_error(project_errc::component_unknown);
+        return make_error(project_errc::component_unknown);
 
     auto* sim_hsm = sc.pj.sim.hsms.try_to_get(*sim_hsm_id);
     if (not sim_hsm)
-        return new_error(project_errc::component_unknown);
+        return make_error(project_errc::component_unknown);
 
     auto&      dyn     = sc.pj.sim.alloc<hsm_wrapper>();
     auto&      mdl     = irt::get_model(dyn);
@@ -2131,7 +2131,7 @@ status project::set(const component_access& ids,
         tree_nodes.reserve(numbers.tree_node_nb);
 
         if (std::cmp_greater(numbers.tree_node_nb, tree_nodes.capacity()))
-            return new_error(project_errc::memory_error);
+            return make_error(project_errc::memory_error);
     }
 
     sim.clear();
@@ -2525,7 +2525,7 @@ static status import_in_generic(
     if (not gen.children.can_alloc(children.size())) {
         gen.children.reserve(children.size());
         if (not gen.children.can_alloc(children.size()))
-            return new_error(modeling_errc::generic_children_container_full);
+            return make_error(modeling_errc::generic_children_container_full);
     }
 
     for (const auto& c : children) {
@@ -2618,7 +2618,7 @@ status component_access::import(const graph_component& graph,
     vector<name_str>                             cache_names;
 
     if (not graph.build_cache(*this, children, connections, cache_names))
-        return new_error(modeling_errc::graph_children_container_full);
+        return make_error(modeling_errc::graph_children_container_full);
 
     return import_in_generic(dst, children, connections);
 }
@@ -2631,7 +2631,7 @@ status component_access::import(const grid_component& grid,
     vector<name_str>                            cache_names;
 
     if (not grid.build_cache(*this, children, connections, cache_names))
-        return new_error(modeling_errc::grid_children_container_full);
+        return make_error(modeling_errc::grid_children_container_full);
 
     return import_in_generic(dst, children, connections);
 }
@@ -2644,13 +2644,13 @@ status modeling::import(const component_id src,
 {
     return ids.write([&](auto& ids) noexcept -> status {
         if (not ids.exists(src) or not ids.exists(dst))
-            return new_error(modeling_errc::component_not_found);
+            return make_error(modeling_errc::component_not_found);
 
         const auto& src_compo = ids.components[src];
         auto&       dst_compo = ids.components[dst];
 
         if (dst_compo.type != component_type::generic)
-            return new_error(modeling_errc::component_type_mismatch);
+            return make_error(modeling_errc::component_type_mismatch);
 
         auto& gen = ids.generic_components.get(dst_compo.id.generic_id);
 

@@ -362,7 +362,7 @@ static status build_graph_connections(
 {
     if (not cache_connections.reserve(graph.g.edges.capacity()) and
         not cache_connections.grow<2, 1>())
-        return new_error(modeling_errc::graph_connection_container_full);
+        return make_error(modeling_errc::graph_connection_container_full);
 
     switch (graph.type) {
     case graph_component::connection_type::in_out:
@@ -414,7 +414,7 @@ expected<void> graph_component::build_cache(
 
     cache.reserve(g.nodes.size());
     if (not cache.can_alloc(g.nodes.size()))
-        return new_error(modeling_errc::graph_children_container_full);
+        return make_error(modeling_errc::graph_children_container_full);
 
     const auto vec = build_graph_children(ids, *this, cache, cache_names);
     return build_graph_connections(ids, *this, vec, cache, cache_connections);
@@ -448,11 +448,11 @@ expected<input_connection_id> graph_component::connect_input(
   const port_id       id) noexcept
 {
     if (exists_input_connection(x, v, id))
-        return new_error(modeling_errc::graph_input_connection_already_exists);
+        return make_error(modeling_errc::graph_input_connection_already_exists);
 
     if (not input_connections.can_alloc(1))
         if (not input_connections.grow<2, 1>())
-            return new_error(
+            return make_error(
               modeling_errc::graph_input_connection_container_full);
 
     return input_connections.get_id(input_connections.alloc(x, v, id));
@@ -464,11 +464,11 @@ expected<output_connection_id> graph_component::connect_output(
   const port_id       id) noexcept
 {
     if (exists_output_connection(y, v, id))
-        return new_error(modeling_errc::graph_output_connection_already_exists);
+        return make_error(modeling_errc::graph_output_connection_already_exists);
 
     if (not output_connections.can_alloc(1))
         if (not output_connections.grow<2, 1>())
-            return new_error(
+            return make_error(
               modeling_errc::graph_output_connection_container_full);
 
     return output_connections.get_id(output_connections.alloc(y, v, id));

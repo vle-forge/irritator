@@ -384,7 +384,7 @@ expected<input_connection_id> grid_component::connect_input(
         input_connections.reserve(request);
 
         if (input_connections.capacity() == capacity)
-            return new_error(
+            return make_error(
               modeling_errc::generic_input_connection_container_full);
     }
 
@@ -408,7 +408,7 @@ expected<output_connection_id> grid_component::connect_output(
         output_connections.reserve(request);
 
         if (output_connections.capacity() == capacity)
-            return new_error(
+            return make_error(
               modeling_errc::generic_output_connection_container_full);
     }
 
@@ -433,7 +433,7 @@ expected<void> grid_component::build_cache(
 
     if (not(cache.can_alloc(children) and
             cache_connections.can_alloc(connections)))
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     const auto vec = build_grid_children(*this, ids, cache, cache_names);
     build_grid_connections(

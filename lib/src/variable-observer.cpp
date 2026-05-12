@@ -28,7 +28,7 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
             } else {
                 if (not sim.observers.can_alloc() and
                     not sim.observers.grow<3, 2>())
-                    return new_error(simulation_errc::observers_container_full);
+                    return make_error(simulation_errc::observers_container_full);
 
                 auto& new_obs = sim.observers.alloc();
                 new_obs.init(observer::buffer_size_t(raw_buffer_size.value()),

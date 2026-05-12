@@ -335,7 +335,7 @@ public:
             if (json(pj, mod, pj.sim, str.string(), *file)) {
                 run();
             } else {
-                return irt::new_error(irt::json_errc::invalid_project_format);
+                return irt::make_error(irt::json_errc::invalid_project_format);
             }
         } else {
             return file.error();

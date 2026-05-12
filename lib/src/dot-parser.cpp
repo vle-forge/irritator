@@ -445,14 +445,14 @@ private:
 
         if (not g.nodes.can_alloc(1)) {
             if (not g.nodes.grow<2, 1>())
-                return new_error(modeling_errc::dot_memory_insufficient);
+                return make_error(modeling_errc::dot_memory_insufficient);
 
             const auto c = g.nodes.capacity();
 
             if (not(g.nodes.reserve(c) and g.node_names.resize(c) and
                     g.node_labels.resize(c) and g.node_positions.resize(c) and
                     g.node_areas.resize(c) and g.node_components.resize(c)))
-                return new_error(modeling_errc::dot_memory_insufficient);
+                return make_error(modeling_errc::dot_memory_insufficient);
         }
 
         const auto id  = g.nodes.alloc();
@@ -477,10 +477,10 @@ private:
     {
         if (not strings_ids.can_alloc(1)) {
             if (not strings_ids.grow<2, 1>())
-                return new_error(modeling_errc::dot_memory_insufficient);
+                return make_error(modeling_errc::dot_memory_insufficient);
 
             if (not strings.resize(strings_ids.capacity()))
-                return new_error(modeling_errc::dot_memory_insufficient);
+                return make_error(modeling_errc::dot_memory_insufficient);
         }
 
         return {};
@@ -1060,7 +1060,7 @@ private:
 
         const auto new_edge_id = g.alloc_edge(*from_id, *to_id);
         if (new_edge_id.has_error()) {
-            ec = new_error(modeling_errc::dot_memory_insufficient);
+            ec = make_error(modeling_errc::dot_memory_insufficient);
             return error<msg_id::missing_token>(line);
         }
 
@@ -1205,7 +1205,7 @@ public:
         if (parse_graph())
             return std::move(g);
 
-        return new_error(modeling_errc::dot_format_illegible);
+        return make_error(modeling_errc::dot_format_illegible);
     }
 
     // https://graphviz.org/doc/info/lang.html
@@ -1271,7 +1271,7 @@ expected<graph> parse_dot_buffer(const file_access&      fs,
                                  journal_handler&        jn) noexcept
 {
     if (buffer.empty())
-        return new_error(modeling_errc::dot_buffer_empty);
+        return make_error(modeling_errc::dot_buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ fs, ids, jn, isvs };
@@ -1289,7 +1289,7 @@ expected<graph> parse_dot_file(const file_access&           fs,
         return sb.parse();
     }
 
-    return new_error(modeling_errc::dot_file_unreachable);
+    return make_error(modeling_errc::dot_file_unreachable);
 }
 
 graph::graph(const graph& other) noexcept
@@ -1432,7 +1432,7 @@ expected<void> graph::init_scale_free_graph(double       alpha,
                 ++cnt;
 
                 if (cnt > 10'000)
-                    return new_error(
+                    return make_error(
                       modeling_errc::graph_children_container_full);
 
             } while (not is_defined(second) or *first == second or
@@ -1441,12 +1441,12 @@ expected<void> graph::init_scale_free_graph(double       alpha,
 
             if (not edges.can_alloc(1)) {
                 if (not edges.grow<3, 2>())
-                    return new_error(
+                    return make_error(
                       modeling_errc::graph_children_container_full);
 
                 if (not edges_nodes.resize(edges.capacity()) or
                     not edges_penwidths.resize(edges.capacity()))
-                    return new_error(
+                    return make_error(
                       modeling_errc::graph_children_container_full);
             }
 
@@ -1515,12 +1515,12 @@ expected<void> graph::init_small_world_graph(double       probability,
 
             if (not edges.can_alloc(1)) {
                 if (not edges.grow<3, 2>())
-                    return new_error(
+                    return make_error(
                       modeling_errc::graph_connection_container_full);
 
                 if (not edges_nodes.resize(edges.capacity()) or
                     not edges_penwidths.resize(edges.capacity()))
-                    return new_error(
+                    return make_error(
                       modeling_errc::graph_connection_container_full);
             }
 
@@ -1529,7 +1529,7 @@ expected<void> graph::init_small_world_graph(double       probability,
                 ++cnt;
 
                 if (cnt > 10'000)
-                    return new_error(modeling_errc::component_container_full);
+                    return make_error(modeling_errc::component_container_full);
 
                 continue;
             } else {
@@ -1549,14 +1549,14 @@ expected<graph_node_id> graph::alloc_node() noexcept
 {
     if (not nodes.can_alloc(1)) {
         if (not nodes.grow<2, 1>())
-            return new_error(modeling_errc::graph_children_container_full);
+            return make_error(modeling_errc::graph_children_container_full);
 
         const auto c = nodes.capacity();
 
         if (not(node_names.resize(c) and node_labels.resize(c) and
                 node_positions.resize(c) and node_components.resize(c) and
                 node_areas.resize(c)))
-            return new_error(modeling_errc::graph_children_container_full);
+            return make_error(modeling_errc::graph_children_container_full);
     }
 
     const auto id        = nodes.alloc();
@@ -1575,17 +1575,17 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 {
     for (auto id : edges)
         if (edges_nodes[id][0].first == src and edges_nodes[id][1].first == dst)
-            return new_error(modeling_errc::graph_connection_already_exist);
+            return make_error(modeling_errc::graph_connection_already_exist);
 
     if (not edges.can_alloc(1)) {
         if (not edges.grow<2, 1>())
-            return new_error(modeling_errc::graph_connection_container_full);
+            return make_error(modeling_errc::graph_connection_container_full);
 
         if (not edges_nodes.resize(edges.capacity()))
-            return new_error(modeling_errc::graph_connection_container_full);
+            return make_error(modeling_errc::graph_connection_container_full);
 
         if (not edges_penwidths.resize(edges.capacity()))
-            return new_error(modeling_errc::graph_connection_container_full);
+            return make_error(modeling_errc::graph_connection_container_full);
     }
 
     const auto id             = edges.alloc();
@@ -1604,12 +1604,12 @@ expected<void> graph::reserve(int n, int e) noexcept
             node_positions.resize(n, std::array<float, 3>{ 0.f, 0.f, 0.f }) and
             node_components.resize(n, undefined<component_id>()) and
             node_areas.resize(n, 1.f)))
-        return new_error(modeling_errc::dot_memory_insufficient);
+        return make_error(modeling_errc::dot_memory_insufficient);
 
     if (not(edges.reserve(e) and
             edges_nodes.resize(e, std::array<edge, 2>()) and
             edges_penwidths.resize(e)))
-        return new_error(modeling_errc::dot_memory_insufficient);
+        return make_error(modeling_errc::dot_memory_insufficient);
 
     return success();
 }
@@ -1769,7 +1769,7 @@ expected<void> write_dot_file(const file_access&           fs,
         return write_dot_stream(
           fs, ids, graph, std::ostream_iterator<char>(ofs));
     } else {
-        return new_error(modeling_errc::dot_file_unreachable);
+        return make_error(modeling_errc::dot_file_unreachable);
     }
 }
 
@@ -1779,7 +1779,7 @@ expected<vector<char>> write_dot_buffer(const file_access&      fs,
 {
     vector<char> buffer(4096, reserve_tag);
     if (buffer.capacity() < 4096)
-        return new_error(modeling_errc::dot_memory_insufficient);
+        return make_error(modeling_errc::dot_memory_insufficient);
 
     if (auto ret =
           write_dot_stream(fs, ids, graph, std::back_insert_iterator(buffer));

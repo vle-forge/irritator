@@ -60,10 +60,10 @@ static status connect(generic_component& c,
                       int                port_dst) noexcept
 {
     if (not c.connections.can_alloc())
-        return new_error(modeling_errc::generic_connection_container_full);
+        return make_error(modeling_errc::generic_connection_container_full);
 
     if (is_connection_exits(c, src, port_src, dst, port_dst))
-        return new_error(modeling_errc::generic_connection_already_exist);
+        return make_error(modeling_errc::generic_connection_already_exist);
 
     c.connections.alloc(src, port_src, dst, port_dst);
 
@@ -100,7 +100,7 @@ status add_lotka_volterra(component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!com.children.can_alloc(5))
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto integrator_a = alloc<abstract_integrator<QssLevel>>(com, "X");
     com.children_parameters[integrator_a].set_integrator(18.0_r, 0.1_r);
@@ -139,10 +139,10 @@ status add_lif(component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
@@ -182,7 +182,7 @@ status add_izhikevich(component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(com.children.can_alloc(19) && com.connections.can_alloc(22)))
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(com, "u");
     auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(com, "v");
@@ -279,7 +279,7 @@ status add_van_der_pol(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(5))
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto sum          = alloc<abstract_wsum<QssLevel, 3>>(com);
     auto product1     = alloc<abstract_multiplier<QssLevel>>(com);
@@ -317,10 +317,10 @@ status add_negative_lif(component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
@@ -357,7 +357,7 @@ status add_seirs(component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(17))
-        return new_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_children_container_full);
 
     auto dS = alloc<abstract_integrator<QssLevel>>(com, "dS");
     com.children_parameters[dS].set_integrator(0.999_r, 0.0001_r);
@@ -436,11 +436,11 @@ status component_access::copy(const internal_component src,
                               const component_id       id) noexcept
 {
     if (not exists(id))
-        return new_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_not_found);
 
     auto& dst = components[id];
     if (dst.type != component_type::generic)
-        return new_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_not_found);
 
     auto& gen = generic_components.get(dst.id.generic_id);
 
