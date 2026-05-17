@@ -308,7 +308,7 @@ public:
                    pj.grid_observers.ssize(),
                    pj.graph_observers.ssize(),
                    pj.variable_observers.ssize(),
-                   pj.file_obs.ids.ssize());
+                   pj.file_obs.files.ssize());
 
         do {
             irt_check(pj.sim.run());

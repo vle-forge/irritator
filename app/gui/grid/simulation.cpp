@@ -278,6 +278,7 @@ bool show_local_observers(application&    app,
 
     if (ed.pj.grid_observers.can_alloc() or ed.pj.grid_observers.grow<3, 2>()) {
         if (ImGui::Button("+##grid")) {
+            auto&      files   = ed.pj.file_obs.files;
             auto&      grid    = ed.pj.alloc_grid_observer();
             const auto grid_id = ed.pj.grid_observers.get_id(grid);
 
@@ -287,17 +288,22 @@ bool show_local_observers(application&    app,
             grid.mdl_id    = undefined<model_id>();
             tn.grid_observer_ids.emplace_back(grid_id);
 
-            if (not ed.pj.file_obs.ids.can_alloc(1))
-                ed.pj.file_obs.grow();
+            if (not files.can_alloc(1) or not files.grow<3, 2>()) {
+                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                    t = "Grid observer creation failed";
+                    m = "Not enough memory to create a grid observer.";
+                });
 
-            if (ed.pj.file_obs.ids.can_alloc(1)) {
-                const auto file_obs_id = ed.pj.file_obs.ids.alloc();
-                const auto idx         = get_index(file_obs_id);
-
-                ed.pj.file_obs.subids[idx].grid = grid_id;
-                ed.pj.file_obs.types[idx]       = file_observers::type::grid;
-                ed.pj.file_obs.enables[idx]     = false;
+                return false;
             }
+
+            const auto id  = files.alloc_id();
+            const auto idx = get_index(id);
+
+            files.template get<file_observers::id_type>(id).grid = grid_id;
+            files.template get<file_observers::type>(id) =
+              file_observers::type::grid;
+            files.template get<bool>(id) = false;
 
             is_modified = true;
         }

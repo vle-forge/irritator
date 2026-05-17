@@ -1656,9 +1656,6 @@ public:
 class file_observers
 {
 public:
-    /** Increases size of the @c id_array and all sub vectors. */
-    void grow() noexcept;
-
     /** Clears the id_array and all buffers. After this function @c
      * ids.size() equals zero, the buffered files are are reseted. */
     void clear() noexcept;
@@ -1692,11 +1689,13 @@ public:
 
     enum class type : u8 { variables, grid, graph };
 
-    id_array<file_observer_id> ids;
-    vector<file>               files;
-    vector<id_type>            subids;
-    vector<type>               types;
-    vector<bool>               enables;
+    id_data_array<file,
+                  file_observer_id,
+                  allocator<new_delete_memory_resource>,
+                  id_type,
+                  type,
+                  bool>
+      files;
 
     static_bounded_floating_point<float, 1, 10000, 1, 1> time_step = 1.f;
 
@@ -1709,14 +1708,15 @@ template<typename T>
              std::is_same_v<T, variable_observer_id>)
 inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
 {
-    if (not ids.can_alloc(1))
-        grow();
-
-    if (not ids.can_alloc(1))
+    if (not files.can_alloc(1) or not files.template grow<3, 2>())
         return false;
 
-    const auto id  = ids.alloc();
-    const auto idx = get_index(id);
+    const auto& file    = files.alloc();
+    const auto  id      = files.get_id(file);
+    const auto  idx     = get_index(id);
+    auto&       subids  = files.template get<id_type>();
+    auto&       types   = files.template get<type>();
+    auto&       enables = files.template get<bool>();
 
     enables[idx] = enable;
 

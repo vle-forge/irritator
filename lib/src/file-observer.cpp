@@ -134,25 +134,7 @@ static void do_update(const simulation&     sim,
     (void)file;
 }
 
-void file_observers::grow() noexcept
-{
-    const auto capacity     = ids.capacity();
-    const auto new_capacity = capacity == 0 ? 8 : capacity * 3 / 2;
-
-    ids.reserve(new_capacity);
-    files.resize(new_capacity);
-    subids.resize(new_capacity);
-    types.resize(new_capacity);
-    enables.resize(new_capacity);
-}
-
-void file_observers::clear() noexcept
-{
-    for (const auto id : ids)
-        files[id].close();
-
-    ids.clear();
-}
+void file_observers::clear() noexcept { files.clear(); }
 
 void file_observers::initialize(const simulation&      sim,
                                 project&               pj,
@@ -160,40 +142,44 @@ void file_observers::initialize(const simulation&      sim,
 {
     tn = sim.current_time() + static_cast<time>(time_step);
 
-    for (const auto file_id : ids) {
-        const auto idx = get_index(file_id);
+    auto& subids  = files.template get<id_type>();
+    auto& types   = files.template get<type>();
+    auto& enables = files.template get<bool>();
+
+    for (auto& fd : files) {
+        const auto file_id = files.get_id(fd);
+        const auto idx     = get_index(file_id);
 
         if (enables[idx] == false)
             continue;
 
         switch (types[idx]) {
         case type::variables:
-            if (auto* v = pj.variable_observers.try_to_get(subids[idx].var);
-                v) {
+            if (auto* v = pj.variable_observers.try_to_get(subids[idx].var)) {
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
-                    files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].to_file());
+                    fd = std::move(*f);
+                    do_initialize(*v, fd.to_file());
                 }
             }
             break;
 
         case type::grid:
-            if (auto* v = pj.grid_observers.try_to_get(subids[idx].grid); v) {
+            if (auto* v = pj.grid_observers.try_to_get(subids[idx].grid)) {
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
-                    files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].to_file());
+                    fd = std::move(*f);
+                    do_initialize(*v, fd.to_file());
                 }
             }
             break;
 
         case type::graph:
-            if (auto* v = pj.graph_observers.try_to_get(subids[idx].graph); v) {
+            if (auto* v = pj.graph_observers.try_to_get(subids[idx].graph)) {
                 if (auto f = open_buffered_file(output_dir, idx, v->name.sv());
                     f) {
-                    files[idx] = std::move(*f);
-                    do_initialize(*v, files[idx].to_file());
+                    fd = std::move(*f);
+                    do_initialize(*v, fd.to_file());
                 }
             }
             break;
@@ -207,28 +193,31 @@ void file_observers::update(const simulation& sim, const project& pj) noexcept
 {
     tn = sim.current_time() + static_cast<time>(time_step);
 
-    for (auto id : ids) {
+    auto& subids  = files.template get<id_type>();
+    auto& types   = files.template get<type>();
+    auto& enables = files.template get<bool>();
+
+    for (auto& fd : files) {
+        const auto id  = files.get_id(fd);
         const auto idx = get_index(id);
+
         if (enables[idx] == false)
             continue;
 
         switch (types[idx]) {
         case type::variables:
-            if (auto* vars = pj.variable_observers.try_to_get(subids[idx].var);
-                vars)
-                do_update(sim, *vars, files[idx].to_file());
+            if (auto* vars = pj.variable_observers.try_to_get(subids[idx].var))
+                do_update(sim, *vars, fd.to_file());
             break;
 
         case type::grid:
-            if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid);
-                vars)
-                do_update(sim, *vars, files[idx].to_file());
+            if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid))
+                do_update(sim, *vars, fd.to_file());
             break;
 
         case type::graph:
-            if (auto* vars = pj.graph_observers.try_to_get(subids[idx].graph);
-                vars)
-                do_update(sim, *vars, files[idx].to_file());
+            if (auto* vars = pj.graph_observers.try_to_get(subids[idx].graph))
+                do_update(sim, *vars, fd.to_file());
             break;
         }
     }
@@ -236,11 +225,14 @@ void file_observers::update(const simulation& sim, const project& pj) noexcept
 
 void file_observers::finalize() noexcept
 {
-    for (auto id : ids) {
+    auto& enables = files.template get<bool>();
+
+    for (auto& fd : files) {
+        const auto id  = files.get_id(fd);
         const auto idx = get_index(id);
 
         if (enables[idx])
-            files[idx].close();
+            fd.close();
     }
 }
 

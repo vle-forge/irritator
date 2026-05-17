@@ -28,7 +28,7 @@ bool show_local_observers(application&    app,
                           const component& /*compo*/,
                           const graph_component& cgraph) noexcept
 {
-    auto to_del      = std::optional<graph_observer_id>();
+    auto       to_del      = std::optional<graph_observer_id>();
     auto       is_modified = 0;
     const auto can_alloc =
       ed.pj.graph_observers.can_alloc(1) or ed.pj.graph_observers.grow<3, 2>(8);
@@ -132,6 +132,7 @@ bool show_local_observers(application&    app,
     }
 
     if (can_alloc and ImGui::Button("+##graph")) {
+        auto&      files    = ed.pj.file_obs.files;
         auto&      graph    = ed.pj.alloc_graph_observer();
         const auto graph_id = ed.pj.graph_observers.get_id(graph);
 
@@ -141,17 +142,24 @@ bool show_local_observers(application&    app,
         graph.mdl_id    = undefined<model_id>();
         tn.graph_observer_ids.emplace_back(graph_id);
 
-        if (not ed.pj.file_obs.ids.can_alloc(1))
-            ed.pj.file_obs.grow();
+        if (not files.can_alloc(1) or not files.grow<3, 2>()) {
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Grid observer creation failed";
+                m = "Not enough memory to create a grid observer.";
+            });
 
-        if (ed.pj.file_obs.ids.can_alloc(1)) {
-            const auto file_obs_id = ed.pj.file_obs.ids.alloc();
-            const auto idx         = get_index(file_obs_id);
-
-            ed.pj.file_obs.subids[idx].graph = graph_id;
-            ed.pj.file_obs.types[idx]        = file_observers::type::graph;
-            ed.pj.file_obs.enables[idx]      = false;
+            return false;
         }
+
+        const auto id  = files.alloc_id();
+        const auto idx = get_index(id);
+
+        files.template get<file_observers::id_type>(id).graph = graph_id;
+        files.template get<file_observers::type>(id) =
+          file_observers::type::graph;
+        files.template get<bool>(id) = false;
+
+        is_modified = true;
 
         ++is_modified;
     }

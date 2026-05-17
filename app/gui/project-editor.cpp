@@ -547,7 +547,7 @@ static bool show_simulation_table_variable_observers(
   application& /*app*/,
   project_editor& ed) noexcept
 {
-    auto to_delete   = undefined<variable_observer_id>();
+    auto       to_delete   = undefined<variable_observer_id>();
     auto       is_modified = false;
     const auto can_alloc   = ed.pj.variable_observers.can_alloc(1) or
                            not ed.pj.variable_observers.grow<3, 2>();
@@ -736,18 +736,24 @@ static int show_simulation_table_file_observers(application& /*app*/,
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("enable");
 
-        for (const auto id : ed.pj.file_obs.ids) {
+        auto& subids =
+          ed.pj.file_obs.files.template get<file_observers::id_type>();
+        auto& types = ed.pj.file_obs.files.template get<file_observers::type>();
+        auto& enables = ed.pj.file_obs.files.template get<bool>();
+
+        for (auto& fd : ed.pj.file_obs.files) {
+            const auto id  = ed.pj.file_obs.files.get_id(fd);
+            const auto idx = get_index(id);
+
             ImGui::TableHeadersRow();
             ImGui::TableNextColumn();
 
-            const auto idx = get_index(id);
-            switch (ed.pj.file_obs.types[idx]) {
+            switch (types[idx]) {
             case file_observers::type::variables:
                 ImGui::TextUnformatted("plot");
                 ImGui::TableNextColumn();
-                if (auto* sub = ed.pj.variable_observers.try_to_get(
-                      ed.pj.file_obs.subids[idx].var);
-                    sub)
+                if (auto* sub =
+                      ed.pj.variable_observers.try_to_get(subids[idx].var))
                     ImGui::TextUnformatted(sub->name.c_str());
                 else
                     ImGui::TextUnformatted("-");
@@ -755,9 +761,8 @@ static int show_simulation_table_file_observers(application& /*app*/,
             case file_observers::type::grid:
                 ImGui::TextUnformatted("grid");
                 ImGui::TableNextColumn();
-                if (auto* sub = ed.pj.grid_observers.try_to_get(
-                      ed.pj.file_obs.subids[idx].grid);
-                    sub)
+                if (auto* sub =
+                      ed.pj.grid_observers.try_to_get(subids[idx].grid))
                     ImGui::TextUnformatted(sub->name.c_str());
                 else
                     ImGui::TextUnformatted("-");
@@ -765,9 +770,8 @@ static int show_simulation_table_file_observers(application& /*app*/,
             case file_observers::type::graph:
                 ImGui::TextUnformatted("graph");
                 ImGui::TableNextColumn();
-                if (auto* sub = ed.pj.graph_observers.try_to_get(
-                      ed.pj.file_obs.subids[idx].graph);
-                    sub)
+                if (auto* sub =
+                      ed.pj.graph_observers.try_to_get(subids[idx].graph))
                     ImGui::TextUnformatted(sub->name.c_str());
                 else
                     ImGui::TextUnformatted("-");
@@ -776,7 +780,7 @@ static int show_simulation_table_file_observers(application& /*app*/,
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            if (ImGui::Checkbox("##enable", &ed.pj.file_obs.enables[idx]))
+            if (ImGui::Checkbox("##enable", &enables[idx]))
                 ++is_modified;
             ImGui::PopItemWidth();
         }
@@ -902,7 +906,7 @@ static bool show_project_observations(application&    app,
             if (not ed.pj.graph_observers.empty())
                 updated += show_simulation_table_graph_observers(app, ed);
 
-            if (not ed.pj.file_obs.ids.empty())
+            if (not ed.pj.file_obs.files.empty())
                 updated += show_simulation_table_file_observers(app, ed);
 
             ImGui::TreePop();
