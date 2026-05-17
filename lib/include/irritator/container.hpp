@@ -2041,9 +2041,9 @@ private:
     }
 
 public:
-    using iterator       = id_array<identifier_type, A>::iterator;
-    using const_iterator = id_array<identifier_type, A>::const_iterator;
-    using size_type      = id_array<identifier_type, A>::size_type;
+    using iterator       = typename identifier_container_type::iterator;
+    using const_iterator = typename identifier_container_type::const_iterator;
+    using size_type      = typename identifier_container_type::size_type;
 
     id_data_array() noexcept = default;
     explicit id_data_array(std::integral auto capacity) noexcept;
@@ -2378,6 +2378,9 @@ public:
     //!
     //! @return @c T
     const T& get(Identifier id) const noexcept;
+
+    //! @brief Checks if a `id` exists in the underlying array.
+    bool exists(Identifier id) const noexcept;
 
     //! @brief Get a T from an ID.
     //!
@@ -4636,6 +4639,20 @@ const T& data_array<T, Identifier, A>::get(Identifier id) const noexcept
                   m_items[get_index(id)].id == id);
 
     return m_items[get_index(id)].item;
+}
+
+template<typename T, typename Identifier, typename A>
+bool data_array<T, Identifier, A>::exists(Identifier id) const noexcept
+{
+    if (get_key(id)) {
+        const auto index = get_index(id);
+
+        if (std::cmp_greater_equal(index, 0) &&
+            std::cmp_less(index, m_max_used) && m_items[index].id == id)
+            return true;
+    }
+
+    return false;
 }
 
 template<typename T, typename Identifier, typename A>
