@@ -4006,7 +4006,7 @@ void id_data_array<T, Identifier, A, Ts...>::free(
 template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto id_data_array<T, Identifier, A, Ts...>::get() noexcept
--> buffer_view<Type>&
+  -> buffer_view<Type>&
 {
     return std::get<buffer_view<Type>>(m_col);
 }
@@ -4014,7 +4014,7 @@ auto id_data_array<T, Identifier, A, Ts...>::get() noexcept
 template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto id_data_array<T, Identifier, A, Ts...>::get() const noexcept
--> const buffer_view<Type>&
+  -> const buffer_view<Type>&
 {
     return std::get<buffer_view<Type>>(m_col);
 }
@@ -4044,15 +4044,19 @@ template<typename Type>
 typename id_data_array<T, Identifier, A, Ts...>::identifier_type
 id_data_array<T, Identifier, A, Ts...>::get_id(const Type& t) const noexcept
 {
-    const auto* ptr   = &t;
-    const auto* start = std::get<buffer_view<Type>>(m_col).get();
-    const auto* last  = start + m_ids.size();
+    if constexpr (std::is_void_v<T>) {
+        const auto* ptr   = &t;
+        const auto* start = std::get<buffer_view<Type>>(m_col).get();
+        const auto* last  = start + m_ids.size();
 
-    fatal::ensure(start <= ptr and ptr < last);
+        fatal::ensure(start <= ptr and ptr < last);
 
-    const auto pos = ptr - start;
+        const auto pos = ptr - start;
 
-    return m_ids.get_from_index(pos);
+        return m_ids.get_from_index(pos);
+    } else {
+        return m_ids.get_id(&t);
+    }
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -4198,8 +4202,8 @@ bool id_data_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
 
     const auto required  = m_ids.capacity() + count;
     const auto ratio_cap = (m_ids.capacity() == 0)
-            ? size_type{ 8 }
-            : (m_ids.capacity() * Num / Denum);
+                             ? size_type{ 8 }
+                             : (m_ids.capacity() * Num / Denum);
 
     return reserve(std::max(required, ratio_cap));
 }
@@ -7938,7 +7942,7 @@ bool data_vector_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
 
     const auto required = m_ids.capacity() + count;
     const auto ratio_cap =
-            (m_ids.capacity() == 0) ? 8 : (m_ids.capacity() * Num / Denum);
+      (m_ids.capacity() == 0) ? 8 : (m_ids.capacity() * Num / Denum);
     return reserve(std::max(required, ratio_cap));
 }
 
@@ -8001,7 +8005,7 @@ auto operator<=>(const small_vector<T, N>& lhs,
                  const vector<T, A>&       rhs) noexcept
 {
     return std::lexicographical_compare_three_way(
-                lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+      lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
 template<typename T, typename A, std::size_t N>
@@ -8017,7 +8021,7 @@ auto operator<=>(const vector<T, A>&       lhs,
                  const small_vector<T, N>& rhs) noexcept
 {
     return std::lexicographical_compare_three_way(
-                lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
+      lhs.begin(), lhs.end(), rhs.begin(), rhs.end());
 }
 
 } // namespace irt
