@@ -152,7 +152,6 @@ bool show_local_observers(application&    app,
         }
 
         const auto id  = files.alloc_id();
-        const auto idx = get_index(id);
 
         files.template get<file_observers::id_type>(id).graph = graph_id;
         files.template get<file_observers::type>(id) =

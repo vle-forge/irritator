@@ -127,7 +127,7 @@ static auto get_or_add_variable_observer(project&             pj,
 }
 
 static bool show_local_simulation_plot_observers_table(
-  application&            app,
+  application& /*app*/,
   project_editor&         ed,
   const component_access& ids,
   tree_node&              tn) noexcept
