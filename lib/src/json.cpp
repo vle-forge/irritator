@@ -6701,25 +6701,26 @@ struct json_archiver::impl {
         w.Key("global");
         w.StartArray();
 
-        pj.parameters.for_each([&](const auto /*id*/,
-                                   const auto& name,
-                                   const auto  tn_id,
-                                   const auto  mdl_id,
-                                   const auto& p) noexcept {
+        auto& names   = pj.parameters.get<name_str>();
+        auto& tn_ids  = pj.parameters.get<tree_node_id>();
+        auto& mdl_ids = pj.parameters.get<model_id>();
+        auto& params  = pj.parameters.get<parameter>();
+
+        for (const auto id : pj.parameters) {
             w.StartObject();
             w.Key("name");
-            w.String(name.begin(), name.size());
+            w.String(names[id].begin(), names[id].size());
 
             unique_id_path path;
             w.Key("access");
-            pj.build_unique_id_path(tn_id, mdl_id, path);
+            pj.build_unique_id_path(tn_ids[id], mdl_ids[id], path);
             write_project_unique_id_path(w, path);
 
             w.Key("parameter");
-            write_parameter(w, p);
+            write_parameter(w, params[id]);
 
             w.EndObject();
-        });
+        }
 
         w.EndArray();
     }

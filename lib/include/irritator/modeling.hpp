@@ -136,7 +136,6 @@ enum class component_status : u8 {
 
 enum class modeling_status : u8 { modified, unmodified };
 
-class project;
 struct connection;
 class generic_component;
 class grid_component;
@@ -150,6 +149,7 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
+class project;
 
 enum class child_flags : u8 {
     configurable,
@@ -220,10 +220,37 @@ class simulation_component
 {
 public:
     simulation_component() noexcept = default;
+    simulation_component(const simulation_component& other) noexcept;
+    simulation_component& operator=(const simulation_component& other) noexcept;
 
     dir_path_id  dir_id  = undefined<dir_path_id>();
     file_path_id file_id = undefined<file_path_id>();
+
+    std::unique_ptr<project> pj;
 };
+
+inline simulation_component::simulation_component(
+  const simulation_component& other) noexcept
+  : dir_id{ other.dir_id }
+  , file_id{ other.file_id }
+{
+    // if (other.pj.get()) {
+    //     pj = std::make_unique<project>(*other.pj.get());
+    // }
+}
+
+inline simulation_component& simulation_component::operator=(
+  const simulation_component& other) noexcept
+{
+    if (this != std::addressof(other)) {
+        dir_id  = other.dir_id;
+        file_id = other.file_id;
+        // if (other.pj.get())
+        //     pj = std::make_unique<project>(*other.pj);
+    }
+
+    return *this;
+}
 
 /**
    A wrapper to the simulation @c hierarchical_state_machine class.
@@ -1896,10 +1923,39 @@ public:
                   global_parameter_id,
                   allocator<new_delete_memory_resource>,
                   name_str,
-                  tree_node_id,
-                  model_id,
-                  parameter>
+                  tree_node_id,     //!< model's parent
+                  model_id,         //!< model to parametrize
+                  parameter,        //!< Default parameter
+                  vector<parameter> //!< Experimental frames
+                  >
       parameters;
+
+    enum global_observer_id : u32;
+
+    enum class criteria {
+        last, //!< Last observation value (one real).
+        min,  //!< Observation value with the lowest value (one real).
+        max,  //!< Observation value with the hightest value (one real).
+    };
+
+    static auto get_criteria_name(const criteria item) noexcept
+      -> std::string_view;
+
+    static auto get_criteria_from_name(const std::string_view name) noexcept
+      -> expected<criteria>;
+
+    id_data_array<void,
+                  global_observer_id,
+                  allocator<new_delete_memory_resource>,
+                  name_str,
+                  tree_node_id, //!< model's parent
+                  model_id,     //!< model to observer
+                  observer_id,  //!< access to observer
+                  criteria>     //!< how observe
+      observers;
+
+    /// Experimental frames replicas
+    vector<u64> seeds;
 
     /**
        @brief Alloc a new variable observer and assign a name.

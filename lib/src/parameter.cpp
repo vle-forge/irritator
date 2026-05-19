@@ -648,6 +648,12 @@ parameter& parameter::set_integrator(real X, real dQ) noexcept
     return *this;
 }
 
+parameter& parameter::set_integrator(real X) noexcept
+{
+    reals[qss_integrator_tag::X] = std::isfinite(X) ? X : 0.0;
+    return *this;
+}
+
 parameter& parameter::set_time_func(real offset,
                                     real timestep,
                                     int  type) noexcept

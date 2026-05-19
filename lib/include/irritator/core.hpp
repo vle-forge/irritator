@@ -898,7 +898,7 @@ struct parameter {
     //! Assign @c 0 to reals and integers arrays.
     parameter& clear() noexcept;
 
-    parameter& set_constant(real value, real offset) noexcept;
+    parameter& set_constant(real value, real offset = zero) noexcept;
     parameter& set_cross(real threshold,
                          real up_value   = one,
                          real down_value = one) noexcept;
@@ -908,6 +908,7 @@ struct parameter {
 
     parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
+    parameter& set_integrator(real X) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
     parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
@@ -5089,9 +5090,51 @@ struct hsm_wrapper {
 /// The simulation must have only one public parameter and only one observation
 /// message. The observation message will be copied to the @c y[0] output port.
 struct simulation_wrapper {
-    input_port     x[3]   = {};
-    output_port_id y[1]   = {};
-    simulation_id  sim_id = {};
+    /** x[0] is used to initialize the simulation, x[1] is used to run the
+     * simulation, x[2..] are used to  send assign new value to the public
+     * parameter of the embedded simulation. */
+    vector<input_port> x;
+
+    /** y[0..] are used to send the public parameter of the embedded simulation
+     * according to the selection criteria. */
+    vector<output_port_id> y;
+
+    using simulation_parameters = vector<parameter>;
+    using simulation_observation = table<model_id, vector<std::array<real, 2>>>;
+
+    enum class sub_id : u32;
+
+    struct single_parameter {
+        model_id  mdl_id;
+        parameter p;
+    };
+
+    struct multiple_parameter {
+        model_id          mdl_id;
+        vector<parameter> p;
+    };
+
+    /** The @c run_type parameter defines the number of embedded simulation
+     * objects. If @c run_type equals  complete  then sims size can be equals
+     * to 1. */
+    id_data_array<void,
+                  sub_id,
+                  allocator<new_delete_memory_resource>,
+                  simulation,
+                  simulation_observation>
+      embedded_sims;
+
+    /** parameter with only one value. The parameters can be change using
+     * x-message on simulation_wrapper input ports. */
+    vector<single_parameter>   single_parameters;
+
+    /** parameter with ranged value. The parameters is constant during
+     * simulation. @TODO move this parameteres into @c simulation_component */
+    vector<multiple_parameter> multiple_parameters;
+
+    /** Identifier of the source of the simulation to run. This identifier
+     * references simluation in simulation::sims member. */
+    simulation_id sim_id = {};
 
     constexpr static inline std::string_view run_type_names[] = {
         "bag", "complete", "during", "time", "until",
@@ -5113,14 +5156,6 @@ struct simulation_wrapper {
                     ///< the @c run_type::complete parameter.
         input_run,  ///< Run the simulation according to the @c run_type
                     ///< parameter.
-        input_parameter ///< A message to reset a parameter in the embedded
-                        ///< simulation. Send message to @c input_init port to
-                        ///< copy into models.
-    };
-
-    enum o_port : u8 {
-        output_observation ///< Observation message from the embedded
-                           ///< simulation.
     };
 
     time     sigma = time_domain<time>::infinity;
@@ -6621,7 +6656,7 @@ constexpr const model& get_model(const Dynamics& d) noexcept
                   "Dynamics too large for model::dyn");
 
     return *std::launder(reinterpret_cast<const model*>(
-                             reinterpret_cast<const char*>(&d) - offsetof(model, dyn)));
+      reinterpret_cast<const char*>(&d) - offsetof(model, dyn)));
 }
 
 // inline expected<message_id> get_input_port(model& src, int port_src)

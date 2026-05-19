@@ -26,7 +26,7 @@ inline auto write_raw_data(ring_buffer<observation_message>& buf,
 
 template<typename Fn>
 inline auto write_raw_data(ring_buffer<observation_message>& buf,
-                           Fn&& fn) noexcept -> void
+                           Fn fn) noexcept -> void
 {
     debug::ensure(buf.ssize() >= 2);
 
@@ -64,7 +64,7 @@ inline auto flush_raw_data(ring_buffer<observation_message>& buf,
 
 template<typename Fn>
 inline auto flush_raw_data(ring_buffer<observation_message>& buf,
-                           Fn&& fn) noexcept -> void
+                           Fn fn) noexcept -> void
 {
     debug::ensure(buf.ssize() == 1);
 
@@ -92,7 +92,7 @@ inline auto flush_raw_data(observer& obs) noexcept -> void
 }
 
 template<typename Fn>
-inline auto flush_raw_data(observer& obs, Fn&& fn) noexcept -> void
+inline auto flush_raw_data(observer& obs, Fn fn) noexcept -> void
 {
     obs.buffer.write(
       [](auto& buf, auto& obs, auto& fn) {
@@ -170,7 +170,7 @@ template<int QssLevel, typename Fn>
 auto compute_interpolate(const observation_message& msg,
                          const time                 until,
                          const time                 time_step,
-                         Fn&&                       fn) noexcept -> void
+                         Fn                         fn) noexcept -> void
 {
     static_assert(1 <= QssLevel && QssLevel <= 3);
 
@@ -256,7 +256,7 @@ template<typename Fn>
 inline auto write_interpolate_data(ring_buffer<observation_message>& buf,
                                    const real                        time_step,
                                    const interpolate_type            type,
-                                   Fn&& fn) noexcept
+                                   Fn fn) noexcept
 {
     debug::ensure(buf.ssize() >= 2);
 
@@ -330,7 +330,7 @@ inline auto write_interpolate_data(observer& obs, const real time_step) noexcept
 template<typename Fn>
 inline auto write_interpolate_data(observer&  obs,
                                    const real time_step,
-                                   Fn&&       fn) noexcept -> void
+                                   Fn         fn) noexcept -> void
 {
     obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step, auto& fn) {
@@ -370,7 +370,7 @@ inline auto flush_interpolate_data(observer& obs, const real time_step) noexcept
 template<typename Fn>
 inline auto flush_interpolate_data(observer&  obs,
                                    const real time_step,
-                                   Fn&&       fn) noexcept
+                                   Fn         fn) noexcept -> void
 {
     obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step, auto& fn) {
