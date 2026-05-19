@@ -2088,7 +2088,7 @@ static component_editor_result display_component_editor_subtable(
                     if (tab.compo.x.can_alloc(1) and
                         ImGui::Button("Input port", size)) {
                         if (tab.compo.x.can_alloc(1) or
-                            tab.compo.x.template grow<3, 2>()) {
+                            tab.compo.x.template grow<3, 2>(1)) {
                             const auto id = tab.compo.x.alloc_id();
 
                             tab.compo.x.template get<port_str>(id) = "in";
@@ -2104,7 +2104,7 @@ static component_editor_result display_component_editor_subtable(
                     if (tab.compo.y.can_alloc(1) and
                         ImGui::Button("Output port", size)) {
                         if (tab.compo.y.can_alloc(1) or
-                            tab.compo.y.template grow<3, 2>()) {
+                            tab.compo.y.template grow<3, 2>(1)) {
                             const auto id = tab.compo.y.alloc_id();
 
                             tab.compo.y.template get<port_str>(id) = "out";

@@ -96,6 +96,12 @@ constexpr int length(const T (&array)[N]) noexcept
     return static_cast<int>(N);
 }
 
+template<class T>
+constexpr int length(const vector<T>& vec) noexcept
+{
+    return static_cast<int>(vec.size());
+}
+
 //! @brief A simple enumeration to integral helper function.
 //! @tparam Enum An enumeration
 //! @tparam Integer The underlying_type deduce from @c Enum
@@ -318,6 +324,9 @@ enum class constant_source_id : u32;
 enum class binary_file_source_id : u32;
 enum class text_file_source_id : u32;
 enum class random_source_id : u32;
+
+enum class factor_id : u32;
+enum class selection_id : u32;
 
 /*****************************************************************************
  *
@@ -898,7 +907,7 @@ struct parameter {
     //! Assign @c 0 to reals and integers arrays.
     parameter& clear() noexcept;
 
-    parameter& set_constant(real value, real offset) noexcept;
+    parameter& set_constant(real value, real offset = zero) noexcept;
     parameter& set_cross(real threshold,
                          real up_value   = one,
                          real down_value = one) noexcept;
@@ -908,6 +917,7 @@ struct parameter {
 
     parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
+    parameter& set_integrator(real X) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
     parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
@@ -1323,6 +1333,82 @@ struct simulation_snapshot {
     time                                                     t{};
 };
 
+enum class criteria_type {
+    min_last, //!< Min value for the last observation value (one real).
+    max_last, //!< Max value for the Last observation value (one real).
+    min,      //!< Observation value with the lowest value (one real).
+    max,      //!< Observation value with the hightest value (one real).
+};
+
+enum class factor_type : u8 {
+    single, //!< Only one value (input port parame ter do nothing)
+    fixed,  //!< A vector of real (input port parame ter do nothing)
+    random, //!< A distribution and a counter (input port parame ter do nothing)
+
+    single_add, //!< Only one value and add input port value.
+    fixed_add,  //!< A vector of real and add input port value.
+    random_add, //!< A distribution and a counter and add input port value.
+
+    single_mult, //!< Only one value and multiply with input port value.
+    fixed_mult,  //!< A vector of real and multiply with input port value.
+    random_mult  //!< A distribution and a counter and multiply with input port
+                 //!< value.
+};
+
+static constexpr const std::string_view criteria_type_names[] = { "min-last",
+                                                                  "max-last",
+                                                                  "min",
+                                                                  "max" };
+
+static constexpr const std::string_view factor_type_names[] = {
+    "single",     "fixed",       "random",     "single-add", "fixed-add",
+    "random-add", "single-mult", "fixed-mult", "random-mult"
+
+};
+
+struct single_factor {
+    real value;
+};
+
+struct fixed_factor {
+    vector<real> values;
+};
+
+struct random_factor {
+    std::array<real, 2> reals = { 0, 1 };
+    std::array<i32, 2>  ints  = { 0, 0 };
+    u32                 count = 10u;
+    distribution_type   dist  = distribution_type::uniform_real;
+
+    /** Allocate and fill a new vector with random values according to the
+     * random distribution and parameters. */
+    vector<real> gen(std::span<u64, 6> key) const noexcept;
+
+    /** Fill a vector with random values according to the random distribution
+     * and parameters. */
+    std::span<real> gen(std::span<u64, 6> key,
+                        std::span<real>   values) const noexcept;
+};
+
+using simulation_factor = id_data_array<void,
+                                        factor_id,
+                                        allocator<new_delete_memory_resource>,
+                                        model_id, //!< model to parametrize
+                                        name_str,
+                                        factor_type,
+                                        single_factor,
+                                        fixed_factor,
+                                        random_factor>;
+
+using simulation_selection =
+  id_data_array<void,
+                selection_id,
+                allocator<new_delete_memory_resource>,
+                model_id, //!< model to parametrize
+                name_str,
+                criteria_type //!< Observation selection function
+                >;
+
 class simulation
 {
 public:
@@ -1341,6 +1427,9 @@ public:
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
 
     scheduller<allocator<new_delete_memory_resource>> sched;
+
+    simulation_factor    factors;
+    simulation_selection selections;
 
     external_source srcs;
 
@@ -3318,7 +3407,7 @@ struct abstract_integer {
                 to_send = value[0];
             } else if constexpr (QssLevel == 2) {
                 sigma   = std::min(compute_wake_up(upper, value[0], value[1]),
-                                 compute_wake_up(lower, value[0], value[1]));
+                                   compute_wake_up(lower, value[0], value[1]));
                 to_send = value[0] + value[1] * sigma;
             } else if constexpr (QssLevel == 3) {
                 sigma = std::min(
@@ -5089,9 +5178,54 @@ struct hsm_wrapper {
 /// The simulation must have only one public parameter and only one observation
 /// message. The observation message will be copied to the @c y[0] output port.
 struct simulation_wrapper {
-    input_port     x[3]   = {};
-    output_port_id y[1]   = {};
-    simulation_id  sim_id = {};
+    /** x[0] is used to initialize the simulation, x[1] is used to run the
+     * simulation, x[2..] are used to  send assign new value to the public
+     * parameter of the embedded simulation. */
+    vector<input_port> x;
+
+    /** y[0..] are used to send the public parameter of the embedded simulation
+     * according to the selection criteria. */
+    vector<output_port_id> y;
+
+    struct embedded_model_observation {
+        vector<std::array<real, 2>> values; /*<! Raw output simulation. */
+
+        /** Minimum value of the raw output value vector. */
+        real min_element = std::numeric_limits<real>::max();
+
+        /** Maximal value of the raw output value vector. */
+        real max_element = std::numeric_limits<real>::lowest();
+    };
+
+    using simulation_parameters  = vector<real>;
+    using simulation_observation = table<model_id, embedded_model_observation>;
+
+    enum class sub_id : u32;
+
+    /** Used to store a values receives from the @c x input port vectors. */
+    struct input_parameter {
+        model_id     mdl_id;
+        real         value;
+        vector<real> values;
+    };
+
+    /** The @c run_type parameter defines the number of embedded simulation
+     * objects. If @c run_type equals  complete  then sims size can be equals
+     * to 1. */
+    id_data_array<void,
+                  sub_id,
+                  allocator<new_delete_memory_resource>,
+                  simulation,
+                  simulation_observation>
+      embedded_sims;
+
+    /** Number of @c input_parameters correspond to the number of factors in the
+     * simulation-component. */
+    vector<input_parameter> input_parameters;
+
+    /** Identifier of the source of the simulation to run. This identifier
+     * references simluation in simulation::sims member. */
+    simulation_id sim_id = {};
 
     constexpr static inline std::string_view run_type_names[] = {
         "bag", "complete", "during", "time", "until",
@@ -5107,28 +5241,33 @@ struct simulation_wrapper {
         until,    ///< Run until @c real parameter in message or infinity.
     };
 
+    enum class run_state : u8 { uninitialized, initialized, running, finish };
+
     enum i_port : u8 {
         input_init, ///< Like simulation, a message on this port initialize the
                     ///< simulation (copy parameter into models). Useless wit
                     ///< the @c run_type::complete parameter.
         input_run,  ///< Run the simulation according to the @c run_type
                     ///< parameter.
-        input_parameter ///< A message to reset a parameter in the embedded
-                        ///< simulation. Send message to @c input_init port to
-                        ///< copy into models.
     };
 
-    enum o_port : u8 {
-        output_observation ///< Observation message from the embedded
-                           ///< simulation.
+    std::array<u64, 6> seed = {
+        0x1357209348203948u, ///! user defined value
+        0u,                  ///! ID: from root simulator
+        0u,                  ///! Counter in steam: 0 a startup
+        0u,                  ///! position in buffer: 0 at startup
+        0u,                  ///! buffer[0]
+        0u                   ///! buffer[1]
     };
 
-    time     sigma = time_domain<time>::infinity;
-    run_type run   = run_type::complete;
+    time      sigma = time_domain<time>::infinity;
+    run_type  run   = run_type::complete;
+    run_state state = run_state::uninitialized;
 
     simulation_wrapper() noexcept = default;
 
-    /// Copy ctor does not copy embedded simulation and reset @c sim_id.
+    /** Copy ctor does not copy embedded simulation but keep the simulation
+     * identifier @c sim_id. */
     simulation_wrapper(const simulation_wrapper& other) noexcept;
 
     status initialize(simulation& sim) noexcept;
@@ -6621,7 +6760,7 @@ constexpr const model& get_model(const Dynamics& d) noexcept
                   "Dynamics too large for model::dyn");
 
     return *std::launder(reinterpret_cast<const model*>(
-                             reinterpret_cast<const char*>(&d) - offsetof(model, dyn)));
+      reinterpret_cast<const char*>(&d) - offsetof(model, dyn)));
 }
 
 // inline expected<message_id> get_input_port(model& src, int port_src)
@@ -8294,11 +8433,6 @@ inline status simulation::initialize() noexcept
 template<typename Dynamics>
 status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 {
-    if constexpr (has_input_port<Dynamics>) {
-        for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i].reset();
-    }
-
     // @attention Copy parameters to model before using the initialize
     // function. Be sure to not owerrite the parameters in the @c
     // dynamics::initialize function.
@@ -8306,6 +8440,11 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 
     if constexpr (has_initialize_function<Dynamics>)
         irt_check(dyn.initialize(*this));
+
+    if constexpr (has_input_port<Dynamics>) {
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i].reset();
+    }
 
     mdl.tl     = t;
     mdl.tn     = t + dyn.sigma;

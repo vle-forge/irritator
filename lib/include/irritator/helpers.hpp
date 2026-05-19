@@ -111,6 +111,8 @@ struct simulation_wrapper_tag {
     enum parameter_names : u8 {
         run = 0,
         id,
+        factors,
+        selections,
     };
 };
 

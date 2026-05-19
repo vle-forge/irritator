@@ -740,7 +740,8 @@ struct json_dearchiver::impl {
 
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
     {
-        if (!pj().parameters.can_alloc(i))
+        if (not pj().parameters.can_alloc(i) and
+            not pj().parameters.grow<3, 2>(1))
             return error("can not allocate more global parameters (max: {})",
                          pj().parameters.capacity());
 
@@ -749,7 +750,8 @@ struct json_dearchiver::impl {
 
     bool project_variable_observers_can_alloc(std::integral auto i) noexcept
     {
-        if (!pj().variable_observers.can_alloc(i))
+        if (not pj().variable_observers.can_alloc(i) and
+            not pj().variable_observers.grow<2, 1>())
             return error("can not allocate more variable observers (max: {})",
                          pj().variable_observers.capacity());
 
@@ -758,17 +760,18 @@ struct json_dearchiver::impl {
 
     bool project_grid_observers_can_alloc(std::integral auto i) noexcept
     {
-        if (!pj().grid_observers.can_alloc(i))
+        if (not pj().grid_observers.can_alloc(i) and
+            not pj().grid_observers.grow<2, 1>())
             return error("can not allocate more grid observers (max: {})",
                          pj().grid_observers.capacity());
 
         return true;
     }
 
-    bool generic_can_alloc(const generic_component& compo,
-                           std::integral auto       i) noexcept
+    bool generic_can_alloc(generic_component& compo,
+                           std::integral auto i) noexcept
     {
-        if (not compo.children.can_alloc(i))
+        if (not compo.children.can_alloc(i) and not compo.children.grow<2, 1>())
             return error(
               "can not allocate more child in generic component (max: {})",
               compo.children.capacity());
@@ -1734,6 +1737,8 @@ struct json_dearchiver::impl {
                                         const std::string_view  file,
                                         component_id&           c_id) noexcept
     {
+        auto_stack a(this, "try modeling copy component id");
+
         const auto  file_id = files.find_file(reg, dir, file);
         const auto* f       = files.file_paths.try_to_get(file_id);
         if (not f)
@@ -1759,6 +1764,7 @@ struct json_dearchiver::impl {
         }
 
         c_id = compo_id;
+
         return true;
     }
 
@@ -1767,7 +1773,7 @@ struct json_dearchiver::impl {
                                           const component_access& ids,
                                           component_id&           c_id) noexcept
     {
-        auto_stack a(this, "child simple or grid component");
+        auto_stack a(this, "try read child hsm or sim component");
 
         name_str           reg_name;
         directory_path_str dir_path;
@@ -1820,31 +1826,45 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics simulation wrapper");
 
-        static constexpr std::string_view n[] = { "run-type", "sim" };
+        static constexpr std::string_view n[] = {
+            "factors", "run-type", "selections", "sim"
+        };
 
-        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
-            switch (idx) {
-            case 0:
-                return read_temp_i64(value) &&
-                       copy_string_to_simluation_wrapper_type(
-                         p.integers[simulation_wrapper_tag::run]);
+        const auto ret =
+          for_members(val, n, [&](auto idx, const auto& value) noexcept {
+              switch (idx) {
+              case 0:
+                  return read_temp_i64(value) &&
+                         copy_i64_to(
+                           p.integers[simulation_wrapper_tag::factors]);
 
-            case 1: {
-                component_id c;
-                if (try_read_child_hsm_sim_component(value, files, ids, c)) {
-                    p.integers[simulation_wrapper_tag::id] =
-                      static_cast<i64>(c);
-                    return true;
-                } else {
-                    warning("Simulation component not found");
-                    return true;
-                }
-            }
+              case 1:
+                  return read_temp_string(value) &&
+                         copy_string_to_simluation_wrapper_type(
+                           p.integers[simulation_wrapper_tag::run]);
 
-            default:
-                return error("unknown element");
-            }
-        });
+              case 2:
+                  return read_temp_i64(value) &&
+                         copy_i64_to(
+                           p.integers[simulation_wrapper_tag::selections]);
+
+              case 3: {
+                  auto c = undefined<component_id>();
+                  if (try_read_child_hsm_sim_component(value, files, ids, c)) {
+                      p.integers[simulation_wrapper_tag::id] =
+                        static_cast<i64>(c);
+                      warning("Simulation component not found");
+                      return true;
+                  }
+                  return false;
+              }
+
+              default:
+                  return error("unknown element");
+              }
+          });
+
+        return ret;
     }
 
     bool read_modeling_dynamics(const rapidjson::Value& val,
@@ -1865,11 +1885,10 @@ struct json_dearchiver::impl {
                 component_id c;
                 if (try_read_child_hsm_sim_component(value, files, ids, c)) {
                     p.integers[hsm_wrapper_tag::id] = static_cast<i64>(c);
-                    return true;
                 } else {
                     warning("HSM component not found");
-                    return true;
                 }
+                return true;
             }
             case 1:
                 return read_temp_i64(value) &&
@@ -2247,7 +2266,8 @@ struct json_dearchiver::impl {
     bool constant_sources_can_alloc(external_source&   srcs,
                                     std::integral auto i) noexcept
     {
-        if (srcs.constant_sources.can_alloc(i))
+        if (srcs.constant_sources.can_alloc(i) or
+            srcs.constant_sources.grow<2, 1>())
             return true;
 
         return error("can not allocate more constant source ({})",
@@ -2257,7 +2277,8 @@ struct json_dearchiver::impl {
     bool text_file_sources_can_alloc(external_source&   srcs,
                                      std::integral auto i) noexcept
     {
-        if (srcs.text_file_sources.can_alloc(i))
+        if (srcs.text_file_sources.can_alloc(i) or
+            srcs.text_file_sources.grow<2, 1>())
             return true;
 
         return error("can not allocate more text file source ({})",
@@ -2267,7 +2288,8 @@ struct json_dearchiver::impl {
     bool binary_file_sources_can_alloc(external_source&   srcs,
                                        std::integral auto i) noexcept
     {
-        if (srcs.binary_file_sources.can_alloc(i))
+        if (srcs.binary_file_sources.can_alloc(i) or
+            srcs.binary_file_sources.grow<2, 1>())
             return true;
 
         return error("can not allocate more binary file source ({})",
@@ -2277,7 +2299,8 @@ struct json_dearchiver::impl {
     bool random_sources_can_alloc(external_source&   srcs,
                                   std::integral auto i) noexcept
     {
-        if (srcs.random_sources.can_alloc(i))
+        if (srcs.random_sources.can_alloc(i) or
+            srcs.random_sources.grow<2, 1>())
             return true;
 
         return error("can not allocate more random source ({})",
@@ -2758,6 +2781,189 @@ struct json_dearchiver::impl {
                  }) &&
                optional_has_value(id_in_file) &&
                cache_srcs_mapping_add(*id_in_file, id);
+    }
+
+    bool read_random(const rapidjson::Value& value,
+                     distribution_type&      type,
+                     std::span<real, 2>      reals,
+                     std::span<i32, 2>       ints) noexcept
+    {
+        auto_stack s(this, "read random distribution");
+
+        type     = distribution_type::uniform_real;
+        reals[0] = 0;
+        reals[1] = 1;
+
+        if (const auto i = value.FindMember("type"); i != value.MemberEnd()) {
+            if (i->value.IsString()) {
+                temp_string = i->value.GetString();
+                if (not copy_string_to(type))
+                    return error("Unknown random distribution type {}\n",
+                                 temp_string);
+            }
+        }
+
+        switch (type) {
+        case distribution_type::uniform_int:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_i64(value) && copy_i64_to(ints[0]);
+                  if ("b"sv == name)
+                      return read_temp_i64(value) && copy_i64_to(ints[1]);
+                  return true;
+              });
+
+        case distribution_type::uniform_real:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::bernouilli:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::binomial:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("t"sv == name)
+                      return read_temp_i64(value) && copy_i64_to(ints[0]);
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::negative_binomial:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("t"sv == name)
+                      return read_temp_i64(value) && copy_i64_to(ints[0]);
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::geometric:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("p"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::poisson:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("mean"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::exponential:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("lambda"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::gamma:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("alpha"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("beta"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::weibull:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::exterme_value:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::normal:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("mean"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("stddev"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::lognormal:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("m"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("s"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::chi_squared:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("n"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::cauchy:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("a"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("b"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[1]);
+                  return true;
+              });
+
+        case distribution_type::fisher_f:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("m"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  if ("n"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+
+        case distribution_type::student_t:
+            return for_each_member(
+              value, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("n"sv == name)
+                      return read_temp_real(value) && copy_real_to(reals[0]);
+                  return true;
+              });
+        }
+
+        return error("unknown distribution type {}", ordinal(type));
     }
 
     bool modeling_connect(generic_component&     compo,
@@ -3936,6 +4142,7 @@ struct json_dearchiver::impl {
     }
 
     bool copy_to_sim(const file_access&    files,
+                     component_access&     ids,
                      simulation_component& sim,
                      std::string_view      reg,
                      std::string_view      dir,
@@ -3950,13 +4157,190 @@ struct json_dearchiver::impl {
                             : undefined<file_path_id>();
 
         if (is_defined(f_id)) {
-            sim.dir_id  = d_id;
             sim.file_id = f_id;
-            return true;
+
+            auto pj_opt = project::load(files, ids, f_id, jn);
+            if (pj_opt.has_value()) {
+                sim.pj = *pj_opt;
+                return true;
+            } else {
+                has_missing_dependent_component = true;
+                jn.push(log_level::info, [&](auto& t, auto& m) {
+                    format(t, "simulation-component loader: {}", file);
+                    format(m,
+                           "Fail to load project ({}, {})",
+                           ordinal(pj_opt.error().cat()),
+                           pj_opt.error().value());
+                    return false;
+                });
+            }
         }
 
-        warning("Simulation component fail to access project");
         return false;
+    }
+
+    bool read_simulation_component_factor(const rapidjson::Value& val,
+                                          simulation_component&   sim,
+                                          const factor_id         id) noexcept
+    {
+        auto_stack a(this, "simulation-component factor");
+
+        if (const auto i = val.FindMember("name"); i != val.MemberEnd())
+            if (i->value.IsString())
+                sim.factors.get<name_str>(id) = i->value.GetString();
+
+        if (const auto i = val.FindMember("type"); i != val.MemberEnd()) {
+            if (i->value.IsString()) {
+                const auto type_str = std::string_view(i->value.GetString());
+
+                for (auto i = 0, e = length(factor_type_names); i != e; ++i) {
+                    if (type_str == factor_type_names[i]) {
+                        sim.factors.get<factor_type>(id) =
+                          enum_cast<factor_type>(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (const auto i = val.FindMember("access"); i != val.MemberEnd()) {
+            if (i->value.IsArray()) {
+                unique_id_path path;
+                if (not read_project_unique_id_path(i->value.GetArray(), path))
+                    return error("simulation-component access error");
+
+                sim.factors.get<unique_id_path>(id) = path;
+            }
+        }
+
+        switch (sim.factors.get<factor_type>(id)) {
+        case factor_type::single:
+        case factor_type::single_add:
+        case factor_type::single_mult:
+            if (const auto i = val.FindMember("value"); i != val.MemberEnd()) {
+                if (i->value.IsDouble()) {
+                    auto& f = sim.factors.get<single_factor>(id);
+                    f.value = i->value.GetDouble();
+
+                    return true;
+                }
+            }
+            break;
+
+        case factor_type::fixed:
+        case factor_type::fixed_add:
+        case factor_type::fixed_mult:
+            if (const auto i = val.FindMember("values"); i != val.MemberEnd()) {
+                if (i->value.IsArray()) {
+                    const auto& array = i->value.GetArray();
+                    auto&       v     = sim.factors.get<fixed_factor>(id);
+
+                    for (rapidjson::SizeType i = 0, e = array.Size(); i != e;
+                         ++i)
+                        if (array[i].IsDouble())
+                            v.values.emplace_back(array[i].GetDouble());
+
+                    return true;
+                }
+            }
+            break;
+
+        case factor_type::random:
+        case factor_type::random_add:
+        case factor_type::random_mult:
+            if (const auto i = val.FindMember("values"); i != val.MemberEnd()) {
+                if (i->value.IsObject()) {
+                    auto& r = sim.factors.get<random_factor>(id);
+                    return read_random(
+                      i->value.GetObject(), r.dist, r.reals, r.ints);
+                }
+            }
+            break;
+        }
+
+        return error("file format error in simulation component factor");
+    }
+
+    bool read_simulation_component_factors(const rapidjson::Value& val,
+                                           simulation_component&   sim) noexcept
+    {
+        auto_stack a(this, "component simulation factors");
+
+        return is_value_array(val) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     if (not(sim.factors.can_alloc(1) or
+                             sim.factors.grow<2, 1>(1)))
+                         return error("fail to allocate more factor in "
+                                      "simulation component");
+
+                     const auto factor_id = sim.factors.alloc_id();
+
+                     return read_simulation_component_factor(
+                       value, sim, factor_id);
+                 });
+    }
+
+    bool read_simulation_component_selection(const rapidjson::Value& val,
+                                             simulation_component&   sim,
+                                             const selection_id id) noexcept
+    {
+        auto_stack a(this, "component simulation factor");
+
+        if (const auto i = val.FindMember("name"); i != val.MemberEnd())
+            if (i->value.IsString())
+                sim.selections.get<name_str>(id) = i->value.GetString();
+
+        if (const auto i = val.FindMember("criteria"); i != val.MemberEnd()) {
+            if (i->value.IsString()) {
+                const auto crit_str = std::string_view(i->value.GetString());
+
+                for (auto i = 0, e = length(criteria_type_names); i != e; ++i) {
+                    if (crit_str == criteria_type_names[i]) {
+                        sim.selections.get<criteria_type>(id) =
+                          enum_cast<criteria_type>(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (const auto i = val.FindMember("access"); i != val.MemberEnd()) {
+            if (i->value.IsArray()) {
+                unique_id_path path;
+                if (not read_project_unique_id_path(i->value.GetArray(), path))
+                    return error("component simulation access error");
+
+                sim.selections.get<unique_id_path>(id) = path;
+
+                return true;
+            }
+        }
+
+        return error("file format error in simulation component selection");
+    }
+
+    bool read_simulation_component_selections(
+      const rapidjson::Value& val,
+      simulation_component&   sim) noexcept
+    {
+        auto_stack a(this, "component simulation selections");
+
+        return is_value_array(val) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     if (not(sim.selections.can_alloc(1) or
+                             sim.selections.grow<2, 1>(1)))
+                         return error("fail to allocate more factor in "
+                                      "simulation component");
+
+                     const auto factor_id = sim.selections.alloc_id();
+
+                     return read_simulation_component_selection(
+                       value, sim, factor_id);
+                 });
     }
 
     bool read_simulation_component(const rapidjson::Value& val,
@@ -3976,26 +4360,42 @@ struct json_dearchiver::impl {
         name_str           reg_name;
         directory_path_str dir_path;
         file_path_str      file_path;
+        name_str           name;
+
+        const auto read_project =
+          for_each_member(
+            val,
+            [&](const auto name, const auto& value) noexcept -> bool {
+                if ("path"sv == name)
+                    return read_temp_string(value) && copy_string_to(reg_name);
+
+                if ("directory"sv == name)
+                    return read_temp_string(value) && copy_string_to(dir_path);
+
+                if ("file"sv == name)
+                    return read_temp_string(value) && copy_string_to(file_path);
+
+                return true;
+            }) &&
+          copy_to_sim(
+            files, ids, sim, reg_name.sv(), dir_path.sv(), file_path.sv());
+
+        if (not read_project)
+            return error("fail to access project file ({}, {}, {})",
+                         reg_name.sv(),
+                         dir_path.sv(),
+                         file_path.sv());
 
         return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("path"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(reg_name);
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("factors"sv == name)
+                  return read_simulation_component_factors(value, sim);
 
-                     if ("directory"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(dir_path);
+              if ("selections"sv == name)
+                  return read_simulation_component_selections(value, sim);
 
-                     if ("file"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(file_path);
-
-                     return true;
-                 }) &&
-               copy_to_sim(
-                 files, sim, reg_name.sv(), dir_path.sv(), file_path.sv());
+              return true;
+          });
     }
 
     bool dispatch_component_type(const rapidjson::Value& val,
@@ -4295,7 +4695,7 @@ struct json_dearchiver::impl {
         }
 
         if (not pj().parameters.can_alloc(1) and
-            not pj().parameters.grow<2, 1>())
+            not pj().parameters.grow<2, 1>(1))
             return false;
 
         auto& names   = pj().parameters.get<name_str>();
@@ -5345,9 +5745,9 @@ struct json_archiver::impl {
         writer.Key("sim");
         writer.StartObject();
 
-        const auto id =
-          enum_cast<component_id>(p.integers[simulation_wrapper_tag::id]);
-        const auto& f = ids.component_file_paths[id];
+        const auto  uint_id = p.integers[simulation_wrapper_tag::id];
+        const auto  id      = enum_cast<component_id>(uint_id);
+        const auto& f       = ids.component_file_paths[id];
 
         write_child_component_path(writer, files, f);
 
@@ -5361,6 +5761,21 @@ struct json_archiver::impl {
                         simulation_wrapper::run_type_names
                           [p.integers[simulation_wrapper_tag::run]]
                             .size()));
+
+        // If the component and the simulation_component exist, we stores the
+        // number of factors and selections to indirectly define the number of
+        // input and output port.
+
+        if (ids.ids.exists(id)) {
+            const auto sim_id = ids.components[id].id.sim_id;
+            if (const auto* sim_c = ids.sim_components.try_to_get(sim_id)) {
+                writer.Key("factors");
+                writer.Int64(sim_c->factors.size());
+
+                writer.Key("selections");
+                writer.Int64(sim_c->selections.size());
+            }
+        }
 
         writer.EndObject();
     }
@@ -5513,122 +5928,131 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_random_source(
-      const external_source_definition::random_source& rnd,
-      Writer&                                          w) noexcept
+    void write_random_source(std::span<const real, 2> reals,
+                             std::span<const i32, 2>  ints,
+                             distribution_type        type,
+                             Writer&                  w) noexcept
     {
         w.Key("type");
-        w.String(distribution_str(rnd.type));
+        w.String(distribution_str(type));
 
-        switch (rnd.type) {
+        switch (type) {
         case distribution_type::uniform_int:
             w.Key("a");
-            w.Int(rnd.ints[0]);
+            w.Int(ints[0]);
             w.Key("b");
-            w.Int(rnd.ints[1]);
+            w.Int(ints[1]);
             break;
 
         case distribution_type::uniform_real:
             w.Key("a");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("b");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::bernouilli:
             w.Key("p");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             ;
             break;
 
         case distribution_type::binomial:
             w.Key("t");
-            w.Int(rnd.ints[0]);
+            w.Int(ints[0]);
             w.Key("p");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::negative_binomial:
             w.Key("t");
-            w.Int(rnd.ints[0]);
+            w.Int(ints[0]);
             w.Key("p");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::geometric:
             w.Key("p");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::poisson:
             w.Key("mean");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::exponential:
             w.Key("lambda");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::gamma:
             w.Key("alpha");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("beta");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::weibull:
             w.Key("a");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("b");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::exterme_value:
             w.Key("a");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("b");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::normal:
             w.Key("mean");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("stddev");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::lognormal:
             w.Key("m");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("s");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::chi_squared:
             w.Key("n");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
 
         case distribution_type::cauchy:
             w.Key("a");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("b");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::fisher_f:
             w.Key("m");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             w.Key("n");
-            w.Double(rnd.reals[1]);
+            w.Double(reals[1]);
             break;
 
         case distribution_type::student_t:
             w.Key("n");
-            w.Double(rnd.reals[0]);
+            w.Double(reals[0]);
             break;
         }
+    }
+
+    template<typename Writer>
+    void write_random_source(
+      const external_source_definition::random_source& rnd,
+      Writer&                                          w) noexcept
+    {
+        return write_random_source(rnd.reals, rnd.ints, rnd.type, w);
     }
 
     template<typename Writer>
@@ -6411,19 +6835,110 @@ struct json_archiver::impl {
                                     const simulation_component& sim,
                                     Writer&                     w) noexcept
     {
-        if (auto* dir = files.dir_paths.try_to_get(sim.dir_id)) {
-            const auto view = dir->path.sv();
-            w.Key("directory");
-            w.String(view.data(),
-                     static_cast<rapidjson::SizeType>(view.size()));
+        if (auto* file = files.file_paths.try_to_get(sim.file_id)) {
+            if (auto* dir = files.dir_paths.try_to_get(file->parent)) {
+                if (auto* r = files.registred_paths.try_to_get(dir->parent)) {
+                    const auto view = r->name.sv();
+                    w.Key("path");
+                    w.String(view.data(),
+                             static_cast<rapidjson::SizeType>(view.size()));
+                }
+
+                {
+                    const auto view = dir->path.sv();
+                    w.Key("directory");
+                    w.String(view.data(),
+                             static_cast<rapidjson::SizeType>(view.size()));
+                }
+
+                {
+                    const auto view = file->path.sv();
+                    w.Key("file");
+                    w.String(view.data(),
+                             static_cast<rapidjson::SizeType>(view.size()));
+                }
+            }
         }
 
-        if (auto* file = files.file_paths.try_to_get(sim.file_id)) {
-            const auto view = file->path.sv();
-            w.Key("file");
-            w.String(view.data(),
-                     static_cast<rapidjson::SizeType>(view.size()));
+        w.Key("factors");
+        w.StartArray();
+        for (const auto id : sim.factors) {
+            const auto* name   = sim.factors.get<name_str>(id).c_str();
+            const auto  tn_id  = sim.factors.get<tree_node_id>(id);
+            const auto  mdl_id = sim.factors.get<model_id>(id);
+            const auto  access = sim.pj.build_unique_id_path(tn_id, mdl_id);
+            const auto  type   = sim.factors.get<factor_type>(id);
+
+            w.StartObject();
+            w.Key("name");
+            w.String(name);
+
+            w.Key("type");
+            w.String(factor_type_names[ordinal(type)].data(),
+                     static_cast<rapidjson::SizeType>(
+                       factor_type_names[ordinal(type)].size()));
+
+            w.Key("access");
+            write_project_unique_id_path(w, access);
+
+            switch (type) {
+            case factor_type::single:
+            case factor_type::single_add:
+            case factor_type::single_mult:
+                w.Key("value");
+                w.Double(sim.factors.get<single_factor>(id).value);
+                break;
+
+            case factor_type::fixed:
+            case factor_type::fixed_add:
+            case factor_type::fixed_mult:
+                w.Key("values");
+                w.StartArray();
+                for (const auto v : sim.factors.get<fixed_factor>(id).values)
+                    w.Double(v);
+                w.EndArray();
+                break;
+
+            case factor_type::random:
+            case factor_type::random_add:
+            case factor_type::random_mult:
+                const auto& rnd = sim.factors.get<random_factor>(id);
+                w.Key("values");
+                w.StartObject();
+                write_random_source(rnd.reals, rnd.ints, rnd.dist, w);
+                w.EndObject();
+                w.Key("count");
+                w.Uint64(rnd.count);
+                break;
+            }
+
+            w.EndObject();
         }
+        w.EndArray();
+
+        w.Key("selections");
+        w.StartArray();
+        for (const auto id : sim.selections) {
+            const auto* name   = sim.selections.get<name_str>(id).c_str();
+            const auto  tn_id  = sim.selections.get<tree_node_id>(id);
+            const auto  mdl_id = sim.selections.get<model_id>(id);
+            const auto  access = sim.pj.build_unique_id_path(tn_id, mdl_id);
+            const auto  crit   = sim.selections.get<criteria_type>(id);
+
+            w.StartObject();
+            w.Key("name");
+            w.String(name);
+
+            w.Key("access");
+            write_project_unique_id_path(w, access);
+
+            w.Key("criteria");
+            w.String(criteria_type_names[ordinal(crit)].data(),
+                     static_cast<rapidjson::SizeType>(
+                       criteria_type_names[ordinal(crit)].size()));
+            w.EndObject();
+        }
+        w.EndArray();
     }
 
     template<typename Writer>
@@ -6701,25 +7216,26 @@ struct json_archiver::impl {
         w.Key("global");
         w.StartArray();
 
-        pj.parameters.for_each([&](const auto /*id*/,
-                                   const auto& name,
-                                   const auto  tn_id,
-                                   const auto  mdl_id,
-                                   const auto& p) noexcept {
+        auto& names   = pj.parameters.get<name_str>();
+        auto& tn_ids  = pj.parameters.get<tree_node_id>();
+        auto& mdl_ids = pj.parameters.get<model_id>();
+        auto& params  = pj.parameters.get<parameter>();
+
+        for (const auto id : pj.parameters) {
             w.StartObject();
             w.Key("name");
-            w.String(name.begin(), name.size());
+            w.String(names[id].begin(), names[id].size());
 
             unique_id_path path;
             w.Key("access");
-            pj.build_unique_id_path(tn_id, mdl_id, path);
+            pj.build_unique_id_path(tn_ids[id], mdl_ids[id], path);
             write_project_unique_id_path(w, path);
 
             w.Key("parameter");
-            write_parameter(w, p);
+            write_parameter(w, params[id]);
 
             w.EndObject();
-        });
+        }
 
         w.EndArray();
     }

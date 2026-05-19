@@ -285,7 +285,7 @@ struct simulation_copy {
         hsm_mod_to_sim.data.clear();
 
         for (const auto& modhsm : ids.hsm_components) {
-            if (not pj.sim.hsms.can_alloc())
+            if (not pj.sim.hsms.can_alloc() and not pj.sim.hsms.grow<3, 2>(1))
                 return make_error(project_errc::memory_error);
 
             auto& sim_hsm     = pj.sim.hsms.alloc(modhsm.machine);
@@ -298,6 +298,28 @@ struct simulation_copy {
         }
 
         hsm_mod_to_sim.sort();
+
+        return success();
+    }
+
+    status make_sim_mod_to_sim(const component_access& ids) noexcept
+    {
+        sim_mod_to_sim.data.clear();
+
+        for (const auto& modsim : ids.sim_components) {
+            if (not pj.sim.sims.can_alloc() and not pj.sim.sims.grow<3, 2>(1))
+                return make_error(project_errc::memory_error);
+
+            auto& sim_sim = pj.sim.sims.alloc();
+            modsim.copy_to(sim_sim);
+
+            const auto sim_id  = ids.sim_components.get_id(modsim);
+            const auto ssim_id = pj.sim.sims.get_id(sim_sim);
+
+            sim_mod_to_sim.data.emplace_back(sim_id, ssim_id);
+        }
+
+        sim_mod_to_sim.sort();
 
         return success();
     }
@@ -360,6 +382,7 @@ public:
 
     data_array<tree_node, tree_node_id>&         tree_nodes;
     table<hsm_component_id, hsm_id>              hsm_mod_to_sim;
+    table<simulation_component_id, simulation_id> sim_mod_to_sim;
     table<component_id, vector<mod_to_sim_srcs>> srcs_mod_to_sim;
 
     table<grid_component_id, grid_component_cache>   grid_caches;
@@ -528,6 +551,49 @@ static auto make_tree_hsm_leaf(const simulation_copy&  sc,
     return success();
 }
 
+static auto make_tree_simulation_leaf(const simulation_copy&  sc,
+                                      journal_handler&        jn,
+                                      const component_access& ids,
+                                      const parameter&        mod_parameter,
+                                      parameter&              sim_parameter,
+                                      simulation_wrapper&     dyn) noexcept
+  -> status
+{
+    const auto id_param_0 = mod_parameter.integers[simulation_wrapper_tag::id];
+    const auto compo_id   = enum_cast<component_id>(id_param_0);
+
+    if (not ids.exists(compo_id)) {
+        jn.push(log_level::error, [&](auto& t, auto&) {
+            t = "simulation-wrapper initialization error: undefined component";
+        });
+        return make_error(project_errc::component_unknown);
+    }
+
+    const auto& compo = ids.components[compo_id];
+    if (compo.type != component_type::simulation)
+        return make_error(project_errc::component_unknown);
+
+    const auto sim_id = compo.id.sim_id;
+    if (not ids.sim_components.exists(sim_id))
+        return make_error(project_errc::component_unknown);
+
+    debug::ensure(ids.sim_components.try_to_get(sim_id));
+    const auto* ssim    = sc.sim_mod_to_sim.get(sim_id);
+    const auto  ssim_id = *ssim;
+
+    debug::ensure(sc.pj.sim.sims.try_to_get(ssim_id));
+    const auto ssim_ord = ordinal(ssim_id);
+
+    dyn.x.resize(2 + ids.sim_components.get(sim_id).factors.size());
+    dyn.y.resize(ids.sim_components.get(sim_id).factors.size() +
+                 ids.sim_components.get(sim_id).selections.size());
+
+    sim_parameter.integers[simulation_wrapper_tag::id] = ssim_ord;
+    dyn.sim_id                                         = ssim_id;
+
+    return success();
+}
+
 static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
                                     const component_access& ids,
                                     tree_node&              parent,
@@ -675,6 +741,22 @@ static auto make_tree_leaf(simulation_copy&                sc,
                   return ret.error();
           }
 
+          if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
+              // For simulation-wrapper, we need to update the sim_id in
+              // simulation parameters which is different between modeling and
+              // simulation.
+
+              if (const auto ret =
+                    make_tree_simulation_leaf(sc,
+                                              jn,
+                                              ids,
+                                              gen.children_parameters[ch_id],
+                                              sc.pj.sim.parameters[new_mdl_id],
+                                              dyn);
+                  ret.has_error())
+                  return ret.error();
+          }
+
           if constexpr (std::is_same_v<Dynamics, constant>) {
               // For constant, we need to update the real simulation
               // parameter that are different between modeling and
@@ -711,7 +793,7 @@ static auto make_tree_leaf(simulation_copy&                sc,
         parent.model_id_to_unique_id.data.emplace_back(new_mdl_id,
                                                        name_str(uid));
         if (not sc.pj.parameters.can_alloc(1) and
-            not sc.pj.parameters.grow<2, 1>())
+            not sc.pj.parameters.grow<2, 1>(1))
             return make_error(project_errc::memory_error);
 
         if (not parent.parameters_ids.data.can_alloc(1) and
@@ -2144,6 +2226,7 @@ status project::set(const component_access& ids,
 
     simulation_copy sc(*this, tree_nodes);
     irt_check(sc.make_hsm_mod_to_sim(ids));
+    irt_check(sc.make_sim_mod_to_sim(ids));
     irt_check(sc.make_component_cache(ids));
 
     const auto& compo = ids.components[compo_id];
@@ -2309,7 +2392,7 @@ auto project::get_model(const tree_node&        tn,
 
 void project::build_unique_id_path(const tree_node_id tn_id,
                                    const model_id     mdl_id,
-                                   unique_id_path&    out) noexcept
+                                   unique_id_path&    out) const noexcept
 {
     out.clear();
 
@@ -2318,8 +2401,21 @@ void project::build_unique_id_path(const tree_node_id tn_id,
             build_unique_id_path(*tn, uid, out);
 }
 
+auto project::build_unique_id_path(const tree_node_id tn_id,
+                                   const model_id     mdl_id) const noexcept
+  -> unique_id_path
+{
+    unique_id_path ret;
+
+    if (auto* tn = tree_nodes.try_to_get(tn_id); tn)
+        if (const auto uid = tn->get_unique_id(mdl_id); not uid.empty())
+            build_unique_id_path(*tn, uid, ret);
+
+    return ret;
+}
+
 void project::build_unique_id_path(const tree_node_id tn_id,
-                                   unique_id_path&    out) noexcept
+                                   unique_id_path&    out) const noexcept
 {
     out.clear();
 
@@ -2332,7 +2428,7 @@ void project::build_unique_id_path(const tree_node_id tn_id,
 
 void project::build_unique_id_path(const tree_node& model_unique_id_parent,
                                    const std::string_view model_unique_id,
-                                   unique_id_path&        out) noexcept
+                                   unique_id_path&        out) const noexcept
 {
     out.clear();
 

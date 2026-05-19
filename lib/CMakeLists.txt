@@ -41,6 +41,7 @@ set(private_irritator_sources
     src/modeling-graph.cpp
     src/modeling-grid.cpp
     src/modeling-internal.cpp
+    src/modeling-simulation.cpp
     src/parameter.cpp
     src/project.cpp
     src/simulation.cpp

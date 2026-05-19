@@ -263,7 +263,23 @@ auto show_data_file_input(const file_access& fs,
  * selection.
  * @return True if the user change the distribution type or the parameters.
  */
+bool show_random_distribution_input(distribution_type& type,
+                                    std::span<real, 2> reals,
+                                    std::span<i32, 2>  ints) noexcept;
+
+/** Display combobox and input real, input integer for each type of random
+ * distribution. The @c random_source @c src is updated according to user
+ * selection.
+ * @return True if the user change the distribution type or the parameters.
+ */
 bool show_random_distribution_input(random_source& src) noexcept;
+
+/** Display combobox and input real, input integer for each type of random
+ * distribution. The @c random_source @c src is updated according to user
+ * selection.
+ * @return True if the user change the distribution type or the parameters.
+ */
+bool show_random_distribution_input(random_factor& src) noexcept;
 
 /** Display combobox and input real, input integer for each type of random
  * distribution. The @c random_source @c src is updated according to user
@@ -810,28 +826,33 @@ private:
 class simulation_component_editor_data
 {
 public:
-    simulation_component_editor_data(
-      const component_id            id,
-      const simulation_component_id sid,
-      const simulation_component& /*sim*/) noexcept;
+    simulation_component_editor_data(const component_id            id,
+                                     const simulation_component_id sid,
+                                     const simulation_component& sim) noexcept;
 
     bool show_selected_nodes(component_editor&,
                              const component_access&,
                              component&) noexcept;
+
     bool show(component_editor&, const component_access&, component&) noexcept;
 
-    component_id            m_id     = undefined<component_id>();
-    simulation_component_id m_sim_id = undefined<simulation_component_id>();
-    registred_path_id       m_reg    = undefined<registred_path_id>();
-    dir_path_id             m_dir    = undefined<dir_path_id>();
-    file_path_id            m_file   = undefined<file_path_id>();
+    component_id m_id = undefined<component_id>();
 
 private:
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
+    bool display_parameter_table(project& pj) noexcept;
+    bool display_observation_table(project& pj) noexcept;
+
     simulation_component m_sim;
-    u64                  m_version = std::numeric_limits<u64>::max();
+
+    u64 m_version = std::numeric_limits<u64>::max();
+
+    /** Mailbox to share new project loaded from project file (.pirt) from use
+     * selection.
+     */
+    request_buffer<project> m_task_project;
 };
 
 class hsm_component_editor_data
@@ -1617,9 +1638,9 @@ private:
      */
     atomic_request_buffer<recorded_path_id> new_reg_dir_id;
 
-    recorded_path_id  new_dir_id     = undefined<recorded_path_id>();
-    bool              choose_new_dir = false;
-    bool              need_restart   = false;
+    recorded_path_id new_dir_id     = undefined<recorded_path_id>();
+    bool             choose_new_dir = false;
+    bool             need_restart   = false;
 };
 
 struct task_window {

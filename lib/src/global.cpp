@@ -278,7 +278,7 @@ static bool do_read_elem(variables&             vars,
 {
     return vars.rec_paths.write([&](recorded_paths& rec_paths) noexcept {
         if (current_section.test(section_paths)) {
-            if (not(rec_paths.recs.can_alloc(1) or rec_paths.recs.grow<3, 2>()))
+            if (not(rec_paths.recs.can_alloc(1) or rec_paths.recs.grow<3, 2>(1)))
                 return false;
 
             const auto id  = rec_paths.recs.alloc_id();

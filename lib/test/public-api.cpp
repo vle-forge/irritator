@@ -1671,4 +1671,103 @@ int main()
 
         expect(eq(sum_1, sum_2));
     };
+
+    "id_data_array"_test = [] {
+        enum class my_id : irt::u32;
+
+        using my_data =
+          irt::id_data_array<void,
+                             my_id,
+                             irt::allocator<irt::new_delete_memory_resource>,
+                             int,
+                             double>;
+
+        my_data m1;
+        expect(fatal(m1.grow<2, 1>(5)));
+        const auto id1 = m1.alloc_id();
+        const auto id2 = m1.alloc_id();
+        const auto id3 = m1.alloc_id();
+        const auto id4 = m1.alloc_id();
+        expect(fatal(eq(static_cast<unsigned>(m1.size()), 4_u)));
+        m1.get<int>(id1)    = 1;
+        m1.get<int>(id2)    = 2;
+        m1.get<int>(id3)    = 3;
+        m1.get<int>(id4)    = 4;
+        m1.get<double>(id1) = 1.0;
+        m1.get<double>(id2) = 2.0;
+        m1.get<double>(id3) = 3.0;
+        m1.get<double>(id4) = 4.0;
+
+        my_data m2(m1);
+        expect(fatal(eq(static_cast<unsigned>(m1.size()), 4_u)));
+        m1.get<int>(id1)    = 1;
+        m1.get<int>(id2)    = 2;
+        m1.get<int>(id3)    = 3;
+        m1.get<int>(id4)    = 4;
+        m1.get<double>(id1) = 1.0;
+        m1.get<double>(id2) = 2.0;
+        m1.get<double>(id3) = 3.0;
+        m1.get<double>(id4) = 4.0;
+        m2.get<int>(id1)    = 1;
+        m2.get<int>(id2)    = 2;
+        m2.get<int>(id3)    = 3;
+        m2.get<int>(id4)    = 4;
+        m2.get<double>(id1) = 1.0;
+        m2.get<double>(id2) = 2.0;
+        m2.get<double>(id3) = 3.0;
+        m2.get<double>(id4) = 4.0;
+
+        my_data m3(std::move(m2));
+        expect(fatal(eq(static_cast<unsigned>(m1.size()), 4_u)));
+        expect(fatal(eq(static_cast<unsigned>(m2.size()), 0_u)));
+        expect(fatal(eq(static_cast<unsigned>(m3.size()), 4_u)));
+        m1.get<int>(id1)    = 1;
+        m1.get<int>(id2)    = 2;
+        m1.get<int>(id3)    = 3;
+        m1.get<int>(id4)    = 4;
+        m1.get<double>(id1) = 1.0;
+        m1.get<double>(id2) = 2.0;
+        m1.get<double>(id3) = 3.0;
+        m1.get<double>(id4) = 4.0;
+        m3.get<int>(id1)    = 1;
+        m3.get<int>(id2)    = 2;
+        m3.get<int>(id3)    = 3;
+        m3.get<int>(id4)    = 4;
+        m3.get<double>(id1) = 1.0;
+        m3.get<double>(id2) = 2.0;
+        m3.get<double>(id3) = 3.0;
+        m3.get<double>(id4) = 4.0;
+    };
+
+    "project-copy-move"_test = [] {
+        irt::project pj;
+        expect(fatal(pj.parameters.grow<2, 1>(2)));
+        const auto pj_id_1 = pj.parameters.alloc_id();
+        const auto pj_id_2 = pj.parameters.alloc_id();
+
+        irt::project copy_pj(pj);
+        expect(eq(copy_pj.parameters.size(), pj.parameters.size()));
+        expect(copy_pj.parameters.exists(pj_id_1));
+        expect(copy_pj.parameters.exists(pj_id_2));
+
+        irt::project move_copy_pj(std::move(copy_pj));
+        expect(copy_pj.parameters.empty());
+        expect(eq(move_copy_pj.parameters.size(), pj.parameters.size()));
+        expect(move_copy_pj.parameters.exists(pj_id_1));
+        expect(move_copy_pj.parameters.exists(pj_id_2));
+
+        irt::project op_copy_pj;
+
+        op_copy_pj = pj;
+        expect(eq(op_copy_pj.parameters.size(), pj.parameters.size()));
+        expect(op_copy_pj.parameters.exists(pj_id_1));
+        expect(op_copy_pj.parameters.exists(pj_id_2));
+
+        irt::project op_move_copy_pj;
+        op_move_copy_pj = std::move(op_copy_pj);
+        expect(op_copy_pj.parameters.empty());
+        expect(eq(op_move_copy_pj.parameters.size(), pj.parameters.size()));
+        expect(op_move_copy_pj.parameters.exists(pj_id_1));
+        expect(op_move_copy_pj.parameters.exists(pj_id_2));
+    };
 }

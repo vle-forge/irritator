@@ -694,7 +694,7 @@ static void build_links(const simulation&                          sim,
                                         generic_simulation_editor::link{
                                           .out = make_output_node_id(src_id, i),
                                           .in  = make_input_node_id(dst_id,
-                                                                   dst_port),
+                                                                    dst_port),
                                           .mdl_out = src_idx,
                                           .mdl_in  = get_index_from_nodes(
                                             nodes, dst_id) });
@@ -975,10 +975,10 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
     const auto line      = column;
     const auto remaining = size - (column * line);
 
-    const float W = static_cast<float>(column) * automatic_layout_x_distance;
-    const float L = static_cast<float>(line) +
-                    ((remaining > 0) ? automatic_layout_y_distance : 0.f);
-    const float area     = W * L;
+    const float W    = static_cast<float>(column) * automatic_layout_x_distance;
+    const float L    = static_cast<float>(line) +
+                       ((remaining > 0) ? automatic_layout_y_distance : 0.f);
+    const float area = W * L;
     const float k_square = area / static_cast<float>(size);
     const float k        = std::sqrt(k_square);
 
@@ -1023,8 +1023,8 @@ void generic_simulation_editor::compute_automatic_layout() noexcept
         const auto idx = get_index(nodes[i_v].mdl);
         const auto v   = static_cast<int>(idx);
         const auto d2  = displacements[i_v].x * displacements[i_v].x +
-                        displacements[i_v].y * displacements[i_v].y;
-        const auto d = std::sqrt(d2);
+                         displacements[i_v].y * displacements[i_v].y;
+        const auto d   = std::sqrt(d2);
 
         if (d > t) {
             const float coeff = t / d;
@@ -1200,6 +1200,29 @@ int generic_simulation_editor::show_menu(application&    app,
     return r;
 }
 
+static void show_simulation_wrapper_input_attribute(
+  application& /*app*/,
+  const simulation_wrapper& dyn,
+  const model_id            id) noexcept
+{
+    ImNodes::BeginInputAttribute(make_input_node_id(id, 0),
+                                 ImNodesPinShape_TriangleFilled);
+    ImGui::TextUnformatted("init");
+    ImNodes::EndInputAttribute();
+
+    ImNodes::BeginInputAttribute(make_input_node_id(id, 1),
+                                 ImNodesPinShape_TriangleFilled);
+    ImGui::TextUnformatted("run");
+    ImNodes::EndInputAttribute();
+
+    for (auto i = 2, e = length(dyn.x); i < e; ++i) {
+        ImNodes::BeginInputAttribute(make_input_node_id(id, i),
+                                     ImNodesPinShape_TriangleFilled);
+        ImGui::TextFormat("{}", i);
+        ImNodes::EndInputAttribute();
+    }
+}
+
 template<typename Dynamics>
 void show_input_attribute(const Dynamics& dyn, const model_id id) noexcept
 {
@@ -1216,6 +1239,22 @@ void show_input_attribute(const Dynamics& dyn, const model_id id) noexcept
                                    names[i].data() + names[i].size());
             ImNodes::EndInputAttribute();
         }
+    }
+}
+
+static void show_simulation_wrapper_output_attribute(
+  application& /*app*/,
+  const simulation_wrapper& dyn,
+  const model_id            id) noexcept
+{
+    auto i = 0;
+
+    for ([[maybe_unused]] const auto& p : dyn.y) {
+        ImNodes::BeginOutputAttribute(make_output_node_id(id, i),
+                                      ImNodesPinShape_TriangleFilled);
+        ImGui::TextFormat("{}", i);
+        ImNodes::EndOutputAttribute();
+        ++i;
     }
 }
 
@@ -1269,7 +1308,12 @@ void generic_simulation_editor::show_nodes(application&    app,
             const auto mdl_id = nodes[i].mdl;
 
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-                show_input_attribute(dyn, mdl_id);
+                if constexpr (std::is_same_v<std::decay_t<Dynamics>,
+                                             simulation_wrapper>) {
+                    show_simulation_wrapper_input_attribute(app, dyn, mdl_id);
+                } else {
+                    show_input_attribute(dyn, mdl_id);
+                }
 
                 if (show_internal_values) {
                     ImGui::PushID(0);
@@ -1291,7 +1335,11 @@ void generic_simulation_editor::show_nodes(application&    app,
                     ImGui::PopID();
                 }
 
-                show_output_attribute(dyn, mdl_id);
+                if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
+                    show_simulation_wrapper_output_attribute(app, dyn, mdl_id);
+                } else {
+                    show_output_attribute(dyn, mdl_id);
+                }
             });
             ImNodes::EndNode();
         }

@@ -53,6 +53,38 @@ constexpr void debug_logi([[maybe_unused]] int      indent,
 {}
 #endif
 
+/// Debug log with indent support. Use the underlying @c fmt::print function.
+///
+///     debug_logi(4, "to-do {}\n", 1); /* -> "    to-do 1\n */
+#ifdef IRRITATOR_ENABLE_DEBUG
+template<typename S, typename... Args>
+constexpr void dlog(int indent, const S& s, Args&&... args) noexcept
+{
+    fmt::print(stderr, "{:{}}", "", indent);
+    fmt::vprint(stderr, s, fmt::make_format_args(args...));
+}
+
+template<typename S, typename... Args>
+constexpr void dlogln(int indent, const S& s, Args&&... args) noexcept
+{
+    fmt::print(stderr, "{:{}}", "", indent);
+    fmt::vprintln(stderr, s, fmt::make_format_args(args...));
+}
+
+#else
+template<typename S, typename... Args>
+constexpr void dlog([[maybe_unused]] int      indent,
+                    [[maybe_unused]] const S& s,
+                    [[maybe_unused]] Args&&... args) noexcept
+{}
+
+template<typename S, typename... Args>
+constexpr void dlogln([[maybe_unused]] int      indent,
+                      [[maybe_unused]] const S& s,
+                      [[maybe_unused]] Args&&... args) noexcept
+{}
+#endif
+
 //! Helper function to assign fmtlib format string to an irt::small_string
 //! object. This function ensure to put a null string characters (i.e. '\0') in
 //! the last buffer space after the string. The string can be truncate if the

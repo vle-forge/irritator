@@ -20,10 +20,12 @@ external_source_definition::alloc_constant_source(
 {
     debug::ensure(data.can_alloc(1));
 
-    const auto id          = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type = source_type::constant;
+    const auto id = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type =
+      source_type::constant;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).cst = constant_source{};
+    data.get<external_source_definition::source_element>(id).cst =
+      constant_source{};
 
     return data.get<external_source_definition::source_element>(id).cst;
 }
@@ -33,10 +35,12 @@ external_source_definition::alloc_binary_source(std::string_view name) noexcept
 {
     debug::ensure(data.can_alloc(1));
 
-    const auto id          = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type = source_type::binary_file;
+    const auto id = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type =
+      source_type::binary_file;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).bin = binary_source{};
+    data.get<external_source_definition::source_element>(id).bin =
+      binary_source{};
 
     return data.get<external_source_definition::source_element>(id).bin;
 }
@@ -46,10 +50,12 @@ external_source_definition::alloc_text_source(std::string_view name) noexcept
 {
     debug::ensure(data.can_alloc(1));
 
-    const auto id          = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type = source_type::text_file;
+    const auto id = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type =
+      source_type::text_file;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).txt = text_source{};
+    data.get<external_source_definition::source_element>(id).txt =
+      text_source{};
 
     return data.get<external_source_definition::source_element>(id).txt;
 }
@@ -59,10 +65,12 @@ external_source_definition::alloc_random_source(std::string_view name) noexcept
 {
     debug::ensure(data.can_alloc(1));
 
-    const auto id          = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type = source_type::random;
+    const auto id = data.alloc_id();
+    data.get<external_source_definition::source_element>(id).type =
+      source_type::random;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).rnd = random_source{};
+    data.get<external_source_definition::source_element>(id).rnd =
+      random_source{};
 
     return data.get<external_source_definition::source_element>(id).rnd;
 }
@@ -221,7 +229,10 @@ bool binary_file_source::read(source& src, const int length) noexcept
     return ifs.read(reinterpret_cast<char*>(src.buffer.data()), length).good();
 }
 
-int binary_file_source::tellg() noexcept { return static_cast<int>(ifs.tellg()); }
+int binary_file_source::tellg() noexcept
+{
+    return static_cast<int>(ifs.tellg());
+}
 
 static status binary_file_source_fill_buffer(binary_file_source& ext,
                                              source&             src,
@@ -658,6 +669,130 @@ void external_source::destroy() noexcept
     binary_file_sources.destroy();
     text_file_sources.destroy();
     random_sources.destroy();
+}
+
+static std::span<real> random_fill(const random_factor& f,
+                                   std::span<u64, 6>    key,
+                                   std::span<real>      values) noexcept
+{
+    philox_64_view rng{ key };
+
+    switch (f.dist) {
+    case distribution_type::uniform_int:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] =
+              std::uniform_int_distribution(f.ints[0], f.ints[1])(rng);
+
+        break;
+    case distribution_type::uniform_real:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] =
+              std::uniform_real_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::bernouilli:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+
+            values[i] = std::bernoulli_distribution(f.reals[0])(rng);
+
+        break;
+    case distribution_type::binomial:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::binomial_distribution(f.ints[0], f.reals[0])(rng);
+
+        break;
+    case distribution_type::negative_binomial:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] =
+              std::negative_binomial_distribution(f.ints[0], f.reals[0])(rng);
+
+        break;
+    case distribution_type::geometric:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::geometric_distribution(f.reals[0])(rng);
+
+        break;
+    case distribution_type::poisson:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::poisson_distribution(f.reals[0])(rng);
+
+        break;
+    case distribution_type::exponential:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::exponential_distribution(f.reals[0])(rng);
+
+        break;
+    case distribution_type::gamma:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::gamma_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::weibull:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::weibull_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::exterme_value:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] =
+              std::extreme_value_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::normal:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::normal_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::lognormal:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] =
+              std::lognormal_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::chi_squared:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::chi_squared_distribution(f.reals[0])(rng);
+
+        break;
+    case distribution_type::cauchy:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::cauchy_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::fisher_f:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::fisher_f_distribution(f.reals[0], f.reals[1])(rng);
+
+        break;
+    case distribution_type::student_t:
+        for (sz i = 0, e = values.size(); i != e; ++i)
+            values[i] = std::student_t_distribution(f.reals[0])(rng);
+        break;
+
+    default:
+        unreachable();
+    }
+
+    return values;
+}
+
+vector<real> random_factor::gen(std::span<u64, 6> key) const noexcept
+{
+    debug::ensure(count > 0u);
+
+    vector<real> ret(count == 0 ? 1 : count);
+
+    (void)random_fill(*this, key, std::span<real>(ret.begin(), ret.end()));
+
+    return ret;
+}
+
+std::span<real> random_factor::gen(std::span<u64, 6> key,
+                                   std::span<real>   values) const noexcept
+{
+    debug::ensure(not values.empty());
+
+    return random_fill(*this, key, values);
 }
 
 } // namespace irt

@@ -715,11 +715,11 @@ constexpr static inline const char* simulation_wrapper_tag_run_type_names[] = {
 
 template<typename ExternalSourceType>
 static bool show_parameter(simulation_wrapper_tag,
-                           application& /*app*/,
+                           application& app,
                            ExternalSourceType& /*srcs*/,
                            parameter& p) noexcept
 {
-    int changed = false;
+    auto changed = 0;
 
     auto i = static_cast<int>(p.integers[simulation_wrapper_tag::run]);
 
@@ -731,8 +731,21 @@ static bool show_parameter(simulation_wrapper_tag,
         ++changed;
     }
 
-    if (ImGui::Button("simulation-id"))
-        debug::breakpoint();
+    const auto param_compo_id =
+      enum_cast<component_id>(p.integers[simulation_wrapper_tag::id]);
+    const auto compo_id =
+      app.mod.ids.read([&](const auto& ids, auto) noexcept -> component_id {
+          return is_defined(param_compo_id) and ids.exists(param_compo_id)
+                   ? param_compo_id
+                   : undefined<component_id>();
+      });
+
+    const auto ret = app.component_sel.combobox(
+      "simulation component", component_type::simulation, compo_id);
+    if (ret.is_done) {
+        p.integers[simulation_wrapper_tag::id] = ordinal(ret.id);
+        ++changed;
+    }
 
     return changed;
 }

@@ -1467,9 +1467,12 @@ public:
     std::optional<size_type> index_of(const T* ptr) const noexcept;
     bool is_iterator_valid(const_iterator it) const noexcept;
 
-    reference       operator[](size_type i) noexcept { return m_data[i]; }
-    const_reference operator[](size_type i) const noexcept { return m_data[i]; }
-    reference       operator[](identifier auto id) noexcept
+    reference operator[](std::integral auto i) noexcept { return m_data[i]; }
+    const_reference operator[](std::integral auto i) const noexcept
+    {
+        return m_data[i];
+    }
+    reference operator[](identifier auto id) noexcept
     {
         return m_data[get_index(id)];
     }
@@ -1536,6 +1539,115 @@ constexpr bool is_valid(Identifier id) noexcept
 {
     return get_key(id) > 0;
 }
+
+/*
+
+   Table<ID, Value>
+
+ */
+
+//! Function object for performing comparisons. The main template
+//! invokes operator< on type T. If T is an enumeration, a cast
+//! to the @c std::underlying_type_t<T> is used before the
+//! comparison.
+template<class T>
+struct table_less {
+    constexpr auto operator()(const T& lhs, const T& rhs) const noexcept -> bool
+    {
+        if constexpr (std::is_enum_v<T>) {
+            using type = std::underlying_type_t<T>;
+
+            return std::less<type>{}(static_cast<type>(lhs),
+                                     static_cast<type>(rhs));
+        } else {
+            return std::less{}(lhs, rhs);
+        }
+    }
+};
+
+//! @brief A helper container to store Identifier -> T relation.
+//! @tparam Identifier Any integer or enum type.
+//! @tparam T Any type (trivial or not).
+template<typename Identifier,
+         typename T,
+         class Compare = irt::table_less<Identifier>,
+         typename A    = allocator<new_delete_memory_resource>>
+class table
+{
+public:
+    struct value_type {
+        value_type() noexcept = default;
+        value_type(Identifier id, const T& value) noexcept;
+
+        template<typename U>
+        value_type(std::is_constructible<Identifier, U> id_,
+                   const T&                             value_) noexcept
+          : id{ id_ }
+          , value{ value_ }
+        {}
+
+        Identifier id;
+        T          value;
+    };
+
+    struct value_type_compare {
+        constexpr auto operator()(const auto& left, const auto& right) noexcept
+          -> bool
+        {
+            if constexpr (std::is_same_v<std::decay_t<decltype(left)>,
+                                         value_type>) {
+                if constexpr (std::is_same_v<std::decay_t<decltype(right)>,
+                                             value_type>)
+                    return identifier_compare{}(left.id, right.id);
+                else
+                    return identifier_compare{}(left.id, right);
+            } else {
+                if constexpr (std::is_same_v<std::decay_t<decltype(right)>,
+                                             value_type>)
+                    return identifier_compare{}(left, right.id);
+                else
+                    return identifier_compare{}(left, right);
+            }
+        }
+    };
+
+    using container_type     = vector<value_type, A>;
+    using size_type          = typename container_type::size_type;
+    using index_type         = std::make_signed_t<size_type>;
+    using iterator           = typename container_type::iterator;
+    using const_iterator     = typename container_type::const_iterator;
+    using reference          = typename container_type::reference;
+    using const_reference    = typename container_type::const_reference;
+    using identifier_compare = Compare;
+
+    container_type data;
+
+    constexpr table() noexcept = default;
+    constexpr table(std::integral auto size, const reserve_tag_t) noexcept;
+    constexpr ~table() noexcept = default;
+
+    constexpr void     set(Identifier id, const T& value) noexcept;
+    constexpr T*       get(Identifier id) noexcept;
+    constexpr const T* get(Identifier id) const noexcept;
+
+    template<typename U>
+    constexpr T* get(U id) noexcept;
+
+    template<typename U>
+    constexpr const T* get(U id) const noexcept;
+
+    constexpr void erase(Identifier id) noexcept;
+    constexpr void sort() noexcept;
+
+    constexpr size_type  size() const noexcept;
+    constexpr index_type ssize() const noexcept;
+};
+
+/*
+
+   ID Array
+
+ */
 
 /**
    An optimized array to store unique identifier.
@@ -1839,6 +1951,7 @@ class id_data_array
                   "Identifier must be a enumeration: enum class id : "
                   "std::uint32_t or std::uint64_t;");
 
+public:
     using underlying_id_type = std::conditional_t<
       std::is_same_v<std::uint32_t, std::underlying_type_t<Identifier>>,
       std::uint32_t,
@@ -1858,10 +1971,10 @@ class id_data_array
                          id_array<Identifier, A>,
                          data_array<T, Identifier, A>>;
 
+private:
     identifier_container_type      m_ids;
     std::tuple<buffer_view<Ts>...> m_col;
 
-private:
     template<typename Function, std::size_t... Is>
     void do_call_fn(Function&&            fn,
                     const identifier_type id,
@@ -2173,7 +2286,7 @@ public:
     void clear() noexcept;
     bool reserve(std::integral auto len) noexcept;
     template<int Num, int Denum = 1>
-    bool grow(size_type count = 1) noexcept;
+    bool grow(std::integral auto count = 1) noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
@@ -2683,6 +2796,8 @@ public:
 
     using size_type  = small_storage_size_t<length>;
     using index_type = std::make_signed_t<size_type>;
+
+    static inline constexpr size_type len = length;
 
 private:
     char      m_buffer[length];
@@ -3906,7 +4021,9 @@ id_data_array<T, Identifier, A, Ts...>::id_data_array(
   id_data_array&& other) noexcept
   : m_ids(std::move(other.m_ids))
   , m_col(std::move(other.m_col))
-{}
+{
+    do_reset_buffer_views(other.m_col, std::index_sequence_for<Ts...>());
+}
 
 template<typename T, typename Identifier, typename A, class... Ts>
 auto id_data_array<T, Identifier, A, Ts...>::operator=(
@@ -4196,14 +4313,14 @@ bool id_data_array<T, Identifier, A, Ts...>::reserve(
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<int Num, int Denum>
-bool id_data_array<T, Identifier, A, Ts...>::grow(size_type count) noexcept
+bool id_data_array<T, Identifier, A, Ts...>::grow(
+  std::integral auto count) noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto required  = m_ids.capacity() + count;
-    const auto ratio_cap = (m_ids.capacity() == 0)
-                             ? size_type{ 8 }
-                             : (m_ids.capacity() * Num / Denum);
+    const auto cap       = static_cast<int>(m_ids.capacity());
+    const auto required  = cap + static_cast<int>(count);
+    const auto ratio_cap = (cap == 0) ? 8 : (cap * Num / Denum);
 
     return reserve(std::max(required, ratio_cap));
 }
@@ -4234,7 +4351,7 @@ template<typename T, typename Identifier, typename A, class... Ts>
 bool id_data_array<T, Identifier, A, Ts...>::can_alloc(
   std::integral auto nb) noexcept
 {
-    return m_ids.can_alloc(nb) or grow<2, 1>();
+    return m_ids.can_alloc(nb) or grow<2, 1>(nb);
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -5630,6 +5747,100 @@ auto small_vector<T, N>::operator<=>(const small_vector& other) const noexcept
 {
     return std::lexicographical_compare_three_way(
       begin(), end(), other.begin(), other.end());
+}
+
+// template<typename Identifier, typename T, class Compare, typename A>
+// class table
+
+template<typename Identifier, typename T, class Compare, typename A>
+table<Identifier, T, Compare, A>::value_type::value_type(
+  Identifier id_,
+  const T&   value_) noexcept
+  : id(id_)
+  , value(value_)
+{}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr table<Identifier, T, Compare, A>::table(
+  std::integral auto  size,
+  const reserve_tag_t tag) noexcept
+  : data{ size, tag }
+{}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::set(const Identifier id,
+                                                     const T& value) noexcept
+{
+    if (auto* value_found = get(id); value_found) {
+        *value_found = value;
+    } else {
+        data.emplace_back(id, value);
+        sort();
+    }
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr T* table<Identifier, T, Compare, A>::get(Identifier id) noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    return it == data.end() ? nullptr : &it->value;
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr const T* table<Identifier, T, Compare, A>::get(
+  Identifier id) const noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+
+    return it == data.end() ? nullptr : &it->value;
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+template<typename U>
+constexpr T* table<Identifier, T, Compare, A>::get(U id) noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+
+    return it == data.end() ? nullptr : &it->value;
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+template<typename U>
+constexpr const T* table<Identifier, T, Compare, A>::get(U id) const noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+
+    return it == data.end() ? nullptr : &it->value;
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::erase(Identifier id) noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+
+    if (it != data.end())
+        data.erase(it);
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::sort() noexcept
+{
+    if (data.size() > 1)
+        std::sort(data.begin(), data.end(), value_type_compare{});
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr table<Identifier, T, Compare, A>::size_type
+table<Identifier, T, Compare, A>::size() const noexcept
+{
+    return data.size();
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr table<Identifier, T, Compare, A>::index_type
+table<Identifier, T, Compare, A>::ssize() const noexcept
+{
+    return static_cast<index_type>(data.size());
 }
 
 // template<size_t length = 8>

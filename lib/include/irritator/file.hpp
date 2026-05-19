@@ -81,8 +81,15 @@ public:
 
     ~file() noexcept;
 
-    file(const file& other) noexcept            = delete;
-    file& operator=(const file& other) noexcept = delete;
+    /** The file can be copied but the file descriptor remains closes.
+     *  @param other Unused parameter. */
+    file(const file& /*other*/) noexcept
+      : file_handle{ nullptr }
+    {}
+
+    /** The file can be copied but the file descriptor remains closes.
+     *  @param other Unused parameter. */
+    file& operator=(const file& /*other*/) noexcept { return *this; }
 
     file(file&& other) noexcept;
     file& operator=(file&& other) noexcept;

@@ -107,11 +107,6 @@ enum class simulation_errc : std::int16_t {
     output_port_error,
     dated_messages_container_full,
 
-    embedded_simulation_source_error,
-    embedded_simulation_initialization_error,
-    embedded_simulation_search_error,
-    embedded_simulation_finalization_error,
-
     abstract_compare_output_value_error,
     abstract_compare_a_b_value_error,
     abstract_filter_threshold_condition_error,
@@ -135,6 +130,19 @@ enum class simulation_errc : std::int16_t {
     time_func_offset_error,
     time_func_timestep_error,
     time_func_function_error,
+
+    simulation_wrapper_not_enough_memory,
+    simulation_wrapper_source_error,
+    simulation_wrapper_too_many_embedded_simulation_error,
+    simulation_wrapper_parameter_error,
+    simulation_wrapper_input_error,
+    simulation_wrapper_output_error,
+
+    simulation_wrapper_embedded_simulation_source_error,
+    simulation_wrapper_embedded_simulation_initialization_error,
+    simulation_wrapper_embedded_simulation_search_error,
+    simulation_wrapper_embedded_simulation_observation_error,
+    simulation_wrapper_embedded_simulation_finalization_error,
 };
 
 enum class external_source_errc : std::int16_t {

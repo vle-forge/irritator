@@ -201,7 +201,7 @@ void settings_window::show() noexcept
     } else if (ImGui::Button("Add new path")) {
         app.add_gui_task([&app, req = &new_reg_dir_id]() {
             app.config.vars.rec_paths.write([&](auto& fs) {
-                if (fs.recs.can_alloc(1) or fs.recs.template grow<3, 2>()) {
+                if (fs.recs.can_alloc(1) or fs.recs.template grow<3, 2>(1)) {
                     if (req->should_request()) {
                         auto id = fs.recs.alloc_id();
                         fs.recs.template get<recorded_paths::long_path_str>(id)

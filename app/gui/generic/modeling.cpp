@@ -204,26 +204,38 @@ static inline std::pair<u32, u32> unpack_out(const int attribute) noexcept
     return std::make_pair(static_cast<u32>(child), static_cast<u32>(port));
 }
 
+static void add_input_attribute(const std::string_view name,
+                                const child_id         id,
+                                const int              idx) noexcept
+{
+    ImNodes::BeginInputAttribute(pack_in(id, idx),
+                                 ImNodesPinShape_TriangleFilled);
+    ImGui::TextFormat("{}", name);
+    ImNodes::EndInputAttribute();
+}
+
 static void add_input_attribute(const std::span<const std::string_view> names,
                                 const child_id id) noexcept
 {
-    for (size_t i = 0, e = names.size(); i != e; ++i) {
-        ImNodes::BeginInputAttribute(pack_in(id, static_cast<int>(i)),
-                                     ImNodesPinShape_TriangleFilled);
-        ImGui::TextFormat("{}", names[i]);
-        ImNodes::EndInputAttribute();
-    }
+    for (auto i = 0, e = length(names); i != e; ++i)
+        add_input_attribute(names[i], id, i);
+}
+
+static void add_output_attribute(const std::string_view name,
+                                 const child_id         id,
+                                 const int              idx) noexcept
+{
+    ImNodes::BeginOutputAttribute(pack_out(id, idx),
+                                  ImNodesPinShape_TriangleFilled);
+    ImGui::TextFormat("{}", name);
+    ImNodes::EndOutputAttribute();
 }
 
 static void add_output_attribute(const std::span<const std::string_view> names,
                                  const child_id id) noexcept
 {
-    for (size_t i = 0, e = names.size(); i != e; ++i) {
-        ImNodes::BeginOutputAttribute(pack_out(id, static_cast<int>(i)),
-                                      ImNodesPinShape_TriangleFilled);
-        ImGui::TextFormat("{}", names[i]);
-        ImNodes::EndOutputAttribute();
-    }
+    for (auto i = 0, e = length(names); i != e; ++i)
+        add_output_attribute(names[i], id, i);
 }
 
 static bool delete_link(generic_component& gen, int link_id) noexcept
@@ -303,7 +315,77 @@ static void remove_component_input_output(ImVector<int>& v) noexcept
     };
 }
 
-static bool show_connection(
+static std::optional<int> get_y_port(const component_access&         ids,
+                                     const generic_component&        gen,
+                                     const generic_component::child& src,
+                                     const child_id                  src_id,
+                                     const connection::port& index_src) noexcept
+{
+    if (src.type == child_type::model) {
+        if (src.id.mdl_type == dynamics_type::simulation_wrapper) {
+            const auto& param     = gen.children_parameters[src_id];
+            const auto  compo_idx = param.integers[simulation_wrapper_tag::id];
+            const auto  compo_id  = enum_cast<component_id>(compo_idx);
+
+            if (not ids.ids.exists(compo_id))
+                return std::nullopt;
+
+            const auto  sim_compo_id = ids.components[compo_id].id.sim_id;
+            const auto* sim_compo = ids.sim_components.try_to_get(sim_compo_id);
+            if (not sim_compo)
+                return std::nullopt;
+
+            if (not(std::cmp_greater_equal(index_src.model, 0) and
+                    std::cmp_less(index_src.model,
+                                  sim_compo->factors.size() + 2)))
+                return std::nullopt;
+
+            return pack_out(src_id, index_src.model);
+        } else {
+            return pack_out(src_id, index_src.model);
+        }
+    } else {
+        return pack_out(src_id, index_src.compo);
+    }
+}
+
+static std::optional<int> get_x_port(const component_access&         ids,
+                                     const generic_component&        gen,
+                                     const generic_component::child& dst,
+                                     const child_id                  dst_id,
+                                     const connection::port& index_dst) noexcept
+{
+    if (dst.type == child_type::model) {
+        if (dst.id.mdl_type == dynamics_type::simulation_wrapper) {
+            const auto& param     = gen.children_parameters[dst_id];
+            const auto  compo_idx = param.integers[simulation_wrapper_tag::id];
+            const auto  compo_id  = enum_cast<component_id>(compo_idx);
+
+            if (not ids.ids.exists(compo_id))
+                return std::nullopt;
+
+            const auto  sim_compo_id = ids.components[compo_id].id.sim_id;
+            const auto* sim_compo = ids.sim_components.try_to_get(sim_compo_id);
+            if (not sim_compo)
+                return std::nullopt;
+
+            if (not(std::cmp_greater_equal(index_dst.model, 0) and
+                    std::cmp_less(index_dst.model,
+                                  sim_compo->factors.size() +
+                                    sim_compo->selections.size())))
+                return std::nullopt;
+
+            return pack_in(dst_id, index_dst.model);
+        } else {
+            return pack_in(dst_id, index_dst.model);
+        }
+    } else {
+        return pack_in(dst_id, index_dst.compo);
+    }
+}
+
+static bool show_input_connection(
+  const component_access&                    ids,
   const component&                           compo,
   const generic_component&                   gen,
   const generic_component::input_connection& con) noexcept
@@ -314,19 +396,21 @@ static bool show_connection(
 
     if (compo.x.exists(con.x)) {
         if (auto* c = gen.children.try_to_get(con.dst)) {
-            const auto id_src = pack_X(con.x);
-            const auto id_dst = c->type == child_type::model
-                                  ? pack_in(con.dst, con.port.model)
-                                  : pack_in(con.dst, con.port.compo);
-            ImNodes::Link(con_id, id_src, id_dst);
-            return false;
+            const auto dst = get_x_port(ids, gen, *c, con.dst, con.port);
+
+            if (dst.has_value()) {
+                const auto id_src = pack_X(con.x);
+                ImNodes::Link(con_id, id_src, *dst);
+                return false;
+            }
         }
     }
 
     return true;
 }
 
-static bool show_connection(
+static bool show_output_connection(
+  const component_access&                     ids,
   const component&                            compo,
   const generic_component&                    gen,
   const generic_component::output_connection& con) noexcept
@@ -337,38 +421,36 @@ static bool show_connection(
 
     if (compo.y.exists(con.y)) {
         if (auto* c = gen.children.try_to_get(con.src); c) {
-            const auto id_dst = pack_Y(con.y);
-            const auto id_src = c->type == child_type::model
-                                  ? pack_out(con.src, con.port.model)
-                                  : pack_out(con.src, con.port.compo);
+            const auto src = get_y_port(ids, gen, *c, con.src, con.port);
 
-            ImNodes::Link(con_id, id_src, id_dst);
-            return false;
+            if (src.has_value()) {
+                const auto id_dst = pack_Y(con.y);
+                ImNodes::Link(con_id, *src, id_dst);
+                return false;
+            }
         }
     }
 
     return true;
 }
 
-static bool show_connection(const generic_component& compo,
+static bool show_connection(const component_access&  ids,
+                            const generic_component& compo,
                             const connection&        con) noexcept
 {
     const auto id     = compo.connections.get_id(con);
     const auto idx    = get_index(id);
     const auto con_id = static_cast<int>(idx);
 
-    if (auto* s = compo.children.try_to_get(con.src); s) {
-        if (auto* d = compo.children.try_to_get(con.dst); d) {
-            const auto id_src = s->type == child_type::model
-                                  ? pack_out(con.src, con.index_src.model)
-                                  : pack_out(con.src, con.index_src.compo);
+    if (auto* s = compo.children.try_to_get(con.src)) {
+        if (auto* d = compo.children.try_to_get(con.dst)) {
+            const auto src = get_y_port(ids, compo, *s, con.src, con.index_src);
+            const auto dst = get_x_port(ids, compo, *d, con.dst, con.index_dst);
 
-            const auto id_dst = d->type == child_type::model
-                                  ? pack_in(con.dst, con.index_dst.model)
-                                  : pack_in(con.dst, con.index_dst.compo);
-
-            ImNodes::Link(con_id, id_src, id_dst);
-            return false;
+            if (src.has_value() and dst.has_value()) {
+                ImNodes::Link(con_id, *src, *dst);
+                return false;
+            }
         }
     }
 
@@ -384,6 +466,7 @@ static bool show_node(const component_access&   ids,
 {
     const auto id  = gen.children.get_id(c);
     const auto idx = get_index(id);
+    auto       up  = 0;
 
     auto& app              = container_of(&ed, &application::component_ed);
     u32   node_2_c         = 0u;
@@ -408,31 +491,84 @@ static bool show_node(const component_access&   ids,
                       dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    const auto X   = get_input_port_names(c.id.mdl_type);
-    const auto Y   = get_output_port_names(c.id.mdl_type);
-    auto       ret = 0;
+    if (c.id.mdl_type == dynamics_type::simulation_wrapper) {
+        const auto& child_param = gen.children_parameters[idx];
+        const auto compo_idx = child_param.integers[simulation_wrapper_tag::id];
+        const auto compo_id = enum_cast<component_id>(compo_idx);
 
-    add_input_attribute(X, id);
-    ImGui::PushItemWidth(120.0f);
-    if (c.id.mdl_type == dynamics_type::hsm_wrapper)
-        ret += show_extented_hsm_parameter(app, gen.children_parameters[idx]);
 
-    ret += show_parameter_editor(
-      app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
+        if (ids.ids.exists(compo_id) and
+            ids.components[compo_id].type == component_type::simulation and
+            ids.sim_components.exists(ids.components[compo_id].id.sim_id)) {
+            const auto sim_id = ids.components[compo_id].id.sim_id;
+            const auto& sim             = ids.sim_components.get(sim_id);
+            const auto& factor_names    = sim.factors.get<name_str>();
+            const auto& selection_names = sim.selections.get<name_str>();
 
-    if (c.id.mdl_type == dynamics_type::constant)
-        ret += show_extented_constant_parameter(
-          ids, compo_id, gen.children_parameters[idx]);
+            add_input_attribute("init", id, 0);
+            add_input_attribute("run", id, 1);
 
-    ImGui::PopItemWidth();
-    add_output_attribute(Y, id);
+            for (sz i = 0, e = sim.factors.size(); i != e; ++i) {
+                add_input_attribute(
+                  factor_names[i].sv(), id, static_cast<int>(i) + 2);
+            }
+
+            ImGui::PushItemWidth(120.0f);
+            up += show_parameter_editor(
+              app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
+            ImGui::PopItemWidth();
+
+            sz port_index = 0;
+
+            for (sz i = 0, e = sim.factors.size(); i < e; ++i) {
+                add_output_attribute(
+                  factor_names[i].sv(), id, static_cast<int>(port_index));
+
+                ++port_index;
+            }
+
+            for (sz i = 0, e = sim.selections.size(); i < e; ++i) {
+                add_output_attribute(
+                  selection_names[i].sv(), id, static_cast<int>(port_index));
+
+                ++port_index;
+            }
+        } else {
+            add_input_attribute("init", id, 0);
+            add_input_attribute("run", id, 1);
+
+            ImGui::PushItemWidth(120.0f);
+            up += show_parameter_editor(
+              app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
+            ImGui::PopItemWidth();
+        }
+    } else {
+        const auto X = get_input_port_names(c.id.mdl_type);
+        const auto Y = get_output_port_names(c.id.mdl_type);
+
+        add_input_attribute(X, id);
+        ImGui::PushItemWidth(120.0f);
+        if (c.id.mdl_type == dynamics_type::hsm_wrapper)
+            up +=
+              show_extented_hsm_parameter(app, gen.children_parameters[idx]);
+
+        up += show_parameter_editor(
+          app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
+
+        if (c.id.mdl_type == dynamics_type::constant)
+            up += show_extented_constant_parameter(
+              ids, compo_id, gen.children_parameters[idx]);
+
+        ImGui::PopItemWidth();
+        add_output_attribute(Y, id);
+    }
 
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
 
-    return ret;
+    return up > 0;
 }
 
 static void show_input_an_output_ports(const component& compo,
@@ -680,15 +816,15 @@ static bool show_graph(const component_access& ids,
     }
 
     for (auto& con : s_parent.connections)
-        if (show_connection(s_parent, con))
+        if (show_connection(ids, s_parent, con))
             s_parent.connections.free(con);
 
     for (auto& con : s_parent.input_connections)
-        if (show_connection(parent, s_parent, con))
+        if (show_input_connection(ids, parent, s_parent, con))
             s_parent.input_connections.free(con);
 
     for (auto& con : s_parent.output_connections)
-        if (show_connection(parent, s_parent, con))
+        if (show_output_connection(ids, parent, s_parent, con))
             s_parent.output_connections.free(con);
 
     return u > 0;

@@ -89,7 +89,7 @@ variable_observer::sub_id variable_observer::push_back(
   const plot_type_options t,
   const std::string_view  name) noexcept
 {
-    if (not subs.can_alloc(1) or subs.grow<3, 2>(1))
+    if (not(subs.can_alloc(1) or subs.grow<3, 2>(1)))
         return undefined<variable_observer::sub_id>();
 
     if (const auto id = find(tn, mdl); is_defined(id))

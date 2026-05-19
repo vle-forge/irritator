@@ -136,7 +136,6 @@ enum class component_status : u8 {
 
 enum class modeling_status : u8 { modified, unmodified };
 
-class project;
 struct connection;
 class generic_component;
 class grid_component;
@@ -150,6 +149,7 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
+class project;
 
 enum class child_flags : u8 {
     configurable,
@@ -212,17 +212,6 @@ struct connection {
                left.index_src == right.index_src and
                left.index_dst == right.index_dst;
     }
-};
-
-/// A wrapper to a simulation project. Stores a references to the project file
-/// (.pirt) file and directory identifiers
-class simulation_component
-{
-public:
-    simulation_component() noexcept = default;
-
-    dir_path_id  dir_id  = undefined<dir_path_id>();
-    file_path_id file_id = undefined<file_path_id>();
 };
 
 /**
@@ -1113,6 +1102,58 @@ struct component_file_path {
     file_path_id file = undefined<file_path_id>();
 };
 
+/** Observers used to write observation into disk.  */
+class file_observers
+{
+public:
+    file_observers() noexcept = default;
+
+    /** Clears the id_array and all buffers. After this function @c
+     * ids.size() equals zero, the buffered files are are reseted. */
+    void clear() noexcept;
+
+    /** For each variable_observers, grid_observers and graph_observers from
+     * @c project try to initialize the @c buffered_file in @c files. */
+    void initialize(const simulation& sim,
+                    project&          pj,
+                    std::string_view  output_dir) noexcept;
+
+    /** Check if the @c tn is lower than @c t. */
+    bool can_update(const time t) const noexcept;
+
+    /** For each @c file_observer_id, flush data into the open files */
+    void update(const simulation& sim, const project& pj) noexcept;
+
+    /** For each @c buffered_file in @c files, close the opening file. */
+    void finalize() noexcept;
+
+    template<typename T>
+        requires(std::is_same_v<T, grid_observer_id> or
+                 std::is_same_v<T, graph_observer_id> or
+                 std::is_same_v<T, variable_observer_id>)
+    bool alloc(const T id, bool enable = true) noexcept;
+
+    union id_type {
+        variable_observer_id var;
+        grid_observer_id     grid;
+        graph_observer_id    graph;
+    };
+
+    enum class type : u8 { variables, grid, graph };
+
+    id_data_array<file,
+                  file_observer_id,
+                  allocator<new_delete_memory_resource>,
+                  id_type,
+                  type,
+                  bool>
+      files;
+
+    static_bounded_floating_point<float, 1, 10000, 1, 1> time_step = 1.f;
+
+    time tn = 0;
+};
+
 struct tree_node {
     tree_node(component_id id_, const std::string_view unique_id_) noexcept;
 
@@ -1245,6 +1286,221 @@ struct tree_node {
         return it == unique_id_to_tree_node_id.data.end() ? std::string_view{}
                                                           : it->id.sv();
     }
+};
+
+struct project_reserve_definition {
+    constrained_value<int, 256, INT_MAX> nodes;
+    constrained_value<int, 256, INT_MAX> grids;
+    constrained_value<int, 256, INT_MAX> graphs;
+    constrained_value<int, 256, INT_MAX> vars;
+};
+
+class project
+{
+public:
+    project() noexcept = default;
+
+    static expected<project> load(const file_access&      fs,
+                                  const component_access& cs,
+                                  const std::span<char>   buffer,
+                                  journal_handler&        jn) noexcept;
+
+    static expected<project> load(const file_access&      fs,
+                                  const component_access& cs,
+                                  const file_path_id      file_id,
+                                  journal_handler&        jn) noexcept;
+
+    status load(const file_access&      fs,
+                const component_access& ids,
+                journal_handler&        jn) noexcept;
+
+    status save(const file_access&      fs,
+                const component_access& ids,
+                journal_handler&        jn) noexcept;
+
+    struct required_data {
+        unsigned tree_node_nb{ 1u };
+        unsigned model_nb{ 0u };
+        unsigned hsm_nb{ 0u };
+
+        constexpr friend required_data operator+(
+          const required_data lhs,
+          const required_data rhs) noexcept
+        {
+            return { lhs.tree_node_nb + rhs.tree_node_nb,
+                     lhs.model_nb + rhs.model_nb,
+                     lhs.hsm_nb + rhs.hsm_nb };
+        }
+
+        constexpr required_data& operator+=(const required_data other) noexcept
+        {
+            tree_node_nb += other.tree_node_nb;
+            model_nb += other.model_nb;
+            hsm_nb += other.hsm_nb;
+            return *this;
+        }
+
+        /** Apply boundaries for all values. */
+        constexpr void fix() noexcept
+        {
+            tree_node_nb = std::clamp(tree_node_nb, 1u, UINT32_MAX >> 16);
+            model_nb     = std::clamp(model_nb, 16u, UINT32_MAX >> 2);
+            hsm_nb       = std::clamp(hsm_nb, 0u, UINT32_MAX >> 2);
+        }
+    };
+
+    name_str   name;
+    simulation sim;
+
+    /** Compute the number of @c tree_node required to load the component @c
+     * into the @c project and the number of @c irt::model and @c
+     * irt::hierarchical_state_machine to fill the @C irt::simulation
+     * structures. */
+    required_data compute_memory_required(const component_access& ids,
+                                          const component_id c) const noexcept;
+
+    /// Assign a new @c component head. The previously allocated tree_node
+    /// hierarchy is removed and a newly one is allocated.
+    status set(const component_access& ids,
+               const file_access&      fs,
+               const component_id      compo_id,
+               journal_handler&        jn) noexcept;
+
+    /// Build the complete @c tree_node hierarchy from the @c component
+    /// head.
+    status rebuild(const component_access& ids,
+                   const file_access&      fs,
+                   journal_handler&        jn) noexcept;
+
+    /// Remove @c tree_node hierarchy and clear the @c component head.
+    void clear() noexcept;
+
+    auto head() const noexcept -> component_id;
+    auto tn_head() const noexcept -> tree_node*;
+
+    auto node(tree_node_id id) const noexcept -> tree_node*;
+    auto node(tree_node& node) const noexcept -> tree_node_id;
+    auto node(const tree_node& node) const noexcept -> tree_node_id;
+
+    template<typename Function, typename... Args>
+    void for_each_children(tree_node& tn,
+                           Function&& f,
+                           Args&&... args) noexcept;
+
+    /// Return the size and the capacity of the tree_nodes data_array.
+    auto tree_nodes_size() const noexcept -> std::pair<int, int>;
+
+    /// Build a @c from is excluced from the relative_id_path
+    auto build_relative_path(const tree_node& from,
+                             const tree_node& to,
+                             const model_id   mdl_id) noexcept
+      -> relative_id_path;
+
+    auto get_model(const relative_id_path& path) noexcept
+      -> std::pair<tree_node_id, model_id>;
+
+    auto get_model(const tree_node& tn, const relative_id_path& path) noexcept
+      -> std::pair<tree_node_id, model_id>;
+
+    void build_unique_id_path(const tree_node_id tn_id,
+                              const model_id     mdl_id,
+                              unique_id_path&    out) const noexcept;
+
+    auto build_unique_id_path(const tree_node_id tn_id,
+                              const model_id     mdl_id) const noexcept
+      -> unique_id_path;
+
+    void build_unique_id_path(const tree_node_id tn_id,
+                              unique_id_path&    out) const noexcept;
+
+    void build_unique_id_path(const tree_node&       model_unique_id_parent,
+                              const std::string_view model_unique_id,
+                              unique_id_path&        out) const noexcept;
+
+    /** Search a model with name attribute equals to @c id from the root
+     * tree-node (the top of the hierarchy). */
+    auto get_model_path(const std::string_view id) const noexcept
+      -> std::optional<std::pair<tree_node_id, model_id>>;
+
+    /** Search a model from the @c path. The first element is the root node
+     * (top of the hierarchy), next element are tree nodes and finally, at
+     * the last position in the @c unique_id_path, the name of the model. */
+    auto get_model_path(const unique_id_path& path) const noexcept
+      -> std::optional<std::pair<tree_node_id, model_id>>;
+
+    auto get_tn_id(const unique_id_path& path) const noexcept -> tree_node_id;
+
+    data_array<tree_node, tree_node_id> tree_nodes;
+
+    data_array<variable_observer, variable_observer_id> variable_observers;
+    data_array<grid_observer, grid_observer_id>         grid_observers;
+    data_array<graph_observer, graph_observer_id>       graph_observers;
+
+    file_observers file_obs;
+
+    /// Linear search a @c global_parameter_id where @c tree_node_id and @c
+    /// model_id equals parameters.
+    ///
+    /// @return The @c global_parameter_id identifier if it exsits, @c
+    /// undefined<global_parameter_id>() otherwise.
+    auto get_parameter(const tree_node_id tn_id, const model_id mdl_id) noexcept
+      -> global_parameter_id;
+
+    id_data_array<void,
+                  global_parameter_id,
+                  allocator<new_delete_memory_resource>,
+                  name_str,
+                  tree_node_id, //!< model's parent
+                  model_id,     //!< model to parametrize
+                  parameter     //!< Default parameter
+                  >
+      parameters;
+
+    /// Experimental frames replicas
+    vector<u64> seeds;
+
+    /**
+       @brief Alloc a new variable observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
+     */
+    variable_observer& alloc_variable_observer() noexcept;
+
+    /**
+       @brief Alloc a new grid observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
+     */
+    grid_observer& alloc_grid_observer() noexcept;
+
+    /**
+       @brief Alloc a new graph observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
+     */
+    graph_observer& alloc_graph_observer() noexcept;
+
+    /** Get the observation directory used by all text observation
+     * files. If the @c observation_dir is undefined this function returns
+     * an empty string.
+     *
+     * @param mod The modeling object to get the observation directory.
+     * @return A string_view to the observation directory.
+     */
+    std::optional<std::filesystem::path> get_observation_dir(
+      const irt::modeling& mod) const noexcept;
+
+    registred_path_id observation_dir; /**< The output directory used by all
+                                          text observation file. If undefined,
+                                          the current repertory is used. */
+
+    /// An identifier to the @c file_path. Assign this variable before using
+    /// @c load() or @c save() functions.
+    file_path_id file = file_path_id{ 0 };
+
+private:
+    component_id m_head    = undefined<component_id>();
+    tree_node_id m_tn_head = undefined<tree_node_id>();
 };
 
 class grid_observer
@@ -1417,6 +1673,65 @@ struct modeling_reserve_definition {
     constrained_value<int, 16, INT_MAX>  regs{};
     constrained_value<int, 32, INT_MAX>  dirs{};
     constrained_value<int, 512, INT_MAX> files{};
+};
+
+/** A wrapper to a simulation project. Stores a references to the project file
+ * (.pirt) file and a list of factors (parameters) and selections (observers).
+ *
+ * The simulation-component json file stores an access to the projet file via
+ * but for each factor or selection/observation a unique_path_id is used. This
+ * unique_path_id is unpack into the project in @c project or in
+ * @c simulation_component_editor_data.
+ */
+class simulation_component
+{
+public:
+    simulation_component() noexcept = default;
+
+    /**
+     * @brief  Moves project data into the simulation component and assign the @c factor and @c selection data structure.
+     * @param pj The project to take
+     * @return 
+     */
+    status assign(project&& pj_to_move) noexcept;
+
+    /** Copy factors and selections data into simulation structure. The @c
+     * unique_id_path and the @c tree_node_id are removes from simulations
+     * factors and selections. */
+    status copy_to(simulation& sim) const noexcept;
+
+    using factor_t = id_data_array<void,
+                                   factor_id,
+                                   allocator<new_delete_memory_resource>,
+                                   unique_id_path, //!< used in json
+                                   tree_node_id,   //!< model's parent
+                                   model_id,       //!< model to parametrize
+                                   name_str,
+                                   factor_type,
+                                   single_factor,
+                                   fixed_factor,
+                                   random_factor>;
+
+    using selection_t =
+      id_data_array<void,
+                    selection_id,
+                    allocator<new_delete_memory_resource>,
+                    unique_id_path, //!< used in json
+                    tree_node_id,   //!< model's parent
+                    model_id,       //!< model to parametrize
+                    name_str,
+                    criteria_type //!< Observation selection function
+                    >;
+
+    factor_t    factors;
+    selection_t selections;
+
+    /** pointer to the project file (.pirt) to load the project. */
+    file_path_id file_id = undefined<file_path_id>();
+
+    /** the project loaded before running a simulation or before modeling
+     * activities. */
+    project pj;
 };
 
 struct component_access {
@@ -1653,62 +1968,13 @@ public:
     modeling_status state = modeling_status::unmodified;
 };
 
-class file_observers
-{
-public:
-    /** Clears the id_array and all buffers. After this function @c
-     * ids.size() equals zero, the buffered files are are reseted. */
-    void clear() noexcept;
-
-    /** For each variable_observers, grid_observers and graph_observers from
-     * @c project try to initialize the @c buffered_file in @c files. */
-    void initialize(const simulation& sim,
-                    project&          pj,
-                    std::string_view  output_dir) noexcept;
-
-    /** Check if the @c tn is lower than @c t. */
-    bool can_update(const time t) const noexcept;
-
-    /** For each @c file_observer_id, flush data into the open files */
-    void update(const simulation& sim, const project& pj) noexcept;
-
-    /** For each @c buffered_file in @c files, close the opening file. */
-    void finalize() noexcept;
-
-    template<typename T>
-        requires(std::is_same_v<T, grid_observer_id> or
-                 std::is_same_v<T, graph_observer_id> or
-                 std::is_same_v<T, variable_observer_id>)
-    bool alloc(const T id, bool enable = true) noexcept;
-
-    union id_type {
-        variable_observer_id var;
-        grid_observer_id     grid;
-        graph_observer_id    graph;
-    };
-
-    enum class type : u8 { variables, grid, graph };
-
-    id_data_array<file,
-                  file_observer_id,
-                  allocator<new_delete_memory_resource>,
-                  id_type,
-                  type,
-                  bool>
-      files;
-
-    static_bounded_floating_point<float, 1, 10000, 1, 1> time_step = 1.f;
-
-    time tn = 0;
-};
-
 template<typename T>
     requires(std::is_same_v<T, grid_observer_id> or
              std::is_same_v<T, graph_observer_id> or
              std::is_same_v<T, variable_observer_id>)
 inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
 {
-    if (not files.can_alloc(1) or not files.template grow<3, 2>())
+    if (not files.can_alloc(1) and not files.template grow<3, 2>(1))
         return false;
 
     const auto& file    = files.alloc();
@@ -1737,213 +2003,6 @@ inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
 
     return true;
 }
-
-struct project_reserve_definition {
-    constrained_value<int, 256, INT_MAX> nodes;
-    constrained_value<int, 256, INT_MAX> grids;
-    constrained_value<int, 256, INT_MAX> graphs;
-    constrained_value<int, 256, INT_MAX> vars;
-};
-
-class project
-{
-public:
-    project() noexcept = default;
-
-    static expected<project> load(const file_access&      fs,
-                                  const component_access& cs,
-                                  const std::span<char>   buffer,
-                                  journal_handler&        jn) noexcept;
-
-    static expected<project> load(const file_access&      fs,
-                                  const component_access& cs,
-                                  const file_path_id      file_id,
-                                  journal_handler&        jn) noexcept;
-
-    status load(const file_access&      fs,
-                const component_access& ids,
-                journal_handler&        jn) noexcept;
-
-    status save(const file_access&      fs,
-                const component_access& ids,
-                journal_handler&        jn) noexcept;
-
-    struct required_data {
-        unsigned tree_node_nb{ 1u };
-        unsigned model_nb{ 0u };
-        unsigned hsm_nb{ 0u };
-
-        constexpr friend required_data operator+(
-          const required_data lhs,
-          const required_data rhs) noexcept
-        {
-            return { lhs.tree_node_nb + rhs.tree_node_nb,
-                     lhs.model_nb + rhs.model_nb,
-                     lhs.hsm_nb + rhs.hsm_nb };
-        }
-
-        constexpr required_data& operator+=(const required_data other) noexcept
-        {
-            tree_node_nb += other.tree_node_nb;
-            model_nb += other.model_nb;
-            hsm_nb += other.hsm_nb;
-            return *this;
-        }
-
-        /** Apply boundaries for all values. */
-        constexpr void fix() noexcept
-        {
-            tree_node_nb = std::clamp(tree_node_nb, 1u, UINT32_MAX >> 16);
-            model_nb     = std::clamp(model_nb, 16u, UINT32_MAX >> 2);
-            hsm_nb       = std::clamp(hsm_nb, 0u, UINT32_MAX >> 2);
-        }
-    };
-
-    name_str   name;
-    simulation sim;
-
-    /** Compute the number of @c tree_node required to load the component @c
-     * into the @c project and the number of @c irt::model and @c
-     * irt::hierarchical_state_machine to fill the @C irt::simulation
-     * structures. */
-    required_data compute_memory_required(const component_access& ids,
-                                          const component_id c) const noexcept;
-
-    /// Assign a new @c component head. The previously allocated tree_node
-    /// hierarchy is removed and a newly one is allocated.
-    status set(const component_access& ids,
-               const file_access&      fs,
-               const component_id      compo_id,
-               journal_handler&        jn) noexcept;
-
-    /// Build the complete @c tree_node hierarchy from the @c component
-    /// head.
-    status rebuild(const component_access& ids,
-                   const file_access&      fs,
-                   journal_handler&        jn) noexcept;
-
-    /// Remove @c tree_node hierarchy and clear the @c component head.
-    void clear() noexcept;
-
-    auto head() const noexcept -> component_id;
-    auto tn_head() const noexcept -> tree_node*;
-
-    auto node(tree_node_id id) const noexcept -> tree_node*;
-    auto node(tree_node& node) const noexcept -> tree_node_id;
-    auto node(const tree_node& node) const noexcept -> tree_node_id;
-
-    template<typename Function, typename... Args>
-    void for_each_children(tree_node& tn,
-                           Function&& f,
-                           Args&&... args) noexcept;
-
-    /// Return the size and the capacity of the tree_nodes data_array.
-    auto tree_nodes_size() const noexcept -> std::pair<int, int>;
-
-    /// Build a @c from is excluced from the relative_id_path
-    auto build_relative_path(const tree_node& from,
-                             const tree_node& to,
-                             const model_id   mdl_id) noexcept
-      -> relative_id_path;
-
-    auto get_model(const relative_id_path& path) noexcept
-      -> std::pair<tree_node_id, model_id>;
-
-    auto get_model(const tree_node& tn, const relative_id_path& path) noexcept
-      -> std::pair<tree_node_id, model_id>;
-
-    void build_unique_id_path(const tree_node_id tn_id,
-                              const model_id     mdl_id,
-                              unique_id_path&    out) noexcept;
-
-    void build_unique_id_path(const tree_node_id tn_id,
-                              unique_id_path&    out) noexcept;
-
-    void build_unique_id_path(const tree_node&       model_unique_id_parent,
-                              const std::string_view model_unique_id,
-                              unique_id_path&        out) noexcept;
-
-    /** Search a model with name attribute equals to @c id from the root
-     * tree-node (the top of the hierarchy). */
-    auto get_model_path(const std::string_view id) const noexcept
-      -> std::optional<std::pair<tree_node_id, model_id>>;
-
-    /** Search a model from the @c path. The first element is the root node
-     * (top of the hierarchy), next element are tree nodes and finally, at
-     * the last position in the @c unique_id_path, the name of the model. */
-    auto get_model_path(const unique_id_path& path) const noexcept
-      -> std::optional<std::pair<tree_node_id, model_id>>;
-
-    auto get_tn_id(const unique_id_path& path) const noexcept -> tree_node_id;
-
-    data_array<tree_node, tree_node_id> tree_nodes;
-
-    data_array<variable_observer, variable_observer_id> variable_observers;
-    data_array<grid_observer, grid_observer_id>         grid_observers;
-    data_array<graph_observer, graph_observer_id>       graph_observers;
-
-    file_observers file_obs;
-
-    /// Linear search a @c global_parameter_id where @c tree_node_id and @c
-    /// model_id equals parameters.
-    ///
-    /// @return The @c global_parameter_id identifier if it exsits, @c
-    /// undefined<global_parameter_id>() otherwise.
-    auto get_parameter(const tree_node_id tn_id, const model_id mdl_id) noexcept
-      -> global_parameter_id;
-
-    id_data_array<void,
-                  global_parameter_id,
-                  allocator<new_delete_memory_resource>,
-                  name_str,
-                  tree_node_id,
-                  model_id,
-                  parameter>
-      parameters;
-
-    /**
-       @brief Alloc a new variable observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before
-       running this function to ensure allocation is possible.
-     */
-    variable_observer& alloc_variable_observer() noexcept;
-
-    /**
-       @brief Alloc a new grid observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before
-       running this function to ensure allocation is possible.
-     */
-    grid_observer& alloc_grid_observer() noexcept;
-
-    /**
-       @brief Alloc a new graph observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before
-       running this function to ensure allocation is possible.
-     */
-    graph_observer& alloc_graph_observer() noexcept;
-
-    /** Get the observation directory used by all text observation
-     * files. If the @c observation_dir is undefined this function returns
-     * an empty string.
-     *
-     * @param mod The modeling object to get the observation directory.
-     * @return A string_view to the observation directory.
-     */
-    std::optional<std::filesystem::path> get_observation_dir(
-      const irt::modeling& mod) const noexcept;
-
-    registred_path_id observation_dir; /**< The output directory used by all
-                                          text observation file. If undefined,
-                                          the current repertory is used. */
-
-    /// An identifier to the @c file_path. Assign this variable before using
-    /// @c load() or @c save() functions.
-    file_path_id file = file_path_id{ 0 };
-
-private:
-    component_id m_head    = undefined<component_id>();
-    tree_node_id m_tn_head = undefined<tree_node_id>();
-};
 
 /* ------------------------------------------------------------------
    Child part

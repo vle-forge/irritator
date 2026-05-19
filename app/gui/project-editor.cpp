@@ -110,20 +110,22 @@ static bool select_variable_observer(project&              pj,
 // available `variable_observer` otherwise, allocate a new `variable_observer`.
 static auto get_or_add_variable_observer(project&             pj,
                                          variable_observer_id vobs_id) noexcept
-  -> variable_observer&
+  -> variable_observer*
 {
-    if (auto* vobs = pj.variable_observers.try_to_get(vobs_id); vobs)
-        return *vobs;
+    if (auto* vobs = pj.variable_observers.try_to_get(vobs_id))
+        return vobs;
 
     if (not pj.variable_observers.empty())
-        return *pj.variable_observers.begin();
+        return std::addressof(*pj.variable_observers.begin());
 
-    debug::ensure(pj.variable_observers.can_alloc((1)));
+    if (not pj.variable_observers.can_alloc() and
+        not pj.variable_observers.grow<2, 1>())
+        return nullptr;
 
     auto& v = pj.variable_observers.alloc();
     v.name  = "New";
 
-    return v;
+    return pj.variable_observers.try_to_get(pj.variable_observers.get_id(v));
 }
 
 static bool show_local_simulation_plot_observers_table(
@@ -170,29 +172,33 @@ static bool show_local_simulation_plot_observers_table(
                 ImGui::BeginDisabled(ed.is_simulation_running());
                 if (ImGui::Checkbox("##enable", &enable)) {
                     if (enable) {
-                        auto& vobs =
-                          get_or_add_variable_observer(ed.pj, vobs_id);
-                        vobs_id    = ed.pj.variable_observers.get_id(vobs);
-                        sub_obs_id = vobs.push_back(tn_id, mdl_id);
-                        tn.variable_observer_ids.set(uid, vobs_id);
+                        if (auto* vobs =
+                              get_or_add_variable_observer(ed.pj, vobs_id)) {
+                            vobs_id    = ed.pj.variable_observers.get_id(*vobs);
+                            sub_obs_id = vobs->push_back(tn_id, mdl_id);
+                            tn.variable_observer_ids.set(uid, vobs_id);
 
-                        if (ids.exists(tn.id)) {
-                            auto& c = ids.components[tn.id];
-                            if (c.type == component_type::generic) {
-                                if (auto* g = ids.generic_components.try_to_get(
-                                      c.id.generic_id);
-                                    g) {
-                                    for (auto& ch : g->children) {
-                                        const auto ch_id =
-                                          g->children.get_id(ch);
-                                        const auto ch_idx = get_index(ch_id);
-                                        const auto ch_uid =
-                                          g->children_names[ch_idx].sv();
+                            if (ids.exists(tn.id)) {
+                                auto& c = ids.components[tn.id];
+                                if (c.type == component_type::generic) {
+                                    if (auto* g =
+                                          ids.generic_components.try_to_get(
+                                            c.id.generic_id);
+                                        g) {
+                                        for (auto& ch : g->children) {
+                                            const auto ch_id =
+                                              g->children.get_id(ch);
+                                            const auto ch_idx =
+                                              get_index(ch_id);
+                                            const auto ch_uid =
+                                              g->children_names[ch_idx].sv();
 
-                                        if (ch_uid == uid) {
-                                            vobs.subs.template get<name_str>(
-                                              sub_obs_id) = ch_uid;
-                                            break;
+                                            if (ch_uid == uid) {
+                                                vobs->subs
+                                                  .template get<name_str>(
+                                                    sub_obs_id) = ch_uid;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -200,11 +206,12 @@ static bool show_local_simulation_plot_observers_table(
                         }
 
                     } else {
-                        auto& vobs =
-                          get_or_add_variable_observer(ed.pj, vobs_id);
-                        vobs_id = ed.pj.variable_observers.get_id(vobs);
-                        vobs.erase(tn_id, mdl_id);
-                        tn.variable_observer_ids.erase(uid);
+                        if (auto* vobs =
+                              get_or_add_variable_observer(ed.pj, vobs_id)) {
+                            vobs_id = ed.pj.variable_observers.get_id(*vobs);
+                            vobs->erase(tn_id, mdl_id);
+                            tn.variable_observer_ids.erase(uid);
+                        }
                     }
                 }
                 ImGui::EndDisabled();
@@ -1033,7 +1040,70 @@ static void show_component_observations(application&    app,
             }
             ImGui::TableNextColumn();
         }
+
         ImGui::EndTable();
+    }
+
+    if (ImGui::TreeNode("simulation-wrappers")) {
+        for (const auto& c : selected.children) {
+            if (not(c.is_model() and sim_ed.pj.sim.models.exists(c.mdl) and
+                    sim_ed.pj.sim.models.get(c.mdl).type ==
+                      dynamics_type::simulation_wrapper))
+                continue;
+
+            const auto& sim_wrapper =
+              get_dyn<simulation_wrapper>(sim_ed.pj.sim.models.get(c.mdl));
+
+            if (sim_wrapper.state != simulation_wrapper::run_state::finish)
+                continue;
+
+            if (not sim_ed.pj.sim.sims.exists(sim_wrapper.sim_id))
+                continue;
+
+            const auto& sub_obs =
+              sim_wrapper.embedded_sims
+                .get<simulation_wrapper::simulation_observation>();
+
+            const auto& sim_src = sim_ed.pj.sim.sims.get(sim_wrapper.sim_id);
+            const auto& select_names  = sim_src.selections.get<name_str>();
+            const auto& select_models = sim_src.selections.get<model_id>();
+            for (const auto select_id : sim_src.selections) {
+                const auto select_idx = get_index(select_id);
+
+                ImGui::PushID(select_idx);
+
+                if (ImGui::TreeNode(select_names[select_idx].c_str())) {
+                    const auto label = format_n<64>(
+                      "{}##{}", select_names[select_idx].sv(), select_idx);
+
+                    if (ImPlot::BeginPlot(label.c_str(), ImVec2(-1, 400))) {
+                        for (const auto id : sim_wrapper.embedded_sims) {
+                            const auto idx = get_index(id);
+
+                            if (const auto* data =
+                                  sub_obs[idx].get(select_models[select_idx])) {
+
+                                ImPlot::PlotLine(
+                                  format_n<64>("{}", idx).c_str(),
+                                  &data->values[0][0],
+                                  &data->values[0][1],
+                                  length(data->values),
+                                  ImPlotLineFlags_SkipNaN,
+                                  0,
+                                  sizeof(data->values[0]));
+                            }
+                        }
+
+                        ImPlot::EndPlot();
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::PopID();
+            }
+        }
+        ImGui::TreePop();
     }
 }
 
