@@ -440,7 +440,37 @@ status simulation_wrapper::transition(simulation& sim,
 
 status simulation_wrapper::lambda(simulation& /*sim*/) noexcept
 {
-    // Need to compute...
+    // Need to compute... For example the max:
+    const auto& sim_obs   = embedded_sims.get<simulation_observation>();
+    auto        max_value = std::numeric_limits<real>::lowest();
+    auto        min_value = std::numeric_limits<real>::max();
+    auto        max_id    = undefined<sub_id>();
+    auto        min_id    = undefined<sub_id>();
+    const auto  mdl_id    = operand.mdl_id;
+
+    for (const auto id : embedded_sims) {
+        const auto  idx    = get_index(id);
+        const auto& sim_ob = sim_obs[idx];
+
+        if (const auto* vec = sim_ob.get(operand.mdl_id)) {
+            if (max_value < vec->max_element) {
+                max_value = vec->max_element;
+                max_id    = id;
+            }
+
+            if (min_value > vec->min_element) {
+                min_value = vec->min_element;
+                min_id    = id;
+            }
+        }
+    }
+
+    if (is_defined(min_id) or is_defined(max_id)) {
+        // Get the single_parameter for the selected embedded simulation and
+        // send it as output message in y[0..n] port.
+
+
+    }
 
     // if (auto* embedded = sim.sims.try_to_get(sim_id)) {
     //     debug::ensure(embedded->observers.size() == 1u);

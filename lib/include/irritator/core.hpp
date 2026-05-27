@@ -5099,8 +5099,18 @@ struct simulation_wrapper {
      * according to the selection criteria. */
     vector<output_port_id> y;
 
-    using simulation_parameters = vector<parameter>;
-    using simulation_observation = table<model_id, vector<std::array<real, 2>>>;
+    struct embedded_model_observation {
+        vector<std::array<real, 2>> values; /*<! Raw output simulation. */
+
+        /** Minimum value of the raw output value vector. */
+        real min_element = std::numeric_limits<real>::max();
+
+        /*<! Maximal value of the raw output value vector. */
+        real max_element = std::numeric_limits<real>::lowest();
+    };
+
+    using simulation_parameters  = vector<parameter>;
+    using simulation_observation = table<model_id, embedded_model_observation>;
 
     enum class sub_id : u32;
 
@@ -5114,6 +5124,30 @@ struct simulation_wrapper {
         vector<parameter> p;
     };
 
+    enum class fn : u8 {
+        min,
+        max,
+    } type;
+
+    //enum class op : u8 {
+    //    op_none,
+    //    op_and,
+    //    op_or,
+    //};
+
+    struct operand {
+        model_id mdl_id;
+        fn       function;
+    } operand;
+
+    //struct exp {
+    //    operand left;
+    //    operand right;
+    //    op      operation;
+    //};
+
+    //vector<operand> expression;
+
     /** The @c run_type parameter defines the number of embedded simulation
      * objects. If @c run_type equals  complete  then sims size can be equals
      * to 1. */
@@ -5126,7 +5160,7 @@ struct simulation_wrapper {
 
     /** parameter with only one value. The parameters can be change using
      * x-message on simulation_wrapper input ports. */
-    vector<single_parameter>   single_parameters;
+    vector<single_parameter> single_parameters;
 
     /** parameter with ranged value. The parameters is constant during
      * simulation. @TODO move this parameteres into @c simulation_component */
@@ -5163,7 +5197,8 @@ struct simulation_wrapper {
 
     simulation_wrapper() noexcept = default;
 
-    /// Copy ctor does not copy embedded simulation and reset @c sim_id.
+    /** Copy ctor does not copy embedded simulation but keep the simulation
+     * identifier @c sim_id. */
     simulation_wrapper(const simulation_wrapper& other) noexcept;
 
     status initialize(simulation& sim) noexcept;
