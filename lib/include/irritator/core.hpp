@@ -96,6 +96,12 @@ constexpr int length(const T (&array)[N]) noexcept
     return static_cast<int>(N);
 }
 
+template<class T>
+constexpr int length(const vector<T>& vec) noexcept
+{
+    return static_cast<int>(vec.size());
+}
+
 //! @brief A simple enumeration to integral helper function.
 //! @tparam Enum An enumeration
 //! @tparam Integer The underlying_type deduce from @c Enum
@@ -8364,11 +8370,6 @@ inline status simulation::initialize() noexcept
 template<typename Dynamics>
 status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 {
-    if constexpr (has_input_port<Dynamics>) {
-        for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i].reset();
-    }
-
     // @attention Copy parameters to model before using the initialize
     // function. Be sure to not owerrite the parameters in the @c
     // dynamics::initialize function.
@@ -8376,6 +8377,11 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 
     if constexpr (has_initialize_function<Dynamics>)
         irt_check(dyn.initialize(*this));
+
+    if constexpr (has_input_port<Dynamics>) {
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i].reset();
+    }
 
     mdl.tl     = t;
     mdl.tn     = t + dyn.sigma;

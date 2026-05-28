@@ -39,21 +39,24 @@ static status update_observations(
   simulation&                                 sim,
   simulation_wrapper::simulation_observation& sim_obs) noexcept
 {
+    const auto empty = simulation_wrapper::embedded_model_observation();
+
     for (auto& obs : sim.observers) {
         const auto mdl_id = obs.model;
 
         auto* vec = sim_obs.get(mdl_id);
         if (not vec)
-            sim_obs.set(mdl_id, vector<std::array<real, 2>>());
+            sim_obs.set(mdl_id, empty);
 
         if (obs.states[observer_flags::buffer_full]) {
             auto grow_error = false;
 
             write_interpolate_data(
               obs, time_step, [vec, &grow_error](auto t, auto v) noexcept {
-                  if (grow_error = not vec->can_alloc(1); not grow_error) {
-                      vec->push_back(std::array<real, 2>());
-                      auto& ar = vec->back();
+                  if (grow_error = not vec->values.can_alloc(1);
+                      not grow_error) {
+                      vec->values.push_back(std::array<real, 2>());
+                      auto& ar = vec->values.back();
                       ar[0]    = t;
                       ar[1]    = v;
                   };
@@ -72,21 +75,24 @@ static status flush_observations(
   simulation&                                 sim,
   simulation_wrapper::simulation_observation& sim_obs) noexcept
 {
+    const auto empty = simulation_wrapper::embedded_model_observation();
+
     for (auto& obs : sim.observers) {
         const auto mdl_id = obs.model;
 
         auto* vec = sim_obs.get(mdl_id);
         if (not vec)
-            sim_obs.set(mdl_id, vector<std::array<real, 2>>());
+            sim_obs.set(mdl_id, empty);
 
         if (obs.states[observer_flags::buffer_full]) {
             auto grow_error = false;
 
             flush_interpolate_data(
               obs, time_step, [vec, &grow_error](auto t, auto v) noexcept {
-                  if (grow_error = not vec->can_alloc(1); not grow_error) {
-                      vec->push_back(std::array<real, 2>());
-                      auto& ar = vec->back();
+                  if (grow_error = not vec->values.can_alloc(1);
+                      not grow_error) {
+                      vec->values.push_back(std::array<real, 2>());
+                      auto& ar = vec->values.back();
                       ar[0]    = t;
                       ar[1]    = v;
                   };
@@ -362,6 +368,12 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
     if (not sim_src)
         return make_error(simulation_errc::simulation_wrapper_source_error);
 
+    if (x.size() <= 2)
+        return make_error(simulation_errc::simulation_wrapper_input_error);
+
+    if (y.size() <= 2)
+        return make_error(simulation_errc::simulation_wrapper_output_error);
+
     const auto nb_sims = [&]() {
         sz nb = 1u;
         for (sz j = 0, f = multiple_parameters.size(); j < f; ++j) {
@@ -392,6 +404,8 @@ status simulation_wrapper::transition(simulation& sim,
     (void)t;
     (void)e;
     (void)r;
+
+    debug::ensure(x.size() == single_parameters.size() + 2);
 
     const auto init_msg = get_message(sim, x[input_init]);
     const auto run_msg  = get_message(sim, x[input_run]);
@@ -438,15 +452,16 @@ status simulation_wrapper::transition(simulation& sim,
     return success();
 }
 
-status simulation_wrapper::lambda(simulation& /*sim*/) noexcept
+status simulation_wrapper::lambda(simulation& sim) noexcept
 {
-    // Need to compute... For example the max:
+    debug::ensure(y.size() ==
+                  single_parameters.size() + multiple_parameters.size());
+
     const auto& sim_obs   = embedded_sims.get<simulation_observation>();
     auto        max_value = std::numeric_limits<real>::lowest();
     auto        min_value = std::numeric_limits<real>::max();
     auto        max_id    = undefined<sub_id>();
     auto        min_id    = undefined<sub_id>();
-    const auto  mdl_id    = operand.mdl_id;
 
     for (const auto id : embedded_sims) {
         const auto  idx    = get_index(id);
@@ -465,33 +480,34 @@ status simulation_wrapper::lambda(simulation& /*sim*/) noexcept
         }
     }
 
-    if (is_defined(min_id) or is_defined(max_id)) {
-        // Get the single_parameter for the selected embedded simulation and
-        // send it as output message in y[0..n] port.
+    const auto sub_id = operand.function == fn::max ? max_id : min_id;
+    if (not embedded_sims.exists(sub_id))
+        return success();
 
+    const auto& sub_sim           = embedded_sims.get<simulation>(sub_id);
+    auto        output_port_index = 0;
 
+    for (sz i = 0, e = single_parameters.size(); i != e; ++i) {
+        const auto id  = single_parameters[i].mdl_id;
+        const auto idx = get_index(id);
+        const auto msg = message{ sub_sim.parameters[idx].reals[0],
+                                  sub_sim.parameters[idx].reals[1],
+                                  sub_sim.parameters[idx].reals[2] };
+
+        send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
+        ++output_port_index;
     }
 
-    // if (auto* embedded = sim.sims.try_to_get(sim_id)) {
-    //     debug::ensure(embedded->observers.size() == 1u);
+    for (sz i = 0, e = multiple_parameters.size(); i != e; ++i) {
+        const auto id  = multiple_parameters[i].mdl_id;
+        const auto idx = get_index(id);
+        const auto msg = message{ sub_sim.parameters[idx].reals[0],
+                                  sub_sim.parameters[idx].reals[1],
+                                  sub_sim.parameters[idx].reals[2] };
 
-    //     observer* obs = nullptr;
-    //     if (embedded->observers.next(obs)) {
-    //         message msg;
-
-    //         obs->buffer.read([&](const auto& vec, const auto /*version*/)
-    //         {
-    //             const auto& front = vec.front();
-
-    //             msg[0] = front[0];
-    //             msg[1] = front[1];
-    //             msg[2] = front[2];
-    //         });
-
-    //         return send_message(
-    //           sim, y[output_observation], msg[0], msg[1], msg[2]);
-    //     }
-    // }
+        send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
+        ++output_port_index;
+    }
 
     return success();
 }
@@ -521,12 +537,9 @@ status simulation_wrapper::finalize(simulation& /*sim*/) noexcept
 }
 
 observation_message simulation_wrapper::observation(time t,
-                                                    time e) const noexcept
+                                                    time /*e*/) const noexcept
 {
-    (void)t;
-    (void)e;
-
-    return {};
+    return { t, static_cast<real>(embedded_sims.size()) };
 }
 
 } // namespace irt

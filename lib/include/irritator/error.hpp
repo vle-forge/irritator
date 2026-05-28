@@ -134,6 +134,8 @@ enum class simulation_errc : std::int16_t {
     simulation_wrapper_source_error,
     simulation_wrapper_too_many_embedded_simulation_error,
     simulation_wrapper_parameter_error,
+    simulation_wrapper_input_error,
+    simulation_wrapper_output_error,
 
     simulation_wrapper_embedded_simulation_source_error,
     simulation_wrapper_embedded_simulation_initialization_error,
