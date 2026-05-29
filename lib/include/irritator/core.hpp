@@ -5115,7 +5115,7 @@ struct simulation_wrapper {
         real max_element = std::numeric_limits<real>::lowest();
     };
 
-    using simulation_parameters  = vector<parameter>;
+    using simulation_parameters  = vector<real>;
     using simulation_observation = table<model_id, embedded_model_observation>;
 
     enum class sub_id : u32;
@@ -5135,24 +5135,24 @@ struct simulation_wrapper {
         max,
     } type;
 
-    //enum class op : u8 {
-    //    op_none,
-    //    op_and,
-    //    op_or,
-    //};
+    // enum class op : u8 {
+    //     op_none,
+    //     op_and,
+    //     op_or,
+    // };
 
     struct operand {
         model_id mdl_id;
         fn       function;
     } operand;
 
-    //struct exp {
-    //    operand left;
-    //    operand right;
-    //    op      operation;
-    //};
+    // struct exp {
+    //     operand left;
+    //     operand right;
+    //     op      operation;
+    // };
 
-    //vector<operand> expression;
+    // vector<operand> expression;
 
     /** The @c run_type parameter defines the number of embedded simulation
      * objects. If @c run_type equals  complete  then sims size can be equals

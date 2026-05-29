@@ -1923,10 +1923,10 @@ public:
                   global_parameter_id,
                   allocator<new_delete_memory_resource>,
                   name_str,
-                  tree_node_id,     //!< model's parent
-                  model_id,         //!< model to parametrize
-                  parameter,        //!< Default parameter
-                  vector<parameter> //!< Experimental frames
+                  tree_node_id, //!< model's parent
+                  model_id,     //!< model to parametrize
+                  parameter,    //!< Default parameter
+                  vector<real>  //!< Experimental frames
                   >
       parameters;
 

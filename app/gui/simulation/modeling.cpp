@@ -41,21 +41,169 @@ bool simulation_component_editor_data::show(component_editor&       ed,
 
     read(app, compo);
 
-    if (ImGui::CollapsingHeader("simulation-components")) {
-        for (const auto& c : ids.sim_components) {
-            const auto id = ids.sim_components.get_id(c);
-            ImGui::TextFormat("simulation-component: {}", ordinal(id));
+    debug::ensure(compo.type == component_type::simulation);
+
+    if (auto pj_opt = m_task_project.try_take(); pj_opt.has_value()) {
+        m_sim.pj = std::make_unique<project>(std::move(*pj_opt));
+    }
+
+    const auto new_file_id =
+      mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+          auto new_file_id = m_sim.file_id;
+
+          if (ImGui::BeginCombo("##project-file", "Select a project file")) {
+              const auto none_selected =
+                fs.file_paths.try_to_get(m_sim.file_id) == nullptr;
+
+              if (ImGui::Selectable("-", none_selected)) {
+                  new_file_id = undefined<file_path_id>();
+              }
+
+              for (const auto& f : fs.file_paths) {
+                  if (f.type == file_type::project_file) {
+                      const auto f_id       = fs.file_paths.get_id(f);
+                      const auto f_selected = f_id == m_sim.file_id;
+
+                      if (ImGui::Selectable(f.path.c_str(), f_selected)) {
+                          new_file_id = fs.file_paths.get_id(f);
+                      }
+                  }
+              }
+
+              ImGui::EndCombo();
+          }
+
+          return new_file_id;
+      });
+
+    if (new_file_id != m_sim.file_id) {
+        if (m_task_project.should_request()) {
+            app.add_gui_task([&app, this, new_file_id]() {
+                app.mod.files.read(
+                  [&](const auto& fs, const auto /*vers*/) noexcept {
+                      app.mod.ids.read(
+                        [&](const auto& ids, const auto /*vers*/) noexcept {
+                            auto exp_pj =
+                              project::load(fs, ids, new_file_id, app.jn);
+
+                            if (exp_pj.has_value()) {
+                                m_task_project.fulfill(std::move(*exp_pj));
+                            }
+                        });
+                  });
+            });
+        }
+
+        if (m_sim.pj.get()) {
         }
     }
 
-    if (ImGui::CollapsingHeader("projects")) {
-        mod.files.read([](const auto& fs, const auto /*vers*/) {
-            for (const auto& f : fs.file_paths) {
-                if (f.type == file_type::project_file) {
-                    ImGui::TextFormat("project-file: {}", f.path.sv());
+    if (not m_sim.pj.get()) {
+        ImGui::TextDisabled("No project loaded");
+    } else {
+        auto& pj     = *m_sim.pj;
+        auto& tns    = pj.parameters.get<tree_node_id>();
+        auto& models = pj.parameters.get<model_id>();
+        auto& names  = pj.parameters.get<name_str>();
+        auto& p      = pj.parameters.get<parameter>();
+        auto& vec_p  = pj.parameters.get<vector<real>>();
+
+        ImGui::TextDisabled("Only QSS integrator and constant models can "
+                            "be used into experimental frames");
+
+        if (ImGui::BeginTable("Parameters", 4)) {
+            ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
+            // ImGuiTableColumnFlags_WidthFixed, compute size max name_str);
+            ImGui::TableSetupColumn("dynamics type",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("default value",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("multiple values",
+                                    ImGuiTableColumnFlags_WidthStretch);
+
+            for (const auto id : pj.parameters) {
+                const auto  idx = get_index(id);
+                const auto& mdl = pj.sim.models.get(models[idx]);
+                const auto  disable_parameter =
+                  any_equal(mdl.type,
+                            dynamics_type::constant,
+                            dynamics_type::qss1_integrator,
+                            dynamics_type::qss2_integrator,
+                            dynamics_type::qss3_integrator);
+
+                ImGui::PushID(idx);
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::PushItemWidth(-1.f);
+                ImGui::TextUnformatted(names[idx].c_str());
+                ImGui::PopItemWidth();
+                ImGui::TableNextColumn();
+
+                ImGui::PushItemWidth(-1.f);
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+                ImGui::PopItemWidth();
+                ImGui::TableNextColumn();
+
+                ImGui::BeginDisabled(not disable_parameter);
+                ImGui::InputReal("##single", &p[idx].reals[0]);
+                ImGui::EndDisabled();
+                ImGui::TableNextColumn();
+
+                ImGui::BeginDisabled(not disable_parameter);
+                if (ImGui::SmallButton("clear"))
+                    vec_p[idx].clear();
+                ImGui::SameLine();
+                if (ImGui::SmallButton("edit"))
+                    ImGui::OpenPopup("Edit values");
+
+                if (ImGui::BeginPopup("Edit values")) {
+                    auto size = static_cast<int>(vec_p[idx].size());
+
+                    if (ImGui::InputInt("length", &size) &&
+                        size != static_cast<int>(vec_p[idx].size()) &&
+                        size < external_source_chunk_size) {
+                        vec_p[idx].resize(size, 0.0);
+                    }
+
+                    for (auto i = 0; i < size; ++i) {
+                        ImGui::PushID(static_cast<int>(i));
+                        ImGui::InputDouble("##name", &vec_p[idx][i]);
+                        ImGui::PopID();
+                    }
+
+                    ImGui::EndPopup();
                 }
+
+                const auto len = vec_p[idx].size();
+                switch (len) {
+                case 0:
+                    ImGui::TextUnformatted("empty");
+                    break;
+
+                case 1:
+                    ImGui::Text("%f", vec_p[idx][0]);
+                    break;
+
+                case 2:
+                    ImGui::Text("%f %f", vec_p[idx][0], vec_p[idx][1]);
+                    break;
+
+                default:
+                    ImGui::Text("%f %f %f ...",
+                                vec_p[idx][0],
+                                vec_p[idx][1],
+                                vec_p[idx][2]);
+                    break;
+                }
+                ImGui::EndDisabled();
+
+                ImGui::PopID();
             }
-        });
+
+            ImGui::EndTable();
+        }
     }
 
     return false;

@@ -822,9 +822,6 @@ public:
 
     component_id            m_id     = undefined<component_id>();
     simulation_component_id m_sim_id = undefined<simulation_component_id>();
-    registred_path_id       m_reg    = undefined<registred_path_id>();
-    dir_path_id             m_dir    = undefined<dir_path_id>();
-    file_path_id            m_file   = undefined<file_path_id>();
 
 private:
     void read(application& app, component&) noexcept;
@@ -832,6 +829,8 @@ private:
 
     simulation_component m_sim;
     u64                  m_version = std::numeric_limits<u64>::max();
+
+    request_buffer<project> m_task_project;
 };
 
 class hsm_component_editor_data
@@ -1617,9 +1616,9 @@ private:
      */
     atomic_request_buffer<recorded_path_id> new_reg_dir_id;
 
-    recorded_path_id  new_dir_id     = undefined<recorded_path_id>();
-    bool              choose_new_dir = false;
-    bool              need_restart   = false;
+    recorded_path_id new_dir_id     = undefined<recorded_path_id>();
+    bool             choose_new_dir = false;
+    bool             need_restart   = false;
 };
 
 struct task_window {
