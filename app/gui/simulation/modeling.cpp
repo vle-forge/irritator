@@ -101,108 +101,151 @@ bool simulation_component_editor_data::show(component_editor&       ed,
     if (not m_sim.pj.get()) {
         ImGui::TextDisabled("No project loaded");
     } else {
-        auto& pj     = *m_sim.pj;
-        auto& tns    = pj.parameters.get<tree_node_id>();
-        auto& models = pj.parameters.get<model_id>();
-        auto& names  = pj.parameters.get<name_str>();
-        auto& p      = pj.parameters.get<parameter>();
-        auto& vec_p  = pj.parameters.get<vector<real>>();
+        auto& pj = *m_sim.pj;
 
         ImGui::TextDisabled("Only QSS integrator and constant models can "
                             "be used into experimental frames");
 
-        if (ImGui::BeginTable("Parameters", 4)) {
-            ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
-            // ImGuiTableColumnFlags_WidthFixed, compute size max name_str);
-            ImGui::TableSetupColumn("dynamics type",
-                                    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("default value",
-                                    ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("multiple values",
-                                    ImGuiTableColumnFlags_WidthStretch);
+        if (ImGui::CollapsingHeader("Parameters")) {
+            if (ImGui::BeginTable("Parameters", 4)) {
+                auto& tns    = pj.parameters.get<tree_node_id>();
+                auto& models = pj.parameters.get<model_id>();
+                auto& names  = pj.parameters.get<name_str>();
+                auto& p      = pj.parameters.get<parameter>();
+                auto& vec_p  = pj.parameters.get<vector<real>>();
 
-            for (const auto id : pj.parameters) {
-                const auto  idx = get_index(id);
-                const auto& mdl = pj.sim.models.get(models[idx]);
-                const auto  disable_parameter =
-                  any_equal(mdl.type,
-                            dynamics_type::constant,
-                            dynamics_type::qss1_integrator,
-                            dynamics_type::qss2_integrator,
-                            dynamics_type::qss3_integrator);
+                ImGui::TableSetupColumn("name",
+                                        ImGuiTableColumnFlags_WidthStretch);
+                // ImGuiTableColumnFlags_WidthFixed, compute size max name_str);
+                ImGui::TableSetupColumn("dynamics type",
+                                        ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("default value",
+                                        ImGuiTableColumnFlags_WidthStretch);
+                ImGui::TableSetupColumn("multiple values",
+                                        ImGuiTableColumnFlags_WidthStretch);
 
-                ImGui::PushID(idx);
+                for (const auto id : pj.parameters) {
+                    const auto  idx = get_index(id);
+                    const auto& mdl = pj.sim.models.get(models[idx]);
+                    const auto  disable_parameter =
+                      any_equal(mdl.type,
+                                dynamics_type::constant,
+                                dynamics_type::qss1_integrator,
+                                dynamics_type::qss2_integrator,
+                                dynamics_type::qss3_integrator);
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+                    ImGui::PushID(idx);
 
-                ImGui::PushItemWidth(-1.f);
-                ImGui::TextUnformatted(names[idx].c_str());
-                ImGui::PopItemWidth();
-                ImGui::TableNextColumn();
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                ImGui::PushItemWidth(-1.f);
-                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
-                ImGui::PopItemWidth();
-                ImGui::TableNextColumn();
+                    ImGui::PushItemWidth(-1.f);
+                    ImGui::TextUnformatted(names[idx].c_str());
+                    ImGui::PopItemWidth();
+                    ImGui::TableNextColumn();
 
-                ImGui::BeginDisabled(not disable_parameter);
-                ImGui::InputReal("##single", &p[idx].reals[0]);
-                ImGui::EndDisabled();
-                ImGui::TableNextColumn();
+                    ImGui::PushItemWidth(-1.f);
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl.type)]);
+                    ImGui::PopItemWidth();
+                    ImGui::TableNextColumn();
 
-                ImGui::BeginDisabled(not disable_parameter);
-                if (ImGui::SmallButton("clear"))
-                    vec_p[idx].clear();
-                ImGui::SameLine();
-                if (ImGui::SmallButton("edit"))
-                    ImGui::OpenPopup("Edit values");
+                    ImGui::BeginDisabled(not disable_parameter);
+                    ImGui::InputReal("##single", &p[idx].reals[0]);
+                    ImGui::EndDisabled();
+                    ImGui::TableNextColumn();
 
-                if (ImGui::BeginPopup("Edit values")) {
-                    auto size = static_cast<int>(vec_p[idx].size());
+                    ImGui::BeginDisabled(not disable_parameter);
+                    if (ImGui::SmallButton("clear"))
+                        vec_p[idx].clear();
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("edit"))
+                        ImGui::OpenPopup("Edit values");
 
-                    if (ImGui::InputInt("length", &size) &&
-                        size != static_cast<int>(vec_p[idx].size()) &&
-                        size < external_source_chunk_size) {
-                        vec_p[idx].resize(size, 0.0);
+                    if (ImGui::BeginPopup("Edit values")) {
+                        auto size = static_cast<int>(vec_p[idx].size());
+
+                        if (ImGui::InputInt("length", &size) &&
+                            size != static_cast<int>(vec_p[idx].size()) &&
+                            size < external_source_chunk_size) {
+                            vec_p[idx].resize(size, 0.0);
+                        }
+
+                        for (auto i = 0; i < size; ++i) {
+                            ImGui::PushID(static_cast<int>(i));
+                            ImGui::InputDouble("##name", &vec_p[idx][i]);
+                            ImGui::PopID();
+                        }
+
+                        ImGui::EndPopup();
                     }
 
-                    for (auto i = 0; i < size; ++i) {
-                        ImGui::PushID(static_cast<int>(i));
-                        ImGui::InputDouble("##name", &vec_p[idx][i]);
-                        ImGui::PopID();
+                    const auto len = vec_p[idx].size();
+                    switch (len) {
+                    case 0:
+                        ImGui::TextUnformatted("empty");
+                        break;
+
+                    case 1:
+                        ImGui::Text("%f", vec_p[idx][0]);
+                        break;
+
+                    case 2:
+                        ImGui::Text("%f %f", vec_p[idx][0], vec_p[idx][1]);
+                        break;
+
+                    default:
+                        ImGui::Text("%f %f %f ...",
+                                    vec_p[idx][0],
+                                    vec_p[idx][1],
+                                    vec_p[idx][2]);
+                        break;
                     }
+                    ImGui::EndDisabled();
 
-                    ImGui::EndPopup();
+                    ImGui::PopID();
                 }
 
-                const auto len = vec_p[idx].size();
-                switch (len) {
-                case 0:
-                    ImGui::TextUnformatted("empty");
-                    break;
-
-                case 1:
-                    ImGui::Text("%f", vec_p[idx][0]);
-                    break;
-
-                case 2:
-                    ImGui::Text("%f %f", vec_p[idx][0], vec_p[idx][1]);
-                    break;
-
-                default:
-                    ImGui::Text("%f %f %f ...",
-                                vec_p[idx][0],
-                                vec_p[idx][1],
-                                vec_p[idx][2]);
-                    break;
-                }
-                ImGui::EndDisabled();
-
-                ImGui::PopID();
+                ImGui::EndTable();
             }
 
-            ImGui::EndTable();
+            if (ImGui::CollapsingHeader("Observations")) {
+                if (ImGui::BeginTable("Observation", 4)) {
+                    ImGui::TableSetupColumn("name",
+                                            ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("dynamics type",
+                                            ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("default value",
+                                            ImGuiTableColumnFlags_WidthStretch);
+                    ImGui::TableSetupColumn("multiple values",
+                                            ImGuiTableColumnFlags_WidthStretch);
+
+                    // TODO: For now, we only support one variable observers in
+                    // the experimental frame.
+
+                    auto mdl_id = [&]() {
+                        for (const auto id : pj.observers)
+                            return pj.observers.get<model_id>(id);
+
+                        return undefined<model_id>();
+                    }();
+
+                    for (const auto& vobs : pj.variable_observers) {
+                        auto& models = vobs.subs.get<model_id>();
+                        auto& names  = vobs.subs.get<name_str>();
+
+                        for (const auto sub_vobs : vobs.subs) {
+                            const auto& name = names[sub_vobs];
+
+                            if (ImGui::RadioButton(name.c_str(),
+                                                   models[sub_vobs] == mdl_id))
+                                mdl_id = models[sub_vobs];
+                        }
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
         }
     }
 
