@@ -437,6 +437,24 @@ static bool show_parameter(qss_inverse_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(qss_max_hold_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+template<typename ExternalSourceType>
+static bool show_parameter(qss_min_hold_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(qss_cross_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

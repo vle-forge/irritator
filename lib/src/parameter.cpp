@@ -325,6 +325,17 @@ static void model_init(const parameter&          param,
     dyn.output_values[1] = param.reals[qss_cross_tag::bottom_value];
 }
 
+template<size_t QssLevel, bool IsMax>
+static void model_init(const parameter& /*param*/,
+                       abstract_min_max_hold<QssLevel, IsMax>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel, bool IsMax>
+static void parameter_init(
+  parameter& /*param*/,
+  const abstract_min_max_hold<QssLevel, IsMax>& /*dyn*/) noexcept
+{}
+
 template<size_t QssLevel>
 static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept

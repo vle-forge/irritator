@@ -21,6 +21,8 @@ struct qss_cross_tag {
     enum parameter_names : u8 { threshold, up_value, bottom_value };
 };
 
+struct qss_min_hold_tag {};
+struct qss_max_hold_tag {};
 struct qss_multiplier_tag {};
 struct qss_flipflop_tag {};
 struct qss_filter_tag {
@@ -158,6 +160,18 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss3_cross:
         return std::invoke(std::forward<Function>(f),
                            qss_cross_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_max_hold:
+    case dynamics_type::qss2_max_hold:
+    case dynamics_type::qss3_max_hold:
+        return std::invoke(std::forward<Function>(f),
+                           qss_max_hold_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_min_hold:
+    case dynamics_type::qss2_min_hold:
+    case dynamics_type::qss3_min_hold:
+        return std::invoke(std::forward<Function>(f),
+                           qss_min_hold_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_flipflop:
     case dynamics_type::qss2_flipflop:

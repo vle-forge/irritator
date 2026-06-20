@@ -77,7 +77,7 @@ struct json_dearchiver::impl {
 
         const auto start     = warnings.size();
         const auto remaining = warnings.capacity() - start;
-        const auto ret       = fmt::vformat_to_n(warnings.data() + start,
+        const auto ret = fmt::vformat_to_n(warnings.data() + start,
                                            remaining,
                                            fmt,
                                            fmt::make_format_args(args...));
@@ -1286,6 +1286,20 @@ struct json_dearchiver::impl {
 
               return true;
           });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_max_hold_tag,
+                       parameter& /*p*/) noexcept
+    {
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_min_hold_tag,
+                       parameter& /*p*/) noexcept
+    {
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -5570,6 +5584,30 @@ struct json_archiver::impl {
         writer.Double(p.reals[qss_cross_tag::up_value]);
         writer.Key("bottom");
         writer.Double(p.reals[qss_cross_tag::bottom_value]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const qss_max_hold_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const qss_min_hold_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
         writer.EndObject();
     }
 

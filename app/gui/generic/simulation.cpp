@@ -436,6 +436,15 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
 }
 
+template<std::size_t QssLevel, bool IsMax>
+static void show_dynamics_values(
+  application& /*app*/,
+  project_editor& /*sim*/,
+  const struct abstract_min_max_hold<QssLevel, IsMax>& dyn)
+{
+    ImGui::LabelFormat("extremum", "{}", dyn.extremum);
+}
+
 template<std::size_t QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
