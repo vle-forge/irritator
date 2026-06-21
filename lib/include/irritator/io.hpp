@@ -52,34 +52,151 @@ auto get_internal_component_type(std::string_view name) noexcept
   -> std::optional<internal_component>;
 
 static constexpr inline const char* dynamics_type_names[] = {
-    "qss1_integrator", "qss1_multiplier", "qss1_cross",
-    "qss1_max_hold",   "qss1_min_hold",   "qss1_flipflop",
-    "qss1_filter",     "qss1_power",      "qss1_square",
-    "qss1_sum_2",      "qss1_sum_3",      "qss1_sum_4",
-    "qss1_wsum_2",     "qss1_wsum_3",     "qss1_wsum_4",
-    "qss1_inverse",    "qss1_integer",    "qss1_compare",
-    "qss1_gain",       "qss1_sin",        "qss1_cos",
-    "qss1_log",        "qss1_exp",        "qss2_integrator",
-    "qss2_multiplier", "qss2_cross",      "qss2_max_hold",
-    "qss2_min_hold",   "qss2_flipflop",   "qss2_filter",
-    "qss2_power",      "qss2_square",     "qss2_sum_2",
-    "qss2_sum_3",      "qss2_sum_4",      "qss2_wsum_2",
-    "qss2_wsum_3",     "qss2_wsum_4",     "qss2_inverse",
-    "qss2_integer",    "qss2_compare",    "qss2_gain",
-    "qss2_sin",        "qss2_cos",        "qss2_log",
-    "qss2_exp",        "qss3_integrator", "qss3_multiplier",
-    "qss3_cross",      "qss3_max_hold",   "qss3_min_hold",
-    "qss3_flipflop",   "qss3_filter",     "qss3_power",
-    "qss3_square",     "qss3_sum_2",      "qss3_sum_3",
-    "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",
-    "qss3_wsum_4",     "qss3_inverse",    "qss3_integer",
-    "qss3_compare",    "qss3_gain",       "qss3_sin",
-    "qss3_cos",        "qss3_log",        "qss3_exp",
-    "counter",         "queue",           "dynamic_queue",
-    "priority_queue",  "generator",       "constant",
-    "time_func",       "accumulator_2",   "logical_and_2",
-    "logical_and_3",   "logical_or_2",    "logical_or_3",
-    "logical_invert",  "hsm_wrapper",     "simulation_wrapper"
+    "qss1_integrator",
+    "qss1_multiplier",
+    "qss1_cross",
+    "qss1_max_hold",
+    "qss1_min_hold",
+    "qss1_flipflop",
+    "qss1_filter",
+    "qss1_power",
+    "qss1_square",
+    "qss1_sum_2",
+    "qss1_sum_3",
+    "qss1_sum_4",
+    "qss1_wsum_2",
+    "qss1_wsum_3",
+    "qss1_wsum_4",
+    "qss1_inverse",
+    "qss1_integer",
+    "qss1_compare",
+    "qss1_gain",
+    "qss1_sin",
+    "qss1_cos",
+    "qss1_log",
+    "qss1_exp",
+    "qss1_sample_hold",
+    "qss1_quantizer",
+    "qss1_integrate_and_fire",
+    "qss1_threshold_crossing",
+    "qss1_pwm",
+    "qss1_abs",
+    "qss1_atan",
+    "qss1_atan2",
+    "qss1_dead_zone",
+    "qss1_division",
+    "qss1_hysteresis",
+    "qss1_maximum",
+    "qss1_minimum",
+    "qss1_saturation",
+    "qss1_sigmoid",
+    "qss1_sign",
+    "qss1_sqrt",
+    "qss1_tan",
+    "qss1_tanh",
+    "qss1_wrap",
+    "qss2_integrator",
+    "qss2_multiplier",
+    "qss2_cross",
+    "qss2_max_hold",
+    "qss2_min_hold",
+    "qss2_flipflop",
+    "qss2_filter",
+    "qss2_power",
+    "qss2_square",
+    "qss2_sum_2",
+    "qss2_sum_3",
+    "qss2_sum_4",
+    "qss2_wsum_2",
+    "qss2_wsum_3",
+    "qss2_wsum_4",
+    "qss2_inverse",
+    "qss2_integer",
+    "qss2_compare",
+    "qss2_gain",
+    "qss2_sin",
+    "qss2_cos",
+    "qss2_log",
+    "qss2_exp",
+    "qss2_sample_hold",
+    "qss2_quantizer",
+    "qss2_integrate_and_fire",
+    "qss2_threshold_crossing",
+    "qss2_pwm",
+    "qss2_abs",
+    "qss2_atan",
+    "qss2_atan2",
+    "qss2_dead_zone",
+    "qss2_division",
+    "qss2_hysteresis",
+    "qss2_maximum",
+    "qss2_minimum",
+    "qss2_saturation",
+    "qss2_sigmoid",
+    "qss2_sign",
+    "qss2_sqrt",
+    "qss2_tan",
+    "qss2_tanh",
+    "qss2_wrap",
+    "qss3_integrator",
+    "qss3_multiplier",
+    "qss3_cross",
+    "qss3_max_hold",
+    "qss3_min_hold",
+    "qss3_flipflop",
+    "qss3_filter",
+    "qss3_power",
+    "qss3_square",
+    "qss3_sum_2",
+    "qss3_sum_3",
+    "qss3_sum_4",
+    "qss3_wsum_2",
+    "qss3_wsum_3",
+    "qss3_wsum_4",
+    "qss3_inverse",
+    "qss3_integer",
+    "qss3_compare",
+    "qss3_gain",
+    "qss3_sin",
+    "qss3_cos",
+    "qss3_log",
+    "qss3_exp",
+    "qss3_sample_hold",
+    "qss3_quantizer",
+    "qss3_integrate_and_fire",
+    "qss3_threshold_crossing",
+    "qss3_pwm",
+    "qss3_abs",
+    "qss3_atan",
+    "qss3_atan2",
+    "qss3_dead_zone",
+    "qss3_division",
+    "qss3_hysteresis",
+    "qss3_maximum",
+    "qss3_minimum",
+    "qss3_saturation",
+    "qss3_sigmoid",
+    "qss3_sign",
+    "qss3_sqrt",
+    "qss3_tan",
+    "qss3_tanh",
+    "qss3_wrap",
+    "counter",
+    "queue",
+    "dynamic_queue",
+    "priority_queue",
+    "generator",
+    "constant",
+    "time_func",
+    "accumulator_2",
+    "logical_and_2",
+    "logical_and_3",
+    "logical_or_2",
+    "logical_or_3",
+    "logical_invert",
+    "hsm_wrapper",
+    "simulation_wrapper",
+    "zero_order_hold",
 };
 
 //! Try to get the dymamics type from a string. If the string is unknown,
@@ -260,6 +377,67 @@ constexpr static inline auto dot_output_dyn_index =
     1, // logical_invert,
     2, // hsm_wrapper
     1, // simulation_wrapper
+    1, // qss1_sample_hold
+    1, // qss2_sample_hold
+    1, // qss3_sample_hold
+    1, // zero_order_hold
+    1, // qss1_quantizer
+    1, // qss2_quantizer
+    1, // qss3_quantizer
+    1, // qss1_integrate_and_fire
+    1, // qss2_integrate_and_fire
+    1, // qss3_integrate_and_fire
+    1, // qss1_threshold_crossing
+    1, // qss2_threshold_crossing
+    1, // qss3_threshold_crossing
+    1, // qss1_pwm
+    1, // qss2_pwm
+    1, // qss3_pwm
+    1, // qss1_sqrt
+    1, // qss2_sqrt
+    1, // qss3_sqrt
+    1, // qss1_atan
+    1, // qss2_atan
+    1, // qss3_atan
+    1, // qss1_tan
+    1, // qss2_tan
+    1, // qss3_tan
+    1, // qss1_tanh
+    1, // qss2_tanh
+    1, // qss3_tanh
+    1, // qss1_sigmoid
+    1, // qss2_sigmoid
+    1, // qss3_sigmoid
+    1, // qss1_division
+    1, // qss2_division
+    1, // qss3_division
+    1, // qss1_atan2
+    1, // qss2_atan2
+    1, // qss3_atan2
+    1, // qss1_saturation
+    1, // qss2_saturation
+    1, // qss3_saturation
+    1, // qss1_dead_zone
+    1, // qss2_dead_zone
+    1, // qss3_dead_zone
+    1, // qss1_abs
+    1, // qss2_abs
+    1, // qss3_abs
+    1, // qss1_sign
+    1, // qss2_sign
+    1, // qss3_sign
+    1, // qss1_hysteresis
+    1, // qss2_hysteresis
+    1, // qss3_hysteresis
+    1, // qss1_minimum
+    1, // qss2_minimum
+    1, // qss3_minimum
+    1, // qss1_maximum
+    1, // qss2_maximum
+    1, // qss3_maximum
+    1, // qss1_wrap
+    1, // qss2_wrap
+    1, // qss3_wrap
   });
 
 inline constexpr std::span<const std::string_view> get_output_port_names(
@@ -452,6 +630,128 @@ constexpr std::span<const std::string_view> get_output_port_names(
         return get_output_port_names(dot_output_index[2], names);
     if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
         return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sample_hold>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sample_hold>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sample_hold>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, zero_order_hold>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_quantizer>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_quantizer>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_quantizer>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_integrate_and_fire>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_integrate_and_fire>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_integrate_and_fire>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_threshold_crossing>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_threshold_crossing>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_threshold_crossing>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_pwm>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_pwm>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_pwm>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sqrt>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sqrt>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sqrt>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_atan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_atan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_atan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_tan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_tan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_tan>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_tanh>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_tanh>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_tanh>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sigmoid>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sigmoid>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sigmoid>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_division>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_division>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_division>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_atan2>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_atan2>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_atan2>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_saturation>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_saturation>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_saturation>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_dead_zone>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_dead_zone>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_dead_zone>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_abs>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_abs>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_abs>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sign>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sign>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sign>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_hysteresis>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_hysteresis>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_hysteresis>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_minimum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_minimum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_minimum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_maximum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_maximum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_maximum>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wrap>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wrap>)
+        return get_output_port_names(dot_output_index[1], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wrap>)
+        return get_output_port_names(dot_output_index[1], names);
 
     unreachable();
 }
@@ -570,6 +870,67 @@ constexpr static inline auto dot_input_dyn_index =
     2,  // logical_invert,
     5,  // hsm_wrapper
     10, // simulation_wrapper
+    2,  // qss1_sample_hold
+    2,  // qss2_sample_hold
+    2,  // qss3_sample_hold
+    2,  // zero_order_hold
+    2,  // qss1_quantizer
+    2,  // qss2_quantizer
+    2,  // qss3_quantizer
+    3,  // qss1_integrate_and_fire
+    3,  // qss2_integrate_and_fire
+    3,  // qss3_integrate_and_fire
+    3,  // qss1_threshold_crossing
+    3,  // qss2_threshold_crossing
+    3,  // qss3_threshold_crossing
+    2,  // qss1_pwm
+    2,  // qss2_pwm
+    2,  // qss3_pwm
+    2,  // qss1_sqrt
+    2,  // qss2_sqrt
+    2,  // qss3_sqrt
+    2,  // qss1_atan
+    2,  // qss2_atan
+    2,  // qss3_atan
+    2,  // qss1_tan
+    2,  // qss2_tan
+    2,  // qss3_tan
+    2,  // qss1_tanh
+    2,  // qss2_tanh
+    2,  // qss3_tanh
+    2,  // qss1_sigmoid
+    2,  // qss2_sigmoid
+    2,  // qss3_sigmoid
+    3,  // qss1_division
+    3,  // qss2_division
+    3,  // qss3_division
+    3,  // qss1_atan2
+    3,  // qss2_atan2
+    3,  // qss3_atan2
+    2,  // qss1_saturation
+    2,  // qss2_saturation
+    2,  // qss3_saturation
+    2,  // qss1_dead_zone
+    2,  // qss2_dead_zone
+    2,  // qss3_dead_zone
+    2,  // qss1_abs
+    2,  // qss2_abs
+    2,  // qss3_abs
+    2,  // qss1_sign
+    2,  // qss2_sign
+    2,  // qss3_sign
+    2,  // qss1_hysteresis
+    2,  // qss2_hysteresis
+    2,  // qss3_hysteresis
+    3,  // qss1_minimum
+    3,  // qss2_minimum
+    3,  // qss3_minimum
+    3,  // qss1_maximum
+    3,  // qss2_maximum
+    3,  // qss3_maximum
+    2,  // qss1_wrap
+    2,  // qss2_wrap
+    2,  // qss3_wrap
   });
 
 inline constexpr std::span<const std::string_view> get_input_port_names(
@@ -762,6 +1123,128 @@ constexpr std::span<const std::string_view> get_input_port_names(
         return get_input_port_names(dot_input_index[5], names);
     if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
         return get_input_port_names(dot_input_index[10], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sample_hold>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sample_hold>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sample_hold>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, zero_order_hold>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_quantizer>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_quantizer>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_quantizer>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_integrate_and_fire>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_integrate_and_fire>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_integrate_and_fire>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_threshold_crossing>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_threshold_crossing>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_threshold_crossing>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_pwm>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_pwm>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_pwm>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sqrt>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sqrt>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sqrt>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_atan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_atan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_atan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_tan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_tan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_tan>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_tanh>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_tanh>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_tanh>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sigmoid>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sigmoid>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sigmoid>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_division>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_division>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_division>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_atan2>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_atan2>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_atan2>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_saturation>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_saturation>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_saturation>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_dead_zone>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_dead_zone>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_dead_zone>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_abs>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_abs>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_abs>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sign>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sign>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sign>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_hysteresis>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_hysteresis>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_hysteresis>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_minimum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_minimum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_minimum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_maximum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_maximum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_maximum>)
+        return get_input_port_names(dot_input_index[3], names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wrap>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wrap>)
+        return get_input_port_names(dot_input_index[2], names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wrap>)
+        return get_input_port_names(dot_input_index[2], names);
 
     unreachable();
 }

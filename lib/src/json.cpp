@@ -1323,6 +1323,7 @@ struct json_dearchiver::impl {
               return true;
           });
     }
+
     bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_flipflop_tag,
                        parameter& /*p*/) noexcept
@@ -1346,6 +1347,267 @@ struct json_dearchiver::impl {
               if ("upper-threshold"sv == name)
                   return read_temp_real(value) &&
                          copy_real_to(p.reals[qss_filter_tag::upper_bound]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       sample_hold_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics sample_hold_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("ts"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[sample_hold_tag::ts]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       zero_order_hold_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics zero_order_hold");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       quantizer_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics quantizer_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("step"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[quantizer_tag::step]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       integrate_and_fire_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics integrate_and_fire_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[integrate_and_fire_tag::threshold]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       threshold_crossing_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics threshold_crossing_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("threshold"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[threshold_crossing_tag::level]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       pwm_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics pwm");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("period"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[pwm_tag::period]);
+              if ("amplitude"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[pwm_tag::amplitude]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       sqrt_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       atan_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       tan_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       tanh_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       sigmoid_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       division_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       atan2_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       abs_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       sign_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       minimum_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       maximum_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics static_fn_tag");
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       saturation_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics saturation_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("lower"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[saturation_tag::lower]);
+              if ("upper"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[saturation_tag::upper]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       dead_zone_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics dead_zone_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("lower"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[dead_zone_tag::lower]);
+              if ("upper"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[dead_zone_tag::upper]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       hysteresis_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics hysteresis_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("lower"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[hysteresis_tag::lower]);
+              if ("upper"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[hysteresis_tag::upper]);
+              if ("out-low"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[hysteresis_tag::out_low]);
+              if ("out-high"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[hysteresis_tag::out_high]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       wrap_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics wrap_tag");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("origin"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[wrap_tag::origin]);
+              if ("modulo"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[wrap_tag::modulo]);
 
               return error("unknown element");
           });
@@ -5566,6 +5828,280 @@ struct json_archiver::impl {
         } break;
         }
 
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const sample_hold_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("ts");
+        writer.Double(p.reals[sample_hold_tag::ts]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const zero_order_hold_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const quantizer_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("step");
+        writer.Double(p.reals[quantizer_tag::step]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const integrate_and_fire_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("threshold");
+        writer.Double(p.reals[integrate_and_fire_tag::threshold]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const threshold_crossing_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("threshold");
+        writer.Double(p.reals[threshold_crossing_tag::level]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const pwm_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("period");
+        writer.Double(p.reals[pwm_tag::period]);
+        writer.Key("amplitude");
+        writer.Double(p.reals[pwm_tag::amplitude]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const sqrt_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const atan_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const tan_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const tanh_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const sigmoid_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const division_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const atan2_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const abs_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const sign_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const minimum_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const maximum_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const saturation_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower");
+        writer.Double(p.reals[saturation_tag::lower]);
+        writer.Key("upper");
+        writer.Double(p.reals[saturation_tag::upper]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const dead_zone_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower");
+        writer.Double(p.reals[dead_zone_tag::lower]);
+        writer.Key("upper");
+        writer.Double(p.reals[dead_zone_tag::upper]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const hysteresis_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower");
+        writer.Double(p.reals[hysteresis_tag::lower]);
+        writer.Key("upper");
+        writer.Double(p.reals[hysteresis_tag::upper]);
+        writer.Key("out-low");
+        writer.Double(p.reals[hysteresis_tag::out_low]);
+        writer.Key("out-high");
+        writer.Double(p.reals[hysteresis_tag::out_high]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const wrap_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("origin");
+        writer.Double(p.reals[wrap_tag::origin]);
+        writer.Key("modulo");
+        writer.Double(p.reals[wrap_tag::modulo]);
         writer.EndObject();
     }
 

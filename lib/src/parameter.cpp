@@ -372,6 +372,258 @@ static void parameter_init(parameter&                       param,
 }
 
 template<size_t QssLevel>
+static void model_init(const parameter&                param,
+                       abstract_sample_hold<QssLevel>& dyn) noexcept
+{
+    dyn.ts = param.reals[sample_hold_tag::ts];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                            param,
+                           const abstract_sample_hold<QssLevel>& dyn) noexcept
+{
+    param.reals[sample_hold_tag::ts] = dyn.ts;
+}
+
+static void model_init(const parameter& /*param*/,
+                       zero_order_hold& /*dyn*/) noexcept
+{}
+
+static void parameter_init(parameter& /*param*/,
+                           const zero_order_hold& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter&               param,
+                       abstract_quantizer<QssLevel>& dyn) noexcept
+{
+    dyn.q = param.reals[quantizer_tag::step];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                          param,
+                           const abstract_quantizer<QssLevel>& dyn) noexcept
+{
+    param.reals[quantizer_tag::step] = dyn.q;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&                       param,
+                       abstract_integrate_and_fire<QssLevel>& dyn) noexcept
+{
+    dyn.theta = param.reals[integrate_and_fire_tag::threshold];
+}
+
+template<size_t QssLevel>
+static void parameter_init(
+  parameter&                                   param,
+  const abstract_integrate_and_fire<QssLevel>& dyn) noexcept
+{
+    param.reals[integrate_and_fire_tag::threshold] = dyn.theta;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&                       param,
+                       abstract_threshold_crossing<QssLevel>& dyn) noexcept
+{
+    dyn.threshold = param.reals[threshold_crossing_tag::level];
+}
+
+template<size_t QssLevel>
+static void parameter_init(
+  parameter&                                   param,
+  const abstract_threshold_crossing<QssLevel>& dyn) noexcept
+{
+    param.reals[threshold_crossing_tag::level] = dyn.threshold;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&        param,
+                       abstract_pwm<QssLevel>& dyn) noexcept
+{
+    dyn.period    = param.reals[pwm_tag::period];
+    dyn.amplitude = param.reals[pwm_tag::amplitude];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                    param,
+                           const abstract_pwm<QssLevel>& dyn) noexcept
+{
+    param.reals[pwm_tag::period]    = dyn.period;
+    param.reals[pwm_tag::amplitude] = dyn.amplitude;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_sqrt<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sqrt<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_atan<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_atan<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_tan<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_tan<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_tanh<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_tanh<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_sigmoid<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sigmoid<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_division<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_division<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_atan2<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_atan2<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_abs<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_abs<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_sign<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sign<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel, bool IsMax>
+static void model_init(const parameter& /*param*/,
+                       abstract_min_max<QssLevel, IsMax>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel, bool IsMax>
+static void parameter_init(
+  parameter& /*param*/,
+  const abstract_min_max<QssLevel, IsMax>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter&               param,
+                       abstract_saturation<QssLevel>& dyn) noexcept
+{
+    dyn.lower = param.reals[saturation_tag::lower];
+    dyn.upper = param.reals[saturation_tag::upper];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                     param,
+                           const abstract_saturation<QssLevel>& dyn) noexcept
+{
+    param.reals[saturation_tag::lower] = dyn.lower;
+    param.reals[saturation_tag::upper] = dyn.upper;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&               param,
+                       abstract_dead_zone<QssLevel>& dyn) noexcept
+{
+    dyn.lower = param.reals[dead_zone_tag::lower];
+    dyn.upper = param.reals[dead_zone_tag::upper];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                     param,
+                           const abstract_dead_zone<QssLevel>& dyn) noexcept
+{
+    param.reals[dead_zone_tag::lower] = dyn.lower;
+    param.reals[dead_zone_tag::upper] = dyn.upper;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&                 param,
+                       abstract_hysteresis<QssLevel>& dyn) noexcept
+{
+    dyn.lower    = param.reals[hysteresis_tag::lower];
+    dyn.upper    = param.reals[hysteresis_tag::upper];
+    dyn.out_low  = param.reals[hysteresis_tag::out_low];
+    dyn.out_high = param.reals[hysteresis_tag::out_high];
+}
+
+template<size_t QssLevel>
+static void parameter_init(
+  parameter&                           param,
+  const abstract_hysteresis<QssLevel>& dyn) noexcept
+{
+    param.reals[hysteresis_tag::lower]    = dyn.lower;
+    param.reals[hysteresis_tag::upper]    = dyn.upper;
+    param.reals[hysteresis_tag::out_low]  = dyn.out_low;
+    param.reals[hysteresis_tag::out_high] = dyn.out_high;
+}
+
+template<size_t QssLevel>
+static void model_init(const parameter&         param,
+                       abstract_wrap<QssLevel>& dyn) noexcept
+{
+    dyn.origin = param.reals[wrap_tag::origin];
+    dyn.modulo = param.reals[wrap_tag::modulo];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                     param,
+                           const abstract_wrap<QssLevel>& dyn) noexcept
+{
+    param.reals[wrap_tag::origin] = dyn.origin;
+    param.reals[wrap_tag::modulo] = dyn.modulo;
+}
+
+template<size_t QssLevel>
 static void model_init(const parameter&          param,
                        abstract_power<QssLevel>& dyn) noexcept
 {
@@ -541,6 +793,49 @@ void parameter::init_from(const dynamics_type type) noexcept
           if constexpr (std::is_same_v<Tag, qss_filter_tag>) {
               param.set_filter(-std::numeric_limits<real>::infinity(),
                                +std::numeric_limits<real>::infinity());
+          }
+
+          if constexpr (std::is_same_v<Tag, sample_hold_tag>) {
+              param.reals[sample_hold_tag::ts] = 0.1;
+          }
+
+          if constexpr (std::is_same_v<Tag, quantizer_tag>) {
+              param.reals[quantizer_tag::step] = 0.1;
+          }
+
+          if constexpr (std::is_same_v<Tag, integrate_and_fire_tag>) {
+              param.reals[integrate_and_fire_tag::threshold] = one;
+          }
+
+          if constexpr (std::is_same_v<Tag, threshold_crossing_tag>) {
+              param.reals[threshold_crossing_tag::level] = zero;
+          }
+
+          if constexpr (std::is_same_v<Tag, pwm_tag>) {
+              param.reals[pwm_tag::period]    = one;
+              param.reals[pwm_tag::amplitude] = one;
+          }
+
+          if constexpr (std::is_same_v<Tag, saturation_tag>) {
+              param.reals[saturation_tag::lower] = -one;
+              param.reals[saturation_tag::upper] = one;
+          }
+
+          if constexpr (std::is_same_v<Tag, dead_zone_tag>) {
+              param.reals[dead_zone_tag::lower] = -one;
+              param.reals[dead_zone_tag::upper] = one;
+          }
+
+          if constexpr (std::is_same_v<Tag, hysteresis_tag>) {
+              param.reals[hysteresis_tag::lower]    = zero;
+              param.reals[hysteresis_tag::upper]    = one;
+              param.reals[hysteresis_tag::out_low]  = zero;
+              param.reals[hysteresis_tag::out_high] = one;
+          }
+
+          if constexpr (std::is_same_v<Tag, wrap_tag>) {
+              param.reals[wrap_tag::origin] = zero;
+              param.reals[wrap_tag::modulo] = one;
           }
 
           if constexpr (std::is_same_v<Tag, qss_cross_tag>) {

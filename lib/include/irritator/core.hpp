@@ -806,6 +806,27 @@ enum class dynamics_type : u8 {
     qss1_cos,
     qss1_log,
     qss1_exp,
+    qss1_sample_hold,
+    qss1_quantizer,
+    qss1_integrate_and_fire,
+    qss1_threshold_crossing,
+    qss1_pwm,
+    qss1_abs,
+    qss1_atan,
+    qss1_atan2,
+    qss1_dead_zone,
+    qss1_division,
+    qss1_hysteresis,
+    qss1_maximum,
+    qss1_minimum,
+    qss1_saturation,
+    qss1_sigmoid,
+    qss1_sign,
+    qss1_sqrt,
+    qss1_tan,
+    qss1_tanh,
+    qss1_wrap,
+
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
@@ -829,6 +850,27 @@ enum class dynamics_type : u8 {
     qss2_cos,
     qss2_log,
     qss2_exp,
+    qss2_sample_hold,
+    qss2_quantizer,
+    qss2_integrate_and_fire,
+    qss2_threshold_crossing,
+    qss2_pwm,
+    qss2_abs,
+    qss2_atan,
+    qss2_atan2,
+    qss2_dead_zone,
+    qss2_division,
+    qss2_hysteresis,
+    qss2_maximum,
+    qss2_minimum,
+    qss2_saturation,
+    qss2_sigmoid,
+    qss2_sign,
+    qss2_sqrt,
+    qss2_tan,
+    qss2_tanh,
+    qss2_wrap,
+
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
@@ -852,6 +894,27 @@ enum class dynamics_type : u8 {
     qss3_cos,
     qss3_log,
     qss3_exp,
+    qss3_sample_hold,
+    qss3_quantizer,
+    qss3_integrate_and_fire,
+    qss3_threshold_crossing,
+    qss3_pwm,
+    qss3_abs,
+    qss3_atan,
+    qss3_atan2,
+    qss3_dead_zone,
+    qss3_division,
+    qss3_hysteresis,
+    qss3_maximum,
+    qss3_minimum,
+    qss3_saturation,
+    qss3_sigmoid,
+    qss3_sign,
+    qss3_sqrt,
+    qss3_tan,
+    qss3_tanh,
+    qss3_wrap,
+
     counter,
     queue,
     dynamic_queue,
@@ -866,18 +929,16 @@ enum class dynamics_type : u8 {
     logical_or_3,
     logical_invert,
     hsm_wrapper,
-    simulation_wrapper
+    simulation_wrapper,
+    zero_order_hold,
 };
 
-constexpr i8 dynamics_type_last() noexcept
+constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<i8>(dynamics_type::simulation_wrapper);
+    return static_cast<int>(dynamics_type::zero_order_hold);
 }
 
-constexpr sz dynamics_type_size() noexcept
-{
-    return static_cast<sz>(dynamics_type_last() + 1);
-}
+constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
 
 /*****************************************************************************
  *
@@ -4759,6 +4820,1857 @@ using qss1_filter = abstract_filter<1>;
 using qss2_filter = abstract_filter<2>;
 using qss3_filter = abstract_filter<3>;
 
+template<std::size_t QssLevel>
+struct abstract_sample_hold {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       sample;
+    real                       ts;
+    time                       sigma;
+    bool                       emit;
+
+    abstract_sample_hold() noexcept = default;
+
+    abstract_sample_hold(const abstract_sample_hold& other) noexcept
+      : value(other.value)
+      , sample(other.sample)
+      , ts(other.ts)
+      , sigma(other.sigma)
+      , emit(other.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sample = zero;
+        emit   = false;
+        sigma  = ts;
+        return success();
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
+    {
+        const auto lst      = get_message(sim, x[0]);
+        const auto has      = not lst.empty();
+        const auto internal = r <= time_domain<time>::zero;
+
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = ts;
+        } else if (internal) {
+            sample = value[0];
+            emit   = true;
+            sigma  = time_domain<time>::zero;
+        } else {
+            sigma = r;
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (emit)
+            return send_message(sim, y[0], sample);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, sample };
+    }
+};
+
+using qss1_sample_hold = abstract_sample_hold<1>;
+using qss2_sample_hold = abstract_sample_hold<2>;
+using qss3_sample_hold = abstract_sample_hold<3>;
+
+
+struct zero_order_hold {
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    real held;
+    time sigma;
+
+    zero_order_hold() noexcept = default;
+
+    zero_order_hold(const zero_order_hold& other) noexcept
+      : held(other.held)
+      , sigma(other.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        held  = zero;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time /*t*/, time /*e*/, time /*r*/) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+
+        if (not lst.empty()) {
+            held  = get_qss_message<1>(lst)[0];
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        return send_message(sim, y[0], held);
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, held };
+    }
+};
+
+
+template<std::size_t QssLevel>
+struct abstract_quantizer {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       q;
+    real                       level;
+    time                       sigma;
+    bool                       emit;
+
+    abstract_quantizer() noexcept = default;
+
+    abstract_quantizer(const abstract_quantizer& other) noexcept
+      : value(other.value)
+      , q(other.q)
+      , level(other.level)
+      , sigma(other.sigma)
+      , emit(other.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        level = std::numeric_limits<real>::quiet_NaN();
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    time next_boundary() const noexcept
+    {
+        const auto upper = level + q / two;
+        const auto lower = level - q / two;
+
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+
+        if constexpr (QssLevel == 2)
+            return std::min(compute_wake_up(upper, value[0], value[1]),
+                            compute_wake_up(lower, value[0], value[1]));
+        if constexpr (QssLevel == 3)
+            return std::min(
+              compute_wake_up(upper, value[0], value[1], value[2]),
+              compute_wake_up(lower, value[0], value[1], value[2]));
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = next_boundary();
+            return success();
+        }
+
+        const auto new_level = q * std::round(value[0] / q);
+
+        if (not(new_level == level)) {
+            level = new_level;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = next_boundary();
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (emit)
+            return send_message(sim, y[0], level);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, level };
+    }
+};
+
+using qss1_quantizer = abstract_quantizer<1>;
+using qss2_quantizer = abstract_quantizer<2>;
+using qss3_quantizer = abstract_quantizer<3>;
+
+
+template<std::size_t QssLevel>
+struct abstract_integrate_and_fire {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value; 
+    real                       acc;    
+    real                       theta;  
+    time                       sigma;
+    bool                       fire;   
+
+    enum i_port_name : u8 { port_value, port_reset };
+
+    abstract_integrate_and_fire() noexcept = default;
+
+    abstract_integrate_and_fire(
+      const abstract_integrate_and_fire& other) noexcept
+      : value(other.value)
+      , acc(other.acc)
+      , theta(other.theta)
+      , sigma(other.sigma)
+      , fire(other.fire)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        acc   = zero;
+        fire  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    {
+        const auto p_value   = get_message(sim, x[port_value]);
+        const auto p_reset   = get_message(sim, x[port_reset]);
+        const auto has_value = not p_value.empty();
+        const auto has_reset = not p_reset.empty();
+
+        if constexpr (QssLevel == 1)
+            acc += value[0] * e;
+        if constexpr (QssLevel == 2)
+            acc += value[0] * e + value[1] * e * e / two;
+        if constexpr (QssLevel == 3)
+            acc += value[0] * e + value[1] * e * e / two +
+                   value[2] * e * e * e / real(3);
+
+        has_value
+          ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
+          : update<QssLevel>(value, e);
+
+        if (has_reset)
+            acc = zero;
+
+        if (fire)
+            fire = false;
+
+        if (acc >= theta) {
+            acc -= theta;
+            fire  = true;
+            sigma = time_domain<time>::zero;
+        } else {
+            if constexpr (QssLevel == 1)
+                sigma = compute_wake_up(theta, acc, value[0]);
+            if constexpr (QssLevel == 2)
+                sigma = compute_wake_up(theta, acc, value[0], value[1] / two);
+            if constexpr (QssLevel == 3)
+                sigma = compute_wake_up(theta, acc, value[0], value[1] / two);
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (fire)
+            return send_message(sim, y[0], one);
+
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, acc };
+    }
+};
+
+using qss1_integrate_and_fire = abstract_integrate_and_fire<1>;
+using qss2_integrate_and_fire = abstract_integrate_and_fire<2>;
+using qss3_integrate_and_fire = abstract_integrate_and_fire<3>;
+
+
+template<std::size_t QssLevel>
+struct abstract_threshold_crossing {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    enum class side_type : u8 { unknown, above, below };
+
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       threshold;
+    real                       edge;
+    time                       sigma;
+    side_type                  side;
+
+    enum i_port_name : u8 { port_value, port_threshold };
+
+    abstract_threshold_crossing() noexcept = default;
+
+    abstract_threshold_crossing(
+      const abstract_threshold_crossing& other) noexcept
+      : value(other.value)
+      , threshold(other.threshold)
+      , edge(other.edge)
+      , sigma(other.sigma)
+      , side(other.side)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        edge  = zero;
+        side  = side_type::unknown;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    time next_crossing() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        if constexpr (QssLevel == 2)
+            return compute_wake_up(threshold, value[0], value[1]);
+        if constexpr (QssLevel == 3)
+            return compute_wake_up(threshold, value[0], value[1], value[2]);
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    {
+        const auto p_value     = get_message(sim, x[port_value]);
+        const auto p_threshold = get_message(sim, x[port_threshold]);
+
+        if (not p_threshold.empty())
+            threshold = get_qss_message<QssLevel>(p_threshold)[0];
+
+        not p_value.empty()
+          ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
+          : update<QssLevel>(value, e);
+
+        if (edge != zero) {
+            edge  = zero;
+            sigma = next_crossing();
+            return success();
+        }
+
+        const auto new_side =
+          (value[0] >= threshold) ? side_type::above : side_type::below;
+
+        if (side != side_type::unknown and new_side != side) {
+            edge  = (new_side == side_type::above) ? one : -one;
+            side  = new_side;
+            sigma = time_domain<time>::zero;
+        } else {
+            side  = new_side;
+            sigma = next_crossing();
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (edge != zero)
+            return send_message(sim, y[0], edge);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, value[0] };
+    }
+};
+
+using qss1_threshold_crossing = abstract_threshold_crossing<1>;
+using qss2_threshold_crossing = abstract_threshold_crossing<2>;
+using qss3_threshold_crossing = abstract_threshold_crossing<3>;
+
+
+template<std::size_t QssLevel>
+struct abstract_pwm {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       period;
+    real                       amplitude;
+    real                       duty;
+    real                       out_level;
+    real                       phase_dur;
+    time                       sigma;
+    bool                       expect_fall;
+    bool                       do_emit;
+
+    abstract_pwm() noexcept = default;
+
+    abstract_pwm(const abstract_pwm& other) noexcept
+      : value(other.value)
+      , period(other.period)
+      , amplitude(other.amplitude)
+      , duty(other.duty)
+      , out_level(other.out_level)
+      , phase_dur(other.phase_dur)
+      , sigma(other.sigma)
+      , expect_fall(other.expect_fall)
+      , do_emit(other.do_emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        duty        = zero;
+        out_level   = zero;
+        phase_dur   = period;
+        expect_fall = false;
+        do_emit     = false;
+        sigma       = time_domain<time>::zero;
+        return success();
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
+    {
+        const auto lst      = get_message(sim, x[0]);
+        const auto has      = not lst.empty();
+        const auto internal = r <= time_domain<time>::zero;
+
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (do_emit) {
+            do_emit = false;
+            sigma   = phase_dur;
+            return success();
+        }
+
+        if (not internal) {
+            sigma = r;
+            return success();
+        }
+
+        if (expect_fall) {
+            out_level   = zero;
+            expect_fall = false;
+            phase_dur   = period - duty * period;
+        } else {
+            duty                = std::clamp(value[0], zero, one);
+            const auto on_time  = duty * period;
+            const auto off_time = period - on_time;
+
+            if (on_time <= zero) {
+                out_level   = zero;
+                expect_fall = false;
+                phase_dur   = period;
+            } else if (off_time <= zero) {
+                out_level   = amplitude;
+                expect_fall = false;
+                phase_dur   = period;
+            } else {
+                out_level   = amplitude;
+                expect_fall = true;
+                phase_dur   = on_time;
+            }
+        }
+
+        do_emit = true;
+        sigma   = time_domain<time>::zero;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (do_emit)
+            return send_message(sim, y[0], out_level);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, out_level };
+    }
+};
+
+using qss1_pwm = abstract_pwm<1>;
+using qss2_pwm = abstract_pwm<2>;
+using qss3_pwm = abstract_pwm<3>;
+
+template<std::size_t QssLevel>
+struct abstract_sqrt {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+
+    abstract_sqrt() noexcept = default;
+    abstract_sqrt(const abstract_sqrt& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (value[0] <= zero)
+            return make_error(simulation_errc::abstract_log_input_error);
+
+        const real s = std::sqrt(value[0]);
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], s);
+
+        const real fp = one / (two * s); // f'(v0)
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], s, fp * value[1]);
+        if constexpr (QssLevel == 3) {
+            const real fpp = -one / (four * value[0] * s); // f''(v0)
+            return send_message(sim,
+                                y[0],
+                                s,
+                                fp * value[1],
+                                fpp * value[1] * value[1] + fp * value[2]);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, value[0] <= zero ? zero : std::sqrt(value[0]) };
+    }
+};
+
+using qss1_sqrt = abstract_sqrt<1>;
+using qss2_sqrt = abstract_sqrt<2>;
+using qss3_sqrt = abstract_sqrt<3>;
+
+template<std::size_t QssLevel>
+struct abstract_atan {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+
+    abstract_atan() noexcept = default;
+    abstract_atan(const abstract_atan& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real a = std::atan(value[0]);
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], a);
+
+        const real d  = one + value[0] * value[0];
+        const real fp = one / d; // f'(v0)
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], a, fp * value[1]);
+        if constexpr (QssLevel == 3) {
+            const real fpp = -two * value[0] / (d * d); // f''(v0)
+            return send_message(sim,
+                                y[0],
+                                a,
+                                fp * value[1],
+                                fpp * value[1] * value[1] + fp * value[2]);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, std::atan(value[0]) };
+    }
+};
+
+using qss1_atan = abstract_atan<1>;
+using qss2_atan = abstract_atan<2>;
+using qss3_atan = abstract_atan<3>;
+
+
+template<std::size_t QssLevel>
+struct abstract_tan {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+
+    abstract_tan() noexcept = default;
+    abstract_tan(const abstract_tan& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real T  = std::tan(value[0]);
+        const real fp = one + T * T; // f'(v0) = sec^2 = 1 + tan^2
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], T);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], T, fp * value[1]);
+        if constexpr (QssLevel == 3) {
+            const real fpp = two * T * fp; // f''(v0) = 2 tan (1 + tan^2)
+            return send_message(sim,
+                                y[0],
+                                T,
+                                fp * value[1],
+                                fpp * value[1] * value[1] + fp * value[2]);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, std::tan(value[0]) };
+    }
+};
+
+using qss1_tan = abstract_tan<1>;
+using qss2_tan = abstract_tan<2>;
+using qss3_tan = abstract_tan<3>;
+
+template<std::size_t QssLevel>
+struct abstract_tanh {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+
+    abstract_tanh() noexcept = default;
+    abstract_tanh(const abstract_tanh& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real th = std::tanh(value[0]);
+        const real fp = one - th * th; // f'(v0) = 1 - tanh^2
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], th);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], th, fp * value[1]);
+        if constexpr (QssLevel == 3) {
+            const real fpp = -two * th * fp; // f''(v0) = -2 tanh (1 - tanh^2)
+            return send_message(sim,
+                                y[0],
+                                th,
+                                fp * value[1],
+                                fpp * value[1] * value[1] + fp * value[2]);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, std::tanh(value[0]) };
+    }
+};
+
+using qss1_tanh = abstract_tanh<1>;
+using qss2_tanh = abstract_tanh<2>;
+using qss3_tanh = abstract_tanh<3>;
+
+template<std::size_t QssLevel>
+struct abstract_sigmoid {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+
+    abstract_sigmoid() noexcept = default;
+    abstract_sigmoid(const abstract_sigmoid& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real s  = one / (one + std::exp(-value[0]));
+        const real fp = s * (one - s); // f'(v0) = s (1 - s)
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], s);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], s, fp * value[1]);
+        if constexpr (QssLevel == 3) {
+            const real fpp = fp * (one - two * s); // f'' = s(1-s)(1-2s)
+            return send_message(sim,
+                                y[0],
+                                s,
+                                fp * value[1],
+                                fpp * value[1] * value[1] + fp * value[2]);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, one / (one + std::exp(-value[0])) };
+    }
+};
+
+using qss1_sigmoid = abstract_sigmoid<1>;
+using qss2_sigmoid = abstract_sigmoid<2>;
+using qss3_sigmoid = abstract_sigmoid<3>;
+
+template<std::size_t QssLevel>
+struct abstract_division {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel * 2> values; // [a0,b0, a1,b1, a2,b2]
+    time                           sigma;
+
+    enum i_port_name : u8 { port_a, port_b };
+
+    abstract_division() noexcept = default;
+    abstract_division(const abstract_division& o) noexcept
+      : values(o.values)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        values.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst_a = get_message(sim, x[port_a]);
+        const auto lst_b = get_message(sim, x[port_b]);
+        const auto msg_a = not lst_a.empty();
+        const auto msg_b = not lst_b.empty();
+        sigma            = time_domain<time>::infinity;
+
+        if (msg_a) {
+            const auto& m = get_qss_message<QssLevel>(lst_a);
+            sigma         = time_domain<time>::zero;
+            values[0]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 0] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 0] = m[2];
+        }
+        if (msg_b) {
+            const auto& m = get_qss_message<QssLevel>(lst_b);
+            sigma         = time_domain<time>::zero;
+            values[1]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 1] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 1] = m[2];
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (not msg_a)
+                values[0] += e * values[2 + 0];
+            if (not msg_b)
+                values[1] += e * values[2 + 1];
+        }
+        if constexpr (QssLevel == 3) {
+            if (not msg_a) {
+                values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
+                values[2 + 0] += two * values[2 + 2 + 0] * e;
+            }
+            if (not msg_b) {
+                values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
+                values[2 + 1] += two * values[2 + 2 + 1] * e;
+            }
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real a0 = values[0];
+        const real b0 = values[1];
+        if (is_zero(b0))
+            return make_error(simulation_errc::abstract_log_input_error);
+
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], a0 / b0);
+
+        const real a1 = values[2 + 0];
+        const real b1 = values[2 + 1];
+        const real c0 = one / b0;
+        const real c1 = -b1 / (b0 * b0);
+        const real z0 = a0 * c0;
+        const real z1 = a1 * c0 + a0 * c1;
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], z0, z1);
+        if constexpr (QssLevel == 3) {
+            const real a2 = values[2 + 2 + 0];
+            const real b2 = values[2 + 2 + 1];
+            const real c2 = two * b1 * b1 / (b0 * b0 * b0) - b2 / (b0 * b0);
+            const real z2 = a0 * c2 + two * a1 * c1 + a2 * c0;
+            return send_message(sim, y[0], z0, z1, z2);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t,
+                 is_zero(values[1]) ? std::numeric_limits<real>::infinity()
+                                    : values[0] / values[1] };
+    }
+};
+
+using qss1_division = abstract_division<1>;
+using qss2_division = abstract_division<2>;
+using qss3_division = abstract_division<3>;
+
+template<std::size_t QssLevel>
+struct abstract_atan2 {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel * 2> values; // [y0,x0, y1,x1, y2,x2]
+    time                           sigma;
+
+    enum i_port_name : u8 { port_y, port_x };
+
+    abstract_atan2() noexcept = default;
+    abstract_atan2(const abstract_atan2& o) noexcept
+      : values(o.values)
+      , sigma(o.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        values.fill(zero);
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst_y = get_message(sim, x[port_y]);
+        const auto lst_x = get_message(sim, x[port_x]);
+        const auto msg_y = not lst_y.empty();
+        const auto msg_x = not lst_x.empty();
+        sigma            = time_domain<time>::infinity;
+
+        if (msg_y) {
+            const auto& m = get_qss_message<QssLevel>(lst_y);
+            sigma         = time_domain<time>::zero;
+            values[0]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 0] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 0] = m[2];
+        }
+        if (msg_x) {
+            const auto& m = get_qss_message<QssLevel>(lst_x);
+            sigma         = time_domain<time>::zero;
+            values[1]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 1] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 1] = m[2];
+        }
+
+        if constexpr (QssLevel == 2) {
+            if (not msg_y)
+                values[0] += e * values[2 + 0];
+            if (not msg_x)
+                values[1] += e * values[2 + 1];
+        }
+        if constexpr (QssLevel == 3) {
+            if (not msg_y) {
+                values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
+                values[2 + 0] += two * values[2 + 2 + 0] * e;
+            }
+            if (not msg_x) {
+                values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
+                values[2 + 1] += two * values[2 + 2 + 1] * e;
+            }
+        }
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        const real y0  = values[0];
+        const real x0  = values[1];
+        const real ang = std::atan2(y0, x0);
+
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], ang);
+
+        if (is_zero(x0))
+            return send_message(sim, y[0], ang);
+
+        const real y1 = values[2 + 0];
+        const real x1 = values[2 + 1];
+        const real c0 = one / x0;
+        const real c1 = -x1 / (x0 * x0);
+        const real u0 = y0 * c0;
+        const real u1 = y1 * c0 + y0 * c1;
+        const real d  = one + u0 * u0;
+        const real gp = one / d;
+
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], ang, gp * u1);
+        if constexpr (QssLevel == 3) {
+            const real y2  = values[2 + 2 + 0];
+            const real x2  = values[2 + 2 + 1];
+            const real c2  = two * x1 * x1 / (x0 * x0 * x0) - x2 / (x0 * x0);
+            const real u2  = y0 * c2 + two * y1 * c1 + y2 * c0;
+            const real gpp = -two * u0 / (d * d); // g''(u0)
+            return send_message(
+              sim, y[0], ang, gp * u1, gpp * u1 * u1 + gp * u2);
+        }
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, std::atan2(values[0], values[1]) };
+    }
+};
+
+using qss1_atan2 = abstract_atan2<1>;
+using qss2_atan2 = abstract_atan2<2>;
+using qss3_atan2 = abstract_atan2<3>;
+
+template<std::size_t QssLevel>
+struct abstract_saturation {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    enum class zone : u8 { below, linear, above };
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       lower; // parameter
+    real                       upper; // parameter
+    time                       sigma;
+    zone                       z;
+    bool                       emit;
+
+    abstract_saturation() noexcept = default;
+    abstract_saturation(const abstract_saturation& o) noexcept
+      : value(o.value)
+      , lower(o.lower)
+      , upper(o.upper)
+      , sigma(o.sigma)
+      , z(o.z)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        z     = zone::linear;
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    zone classify() const noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            if (value[0] >= upper)
+                return zone::above;
+            if (value[0] <= lower)
+                return zone::below;
+            return zone::linear;
+        } else {
+            if (value[0] > upper)
+                return zone::above;
+            if (value[0] < lower)
+                return zone::below;
+            if (value[0] >= upper) // == upper : on tranche par la pente
+                return value[1] >= zero ? zone::above : zone::linear;
+            if (value[0] <= lower)
+                return value[1] <= zero ? zone::below : zone::linear;
+            return zone::linear;
+        }
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2) {
+            if (z == zone::below)
+                return compute_wake_up(lower, value[0], value[1]);
+            if (z == zone::above)
+                return compute_wake_up(upper, value[0], value[1]);
+            return std::min(compute_wake_up(lower, value[0], value[1]),
+                            compute_wake_up(upper, value[0], value[1]));
+        } else {
+            if (z == zone::below)
+                return compute_wake_up(lower, value[0], value[1], value[2]);
+            if (z == zone::above)
+                return compute_wake_up(upper, value[0], value[1], value[2]);
+            return std::min(
+              compute_wake_up(lower, value[0], value[1], value[2]),
+              compute_wake_up(upper, value[0], value[1], value[2]));
+        }
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const auto nz = classify();
+        if (has or nz != z) {
+            z     = nz;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (not emit)
+            return success();
+        if (z == zone::below)
+            return send_message(sim, y[0], lower);
+        if (z == zone::above)
+            return send_message(sim, y[0], upper);
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0]);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], value[0], value[1]);
+        if constexpr (QssLevel == 3)
+            return send_message(sim, y[0], value[0], value[1], value[2]);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        const real o =
+          z == zone::below ? lower : z == zone::above ? upper : value[0];
+        return { t, o };
+    }
+};
+
+using qss1_saturation = abstract_saturation<1>;
+using qss2_saturation = abstract_saturation<2>;
+using qss3_saturation = abstract_saturation<3>;
+
+template<std::size_t QssLevel>
+struct abstract_dead_zone {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    enum class zone : u8 { below, dead, above };
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       lower; // parameter
+    real                       upper; // parameter
+    time                       sigma;
+    zone                       z;
+    bool                       emit;
+
+    abstract_dead_zone() noexcept = default;
+    abstract_dead_zone(const abstract_dead_zone& o) noexcept
+      : value(o.value)
+      , lower(o.lower)
+      , upper(o.upper)
+      , sigma(o.sigma)
+      , z(o.z)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        z     = zone::dead;
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    zone classify() const noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            if (value[0] >= upper)
+                return zone::above;
+            if (value[0] <= lower)
+                return zone::below;
+            return zone::dead;
+        } else {
+            if (value[0] > upper)
+                return zone::above;
+            if (value[0] < lower)
+                return zone::below;
+            if (value[0] >= upper)
+                return value[1] >= zero ? zone::above : zone::dead;
+            if (value[0] <= lower)
+                return value[1] <= zero ? zone::below : zone::dead;
+            return zone::dead;
+        }
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2) {
+            if (z == zone::below)
+                return compute_wake_up(lower, value[0], value[1]);
+            if (z == zone::above)
+                return compute_wake_up(upper, value[0], value[1]);
+            return std::min(compute_wake_up(lower, value[0], value[1]),
+                            compute_wake_up(upper, value[0], value[1]));
+        } else {
+            if (z == zone::below)
+                return compute_wake_up(lower, value[0], value[1], value[2]);
+            if (z == zone::above)
+                return compute_wake_up(upper, value[0], value[1], value[2]);
+            return std::min(
+              compute_wake_up(lower, value[0], value[1], value[2]),
+              compute_wake_up(upper, value[0], value[1], value[2]));
+        }
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const auto nz = classify();
+        if (has or nz != z) {
+            z     = nz;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (not emit)
+            return success();
+        if (z == zone::dead)
+            return send_message(sim, y[0], zero);
+
+        const real shift = (z == zone::below) ? lower : upper;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0] - shift);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], value[0] - shift, value[1]);
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim, y[0], value[0] - shift, value[1], value[2]);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        const real o = z == zone::below   ? value[0] - lower
+                       : z == zone::above ? value[0] - upper
+                                          : zero;
+        return { t, o };
+    }
+};
+
+using qss1_dead_zone = abstract_dead_zone<1>;
+using qss2_dead_zone = abstract_dead_zone<2>;
+using qss3_dead_zone = abstract_dead_zone<3>;
+
+
+template<std::size_t QssLevel>
+struct abstract_abs {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+    bool                       positive; // x >= 0 ?
+    bool                       emit;
+
+    abstract_abs() noexcept = default;
+    abstract_abs(const abstract_abs& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+      , positive(o.positive)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        positive = true;
+        emit     = false;
+        sigma    = time_domain<time>::infinity;
+        return success();
+    }
+
+    bool classify() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return value[0] >= zero;
+        else {
+            if (value[0] > zero)
+                return true;
+            if (value[0] < zero)
+                return false;
+            return value[1] >= zero;
+        }
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2)
+            return compute_wake_up(zero, value[0], value[1]);
+        else
+            return compute_wake_up(zero, value[0], value[1], value[2]);
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const auto np = classify();
+        if (has or np != positive) {
+            positive = np;
+            emit     = true;
+            sigma    = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (not emit)
+            return success();
+        const real s = positive ? one : -one;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], s * value[0]);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], s * value[0], s * value[1]);
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim, y[0], s * value[0], s * value[1], s * value[2]);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, std::abs(value[0]) };
+    }
+};
+
+using qss1_abs = abstract_abs<1>;
+using qss2_abs = abstract_abs<2>;
+using qss3_abs = abstract_abs<3>;
+
+template<std::size_t QssLevel>
+struct abstract_sign {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma;
+    real                       out; // -1 / 0 / +1
+    bool                       emit;
+
+    abstract_sign() noexcept = default;
+    abstract_sign(const abstract_sign& o) noexcept
+      : value(o.value)
+      , sigma(o.sigma)
+      , out(o.out)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        out   = std::numeric_limits<real>::quiet_NaN(); // force first emit
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    real classify() const noexcept
+    {
+        if (value[0] > zero)
+            return one;
+        if (value[0] < zero)
+            return -one;
+        if constexpr (QssLevel >= 2) {
+            if (value[1] > zero)
+                return one;
+            if (value[1] < zero)
+                return -one;
+        }
+        return zero;
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2)
+            return compute_wake_up(zero, value[0], value[1]);
+        else
+            return compute_wake_up(zero, value[0], value[1], value[2]);
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const auto no = classify();
+        if (not(no == out)) { // NaN-safe : true for the first emit
+            out   = no;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (emit)
+            return send_message(sim, y[0], out);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, out };
+    }
+};
+
+using qss1_sign = abstract_sign<1>;
+using qss2_sign = abstract_sign<2>;
+using qss3_sign = abstract_sign<3>;
+
+template<std::size_t QssLevel>
+struct abstract_hysteresis {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       lower;    // param (down threshold)
+    real                       upper;    // param (up threshold)
+    real                       out_low;  // param
+    real                       out_high; // param
+    time                       sigma;
+    bool                       high;
+    bool                       emit;
+
+    abstract_hysteresis() noexcept = default;
+    abstract_hysteresis(const abstract_hysteresis& o) noexcept
+      : value(o.value)
+      , lower(o.lower)
+      , upper(o.upper)
+      , out_low(o.out_low)
+      , out_high(o.out_high)
+      , sigma(o.sigma)
+      , high(o.high)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        high  = false;
+        emit  = true;
+        sigma = time_domain<time>::zero;
+        return success();
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2)
+            return high ? compute_wake_up(lower, value[0], value[1])
+                        : compute_wake_up(upper, value[0], value[1]);
+        else
+            return high
+                     ? compute_wake_up(lower, value[0], value[1], value[2])
+                     : compute_wake_up(upper, value[0], value[1], value[2]);
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        bool nh = high;
+        if (high) {
+            if (value[0] <= lower)
+                nh = false;
+        } else {
+            if (value[0] >= upper)
+                nh = true;
+        }
+        if (nh != high) {
+            high  = nh;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (emit)
+            return send_message(sim, y[0], high ? out_high : out_low);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, high ? out_high : out_low };
+    }
+};
+
+using qss1_hysteresis = abstract_hysteresis<1>;
+using qss2_hysteresis = abstract_hysteresis<2>;
+using qss3_hysteresis = abstract_hysteresis<3>;
+
+template<std::size_t QssLevel, bool IsMax>
+struct abstract_min_max {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel * 2> values; // [a0,b0, a1,b1, a2,b2]
+    time                           sigma;
+    bool                           sel_a;
+    bool                           emit;
+
+    enum i_port_name : u8 { port_a, port_b };
+
+    abstract_min_max() noexcept = default;
+    abstract_min_max(const abstract_min_max& o) noexcept
+      : values(o.values)
+      , sigma(o.sigma)
+      , sel_a(o.sel_a)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        values.fill(zero);
+        sel_a = true;
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    bool select_a() const noexcept
+    {
+        const real d0 = values[0] - values[1]; // a0 - b0
+        if (not is_zero(d0))
+            return IsMax ? d0 > zero : d0 < zero;
+        if constexpr (QssLevel >= 2) {
+            const real d1 = values[2 + 0] - values[2 + 1];
+            return IsMax ? d1 >= zero : d1 <= zero;
+        }
+        return true;
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else if constexpr (QssLevel == 2)
+            return compute_wake_up(
+              zero, values[0] - values[1], values[2 + 0] - values[2 + 1]);
+        else
+            return compute_wake_up(zero,
+                                   values[0] - values[1],
+                                   values[2 + 0] - values[2 + 1],
+                                   values[2 + 2 + 0] - values[2 + 2 + 1]);
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst_a = get_message(sim, x[port_a]);
+        const auto lst_b = get_message(sim, x[port_b]);
+        const auto msg_a = not lst_a.empty();
+        const auto msg_b = not lst_b.empty();
+
+        if (msg_a) {
+            const auto& m = get_qss_message<QssLevel>(lst_a);
+            values[0]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 0] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 0] = m[2];
+        }
+        if (msg_b) {
+            const auto& m = get_qss_message<QssLevel>(lst_b);
+            values[1]     = m[0];
+            if constexpr (QssLevel >= 2)
+                values[2 + 1] = m[1];
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 1] = m[2];
+        }
+        if constexpr (QssLevel == 2) {
+            if (not msg_a)
+                values[0] += e * values[2 + 0];
+            if (not msg_b)
+                values[1] += e * values[2 + 1];
+        }
+        if constexpr (QssLevel == 3) {
+            if (not msg_a) {
+                values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
+                values[2 + 0] += two * values[2 + 2 + 0] * e;
+            }
+            if (not msg_b) {
+                values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
+                values[2 + 1] += two * values[2 + 2 + 1] * e;
+            }
+        }
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const bool ns = select_a();
+        if (msg_a or msg_b or ns != sel_a) {
+            sel_a = ns;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (not emit)
+            return success();
+        const std::size_t i = sel_a ? 0u : 1u;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], values[i]);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], values[i], values[2 + i]);
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim, y[0], values[i], values[2 + i], values[2 + 2 + i]);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, sel_a ? values[0] : values[1] };
+    }
+};
+
+using qss1_minimum = abstract_min_max<1, false>;
+using qss2_minimum = abstract_min_max<2, false>;
+using qss3_minimum = abstract_min_max<3, false>;
+using qss1_maximum = abstract_min_max<1, true>;
+using qss2_maximum = abstract_min_max<2, true>;
+using qss3_maximum = abstract_min_max<3, true>;
+
+template<std::size_t QssLevel>
+struct abstract_wrap {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       origin;
+    real                       modulo;
+    time                       sigma;
+    real                       laps;
+    bool emit;
+
+    abstract_wrap() noexcept = default;
+    abstract_wrap(const abstract_wrap& o) noexcept
+      : value(o.value)
+      , origin(o.origin)
+      , modulo(o.modulo)
+      , sigma(o.sigma)
+      , laps(o.laps)
+      , emit(o.emit)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        laps  = zero;
+        emit  = false;
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    real current_laps() const noexcept
+    {
+        return std::floor((value[0] - origin) / modulo);
+    }
+
+    time schedule() const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return time_domain<time>::infinity;
+        else {
+            const real lo = origin + laps * modulo;
+            const real hi = lo + modulo;
+            if constexpr (QssLevel == 2)
+                return std::min(compute_wake_up(lo, value[0], value[1]),
+                                compute_wake_up(hi, value[0], value[1]));
+            else
+                return std::min(
+                  compute_wake_up(lo, value[0], value[1], value[2]),
+                  compute_wake_up(hi, value[0], value[1], value[2]));
+        }
+    }
+
+    status transition(simulation& sim, time, time e, time) noexcept
+    {
+        const auto lst = get_message(sim, x[0]);
+        const auto has = not lst.empty();
+        has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
+            : update<QssLevel>(value, e);
+
+        if (emit) {
+            emit  = false;
+            sigma = schedule();
+            return success();
+        }
+        const real nl = current_laps();
+        if (has or not(nl == laps)) {
+            laps  = nl;
+            emit  = true;
+            sigma = time_domain<time>::zero;
+        } else
+            sigma = schedule();
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (not emit)
+            return success();
+        const real shift = laps * modulo;
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0] - shift);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], value[0] - shift, value[1]);
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim, y[0], value[0] - shift, value[1], value[2]);
+        return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, value[0] - laps * modulo };
+    }
+};
+
+using qss1_wrap = abstract_wrap<1>;
+using qss2_wrap = abstract_wrap<2>;
+using qss3_wrap = abstract_wrap<3>;
+
 struct abstract_and_check {
     template<typename Iterator>
     bool operator()(Iterator begin, Iterator end) const noexcept
@@ -6072,7 +7984,68 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(logical_or_3),
                sizeof(logical_invert),
                sizeof(hsm_wrapper),
-               sizeof(simulation_wrapper));
+               sizeof(simulation_wrapper),
+               sizeof(qss1_sample_hold),
+               sizeof(qss2_sample_hold),
+               sizeof(qss3_sample_hold),
+               sizeof(zero_order_hold),
+               sizeof(qss1_quantizer),
+               sizeof(qss2_quantizer),
+               sizeof(qss3_quantizer),
+               sizeof(qss1_integrate_and_fire),
+               sizeof(qss2_integrate_and_fire),
+               sizeof(qss3_integrate_and_fire),
+               sizeof(qss1_threshold_crossing),
+               sizeof(qss2_threshold_crossing),
+               sizeof(qss3_threshold_crossing),
+               sizeof(qss1_pwm),
+               sizeof(qss2_pwm),
+               sizeof(qss3_pwm),
+               sizeof(qss1_sqrt),
+               sizeof(qss2_sqrt),
+               sizeof(qss3_sqrt),
+               sizeof(qss1_atan),
+               sizeof(qss2_atan),
+               sizeof(qss3_atan),
+               sizeof(qss1_tan),
+               sizeof(qss2_tan),
+               sizeof(qss3_tan),
+               sizeof(qss1_tanh),
+               sizeof(qss2_tanh),
+               sizeof(qss3_tanh),
+               sizeof(qss1_sigmoid),
+               sizeof(qss2_sigmoid),
+               sizeof(qss3_sigmoid),
+               sizeof(qss1_division),
+               sizeof(qss2_division),
+               sizeof(qss3_division),
+               sizeof(qss1_atan2),
+               sizeof(qss2_atan2),
+               sizeof(qss3_atan2),
+               sizeof(qss1_saturation),
+               sizeof(qss2_saturation),
+               sizeof(qss3_saturation),
+               sizeof(qss1_dead_zone),
+               sizeof(qss2_dead_zone),
+               sizeof(qss3_dead_zone),
+               sizeof(qss1_abs),
+               sizeof(qss2_abs),
+               sizeof(qss3_abs),
+               sizeof(qss1_sign),
+               sizeof(qss2_sign),
+               sizeof(qss3_sign),
+               sizeof(qss1_hysteresis),
+               sizeof(qss2_hysteresis),
+               sizeof(qss3_hysteresis),
+               sizeof(qss1_minimum),
+               sizeof(qss2_minimum),
+               sizeof(qss3_minimum),
+               sizeof(qss1_maximum),
+               sizeof(qss2_maximum),
+               sizeof(qss3_maximum),
+               sizeof(qss1_wrap),
+               sizeof(qss2_wrap),
+               sizeof(qss3_wrap));
 }
 
 template<typename Dynamics>
@@ -6151,7 +8124,68 @@ concept dynamics =
   std::is_same_v<Dynamics, logical_or_3> or
   std::is_same_v<Dynamics, logical_invert> or
   std::is_same_v<Dynamics, hsm_wrapper> or
-  std::is_same_v<Dynamics, simulation_wrapper>;
+  std::is_same_v<Dynamics, simulation_wrapper> or
+  std::is_same_v<Dynamics, qss1_sample_hold> or
+  std::is_same_v<Dynamics, qss2_sample_hold> or
+  std::is_same_v<Dynamics, qss3_sample_hold> or
+  std::is_same_v<Dynamics, zero_order_hold> or
+  std::is_same_v<Dynamics, qss1_quantizer> or
+  std::is_same_v<Dynamics, qss2_quantizer> or
+  std::is_same_v<Dynamics, qss3_quantizer> or
+  std::is_same_v<Dynamics, qss1_integrate_and_fire> or
+  std::is_same_v<Dynamics, qss2_integrate_and_fire> or
+  std::is_same_v<Dynamics, qss3_integrate_and_fire> or
+  std::is_same_v<Dynamics, qss1_threshold_crossing> or
+  std::is_same_v<Dynamics, qss2_threshold_crossing> or
+  std::is_same_v<Dynamics, qss3_threshold_crossing> or
+  std::is_same_v<Dynamics, qss1_pwm> or
+  std::is_same_v<Dynamics, qss2_pwm> or
+  std::is_same_v<Dynamics, qss3_pwm> or
+  std::is_same_v<Dynamics, qss1_sqrt> or
+  std::is_same_v<Dynamics, qss2_sqrt> or
+  std::is_same_v<Dynamics, qss3_sqrt> or
+  std::is_same_v<Dynamics, qss1_atan> or
+  std::is_same_v<Dynamics, qss2_atan> or
+  std::is_same_v<Dynamics, qss3_atan> or
+  std::is_same_v<Dynamics, qss1_tan> or
+  std::is_same_v<Dynamics, qss2_tan> or
+  std::is_same_v<Dynamics, qss3_tan> or
+  std::is_same_v<Dynamics, qss1_tanh> or
+  std::is_same_v<Dynamics, qss2_tanh> or
+  std::is_same_v<Dynamics, qss3_tanh> or
+  std::is_same_v<Dynamics, qss1_sigmoid> or
+  std::is_same_v<Dynamics, qss2_sigmoid> or
+  std::is_same_v<Dynamics, qss3_sigmoid> or
+  std::is_same_v<Dynamics, qss1_division> or
+  std::is_same_v<Dynamics, qss2_division> or
+  std::is_same_v<Dynamics, qss3_division> or
+  std::is_same_v<Dynamics, qss1_atan2> or
+  std::is_same_v<Dynamics, qss2_atan2> or
+  std::is_same_v<Dynamics, qss3_atan2> or
+  std::is_same_v<Dynamics, qss1_saturation> or
+  std::is_same_v<Dynamics, qss2_saturation> or
+  std::is_same_v<Dynamics, qss3_saturation> or
+  std::is_same_v<Dynamics, qss1_dead_zone> or
+  std::is_same_v<Dynamics, qss2_dead_zone> or
+  std::is_same_v<Dynamics, qss3_dead_zone> or
+  std::is_same_v<Dynamics, qss1_abs> or
+  std::is_same_v<Dynamics, qss2_abs> or
+  std::is_same_v<Dynamics, qss3_abs> or
+  std::is_same_v<Dynamics, qss1_sign> or
+  std::is_same_v<Dynamics, qss2_sign> or
+  std::is_same_v<Dynamics, qss3_sign> or
+  std::is_same_v<Dynamics, qss1_hysteresis> or
+  std::is_same_v<Dynamics, qss2_hysteresis> or
+  std::is_same_v<Dynamics, qss3_hysteresis> or
+  std::is_same_v<Dynamics, qss1_minimum> or
+  std::is_same_v<Dynamics, qss2_minimum> or
+  std::is_same_v<Dynamics, qss3_minimum> or
+  std::is_same_v<Dynamics, qss1_maximum> or
+  std::is_same_v<Dynamics, qss2_maximum> or
+  std::is_same_v<Dynamics, qss3_maximum> or
+  std::is_same_v<Dynamics, qss1_wrap> or
+  std::is_same_v<Dynamics, qss2_wrap> or
+  std::is_same_v<Dynamics, qss3_wrap>;
 
 struct model {
     real tl     = zero;
@@ -6346,6 +8380,189 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 
     if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
         return dynamics_type::simulation_wrapper;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_sample_hold>)
+        return dynamics_type::qss1_sample_hold;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_sample_hold>)
+        return dynamics_type::qss2_sample_hold;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_sample_hold>)
+        return dynamics_type::qss3_sample_hold;
+
+    if constexpr (std::is_same_v<Dynamics, zero_order_hold>)
+        return dynamics_type::zero_order_hold;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_quantizer>)
+        return dynamics_type::qss1_quantizer;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_quantizer>)
+        return dynamics_type::qss2_quantizer;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_quantizer>)
+        return dynamics_type::qss3_quantizer;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_integrate_and_fire>)
+        return dynamics_type::qss1_integrate_and_fire;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_integrate_and_fire>)
+        return dynamics_type::qss2_integrate_and_fire;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_integrate_and_fire>)
+        return dynamics_type::qss3_integrate_and_fire;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_threshold_crossing>)
+        return dynamics_type::qss1_threshold_crossing;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_threshold_crossing>)
+        return dynamics_type::qss2_threshold_crossing;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_threshold_crossing>)
+        return dynamics_type::qss3_threshold_crossing;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_pwm>)
+        return dynamics_type::qss1_pwm;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_pwm>)
+        return dynamics_type::qss2_pwm;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_pwm>)
+        return dynamics_type::qss3_pwm;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_sqrt>)
+        return dynamics_type::qss1_sqrt;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_sqrt>)
+        return dynamics_type::qss2_sqrt;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_sqrt>)
+        return dynamics_type::qss3_sqrt;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_atan>)
+        return dynamics_type::qss1_atan;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_atan>)
+        return dynamics_type::qss2_atan;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_atan>)
+        return dynamics_type::qss3_atan;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_tan>)
+        return dynamics_type::qss1_tan;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_tan>)
+        return dynamics_type::qss2_tan;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_tan>)
+        return dynamics_type::qss3_tan;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_tanh>)
+        return dynamics_type::qss1_tanh;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_tanh>)
+        return dynamics_type::qss2_tanh;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_tanh>)
+        return dynamics_type::qss3_tanh;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_sigmoid>)
+        return dynamics_type::qss1_sigmoid;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_sigmoid>)
+        return dynamics_type::qss2_sigmoid;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_sigmoid>)
+        return dynamics_type::qss3_sigmoid;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_division>)
+        return dynamics_type::qss1_division;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_division>)
+        return dynamics_type::qss2_division;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_division>)
+        return dynamics_type::qss3_division;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_atan2>)
+        return dynamics_type::qss1_atan2;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_atan2>)
+        return dynamics_type::qss2_atan2;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_atan2>)
+        return dynamics_type::qss3_atan2;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_saturation>)
+        return dynamics_type::qss1_saturation;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_saturation>)
+        return dynamics_type::qss2_saturation;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_saturation>)
+        return dynamics_type::qss3_saturation;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_dead_zone>)
+        return dynamics_type::qss1_dead_zone;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_dead_zone>)
+        return dynamics_type::qss2_dead_zone;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_dead_zone>)
+        return dynamics_type::qss3_dead_zone;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_abs>)
+        return dynamics_type::qss1_abs;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_abs>)
+        return dynamics_type::qss2_abs;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_abs>)
+        return dynamics_type::qss3_abs;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_sign>)
+        return dynamics_type::qss1_sign;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_sign>)
+        return dynamics_type::qss2_sign;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_sign>)
+        return dynamics_type::qss3_sign;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_hysteresis>)
+        return dynamics_type::qss1_hysteresis;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_hysteresis>)
+        return dynamics_type::qss2_hysteresis;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_hysteresis>)
+        return dynamics_type::qss3_hysteresis;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_minimum>)
+        return dynamics_type::qss1_minimum;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_minimum>)
+        return dynamics_type::qss2_minimum;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_minimum>)
+        return dynamics_type::qss3_minimum;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_maximum>)
+        return dynamics_type::qss1_maximum;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_maximum>)
+        return dynamics_type::qss2_maximum;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_maximum>)
+        return dynamics_type::qss3_maximum;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_wrap>)
+        return dynamics_type::qss1_wrap;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_wrap>)
+        return dynamics_type::qss2_wrap;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_wrap>)
+        return dynamics_type::qss3_wrap;
 
     unreachable();
 }
@@ -6697,6 +8914,311 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
           std::forward<Function>(f),
           *reinterpret_cast<const simulation_wrapper*>(&mdl.dyn),
           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sample_hold:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sample_hold*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sample_hold:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sample_hold*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sample_hold:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sample_hold*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::zero_order_hold:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const zero_order_hold*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sqrt:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sqrt*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sqrt:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sqrt*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sqrt:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sqrt*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_atan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_atan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_atan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_atan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_atan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_atan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_tan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_tan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_tan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_tan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_tan:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_tan*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_tanh:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_tanh*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_tanh:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_tanh*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_tanh:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_tanh*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sigmoid:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sigmoid*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sigmoid:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sigmoid*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sigmoid:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sigmoid*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_division:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_division*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_division:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_division*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_division:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_division*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_atan2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_atan2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_atan2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_atan2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_atan2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_atan2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_saturation:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_saturation*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_saturation:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_saturation*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_saturation:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_saturation*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_dead_zone:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_dead_zone*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_dead_zone:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_dead_zone*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_dead_zone:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_dead_zone*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_abs:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_abs*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_abs:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_abs*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_abs:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_abs*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sign:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sign*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sign:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sign*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sign:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sign*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_hysteresis:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_hysteresis*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_hysteresis:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_hysteresis*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_hysteresis:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_hysteresis*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_minimum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_minimum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_minimum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_minimum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_minimum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_minimum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_maximum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_maximum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_maximum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_maximum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_maximum:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_maximum*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_wrap:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_wrap*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_wrap:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_wrap*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_wrap:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_wrap*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_quantizer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_quantizer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_quantizer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_quantizer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_quantizer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_quantizer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_integrate_and_fire:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_integrate_and_fire*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_integrate_and_fire:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_integrate_and_fire*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_integrate_and_fire:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_integrate_and_fire*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_threshold_crossing:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_threshold_crossing*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_threshold_crossing:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_threshold_crossing*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_threshold_crossing:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_threshold_crossing*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_pwm:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_pwm*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_pwm:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_pwm*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_pwm:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_pwm*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -6964,6 +9486,250 @@ constexpr auto dispatch(model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::simulation_wrapper:
         return f(*reinterpret_cast<simulation_wrapper*>(&mdl.dyn),
                  std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sample_hold:
+        return f(*reinterpret_cast<qss1_sample_hold*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sample_hold:
+        return f(*reinterpret_cast<qss2_sample_hold*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sample_hold:
+        return f(*reinterpret_cast<qss3_sample_hold*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::zero_order_hold:
+        return f(*reinterpret_cast<zero_order_hold*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sqrt:
+        return f(*reinterpret_cast<qss1_sqrt*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sqrt:
+        return f(*reinterpret_cast<qss2_sqrt*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sqrt:
+        return f(*reinterpret_cast<qss3_sqrt*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_atan:
+        return f(*reinterpret_cast<qss1_atan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_atan:
+        return f(*reinterpret_cast<qss2_atan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_atan:
+        return f(*reinterpret_cast<qss3_atan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_tan:
+        return f(*reinterpret_cast<qss1_tan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_tan:
+        return f(*reinterpret_cast<qss2_tan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_tan:
+        return f(*reinterpret_cast<qss3_tan*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_tanh:
+        return f(*reinterpret_cast<qss1_tanh*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_tanh:
+        return f(*reinterpret_cast<qss2_tanh*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_tanh:
+        return f(*reinterpret_cast<qss3_tanh*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sigmoid:
+        return f(*reinterpret_cast<qss1_sigmoid*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sigmoid:
+        return f(*reinterpret_cast<qss2_sigmoid*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sigmoid:
+        return f(*reinterpret_cast<qss3_sigmoid*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_division:
+        return f(*reinterpret_cast<qss1_division*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_division:
+        return f(*reinterpret_cast<qss2_division*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_division:
+        return f(*reinterpret_cast<qss3_division*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_atan2:
+        return f(*reinterpret_cast<qss1_atan2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_atan2:
+        return f(*reinterpret_cast<qss2_atan2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_atan2:
+        return f(*reinterpret_cast<qss3_atan2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_saturation:
+        return f(*reinterpret_cast<qss1_saturation*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_saturation:
+        return f(*reinterpret_cast<qss2_saturation*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_saturation:
+        return f(*reinterpret_cast<qss3_saturation*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_dead_zone:
+        return f(*reinterpret_cast<qss1_dead_zone*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_dead_zone:
+        return f(*reinterpret_cast<qss2_dead_zone*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_dead_zone:
+        return f(*reinterpret_cast<qss3_dead_zone*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_abs:
+        return f(*reinterpret_cast<qss1_abs*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_abs:
+        return f(*reinterpret_cast<qss2_abs*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_abs:
+        return f(*reinterpret_cast<qss3_abs*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sign:
+        return f(*reinterpret_cast<qss1_sign*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_sign:
+        return f(*reinterpret_cast<qss2_sign*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_sign:
+        return f(*reinterpret_cast<qss3_sign*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_hysteresis:
+        return f(*reinterpret_cast<qss1_hysteresis*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_hysteresis:
+        return f(*reinterpret_cast<qss2_hysteresis*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_hysteresis:
+        return f(*reinterpret_cast<qss3_hysteresis*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_minimum:
+        return f(*reinterpret_cast<qss1_minimum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_minimum:
+        return f(*reinterpret_cast<qss2_minimum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_minimum:
+        return f(*reinterpret_cast<qss3_minimum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_maximum:
+        return f(*reinterpret_cast<qss1_maximum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_maximum:
+        return f(*reinterpret_cast<qss2_maximum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_maximum:
+        return f(*reinterpret_cast<qss3_maximum*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_wrap:
+        return f(*reinterpret_cast<qss1_wrap*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_wrap:
+        return f(*reinterpret_cast<qss2_wrap*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_wrap:
+        return f(*reinterpret_cast<qss3_wrap*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_quantizer:
+        return f(*reinterpret_cast<qss1_quantizer*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_quantizer:
+        return f(*reinterpret_cast<qss2_quantizer*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_quantizer:
+        return f(*reinterpret_cast<qss3_quantizer*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_integrate_and_fire:
+        return f(*reinterpret_cast<qss1_integrate_and_fire*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_integrate_and_fire:
+        return f(*reinterpret_cast<qss2_integrate_and_fire*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_integrate_and_fire:
+        return f(*reinterpret_cast<qss3_integrate_and_fire*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_threshold_crossing:
+        return f(*reinterpret_cast<qss1_threshold_crossing*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_threshold_crossing:
+        return f(*reinterpret_cast<qss2_threshold_crossing*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_threshold_crossing:
+        return f(*reinterpret_cast<qss3_threshold_crossing*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_pwm:
+        return f(*reinterpret_cast<qss1_pwm*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_pwm:
+        return f(*reinterpret_cast<qss2_pwm*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_pwm:
+        return f(*reinterpret_cast<qss3_pwm*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -7090,6 +9856,67 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::hsm_wrapper:
     case dynamics_type::simulation_wrapper:
     case dynamics_type::accumulator_2:
+    case dynamics_type::qss1_sample_hold:
+    case dynamics_type::qss2_sample_hold:
+    case dynamics_type::qss3_sample_hold:
+    case dynamics_type::zero_order_hold:
+    case dynamics_type::qss1_sqrt:
+    case dynamics_type::qss2_sqrt:
+    case dynamics_type::qss3_sqrt:
+    case dynamics_type::qss1_atan:
+    case dynamics_type::qss2_atan:
+    case dynamics_type::qss3_atan:
+    case dynamics_type::qss1_tan:
+    case dynamics_type::qss2_tan:
+    case dynamics_type::qss3_tan:
+    case dynamics_type::qss1_tanh:
+    case dynamics_type::qss2_tanh:
+    case dynamics_type::qss3_tanh:
+    case dynamics_type::qss1_sigmoid:
+    case dynamics_type::qss2_sigmoid:
+    case dynamics_type::qss3_sigmoid:
+    case dynamics_type::qss1_division:
+    case dynamics_type::qss2_division:
+    case dynamics_type::qss3_division:
+    case dynamics_type::qss1_atan2:
+    case dynamics_type::qss2_atan2:
+    case dynamics_type::qss3_atan2:
+    case dynamics_type::qss1_saturation:
+    case dynamics_type::qss2_saturation:
+    case dynamics_type::qss3_saturation:
+    case dynamics_type::qss1_dead_zone:
+    case dynamics_type::qss2_dead_zone:
+    case dynamics_type::qss3_dead_zone:
+    case dynamics_type::qss1_abs:
+    case dynamics_type::qss2_abs:
+    case dynamics_type::qss3_abs:
+    case dynamics_type::qss1_sign:
+    case dynamics_type::qss2_sign:
+    case dynamics_type::qss3_sign:
+    case dynamics_type::qss1_hysteresis:
+    case dynamics_type::qss2_hysteresis:
+    case dynamics_type::qss3_hysteresis:
+    case dynamics_type::qss1_minimum:
+    case dynamics_type::qss2_minimum:
+    case dynamics_type::qss3_minimum:
+    case dynamics_type::qss1_maximum:
+    case dynamics_type::qss2_maximum:
+    case dynamics_type::qss3_maximum:
+    case dynamics_type::qss1_wrap:
+    case dynamics_type::qss2_wrap:
+    case dynamics_type::qss3_wrap:
+    case dynamics_type::qss1_quantizer:
+    case dynamics_type::qss2_quantizer:
+    case dynamics_type::qss3_quantizer:
+    case dynamics_type::qss1_integrate_and_fire:
+    case dynamics_type::qss2_integrate_and_fire:
+    case dynamics_type::qss3_integrate_and_fire:
+    case dynamics_type::qss1_threshold_crossing:
+    case dynamics_type::qss2_threshold_crossing:
+    case dynamics_type::qss3_threshold_crossing:
+    case dynamics_type::qss1_pwm:
+    case dynamics_type::qss2_pwm:
+    case dynamics_type::qss3_pwm:
     case dynamics_type::qss1_integer:
     case dynamics_type::qss2_integer:
     case dynamics_type::qss3_integer:

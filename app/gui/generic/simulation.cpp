@@ -445,6 +445,15 @@ static void show_dynamics_values(
     ImGui::LabelFormat("extremum", "{}", dyn.extremum);
 }
 
+template<std::size_t QssLevel, bool IsMax>
+static void show_dynamics_values(
+  application& /*app*/,
+  project_editor& /*sim*/,
+  const struct abstract_min_max<QssLevel, IsMax>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.values[0]);
+}
+
 template<std::size_t QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
@@ -655,12 +664,170 @@ static void show_dynamics_values(application&       app,
     ImGui::LabelFormat("timer", "{}", dyn.exec.timer);
 }
 
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_sample_hold<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("time-step", "{}", dyn.ts);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const zero_order_hold& /*dyn*/)
+{}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_quantizer<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("level", "{}", dyn.level);
+    ImGui::LabelFormat("q", "{}", dyn.q);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(
+  application& /*app*/,
+  project_editor& /*pj_ed*/,
+  const abstract_integrate_and_fire<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("acc", "{}", dyn.acc);
+    ImGui::LabelFormat("fire", "{}", dyn.fire);
+    ImGui::LabelFormat("theta", "{}", dyn.theta);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(
+  application& /*app*/,
+  project_editor& /*pj_ed*/,
+  const abstract_threshold_crossing<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("threshold", "{}", dyn.threshold);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_saturation<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_dead_zone<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_hysteresis<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_wrap<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_pwm<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("amplitude", "{}", dyn.amplitude);
+    ImGui::LabelFormat("period", "{}", dyn.period);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*pj_ed*/,
                                  const simulation_wrapper& dyn)
 {
     ImGui::LabelFormat("run-type", "{}", ordinal(dyn.run));
     ImGui::LabelFormat("id", "{}", ordinal(dyn.sim_id));
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_sqrt<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_atan<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_tan<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_tanh<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_sigmoid<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_division<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value 0", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value 1", "{}", dyn.values[1]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_atan2<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.values[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_abs<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*pj_ed*/,
+                                 const abstract_sign<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
 }
 
 static constexpr auto is_in_node(

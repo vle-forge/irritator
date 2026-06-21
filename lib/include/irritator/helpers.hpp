@@ -118,6 +118,56 @@ struct simulation_wrapper_tag {
     };
 };
 
+struct sample_hold_tag {
+    enum parameter_names : u8 { ts = 0 };
+};
+
+struct zero_order_hold_tag {};
+
+struct quantizer_tag {
+    enum parameter_names : u8 { step = 0 };
+};
+
+struct integrate_and_fire_tag {
+    enum parameter_names : u8 { threshold = 0 };
+};
+
+struct threshold_crossing_tag {
+    enum parameter_names : u8 { level = 0 };
+};
+
+struct pwm_tag {
+    enum parameter_names : u8 { period = 0, amplitude };
+};
+
+struct sqrt_tag {};
+struct atan_tag {};
+struct tan_tag {};
+struct tanh_tag {};
+struct sigmoid_tag {};
+struct division_tag {};
+struct atan2_tag {};
+struct abs_tag {};
+struct sign_tag {};
+struct minimum_tag {};
+struct maximum_tag {};
+
+struct saturation_tag {
+    enum parameter_names : u8 { lower = 0, upper };
+};
+
+struct dead_zone_tag {
+    enum parameter_names : u8 { lower = 0, upper };
+};
+
+struct hysteresis_tag {
+    enum parameter_names : u8 { lower = 0, upper, out_low, out_high };
+};
+
+struct wrap_tag {
+    enum parameter_names : u8 { origin = 0, modulo };
+};
+
 /** Dispatch the callable @c f with @c args argument according to @c type.
  *
  * This function is useful to: (1) avoid using dynamic polymorphism (i.e.,
@@ -352,6 +402,118 @@ constexpr auto dispatch(const dynamics_type type,
         return std::invoke(std::forward<Function>(f),
                            simulation_wrapper_tag{},
                            std::forward<Args>(args)...);
+    case dynamics_type::qss1_sample_hold:
+    case dynamics_type::qss2_sample_hold:
+    case dynamics_type::qss3_sample_hold:
+        return std::invoke(std::forward<Function>(f),
+                           sample_hold_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::zero_order_hold:
+        return std::invoke(std::forward<Function>(f),
+                           zero_order_hold_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_quantizer:
+    case dynamics_type::qss2_quantizer:
+    case dynamics_type::qss3_quantizer:
+        return std::invoke(std::forward<Function>(f),
+                           quantizer_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_integrate_and_fire:
+    case dynamics_type::qss2_integrate_and_fire:
+    case dynamics_type::qss3_integrate_and_fire:
+        return std::invoke(std::forward<Function>(f),
+                           integrate_and_fire_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_threshold_crossing:
+    case dynamics_type::qss2_threshold_crossing:
+    case dynamics_type::qss3_threshold_crossing:
+        return std::invoke(std::forward<Function>(f),
+                           threshold_crossing_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_pwm:
+    case dynamics_type::qss2_pwm:
+    case dynamics_type::qss3_pwm:
+        return std::invoke(
+          std::forward<Function>(f), pwm_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_sqrt:
+    case dynamics_type::qss2_sqrt:
+    case dynamics_type::qss3_sqrt:
+        return std::invoke(
+          std::forward<Function>(f), sqrt_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_atan:
+    case dynamics_type::qss2_atan:
+    case dynamics_type::qss3_atan:
+        return std::invoke(
+          std::forward<Function>(f), atan_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_tan:
+    case dynamics_type::qss2_tan:
+    case dynamics_type::qss3_tan:
+        return std::invoke(
+          std::forward<Function>(f), tan_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_tanh:
+    case dynamics_type::qss2_tanh:
+    case dynamics_type::qss3_tanh:
+        return std::invoke(
+          std::forward<Function>(f), tanh_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_sigmoid:
+    case dynamics_type::qss2_sigmoid:
+    case dynamics_type::qss3_sigmoid:
+        return std::invoke(std::forward<Function>(f),
+                           sigmoid_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_division:
+    case dynamics_type::qss2_division:
+    case dynamics_type::qss3_division:
+        return std::invoke(std::forward<Function>(f),
+                           division_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_atan2:
+    case dynamics_type::qss2_atan2:
+    case dynamics_type::qss3_atan2:
+        return std::invoke(
+          std::forward<Function>(f), atan2_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_abs:
+    case dynamics_type::qss2_abs:
+    case dynamics_type::qss3_abs:
+        return std::invoke(
+          std::forward<Function>(f), abs_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_sign:
+    case dynamics_type::qss2_sign:
+    case dynamics_type::qss3_sign:
+        return std::invoke(
+          std::forward<Function>(f), sign_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_minimum:
+    case dynamics_type::qss2_minimum:
+    case dynamics_type::qss3_minimum:
+        return std::invoke(std::forward<Function>(f),
+                           minimum_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_maximum:
+    case dynamics_type::qss2_maximum:
+    case dynamics_type::qss3_maximum:
+        return std::invoke(std::forward<Function>(f),
+                           maximum_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_saturation:
+    case dynamics_type::qss2_saturation:
+    case dynamics_type::qss3_saturation:
+        return std::invoke(
+          std::forward<Function>(f), saturation_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_dead_zone:
+    case dynamics_type::qss2_dead_zone:
+    case dynamics_type::qss3_dead_zone:
+        return std::invoke(
+          std::forward<Function>(f), dead_zone_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_hysteresis:
+    case dynamics_type::qss2_hysteresis:
+    case dynamics_type::qss3_hysteresis:
+        return std::invoke(
+          std::forward<Function>(f), hysteresis_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::qss1_wrap:
+    case dynamics_type::qss2_wrap:
+    case dynamics_type::qss3_wrap:
+        return std::invoke(
+          std::forward<Function>(f), wrap_tag{}, std::forward<Args>(args)...);
     }
 
     unreachable();
