@@ -322,6 +322,33 @@ auto get_distribution_type(std::string_view name) noexcept
     return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
 }
 
+struct to_dot {
+    to_dot(const std::string_view buf_) noexcept
+      : buf(buf_)
+    {}
+
+    const std::string_view buf;
+};
+
+} // namespace irt
+
+template<>
+struct fmt::formatter<irt::to_dot> {
+    constexpr auto parse(format_parse_context& ctx) { return ctx.begin(); }
+
+    template<typename FormatContext>
+    auto format(const irt::to_dot& sv, FormatContext& ctx) const
+    {
+        for (const auto c : sv.buf) {
+            *ctx.out()++ = (c == '-') ? '_' : c;
+        }
+
+        return ctx.out();
+    }
+};
+
+namespace irt {
+
 void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
 {
     fmt::print(os, "digraph simulation {{\n");
@@ -346,7 +373,7 @@ void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
 
                       const auto src_idx = get_index(src_mdl_id);
                       const auto port_out =
-                        get_output_port_names<Dynamics>(dot_output_names)[i];
+                        get_output_port_names<Dynamics>()[i];
 
                       for (auto it = y.connections.begin(),
                                 et = y.connections.end();
@@ -355,22 +382,21 @@ void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
                           if (const auto* dst =
                                 sim.models.try_to_get(it->model)) {
 
-                              fmt::print(
-                                " {}:{} -> {}:{}\n",
-                                src_idx,
-                                port_out,
-                                get_index(it->model),
-                                get_input_port_names(
-                                  dst->type, dot_input_names)[it->port_index]);
+                              fmt::print(" {}:{} -> {}:{}\n",
+                                         src_idx,
+                                         to_dot(port_out),
+                                         get_index(it->model),
+                                         to_dot(get_input_port_names(
+                                           dst->type)[it->port_index]));
                           }
                       }
 
                       for (auto* block = sim.nodes.try_to_get(y.next); block;
                            block       = sim.nodes.try_to_get(block->next)) {
 
-                          const auto src_idx  = get_index(src_mdl_id);
-                          const auto port_out = get_output_port_names<Dynamics>(
-                            dot_output_names)[i];
+                          const auto src_idx = get_index(src_mdl_id);
+                          const auto port_out =
+                            get_output_port_names<Dynamics>()[i];
 
                           for (auto it = block->nodes.begin(),
                                     et = block->nodes.end();
@@ -378,15 +404,13 @@ void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
                                ++it) {
                               if (const auto* dst =
                                     sim.models.try_to_get(it->model)) {
-                                  fmt::print(
-                                    os,
-                                    " {}:{} -> {}:{}\n",
-                                    src_idx,
-                                    port_out,
-                                    get_index(it->model),
-                                    get_input_port_names(
-                                      dst->type,
-                                      dot_input_names)[it->port_index]);
+                                  fmt::print(os,
+                                             " {}:{} -> {}:{}\n",
+                                             src_idx,
+                                             to_dot(port_out),
+                                             get_index(it->model),
+                                             to_dot(get_input_port_names(
+                                               dst->type)[it->port_index]));
                               }
                           }
                       }

@@ -4891,7 +4891,6 @@ using qss1_sample_hold = abstract_sample_hold<1>;
 using qss2_sample_hold = abstract_sample_hold<2>;
 using qss3_sample_hold = abstract_sample_hold<3>;
 
-
 struct zero_order_hold {
     input_port     x[1] = {};
     output_port_id y[1] = {};
@@ -4913,7 +4912,10 @@ struct zero_order_hold {
         return success();
     }
 
-    status transition(simulation& sim, time /*t*/, time /*e*/, time /*r*/) noexcept
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
     {
         const auto lst = get_message(sim, x[0]);
 
@@ -4936,7 +4938,6 @@ struct zero_order_hold {
         return { t, held };
     }
 };
-
 
 template<std::size_t QssLevel>
 struct abstract_quantizer {
@@ -5030,7 +5031,6 @@ using qss1_quantizer = abstract_quantizer<1>;
 using qss2_quantizer = abstract_quantizer<2>;
 using qss3_quantizer = abstract_quantizer<3>;
 
-
 template<std::size_t QssLevel>
 struct abstract_integrate_and_fire {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -5038,11 +5038,11 @@ struct abstract_integrate_and_fire {
     input_port     x[2] = {};
     output_port_id y[1] = {};
 
-    std::array<real, QssLevel> value; 
-    real                       acc;    
-    real                       theta;  
+    std::array<real, QssLevel> value;
+    real                       acc;
+    real                       theta;
     time                       sigma;
-    bool                       fire;   
+    bool                       fire;
 
     enum i_port_name : u8 { port_value, port_reset };
 
@@ -5081,9 +5081,8 @@ struct abstract_integrate_and_fire {
             acc += value[0] * e + value[1] * e * e / two +
                    value[2] * e * e * e / real(3);
 
-        has_value
-          ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
-          : update<QssLevel>(value, e);
+        has_value ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
+                  : update<QssLevel>(value, e);
 
         if (has_reset)
             acc = zero;
@@ -5123,7 +5122,6 @@ struct abstract_integrate_and_fire {
 using qss1_integrate_and_fire = abstract_integrate_and_fire<1>;
 using qss2_integrate_and_fire = abstract_integrate_and_fire<2>;
 using qss3_integrate_and_fire = abstract_integrate_and_fire<3>;
-
 
 template<std::size_t QssLevel>
 struct abstract_threshold_crossing {
@@ -5220,7 +5218,6 @@ struct abstract_threshold_crossing {
 using qss1_threshold_crossing = abstract_threshold_crossing<1>;
 using qss2_threshold_crossing = abstract_threshold_crossing<2>;
 using qss3_threshold_crossing = abstract_threshold_crossing<3>;
-
 
 template<std::size_t QssLevel>
 struct abstract_pwm {
@@ -5462,7 +5459,6 @@ struct abstract_atan {
 using qss1_atan = abstract_atan<1>;
 using qss2_atan = abstract_atan<2>;
 using qss3_atan = abstract_atan<3>;
-
 
 template<std::size_t QssLevel>
 struct abstract_tan {
@@ -5999,8 +5995,9 @@ struct abstract_saturation {
 
     observation_message observation(time t, time /*e*/) const noexcept
     {
-        const real o =
-          z == zone::below ? lower : z == zone::above ? upper : value[0];
+        const real o = z == zone::below   ? lower
+                       : z == zone::above ? upper
+                                          : value[0];
         return { t, o };
     }
 };
@@ -6139,7 +6136,6 @@ struct abstract_dead_zone {
 using qss1_dead_zone = abstract_dead_zone<1>;
 using qss2_dead_zone = abstract_dead_zone<2>;
 using qss3_dead_zone = abstract_dead_zone<3>;
-
 
 template<std::size_t QssLevel>
 struct abstract_abs {
@@ -6378,9 +6374,8 @@ struct abstract_hysteresis {
             return high ? compute_wake_up(lower, value[0], value[1])
                         : compute_wake_up(upper, value[0], value[1]);
         else
-            return high
-                     ? compute_wake_up(lower, value[0], value[1], value[2])
-                     : compute_wake_up(upper, value[0], value[1], value[2]);
+            return high ? compute_wake_up(lower, value[0], value[1], value[2])
+                        : compute_wake_up(upper, value[0], value[1], value[2]);
     }
 
     status transition(simulation& sim, time, time e, time) noexcept
@@ -6581,7 +6576,7 @@ struct abstract_wrap {
     real                       modulo;
     time                       sigma;
     real                       laps;
-    bool emit;
+    bool                       emit;
 
     abstract_wrap() noexcept = default;
     abstract_wrap(const abstract_wrap& o) noexcept
@@ -8138,20 +8133,13 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_threshold_crossing> or
   std::is_same_v<Dynamics, qss2_threshold_crossing> or
   std::is_same_v<Dynamics, qss3_threshold_crossing> or
-  std::is_same_v<Dynamics, qss1_pwm> or
-  std::is_same_v<Dynamics, qss2_pwm> or
-  std::is_same_v<Dynamics, qss3_pwm> or
-  std::is_same_v<Dynamics, qss1_sqrt> or
-  std::is_same_v<Dynamics, qss2_sqrt> or
-  std::is_same_v<Dynamics, qss3_sqrt> or
-  std::is_same_v<Dynamics, qss1_atan> or
-  std::is_same_v<Dynamics, qss2_atan> or
-  std::is_same_v<Dynamics, qss3_atan> or
-  std::is_same_v<Dynamics, qss1_tan> or
-  std::is_same_v<Dynamics, qss2_tan> or
-  std::is_same_v<Dynamics, qss3_tan> or
-  std::is_same_v<Dynamics, qss1_tanh> or
-  std::is_same_v<Dynamics, qss2_tanh> or
+  std::is_same_v<Dynamics, qss1_pwm> or std::is_same_v<Dynamics, qss2_pwm> or
+  std::is_same_v<Dynamics, qss3_pwm> or std::is_same_v<Dynamics, qss1_sqrt> or
+  std::is_same_v<Dynamics, qss2_sqrt> or std::is_same_v<Dynamics, qss3_sqrt> or
+  std::is_same_v<Dynamics, qss1_atan> or std::is_same_v<Dynamics, qss2_atan> or
+  std::is_same_v<Dynamics, qss3_atan> or std::is_same_v<Dynamics, qss1_tan> or
+  std::is_same_v<Dynamics, qss2_tan> or std::is_same_v<Dynamics, qss3_tan> or
+  std::is_same_v<Dynamics, qss1_tanh> or std::is_same_v<Dynamics, qss2_tanh> or
   std::is_same_v<Dynamics, qss3_tanh> or
   std::is_same_v<Dynamics, qss1_sigmoid> or
   std::is_same_v<Dynamics, qss2_sigmoid> or
@@ -8168,12 +8156,9 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_dead_zone> or
   std::is_same_v<Dynamics, qss2_dead_zone> or
   std::is_same_v<Dynamics, qss3_dead_zone> or
-  std::is_same_v<Dynamics, qss1_abs> or
-  std::is_same_v<Dynamics, qss2_abs> or
-  std::is_same_v<Dynamics, qss3_abs> or
-  std::is_same_v<Dynamics, qss1_sign> or
-  std::is_same_v<Dynamics, qss2_sign> or
-  std::is_same_v<Dynamics, qss3_sign> or
+  std::is_same_v<Dynamics, qss1_abs> or std::is_same_v<Dynamics, qss2_abs> or
+  std::is_same_v<Dynamics, qss3_abs> or std::is_same_v<Dynamics, qss1_sign> or
+  std::is_same_v<Dynamics, qss2_sign> or std::is_same_v<Dynamics, qss3_sign> or
   std::is_same_v<Dynamics, qss1_hysteresis> or
   std::is_same_v<Dynamics, qss2_hysteresis> or
   std::is_same_v<Dynamics, qss3_hysteresis> or
@@ -8183,8 +8168,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_maximum> or
   std::is_same_v<Dynamics, qss2_maximum> or
   std::is_same_v<Dynamics, qss3_maximum> or
-  std::is_same_v<Dynamics, qss1_wrap> or
-  std::is_same_v<Dynamics, qss2_wrap> or
+  std::is_same_v<Dynamics, qss1_wrap> or std::is_same_v<Dynamics, qss2_wrap> or
   std::is_same_v<Dynamics, qss3_wrap>;
 
 struct model {
@@ -9176,34 +9160,40 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_integrate_and_fire:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss1_integrate_and_fire*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss1_integrate_and_fire*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss2_integrate_and_fire:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss2_integrate_and_fire*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss2_integrate_and_fire*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss3_integrate_and_fire:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss3_integrate_and_fire*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss3_integrate_and_fire*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss1_threshold_crossing:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss1_threshold_crossing*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss1_threshold_crossing*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss2_threshold_crossing:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss2_threshold_crossing*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss2_threshold_crossing*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss3_threshold_crossing:
-        return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss3_threshold_crossing*>(&mdl.dyn),
-                           std::forward<Args>(args)...);
+        return std::invoke(
+          std::forward<Function>(f),
+          *reinterpret_cast<const qss3_threshold_crossing*>(&mdl.dyn),
+          std::forward<Args>(args)...);
 
     case dynamics_type::qss1_pwm:
         return std::invoke(std::forward<Function>(f),
