@@ -2304,6 +2304,7 @@ struct abstract_integrator<3> {
             auto a = mu / two - pq;
             auto b = u - mq;
             auto c = X - q - dQ;
+            sigma  = time_domain<time>::infinity;
 
             if (not is_zero(pu)) {
                 a       = three * a / pu;
