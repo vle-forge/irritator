@@ -910,8 +910,7 @@ static bool add_component_to_current(application&            app,
     return true;
 }
 
-static bool show_menu(application&        app,
-                      generic_component&  gen,
+static bool show_menu(generic_component&  gen,
                       const dynamics_type type,
                       const int           offset,
                       const ImVec2        pos,
@@ -940,8 +939,7 @@ static bool show_menu(application&        app,
     return false;
 }
 
-static bool show_menu(application&        app,
-                      generic_component&  gen,
+static bool show_menu(generic_component&  gen,
                       const dynamics_type type,
                       const ImVec2        pos,
                       const char*         description = nullptr) noexcept
@@ -973,8 +971,7 @@ static constexpr const char* menu_names[] = { "QSS 1", "QSS 2", "QSS 3" };
 static constexpr int         offsets[]    = { 0, 43, 86 };
 
 template<std::size_t QssLevel>
-static bool show_hybrid_continuous_discrete(application&       app,
-                                            generic_component& gen,
+static bool show_hybrid_continuous_discrete(generic_component& gen,
                                             const ImVec2       pos) noexcept
 {
     static_assert(1 <= QssLevel and QssLevel <= 3);
@@ -986,48 +983,42 @@ static bool show_hybrid_continuous_discrete(application&       app,
     if (not ImGui::BeginMenu(menu))
         return false;
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sample_hold,
                    offset,
                    pos,
                    "Samples the continuous input on an internal clock (period "
                    "ts) and holds each sample until the next tick");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_flipflop,
                    offset,
                    pos,
                    "Emits output continuous from a input continous when an "
                    "event arrives on event port");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_quantizer,
                    offset,
                    pos,
                    "y = q · round(x / q); emits an event each time the input "
                    "crosses a quantization level.");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_integer,
                    offset,
                    pos,
                    "y = round(x); emits an event each time the input "
                    "crosses a integer level.");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_threshold_crossing,
                    offset,
                    pos,
                    "Emits an event (±1) when the input crosses a level; a "
                    "decoupled zero-crossing detector");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_cross,
                    offset,
                    pos,
@@ -1035,16 +1026,14 @@ static bool show_hybrid_continuous_discrete(application&       app,
                    "(±1) when the input crosses a level; a "
                    "decoupled zero-crossing detector");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_integrate_and_fire,
                    offset,
                    pos,
                    "Accumulates ∫x dt and emits a spike, then resets, when the "
                    "accumulator reaches θ");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_pwm,
                    offset,
                    pos,
@@ -1057,8 +1046,7 @@ static bool show_hybrid_continuous_discrete(application&       app,
 }
 
 template<std::size_t QssLevel>
-static bool show_hybrid_stateful_switch(application&       app,
-                                        generic_component& gen,
+static bool show_hybrid_stateful_switch(generic_component& gen,
                                         const ImVec2       pos) noexcept
 {
     static_assert(1 <= QssLevel and QssLevel <= 3);
@@ -1071,7 +1059,6 @@ static bool show_hybrid_stateful_switch(application&       app,
         return false;
 
     u += show_menu(
-      app,
       gen,
       dynamics_type::qss1_hysteresis,
       offset,
@@ -1085,8 +1072,7 @@ static bool show_hybrid_stateful_switch(application&       app,
 }
 
 template<std::size_t QssLevel>
-static bool show_continuous_stateful_detectors(application&       app,
-                                               generic_component& gen,
+static bool show_continuous_stateful_detectors(generic_component& gen,
                                                const ImVec2       pos) noexcept
 {
     static_assert(1 <= QssLevel and QssLevel <= 3);
@@ -1098,16 +1084,14 @@ static bool show_continuous_stateful_detectors(application&       app,
     if (not ImGui::BeginMenu(menu))
         return false;
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_max_hold,
                    offset,
                    pos,
                    "Running peak detector: tracks the input while it sets a "
                    "new maximum, then holds that max value");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_min_hold,
                    offset,
                    pos,
@@ -1120,8 +1104,7 @@ static bool show_continuous_stateful_detectors(application&       app,
 }
 
 template<std::size_t QssLevel>
-static bool show_continuous_maps(application&       app,
-                                 generic_component& gen,
+static bool show_continuous_maps(generic_component& gen,
                                  const ImVec2       pos) noexcept
 {
     static_assert(1 <= QssLevel and QssLevel <= 3);
@@ -1134,65 +1117,57 @@ static bool show_continuous_maps(application&       app,
         return false;
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_abs, offset, pos, "Absolute value y = |x|");
+      gen, dynamics_type::qss1_abs, offset, pos, "Absolute value y = |x|");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_saturation,
                    offset,
                    pos,
                    "Limits the signal to [lower, upper]; "
                    "passes through in-band, flat outside.");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_filter,
                    offset,
                    pos,
                    "Limits the signal to [lower, upper]; "
                    "sends 0 on one events.");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_dead_zone,
                    offset,
                    pos,
                    "Zero output inside [lower, upper], linear (shifted) "
                    "beyond; suppresses small signals");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sign,
                    offset,
                    pos,
                    "Sign function y ∈ {−1, 0, +1}; value discontinuity at 0");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_maximum,
                    offset,
                    pos,
                    "Selects the larger of two continuous "
                    "inputs, switching at their crossing");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_minimum,
                    offset,
                    pos,
                    "Selects the smaller of two continuous "
                    "inputs, switching at their crossing");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_wrap,
                    offset,
                    pos,
                    "Folds the signal into [origin, origin + modulo), jumping "
                    "by  ±modulo at each boundary (e.g. angle wrapping)");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_compare,
                    offset,
                    pos,
@@ -1205,8 +1180,7 @@ static bool show_continuous_maps(application&       app,
 }
 
 template<std::size_t QssLevel>
-static bool show_continuous_algebraic_menu(application&       app,
-                                           generic_component& gen,
+static bool show_continuous_algebraic_menu(generic_component& gen,
                                            const ImVec2       pos) noexcept
 {
     static_assert(1 <= QssLevel and QssLevel <= 3);
@@ -1218,120 +1192,101 @@ static bool show_continuous_algebraic_menu(application&       app,
     if (not ImGui::BeginMenu(menu))
         return false;
 
-    u += show_menu(
-      app, gen, dynamics_type::qss1_integrator, offset, pos, "Integrator");
+    u +=
+      show_menu(gen, dynamics_type::qss1_integrator, offset, pos, "Integrator");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sqrt,
                    offset,
                    pos,
                    "Square root, y = √x; guarded for x > 0.");
 
-    u += show_menu(
-      app, gen, dynamics_type::qss1_gain, offset, pos, "Gaim, y = k(x)");
+    u +=
+      show_menu(gen, dynamics_type::qss1_gain, offset, pos, "Gaim, y = k(x)");
 
-    u += show_menu(app,
-                   gen,
-                   dynamics_type::qss1_power,
-                   offset,
-                   pos,
-                   "Power y = x * x * ... (TODO exp)");
+    u += show_menu(gen, dynamics_type::qss1_power, offset, pos, "Power y = xⁿ");
+
+    u +=
+      show_menu(gen, dynamics_type::qss1_square, offset, pos, "Square, y = x¹");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_square, offset, pos, "Square, y = x¹");
+      gen, dynamics_type::qss1_sum_2, offset, pos, "Sum, y = x[0] + x[1]");
 
-    u += show_menu(
-      app, gen, dynamics_type::qss1_sum_2, offset, pos, "Sum, y = x[0] + x[1]");
-
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sum_3,
                    offset,
                    pos,
                    "Sum, y = x[0] + x[1] + x[2]");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sum_4,
                    offset,
                    pos,
                    "Sum, y = x[0] + x[1] + x[2] + x[3]");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_wsum_2,
                    offset,
                    pos,
-                   "Weighted sm, y = k_0 x[0] + k_1 x[1]");
+                   "Weighted sm, y = k_0 · x[0] + k_1 · x[1]");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_wsum_3,
                    offset,
                    pos,
-                   "Weighted sm, y = k_0 x[0] + k_1 x[1] + k_2 x[2]");
-
-    u +=
-      show_menu(app,
-                gen,
-                dynamics_type::qss1_wsum_4,
-                offset,
-                pos,
-                "Weighted sm, y = k_0 x[0] + k_1 x[1] + k_2 x[2] + k_3 x[3]");
+                   "Weighted sm, y = k_0 · x[0] + k_1 · x[1] + k_2 · x[2]");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_inverse, offset, pos, "Inverse, y = 1 / x");
+      gen,
+      dynamics_type::qss1_wsum_4,
+      offset,
+      pos,
+      "Weighted sm, y = k_0 · x[0] + k_1 · x[1] + k_2 · x[2] + k_3 · x[3]");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(
+      gen, dynamics_type::qss1_inverse, offset, pos, "Inverse, y = 1 / x");
+
+    u += show_menu(gen,
                    dynamics_type::qss1_multiplier,
                    offset,
                    pos,
-                   "Multiplier, y = x[0] * x[1]");
+                   "Multiplier, y = x[0] · x[1]");
+
+    u +=
+      show_menu(gen, dynamics_type::qss1_log, offset, pos, "Sinus, y = log(x)");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_log, offset, pos, "Sinus, y = log(x)");
+      gen, dynamics_type::qss1_exp, offset, pos, "Cosinus, y = exp(x)");
+
+    u +=
+      show_menu(gen, dynamics_type::qss1_sin, offset, pos, "Sinus, y = sin(x)");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_exp, offset, pos, "Cosinus, y = exp(x)");
+      gen, dynamics_type::qss1_cos, offset, pos, "Cosinus, y = cos(x)");
 
-    u += show_menu(
-      app, gen, dynamics_type::qss1_sin, offset, pos, "Sinus, y = sin(x)");
-
-    u += show_menu(
-      app, gen, dynamics_type::qss1_cos, offset, pos, "Cosinus, y = cos(x)");
-
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_division,
                    offset,
                    pos,
                    "Ratio of two continuous signals, y = a "
                    "/ b; guarded for b ≠ 0.");
 
-    u += show_menu(app,
-                   gen,
-                   dynamics_type::qss1_atan,
-                   offset,
-                   pos,
-                   "Arctangent, y = atan(x).");
+    u += show_menu(
+      gen, dynamics_type::qss1_atan, offset, pos, "Arctangent, y = atan(x).");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_atan2,
                    offset,
                    pos,
                    "Two-argument arctangent y = atan2(yin, xin)");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_tan, offset, pos, "Tangent, y = tan(x)");
+      gen, dynamics_type::qss1_tan, offset, pos, "Tangent, y = tan(x)");
 
     u += show_menu(
-      app, gen, dynamics_type::qss1_tanh, offset, pos, "Hyperbolic tangent");
+      gen, dynamics_type::qss1_tanh, offset, pos, "Hyperbolic tangent");
 
-    u += show_menu(app,
-                   gen,
+    u += show_menu(gen,
                    dynamics_type::qss1_sigmoid,
                    offset,
                    pos,
@@ -1346,7 +1301,7 @@ static bool show_popup_menuitem(const component_access&        ids,
                                 application&                   app,
                                 generic_component_editor_data& data,
                                 const component_id             parent_id,
-                                generic_component& s_parent) noexcept
+                                generic_component&             gen) noexcept
 {
     auto u = 0;
 
@@ -1363,16 +1318,15 @@ static bool show_popup_menuitem(const component_access&        ids,
 
         if (not data.selected_links.empty())
             if (ImGui::MenuItem("Delete selected links"))
-                u += remove_links(data, s_parent);
+                u += remove_links(data, gen);
 
         if (not data.selected_nodes.empty())
             if (ImGui::MenuItem("Delete selected nodes"))
-                u += remove_nodes(s_parent, data);
+                u += remove_nodes(gen, data);
 
         if (ImGui::MenuItem("Force grid layout"))
-            u += compute_grid_layout(s_parent,
-                                     data.grid_layout_x_distance,
-                                     data.grid_layout_y_distance);
+            u += compute_grid_layout(
+              gen, data.grid_layout_x_distance, data.grid_layout_y_distance);
 
         ImGui::Separator();
 
@@ -1391,73 +1345,70 @@ static bool show_popup_menuitem(const component_access&        ids,
                       });
                 else
                     u += add_component_to_current(
-                      app, ids, parent_id, s_parent, res.id, click_pos);
+                      app, ids, parent_id, gen, res.id, click_pos);
             }
         }
 
         ImGui::Separator();
 
         if (ImGui::BeginMenu("Continuous algebraic")) {
-            ImGui::SetItemTooltip("Continuous → smooth algebraic "
+            ImGui::SetItemTooltip("Continuous ‣ smooth algebraic "
                                   "functions\n(continuous trajectory "
-                                  "in → continuous trajectory out)");
+                                  "in ‣ continuous trajectory out)");
 
-            u += show_continuous_algebraic_menu<1>(app, s_parent, click_pos);
-            u += show_continuous_algebraic_menu<2>(app, s_parent, click_pos);
-            u += show_continuous_algebraic_menu<3>(app, s_parent, click_pos);
+            u += show_continuous_algebraic_menu<1>(gen, click_pos);
+            u += show_continuous_algebraic_menu<2>(gen, click_pos);
+            u += show_continuous_algebraic_menu<3>(gen, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Continuous maps")) {
             ImGui::SetItemTooltip(
-              "Continuous - discontinuous static maps\n(continuous in → "
+              "Continuous - discontinuous static maps\n(continuous in ‣ "
               "continuous out, memoryless, with internal state events at the "
               "breakpoints)");
 
-            u += show_continuous_maps<1>(app, s_parent, click_pos);
-            u += show_continuous_maps<2>(app, s_parent, click_pos);
-            u += show_continuous_maps<3>(app, s_parent, click_pos);
+            u += show_continuous_maps<1>(gen, click_pos);
+            u += show_continuous_maps<2>(gen, click_pos);
+            u += show_continuous_maps<3>(gen, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Continuous stateful detectors")) {
             ImGui::SetItemTooltip(
-              "Continuous in → continuous out, with memory");
+              "Continuous in ‣ continuous out, with memory");
 
-            u +=
-              show_continuous_stateful_detectors<1>(app, s_parent, click_pos);
-            u +=
-              show_continuous_stateful_detectors<2>(app, s_parent, click_pos);
-            u +=
-              show_continuous_stateful_detectors<3>(app, s_parent, click_pos);
+            u += show_continuous_stateful_detectors<1>(gen, click_pos);
+            u += show_continuous_stateful_detectors<2>(gen, click_pos);
+            u += show_continuous_stateful_detectors<3>(gen, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Hybrid - stateful switch")) {
             ImGui::SetItemTooltip(
-              "Continuous in → switched output, with memory");
+              "Continuous in ‣ switched output, with memory");
 
-            u += show_hybrid_stateful_switch<1>(app, s_parent, click_pos);
-            u += show_hybrid_stateful_switch<2>(app, s_parent, click_pos);
-            u += show_hybrid_stateful_switch<3>(app, s_parent, click_pos);
+            u += show_hybrid_stateful_switch<1>(gen, click_pos);
+            u += show_hybrid_stateful_switch<2>(gen, click_pos);
+            u += show_hybrid_stateful_switch<3>(gen, click_pos);
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Hybrid - continuous → discrete")) {
-            ImGui::SetItemTooltip("");
-
-            u += show_hybrid_continuous_discrete<1>(app, s_parent, click_pos);
-            u += show_hybrid_continuous_discrete<2>(app, s_parent, click_pos);
-            u += show_hybrid_continuous_discrete<3>(app, s_parent, click_pos);
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Hybrid - discrete → continuous")) {
+        if (ImGui::BeginMenu("Hybrid - continuous ‣ discrete")) {
             ImGui::SetItemTooltip("Turn a continuous signal into discrete "
                                   "events or a discrete-time signal");
 
-            u += show_menu(
-              app, s_parent, dynamics_type::zero_order_hold, click_pos);
+            u += show_hybrid_continuous_discrete<1>(gen, click_pos);
+            u += show_hybrid_continuous_discrete<2>(gen, click_pos);
+            u += show_hybrid_continuous_discrete<3>(gen, click_pos);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Hybrid - discrete ‣ continuous")) {
+            ImGui::SetItemTooltip("Turn a continuous signal into discrete "
+                                  "events or a discrete-time signal");
+
+            u += show_menu(gen, dynamics_type::zero_order_hold, click_pos);
 
             ImGui::SetItemTooltip(
               "Holds the last received discrete event value as a constant "
@@ -1467,43 +1418,33 @@ static bool show_popup_menuitem(const component_access&        ids,
         }
 
         if (ImGui::BeginMenu("Logical")) {
-            u +=
-              show_menu(app, s_parent, dynamics_type::logical_and_2, click_pos);
-            u +=
-              show_menu(app, s_parent, dynamics_type::logical_or_2, click_pos);
-            u +=
-              show_menu(app, s_parent, dynamics_type::logical_and_3, click_pos);
-            u +=
-              show_menu(app, s_parent, dynamics_type::logical_or_3, click_pos);
-            u += show_menu(
-              app, s_parent, dynamics_type::logical_invert, click_pos);
+            u += show_menu(gen, dynamics_type::logical_and_2, click_pos);
+            u += show_menu(gen, dynamics_type::logical_or_2, click_pos);
+            u += show_menu(gen, dynamics_type::logical_and_3, click_pos);
+            u += show_menu(gen, dynamics_type::logical_or_3, click_pos);
+            u += show_menu(gen, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Queue")) {
-            u += show_menu(app, s_parent, dynamics_type::counter, click_pos);
-            u += show_menu(app, s_parent, dynamics_type::queue, click_pos);
-            u +=
-              show_menu(app, s_parent, dynamics_type::dynamic_queue, click_pos);
-            u += show_menu(
-              app, s_parent, dynamics_type::priority_queue, click_pos);
-            u += show_menu(app, s_parent, dynamics_type::generator, click_pos);
-            u += show_menu(app, s_parent, dynamics_type::constant, click_pos);
-            ImGui::EndMenu();
-        }
-
-        if (ImGui::BeginMenu("Other")) {
-            u += show_menu(app, s_parent, dynamics_type::time_func, click_pos);
-            u +=
-              show_menu(app, s_parent, dynamics_type::accumulator_2, click_pos);
+            u += show_menu(gen, dynamics_type::queue, click_pos);
+            u += show_menu(gen, dynamics_type::dynamic_queue, click_pos);
+            u += show_menu(gen, dynamics_type::priority_queue, click_pos);
+            u += show_menu(gen, dynamics_type::generator, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Wrapper")) {
-            u +=
-              show_menu(app, s_parent, dynamics_type::hsm_wrapper, click_pos);
-            u += show_menu(
-              app, s_parent, dynamics_type::simulation_wrapper, click_pos);
+            u += show_menu(gen, dynamics_type::hsm_wrapper, click_pos);
+            u += show_menu(gen, dynamics_type::simulation_wrapper, click_pos);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Other")) {
+            u += show_menu(gen, dynamics_type::counter, click_pos);
+            u += show_menu(gen, dynamics_type::constant, click_pos);
+            u += show_menu(gen, dynamics_type::time_func, click_pos);
+            u += show_menu(gen, dynamics_type::accumulator_2, click_pos);
             ImGui::EndMenu();
         }
 
