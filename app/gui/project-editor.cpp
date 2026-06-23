@@ -557,7 +557,7 @@ static bool show_simulation_table_variable_observers(
     auto       to_delete   = undefined<variable_observer_id>();
     auto       is_modified = false;
     const auto can_alloc   = ed.pj.variable_observers.can_alloc(1) or
-                           not ed.pj.variable_observers.grow<3, 2>();
+                             not ed.pj.variable_observers.grow<3, 2>();
 
     if (can_alloc)
         ImGui::TextFormatDisabled(
@@ -891,6 +891,7 @@ static void show_subplots(application&       app,
         ImPlot::EndPlot();
     }
 }
+
 static bool show_project_observations(application&    app,
                                       project_editor& ed) noexcept
 {
@@ -1007,7 +1008,7 @@ static void show_component_observations(application&    app,
             if (vobs.exists(tn_id)) {
                 ImGui::PushID(
                   get_index(sim_ed.pj.variable_observers.get_id(vobs)));
-                if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
+                if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
                     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
