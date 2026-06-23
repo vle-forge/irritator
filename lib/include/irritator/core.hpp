@@ -2627,7 +2627,7 @@ struct abstract_power {
                                 std::pow(value[0], n),
                                 n * std::pow(value[0], n - 1) * value[1],
                                 n * (n - 1) * std::pow(value[0], n - 2) *
-                                    (value[1] * value[1]) +
+                                    (value[1] * value[1]) / two +
                                   n * std::pow(value[0], n - 1) * value[2]);
 
         return success();
@@ -3180,7 +3180,7 @@ struct abstract_inverse {
                                 one / values[0],
                                 -values[1] / (values[0] * values[0]),
                                 -(values[2] / (values[0] * values[0])) +
-                                  ((two * values[1] * values[1]) /
+                                  ((values[1] * values[1]) /
                                    (values[0] * values[0] * values[0])));
         }
 
@@ -3283,7 +3283,7 @@ struct abstract_multiplier {
                                 values[2 + 0] * values[1] +
                                   values[2 + 1] * values[0],
                                 values[0] * values[2 + 2 + 1] +
-                                  two * values[2 + 0] * values[2 + 1] +
+                                  values[2 + 0] * values[2 + 1] +
                                   values[2 + 2 + 0] * values[1]);
         }
 
@@ -3799,7 +3799,7 @@ struct abstract_log {
                                 y[0],
                                 std::log(value[0]),
                                 value[1] / value[0],
-                                -(value[1] * value[1]) / (value[0] * value[0]) +
+                                -(value[1] * value[1]) / (two * value[0] * value[0]) +
                                   value[2] / value[0]);
 
         return success();
@@ -3891,7 +3891,7 @@ struct abstract_exp {
                                 std::exp(value[0]),
                                 std::exp(value[0]) * value[1],
                                 std::exp(value[0]) *
-                                  (value[1] * value[1] + value[2]));
+                                  (value[1] * value[1] / two + value[2]));
 
         return success();
     }
@@ -3981,7 +3981,7 @@ struct abstract_sin {
                                 y[0],
                                 std::sin(value[0]),
                                 std::cos(value[0]) * value[1],
-                                -std::sin(value[0]) * value[1] * value[1] +
+                                -std::sin(value[0]) * value[1] * value[1] / two +
                                   std::cos(value[0]) * value[2]);
 
         return success();
@@ -4072,7 +4072,7 @@ struct abstract_cos {
                                 y[0],
                                 std::cos(value[0]),
                                 -std::sin(value[0]) * value[1],
-                                -std::cos(value[0]) * value[1] * value[1] -
+                                -std::cos(value[0]) * value[1] * value[1] / two -
                                   std::sin(value[0]) * value[2]);
 
         return success();
@@ -5381,7 +5381,7 @@ struct abstract_sqrt {
                                 y[0],
                                 s,
                                 fp * value[1],
-                                fpp * value[1] * value[1] + fp * value[2]);
+                                fpp * value[1] * value[1] / two + fp * value[2]);
         }
         return success();
     }
@@ -5446,7 +5446,7 @@ struct abstract_atan {
                                 y[0],
                                 a,
                                 fp * value[1],
-                                fpp * value[1] * value[1] + fp * value[2]);
+                                fpp * value[1] * value[1] / two + fp * value[2]);
         }
         return success();
     }
@@ -5509,7 +5509,7 @@ struct abstract_tan {
                                 y[0],
                                 T,
                                 fp * value[1],
-                                fpp * value[1] * value[1] + fp * value[2]);
+                                fpp * value[1] * value[1] / two + fp * value[2]);
         }
         return success();
     }
@@ -5572,7 +5572,7 @@ struct abstract_tanh {
                                 y[0],
                                 th,
                                 fp * value[1],
-                                fpp * value[1] * value[1] + fp * value[2]);
+                                fpp * value[1] * value[1] / two + fp * value[2]);
         }
         return success();
     }
@@ -5635,7 +5635,7 @@ struct abstract_sigmoid {
                                 y[0],
                                 s,
                                 fp * value[1],
-                                fpp * value[1] * value[1] + fp * value[2]);
+                                fpp * value[1] * value[1] / two + fp * value[2]);
         }
         return success();
     }
@@ -5742,8 +5742,8 @@ struct abstract_division {
         if constexpr (QssLevel == 3) {
             const real a2 = values[2 + 2 + 0];
             const real b2 = values[2 + 2 + 1];
-            const real c2 = two * b1 * b1 / (b0 * b0 * b0) - b2 / (b0 * b0);
-            const real z2 = a0 * c2 + two * a1 * c1 + a2 * c0;
+            const real c2 = b1 * b1 / (b0 * b0 * b0) - b2 / (b0 * b0);
+            const real z2 = a0 * c2 + a1 * c1 + a2 * c0;
             return send_message(sim, y[0], z0, z1, z2);
         }
         return success();
@@ -5858,11 +5858,11 @@ struct abstract_atan2 {
         if constexpr (QssLevel == 3) {
             const real y2  = values[2 + 2 + 0];
             const real x2  = values[2 + 2 + 1];
-            const real c2  = two * x1 * x1 / (x0 * x0 * x0) - x2 / (x0 * x0);
-            const real u2  = y0 * c2 + two * y1 * c1 + y2 * c0;
+            const real c2  = x1 * x1 / (x0 * x0 * x0) - x2 / (x0 * x0);
+            const real u2  = y0 * c2 + y1 * c1 + y2 * c0;
             const real gpp = -two * u0 / (d * d); // g''(u0)
             return send_message(
-              sim, y[0], ang, gp * u1, gpp * u1 * u1 + gp * u2);
+              sim, y[0], ang, gp * u1, gpp * u1 * u1 / two + gp * u2);
         }
         return success();
     }
