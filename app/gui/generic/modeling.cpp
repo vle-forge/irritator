@@ -916,21 +916,22 @@ static bool show_menu(generic_component&  gen,
                       const ImVec2        pos,
                       const char*         description = nullptr) noexcept
 {
-    const auto  idx  = ordinal(type) + offset;
-    const auto* name = dynamics_type_names[idx];
-    const auto  open = ImGui::MenuItem(name);
+    const auto  idx      = ordinal(type) + offset;
+    const auto  new_type = enum_cast<dynamics_type>(idx);
+    const auto* name     = dynamics_type_names[idx];
+    const auto  open     = ImGui::MenuItem(name);
 
     if (description)
         ImGui::SetItemTooltip("%s", description);
 
     if (open) {
-        auto&      child = gen.children.alloc(type);
+        auto&      child = gen.children.alloc(new_type);
         const auto id    = gen.children.get_id(child);
         const auto idx   = get_index(id);
 
         gen.children_positions[idx].x = pos.x;
         gen.children_positions[idx].y = pos.y;
-        gen.children_parameters[idx].init_from(type);
+        gen.children_parameters[idx].init_from(new_type);
         ImNodes::SetNodeScreenSpacePos(pack_node_child(id), pos);
 
         return true;
