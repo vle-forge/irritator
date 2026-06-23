@@ -1022,10 +1022,7 @@ static void show_component_observations(application&    app,
                                         ImPlotAxisFlags_RangeFit);
                     ImPlot::SetupFinish();
 
-                    if (sim_ed.simulation_state != // TODO may be adding a
-                                                   // spin_mutex in observer
-                                                   // and lock/try_lock the
-                                                   // linear buffer?
+                    if (sim_ed.simulation_state !=
                         simulation_status::initializing)
                         show_local_variables_plot(app, sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);
