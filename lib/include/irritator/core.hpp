@@ -3129,19 +3129,19 @@ struct abstract_inverse {
     input_port     x[1] = {};
     output_port_id y[1] = {};
 
-    std::array<real, QssLevel> values;
+    std::array<real, QssLevel> value;
     time                       sigma;
 
     abstract_inverse() noexcept = default;
 
     abstract_inverse(const abstract_inverse& other) noexcept
-      : values(other.values)
+      : value(other.value)
       , sigma(other.sigma)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        values.fill(zero);
+        value.fill(zero);
 
         sigma = time_domain<time>::infinity;
 
@@ -3156,7 +3156,7 @@ struct abstract_inverse {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(values, get_qss_message<QssLevel>(lst));
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3167,26 +3167,26 @@ struct abstract_inverse {
 
     status lambda(simulation& sim) noexcept
     {
-        if (is_zero(values[0]))
+        if (is_zero(value[0]))
             return make_error(simulation_errc::abstract_log_input_error);
 
         if constexpr (QssLevel == 1) {
-            return send_message(sim, y[0], one / values[0]);
+            return send_message(sim, y[0], one / value[0]);
         }
 
         if constexpr (QssLevel == 2) {
             return send_message(
-              sim, y[0], one / values[0], -values[1] / (values[0] * values[0]));
+              sim, y[0], one / value[0], -value[1] / (value[0] * value[0]));
         }
 
         if constexpr (QssLevel == 3) {
-            return send_message(sim,
-                                y[0],
-                                one / values[0],
-                                -values[1] / (values[0] * values[0]),
-                                -(values[2] / (values[0] * values[0])) +
-                                  ((values[1] * values[1]) /
-                                   (values[0] * values[0] * values[0])));
+            return send_message(
+              sim,
+              y[0],
+              one / value[0],
+              -value[1] / (value[0] * value[0]),
+              -(value[2] / (value[0] * value[0])) +
+                ((value[1] * value[1]) / (value[0] * value[0] * value[0])));
         }
 
         return success();
@@ -3196,12 +3196,12 @@ struct abstract_inverse {
     {
         if constexpr (QssLevel == 1) {
             return { t,
-                     is_zero(values[0]) ? std::numeric_limits<real>::infinity()
-                                        : one / values[0] };
+                     is_zero(value[0]) ? std::numeric_limits<real>::infinity()
+                                       : one / value[0] };
         }
 
         if constexpr (QssLevel == 2) {
-            return is_zero(values[0])
+            return is_zero(value[0])
                      ? observation_message{ t,
                                             std::numeric_limits<
                                               real>::infinity(),
@@ -3209,14 +3209,14 @@ struct abstract_inverse {
                                               real>::infinity(),
                                             std::numeric_limits<
                                               real>::infinity() }
-                     : qss_observation(one / values[0],
-                                       -values[1] / (values[0] * values[0]),
+                     : qss_observation(one / value[0],
+                                       -value[1] / (value[0] * value[0]),
                                        t,
                                        e);
         }
 
         if constexpr (QssLevel == 3) {
-            return is_zero(values[0])
+            return is_zero(value[0])
                      ? observation_message{ t,
                                             std::numeric_limits<
                                               real>::infinity(),
@@ -3224,11 +3224,11 @@ struct abstract_inverse {
                                               real>::infinity(),
                                             std::numeric_limits<
                                               real>::infinity() }
-                     : qss_observation(one / values[0],
-                                       -values[1] / (values[0] * values[0]),
-                                       -(values[2] / (values[0] * values[0])) +
-                                         ((two * values[1] * values[1]) /
-                                          (values[0] * values[0] * values[0])),
+                     : qss_observation(one / value[0],
+                                       -value[1] / (value[0] * value[0]),
+                                       -(value[2] / (value[0] * value[0])) +
+                                         ((two * value[1] * value[1]) /
+                                          (value[0] * value[0] * value[0])),
                                        t,
                                        e);
         }
@@ -3804,7 +3804,8 @@ struct abstract_log {
                                 y[0],
                                 std::log(value[0]),
                                 value[1] / value[0],
-                                -(value[1] * value[1]) / (two * value[0] * value[0]) +
+                                -(value[1] * value[1]) /
+                                    (two * value[0] * value[0]) +
                                   value[2] / value[0]);
 
         return success();
