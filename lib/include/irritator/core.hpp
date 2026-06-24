@@ -1813,7 +1813,7 @@ constexpr observation_message qss_observation(real X,
                                               time t,
                                               time e) noexcept
 {
-    return { t, X + u * e + mu * e * e / two, u + mu * e };
+    return { t, X + u * e + mu * e * e / two, u + mu * e, mu };
 }
 
 constexpr observation_message qss_observation(real X,
@@ -1826,7 +1826,8 @@ constexpr observation_message qss_observation(real X,
     return { t,
              X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
              u + mu * e + pu * e * e,
-             mu / two + pu * e };
+             mu + two * pu * e,
+             pu };
 }
 
 template<std::size_t QssLevel>
@@ -2669,9 +2670,13 @@ struct abstract_power {
             auto u = n * std::pow(value[0], n - 1) * value[1];
             auto mu =
               n * (n - 1) * std::pow(value[0], n - 2) * (value[1] * value[1]) +
-              n * std::pow(value[0], n - 1) * value[2];
+              two * n * std::pow(value[0], n - 1) * value[2];
+            auto pu = three * n * (n - 1) * std::pow(value[0], n - 2) *
+                        value[1] * value[2] +
+                      n * (n - 1) * (n - 2) * std::pow(value[0], n - 3) *
+                        value[1] * value[1] * value[1] / two;
 
-            return qss_observation(X, u, mu, t, e);
+            return qss_observation(X, u, mu, pu, t, e);
         }
     }
 };
@@ -3745,7 +3750,7 @@ struct abstract_gain {
         if constexpr (QssLevel == 3) {
             const auto X  = k * value[0];
             const auto u  = k * value[1];
-            const auto mu = k * value[2];
+            const auto mu = two * k * value[2];
 
             return qss_observation(X, u, mu, t, e);
         }
@@ -3839,9 +3844,12 @@ struct abstract_log {
             const auto X  = std::log(value[0]);
             const auto u  = value[1] / value[0];
             const auto mu = -(value[1] * value[1]) / (value[0] * value[0]) +
-                            value[2] / value[0];
+                            two * value[2] / value[0];
+            const auto pu =
+              -three * value[1] * value[2] / (value[0] * value[0]) +
+              value[1] * value[1] * value[1] / (value[0] * value[0] * value[0]);
 
-            return qss_observation(X, u, mu, t, e);
+            return qss_observation(X, u, mu, pu, t, e);
         }
     }
 };
@@ -3930,9 +3938,13 @@ struct abstract_exp {
             const auto X = std::exp(value[0]);
             const auto u = std::exp(value[0]) * value[1];
             const auto mu =
-              std::exp(value[0]) * (value[1] * value[1] + value[2]);
+              std::exp(value[0]) * (value[1] * value[1] + two * value[2]);
+            const auto pu =
+              std::exp(value[0]) *
+              (three * value[1] * value[2] +
+               value[1] * value[1] * value[1] / two);
 
-            return qss_observation(X, u, mu, t, e);
+            return qss_observation(X, u, mu, pu, t, e);
         }
     }
 };
@@ -4021,9 +4033,12 @@ struct abstract_sin {
             const auto X  = std::sin(value[0]);
             const auto u  = std::cos(value[0]) * value[1];
             const auto mu = -std::sin(value[0]) * value[1] * value[1] +
-                            std::cos(value[0]) * value[2];
+                            two * std::cos(value[0]) * value[2];
+            const auto pu =
+              -three * std::sin(value[0]) * value[1] * value[2] -
+              std::cos(value[0]) * value[1] * value[1] * value[1] / two;
 
-            return qss_observation(X, u, mu, t, e);
+            return qss_observation(X, u, mu, pu, t, e);
         }
     }
 };
@@ -4112,10 +4127,12 @@ struct abstract_cos {
             const auto X  = std::cos(value[0]);
             const auto u  = -std::sin(value[0]) * value[1];
             const auto mu = -std::cos(value[0]) * value[1] * value[1] -
-                            std::sin(value[0]) * value[2];
-            ;
+                            two * std::sin(value[0]) * value[2];
+            const auto pu =
+              -three * std::cos(value[0]) * value[1] * value[2] +
+              std::sin(value[0]) * value[1] * value[1] * value[1] / two;
 
-            return qss_observation(X, u, mu, t, e);
+            return qss_observation(X, u, mu, pu, t, e);
         }
     }
 };
