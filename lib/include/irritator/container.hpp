@@ -1580,10 +1580,10 @@ public:
         value_type(Identifier id, const T& value) noexcept;
 
         template<typename U>
-        value_type(std::is_constructible<Identifier, U> id_,
-                   const T&                             value_) noexcept
-          : id{ id_ }
-          , value{ value_ }
+            requires(std::is_constructible_v<Identifier, U>)
+        value_type(U id_, const T& value_) noexcept
+          : id(id_)
+          , value(value_)
         {}
 
         Identifier id;
