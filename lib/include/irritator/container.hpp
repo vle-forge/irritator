@@ -179,9 +179,9 @@ template<typename Index>
 inline constexpr auto g_make_next_key(Index key) noexcept
 {
     if constexpr (std::is_same_v<std::uint16_t, Index>)
-        return key == 0xffffffff ? 1u : key + 1u;
+        return key == 0xffff ? 1u : key + 1u;
     else
-        return key == 0xffffffffffffffff ? 1u : key + 1u;
+        return key == 0xffffffff ? 1u : key + 1u;
 }
 
 template<typename Identifier>
