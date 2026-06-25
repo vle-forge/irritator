@@ -1848,37 +1848,16 @@ public:
 
         iterator_base operator--(int) noexcept
         {
-            const auto old_id = id;
-
-            if (auto index = get_index(id); index) {
-                do {
-                    --index;
-                    if (is_valid(self->m_items[index])) {
-                        id = self->m_items[index];
-                        return iterator_base{ .self = self, .id = old_id };
-                    }
-                } while (index);
-            }
-
-            id = identifier_type{};
-            return iterator_base{ .self = self, .id = old_id };
+            iterator_base tmp = *this;
+            --(*this);
+            return tmp;
         }
 
         iterator_base operator++(int) noexcept
         {
-            const auto old_id = id;
-            auto       index  = get_index(id);
-            ++index;
-
-            for (; index < self->max_used; ++index) {
-                if (is_valid(self->m_items[index])) {
-                    id = self->m_items[index];
-                    return iterator_base{ .self = self, .id = old_id };
-                }
-            }
-
-            id = identifier_type{};
-            return iterator_base{ .self = self, .id = old_id };
+            iterator_base tmp = *this;
+            ++(*this);
+            return tmp;
         }
 
         auto operator<=>(const iterator_base&) const noexcept = default;
