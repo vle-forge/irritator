@@ -5573,6 +5573,9 @@ void small_vector<T, N>::pop_back() noexcept
 template<typename T, std::size_t N>
 void small_vector<T, N>::swap_pop_back(std::integral auto i) noexcept
 {
+    if (std::cmp_greater_equal(i, m_size))
+        return;
+
     if (std::cmp_less(i, m_size - 1)) {
         if constexpr (std::is_trivially_copyable_v<T>) {
             data_ptr()[i] = data_ptr()[m_size - 1];
