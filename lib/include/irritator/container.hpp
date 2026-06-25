@@ -6273,16 +6273,20 @@ constexpr ring_buffer<T, A>::ring_buffer(const ring_buffer& rhs) noexcept
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            auto* ptr =
-              reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
-            if (ptr) {
-                if (buffer)
-                    A::deallocate(buffer, sizeof(T) * m_capacity);
-
-                if (rhs.m_capacity) {
+            if (rhs.m_capacity > 0) {
+                auto* ptr = reinterpret_cast<T*>(
+                  A::allocate(sizeof(T) * rhs.m_capacity));
+                if (ptr) {
+                    if (buffer)
+                        A::deallocate(buffer, sizeof(T) * m_capacity);
                     buffer     = ptr;
                     m_capacity = rhs.m_capacity;
                 }
+            } else {
+                if (buffer)
+                    A::deallocate(buffer, sizeof(T) * m_capacity);
+                buffer     = nullptr;
+                m_capacity = 0;
             }
         }
 
@@ -6299,16 +6303,20 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            auto* ptr =
-              reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
-            if (ptr) {
-                if (buffer)
-                    A::deallocate(buffer, sizeof(T) * m_capacity);
-
-                if (rhs.m_capacity > 0) {
+            if (rhs.m_capacity > 0) {
+                auto* ptr = reinterpret_cast<T*>(
+                  A::allocate(sizeof(T) * rhs.m_capacity));
+                if (ptr) {
+                    if (buffer)
+                        A::deallocate(buffer, sizeof(T) * m_capacity);
                     buffer     = ptr;
                     m_capacity = rhs.m_capacity;
                 }
+            } else {
+                if (buffer)
+                    A::deallocate(buffer, sizeof(T) * m_capacity);
+                buffer     = nullptr;
+                m_capacity = 0;
             }
         }
 
