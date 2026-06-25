@@ -2115,6 +2115,7 @@ private:
             } else {
                 std::uninitialized_copy_n(buffer.get(), old, new_ptr);
             }
+            std::destroy_n(buffer.get(), old);
             A::deallocate(buffer.get(), sizeof(SubT) * old);
             buffer.reset(nullptr);
         }
@@ -4018,7 +4019,7 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
         return *this;
     }
 
-    if (capacity() < other.capacity()) { // nullptr or too small we delete.
+    if (capacity() != other.capacity()) { // mismatch: delete and realloc.
         if (capacity() > 0) {            // not nullptr we delete
             do_destroy_buffer_views(m_ids.capacity(),
                                     std::index_sequence_for<Ts...>());

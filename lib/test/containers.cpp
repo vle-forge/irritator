@@ -13,6 +13,25 @@
 
 using namespace std::literals;
 
+struct counted {
+    static inline int live = 0;
+    int               v    = 0;
+    counted() noexcept { ++live; }
+    counted(const counted& o) noexcept
+      : v(o.v)
+    {
+        ++live;
+    }
+    counted(counted&& o) noexcept
+      : v(o.v)
+    {
+        ++live;
+    }
+    counted& operator=(const counted&) noexcept = default;
+    counted& operator=(counted&&) noexcept      = default;
+    ~counted() noexcept { --live; }
+};
+
 struct only_copy_ctor {
     only_copy_ctor(int a_) noexcept
       : a{ a_ }
@@ -2009,6 +2028,50 @@ int main()
         expect(eq(a.ssize(), 1));
 
         expect(neq(b.try_to_get(a4_id), nullptr));
+    };
+
+    "id_data_array_reisze"_test = [] {
+        enum class my_id : std::uint32_t {};
+        using A = irt::allocator<irt::new_delete_memory_resource>;
+        using IDAv =
+          irt::id_data_array<void, my_id, A, counted>; // m_ids = id_array
+        using IDAi =
+          irt::id_data_array<int, my_id, A, counted>; // m_ids = data_array
+
+        {
+            IDAv a;
+            a.reserve(4);
+            a.reserve(8);
+        }
+        expect(eq(counted::live, 0));
+        counted::live = 0;
+
+        {
+            IDAi a;
+            a.reserve(4);
+            a.reserve(8);
+        }
+        expect(eq(counted::live, 0));
+        counted::live = 0;
+
+        {
+            IDAi a;
+            a.reserve(8);
+            IDAi b;
+            b.reserve(2);
+            a = b;
+        }
+        expect(eq(counted::live, 0));
+        counted::live = 0;
+
+        {
+            IDAv a;
+            a.reserve(8);
+            IDAv b;
+            b.reserve(2);
+            a = b;
+        }
+        return 0;
     };
 
     "id-data-array"_test = [] {
