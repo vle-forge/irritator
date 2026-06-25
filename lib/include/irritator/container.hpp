@@ -2108,9 +2108,9 @@ private:
         auto* new_ptr = reinterpret_cast<SubT*>(ptr);
 
         if (buffer.get()) {
-            if constexpr (std::is_trivially_copy_constructible_v<T>) {
+            if constexpr (std::is_trivially_copy_constructible_v<SubT>) {
                 std::uninitialized_copy_n(buffer.get(), old, new_ptr);
-            } else if constexpr (std::is_trivially_move_constructible_v<T>) {
+            } else if constexpr (std::is_trivially_move_constructible_v<SubT>) {
                 std::uninitialized_move_n(buffer.get(), old, new_ptr);
             } else {
                 std::uninitialized_copy_n(buffer.get(), old, new_ptr);
