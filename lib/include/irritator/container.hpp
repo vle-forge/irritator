@@ -2564,12 +2564,9 @@ public:
 
         iterator_base operator++(int) noexcept
         {
-            auto    old_id  = id;
-            pointer ptr     = self->try_to_get(id);
-            bool    success = self->next(ptr);
-            id              = success ? self->get_id(*ptr) : identifier_type{};
-
-            return iterator_base{ .self = self, .id = old_id };
+            iterator_base tmp = *this;
+            ++(*this);
+            return tmp;
         }
 
         auto operator<=>(const iterator_base&) const noexcept = default;
@@ -4538,6 +4535,7 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                 std::construct_at(&new_buffer[i].item,
                                   std::move(m_items[i].item));
                 new_buffer[i].id = m_items[i].id;
+                std::destroy_at(&m_items[i].item);
             } else {
                 std::uninitialized_copy_n(
                   reinterpret_cast<std::byte*>(&m_items[i]),
@@ -4550,6 +4548,7 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
             if (is_valid(m_items[i].id)) {
                 std::construct_at(&new_buffer[i].item, m_items[i].item);
                 new_buffer[i].id = m_items[i].id;
+                std::destroy_at(&m_items[i].item);
             } else {
                 std::uninitialized_copy_n(
                   reinterpret_cast<std::byte*>(&m_items[i]),
