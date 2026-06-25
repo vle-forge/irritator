@@ -3927,7 +3927,7 @@ template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::begin() const noexcept
 {
-    for (index_type index = 0; m_max_used; ++index)
+    for (index_type index = 0; index < m_max_used; ++index)
         if (is_valid(m_items[index]))
             return const_iterator(this, m_items[index]);
 
