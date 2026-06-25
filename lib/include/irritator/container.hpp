@@ -6527,8 +6527,7 @@ constexpr void ring_buffer<T, A>::erase_before(iterator this_it) noexcept
     if (this_it == head())
         return;
 
-    auto it = head();
-    while (it != head())
+    while (this_it != head())
         pop_head();
 }
 
@@ -6748,7 +6747,7 @@ constexpr int ring_buffer<T, A>::ssize() const noexcept
 template<class T, typename A>
 constexpr int ring_buffer<T, A>::available() const noexcept
 {
-    return capacity() - size();
+    return capacity() - size() - 1;
 }
 
 template<class T, typename A>
@@ -6967,8 +6966,7 @@ constexpr void small_ring_buffer<T, length>::erase_before(
     if (this_it == head())
         return;
 
-    auto it = head();
-    while (it != head())
+    while (this_it != head())
         pop_head();
 }
 
@@ -7177,7 +7175,7 @@ constexpr int small_ring_buffer<T, length>::ssize() const noexcept
 template<class T, int length>
 constexpr int small_ring_buffer<T, length>::available() const noexcept
 {
-    return capacity() - size();
+    return capacity() - size() - 1;
 }
 
 template<class T, int length>

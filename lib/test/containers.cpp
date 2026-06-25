@@ -456,7 +456,7 @@ int main()
 
         {
             expected_tester t(true);
-            int             val = t.make()
+            int val = t.make()
                         .and_then([](int /*v*/) -> irt::expected<int> {
                             expected_tester_2 t2(false);
                             return t2.make();
@@ -1535,6 +1535,56 @@ int main()
         expect(ring.data()[7] == 7);
         expect(ring.data()[8] == 8);
         expect(ring.data()[9] == 10);
+    };
+
+    "small_ring_buffer_fixes"_test = [] {
+        auto check = [](const char* name, auto& rb, auto& rb2) noexcept {
+            for (int v : { 10, 20, 30, 40, 50 })
+                rb.push_tail(v);
+
+            auto it = rb.begin();
+            ++it;
+            ++it;
+
+            rb.erase_before(it);
+            expect(eq(rb.size(), 3));
+            expect(eq(rb.front(), 30));
+
+            for (int v : { 10, 20, 30, 40, 50 })
+                rb2.push_tail(v);
+
+            auto it2 = rb2.begin();
+            ++it2;
+            ++it2;
+
+            rb2.erase_after(it2);
+            expect(eq(rb2.size(), 3));
+            expect(eq(rb2.back(), 30));
+        };
+
+        irt::ring_buffer<int> a(8), b(8);
+        check("ring_buffer      ", a, b);
+
+        irt::small_ring_buffer<int, 8> c, d;
+        check("small_ring_buffer", c, d);
+
+        irt::ring_buffer<int> q(4);
+        while (q.enqueue(0)) {
+        }
+
+        expect(eq(q.full(), true));
+        expect(eq(q.size(), 3));
+        expect(eq(q.capacity(), 4));
+        expect(eq(q.available(), 0));
+
+        irt::small_ring_buffer<int, 4> sq;
+        while (sq.enqueue(0)) {
+        }
+
+        expect(eq(sq.full(), true));
+        expect(eq(sq.size(), 3));
+        expect(eq(sq.capacity(), 4));
+        expect(eq(sq.available(), 0));
     };
 
     enum class test_id : std::uint32_t {};
