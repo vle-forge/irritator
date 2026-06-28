@@ -1441,6 +1441,25 @@ struct fixed_factor {
     vector<real> values;
 };
 
+enum class optimization_method : u8 { weighted_sum /*epsilon_constrained*/ };
+
+enum class optimization_type : u8 { maximize, minimize };
+
+enum class norm_type : u8 { min_max, z_score };
+
+struct weighted_sum_parameters {
+    vector<real>              weights;
+    vector<optimization_type> types;
+    norm_type                 norm = norm_type::min_max;
+};
+
+struct objective_function {
+    optimization_method method = optimization_method::weighted_sum;
+    optimization_type   type   = optimization_type::maximize;
+
+    weighted_sum_parameters weighted_sum_params;
+};
+
 struct random_factor {
     std::array<real, 2> reals = { 0, 1 };
     std::array<i32, 2>  ints  = { 0, 0 };
@@ -1473,7 +1492,7 @@ using simulation_selection =
                 allocator<new_delete_memory_resource>,
                 model_id, //!< model to parametrize
                 name_str,
-                criteria_type //!< Observation selection function
+                criteria_type //!< observation trajectory selection function
                 >;
 
 class simulation
@@ -1497,6 +1516,7 @@ public:
 
     simulation_factor    factors;
     simulation_selection selections;
+    objective_function   objective;
 
     external_source srcs;
 
@@ -7299,11 +7319,7 @@ struct simulation_wrapper {
     struct embedded_model_observation {
         vector<std::array<real, 2>> values; /*<! Raw output simulation. */
 
-        /** Minimum value of the raw output value vector. */
-        real min_element = std::numeric_limits<real>::max();
-
-        /** Maximal value of the raw output value vector. */
-        real max_element = std::numeric_limits<real>::lowest();
+        real compute_result(const criteria_type type) const noexcept;
     };
 
     using simulation_parameters  = vector<real>;
@@ -7333,7 +7349,7 @@ struct simulation_wrapper {
     vector<input_parameter> input_parameters;
 
     /** Identifier of the source of the simulation to run. This identifier
-     * references simluation in simulation::sims member. */
+     * references simulation in simulation::sims member. */
     simulation_id sim_id = {};
 
     constexpr static inline std::string_view run_type_names[] = {

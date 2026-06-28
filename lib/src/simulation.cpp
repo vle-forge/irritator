@@ -3,9 +3,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/format.hpp>
 #include <irritator/observation.hpp>
 #include <irritator/random.hpp>
-#include <irritator/format.hpp>
+
+#include <numeric>
 
 namespace irt {
 
@@ -439,13 +441,8 @@ static status embedded_sims_init(simulation_wrapper& wrapper,
     for (const auto id : wrapper.embedded_sims) {
         const auto idx = get_index(id);
 
-        for (auto i = 0, e = length(sim_obs[idx].data); i != e; ++i) {
+        for (auto i = 0, e = length(sim_obs[idx].data); i != e; ++i)
             sim_obs[idx].data[i].value.values.clear();
-            sim_obs[idx].data[i].value.max_element =
-              std::numeric_limits<real>::lowest();
-            sim_obs[idx].data[i].value.min_element =
-              std::numeric_limits<real>::max();
-        }
     }
 
     for (const auto id : wrapper.embedded_sims) {
@@ -634,6 +631,12 @@ static auto compute_min_last(const auto& embedded_sims,
     return std::make_pair(best_id, index);
 }
 
+/*
+
+  Function to search the min, max, last min, last max
+
+ */
+
 static auto compute_max_last(const auto& embedded_sims,
                              const auto  mdl_id) noexcept
   -> std::pair<simulation_wrapper::sub_id, size_t>
@@ -698,6 +701,238 @@ static auto compute_max(const auto& embedded_sims, const auto mdl_id) noexcept
     }
 
     return std::make_pair(best_id, index);
+}
+
+/* * * * *
+ *
+ * compute result of a embedded_model_observation
+ *
+ * * * * */
+
+real simulation_wrapper::embedded_model_observation::compute_result(
+  const criteria_type type) const noexcept
+{
+    debug::ensure(std::cmp_greater(values.size(), 1));
+
+    auto ret = real{};
+
+    switch (type) {
+    case criteria_type::min_last:
+        ret = values.back()[1];
+        break;
+
+    case criteria_type::max_last:
+        ret = values.back()[1];
+        break;
+
+    case criteria_type::min:
+        ret = std::numeric_limits<real>::max();
+
+        for (auto i = 0, e = length(values); i != e; ++i)
+            ret = std::min(ret, values[i][1]);
+
+        break;
+
+    case criteria_type::max:
+        ret = std::numeric_limits<real>::lowest();
+
+        for (auto i = 0, e = length(values); i != e; ++i)
+            ret = std::max(ret, values[i][1]);
+
+        break;
+    }
+
+    return ret;
+}
+
+/* * * * *
+ *
+ * weighted_sum
+ *
+ * * * * */
+
+static auto compute_weighted_sum_objective(
+  const simulation& sim_src,
+  id_data_array<void,
+                simulation_wrapper::sub_id,
+                allocator<new_delete_memory_resource>,
+                simulation,
+                simulation_wrapper::simulation_observation>
+    embedded_sims) noexcept -> expected<simulation_wrapper::sub_id>
+{
+    auto& sim_obs =
+      embedded_sims.get<simulation_wrapper::simulation_observation>();
+
+    // allocate vector to stores result, objective function etc. and be sure
+    // allocation success.
+
+    // A vector of reals models the objectives functions. The size equals the
+    // multiplication of the numbers of embedded simulations and objective
+    // function element.
+    //
+    // The form is:
+    // -------------------------------------------------------------------------
+    // | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 |
+    // -------------------------------------------------------------------------
+    // | sub_simulation_1      | sub_simulation_2      | sub_simulation_3      |
+    // -------------------------------------------------------------------------
+
+    const auto objective_fn_size = sim_src.selections.size();
+    const auto simulation_size   = embedded_sims.size();
+    const auto size              = objective_fn_size * simulation_size;
+    auto       objective_fn      = vector<real>(size);
+
+    auto pos =
+      [objective_fn_size](const simulation_wrapper::sub_id sub_id,
+                          const selection_id obj_fn_id) noexcept -> sz {
+        return static_cast<sz>(get_index(sub_id) * objective_fn_size +
+                               get_index(obj_fn_id));
+    };
+
+    if (std::cmp_not_equal(objective_fn.size(), size))
+        return make_error(
+          simulation_errc::
+            simulation_wrapper_too_many_embedded_simulation_error);
+
+    // For each embedded simulation, for each objective function element,
+    // computes result of the observation trajectory according to tge
+    // criteria_type and fill the objective funiton.
+
+    for (const auto sub_id : embedded_sims) {
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto type = sim_src.selections.get<criteria_type>(obj_fn_id);
+            const auto mdl_id = sim_src.selections.get<model_id>(obj_fn_id);
+
+            if (const auto* ptr = sim_obs[sub_id].get(mdl_id)) {
+                const auto val = ptr->compute_result(type);
+                const auto idx = pos(sub_id, obj_fn_id);
+
+                objective_fn[idx] = val;
+            }
+        }
+    }
+
+    debug::ensure(sim_src.objective.weighted_sum_params.types.size() ==
+                  sim_src.selections.size());
+    debug::ensure(sim_src.objective.weighted_sum_params.weights.size() ==
+                  sim_src.selections.size());
+
+    // If min-max linearization
+
+    if (sim_src.objective.weighted_sum_params.norm == norm_type::min_max) {
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto is_max =
+              sim_src.objective.weighted_sum_params
+                .types[get_index(obj_fn_id)] == optimization_type::maximize;
+
+            auto min_val = std::numeric_limits<real>::max();
+            auto max_val = std::numeric_limits<real>::lowest();
+
+            for (const auto sub_id : embedded_sims) {
+                const auto idx = pos(sub_id, obj_fn_id);
+                const auto val = objective_fn[idx];
+
+                min_val = std::min(min_val, val);
+                max_val = std::max(max_val, val);
+            }
+
+            const auto diff = max_val - min_val;
+            const auto div  = diff < 1e-10 ? 1e-10 : diff;
+
+            if (is_max) {
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx    = pos(sub_id, obj_fn_id);
+                    objective_fn[idx] = (objective_fn[idx] - min_val) / div;
+                }
+            } else {
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx    = pos(sub_id, obj_fn_id);
+                    objective_fn[idx] = (max_val - objective_fn[idx]) / div;
+                }
+            }
+        }
+    } else {
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto is_max =
+              sim_src.objective.weighted_sum_params
+                .types[get_index(obj_fn_id)] == optimization_type::maximize;
+
+            if (is_max) {
+                auto sum    = 0.0;
+                auto sq_sum = 0.0;
+
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx = pos(sub_id, obj_fn_id);
+
+                    sum += objective_fn[idx];
+                    sq_sum += objective_fn[idx] * objective_fn[idx];
+                }
+
+                const auto mean    = sum / simulation_size;
+                const auto std_dev = std::sqrt(sq_sum / simulation_size);
+                const auto div     = std_dev < 1e-10 ? 1e-10 : std_dev;
+
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx = pos(sub_id, obj_fn_id);
+
+                    objective_fn[idx] = (objective_fn[idx] - mean) / div;
+                }
+            } else {
+                auto sum    = 0.0;
+                auto sq_sum = 0.0;
+
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx = pos(sub_id, obj_fn_id);
+
+                    sum += objective_fn[idx];
+                    sq_sum += objective_fn[idx] * objective_fn[idx];
+                }
+
+                const auto mu = sum / simulation_size;
+                const auto sigma =
+                  std::sqrt(sq_sum / simulation_size - mu * mu);
+
+                const auto div = sigma < 1e-10 ? 1e-10 : sigma;
+
+                for (const auto sub_id : embedded_sims) {
+                    const auto idx = pos(sub_id, obj_fn_id);
+
+                    objective_fn[idx] = (mu - objective_fn[idx]) / div;
+                }
+            }
+        }
+    }
+
+    const auto is_max = sim_src.objective.type == optimization_type::maximize;
+
+    auto best_sub_id = undefined<simulation_wrapper::sub_id>();
+    auto best_value  = is_max ? std::numeric_limits<real>::lowest()
+                              : std::numeric_limits<real>::max();
+
+    for (const auto sub_id : embedded_sims) {
+        auto value = 0;
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto w = sim_src.objective.weighted_sum_params
+                             .weights[get_index(obj_fn_id)];
+
+            const auto idx = pos(sub_id, obj_fn_id);
+            value += w * objective_fn[idx];
+        }
+
+        if (is_max) {
+            if (value > best_value) {
+                best_value  = value;
+                best_sub_id = sub_id;
+            }
+        } else {
+            if (value < best_value) {
+                best_value  = value;
+                best_sub_id = sub_id;
+            }
+        }
+    }
+
+    return best_sub_id;
 }
 
 status simulation_wrapper::lambda(simulation& sim) noexcept

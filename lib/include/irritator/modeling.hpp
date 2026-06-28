@@ -1726,6 +1726,23 @@ public:
     factor_t    factors;
     selection_t selections;
 
+    struct multi_objective {
+        enum class method {
+            weighted_sum_method,
+            epsilon_constraint,
+            compromise_programming
+        };
+
+        struct weighted_sum_method {
+            enum class norm_type {
+                min_max,
+                z_score,
+            } norm;
+
+            vector<real> weights;
+        };
+    };
+
     /** pointer to the project file (.pirt) to load the project. */
     file_path_id file_id = undefined<file_path_id>();
 

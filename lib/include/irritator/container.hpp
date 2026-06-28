@@ -2178,6 +2178,11 @@ public:
      * @endexample */
     void free(const identifier_type id) noexcept;
 
+    // identifiers access
+
+    /** Get constant access to the underlying @c data_array or @c id_array */
+    const identifier_container_type& get_ids() const noexcept { return m_ids; }
+
     // subtype buffer access
 
     /** Get the underlying @c vector in @c tuple using a type (read @c
