@@ -152,6 +152,51 @@ static bool display_factor_random(random_factor& factor,
     return u > 0;
 }
 
+constexpr static const char*
+  optimization_method_names[] = { "weighted_sum" /*, "epsilon_constrained"*/ };
+
+constexpr static const char* optimization_type_names[] = { "maximize",
+                                                           "minimize" };
+
+bool simulation_component_editor_data::display_objective(project& pj) noexcept
+{
+    auto u = 0;
+
+    if (ImGui::BeginCombo(
+          "method",
+          optimization_method_names[ordinal(m_sim.objective.method)])) {
+        for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
+            const auto label    = name_str(optimization_method_names[i]);
+            const auto selected = i == ordinal(m_sim.objective.method);
+
+            if (ImGui::Selectable(label.c_str(), selected)) {
+                if (not selected) {
+                    ++u;
+                    m_sim.objective.method = enum_cast<optimization_method>(i);
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (ImGui::BeginCombo(
+          "type", optimization_type_names[ordinal(m_sim.objective.type)])) {
+        for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
+            const auto label    = name_str(optimization_type_names[i]);
+            const auto selected = i == ordinal(m_sim.objective.type);
+            if (ImGui::Selectable(label.c_str(), selected)) {
+                if (not selected) {
+                    ++u;
+                    m_sim.objective.type = enum_cast<optimization_type>(i);
+                }
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    return u > 0;
+}
+
 bool simulation_component_editor_data::display_parameter_table(
   project& pj) noexcept
 {
@@ -379,12 +424,17 @@ bool simulation_component_editor_data::show(component_editor& ed,
                         "be used into experimental frames for factors.");
 
     if (ImGui::TreeNodeEx(compo.name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNode("objective")) {
+            u += display_objective(m_sim.pj);
+            ImGui::TreePop();
+        }
+
         if (ImGui::TreeNode("parameters")) {
             u += display_parameter_table(m_sim.pj);
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNode("Observations")) {
+        if (ImGui::TreeNode("observations")) {
             u += display_observation_table(m_sim.pj);
             ImGui::TreePop();
         }

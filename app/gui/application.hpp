@@ -842,6 +842,7 @@ private:
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
+    bool display_objective(project& pj) noexcept;
     bool display_parameter_table(project& pj) noexcept;
     bool display_observation_table(project& pj) noexcept;
 
