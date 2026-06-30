@@ -1557,7 +1557,7 @@ int main()
     };
 
     "small_ring_buffer_fixes"_test = [] {
-        auto check = [](const char* name, auto& rb, auto& rb2) noexcept {
+        auto check = [](auto& rb, auto& rb2) noexcept {
             for (int v : { 10, 20, 30, 40, 50 })
                 rb.push_tail(v);
 
@@ -1566,7 +1566,7 @@ int main()
             ++it;
 
             rb.erase_before(it);
-            expect(eq(rb.size(), 3));
+            expect(eq(rb.size(), 3u));
             expect(eq(rb.front(), 30));
 
             for (int v : { 10, 20, 30, 40, 50 })
@@ -1577,22 +1577,22 @@ int main()
             ++it2;
 
             rb2.erase_after(it2);
-            expect(eq(rb2.size(), 3));
+            expect(eq(rb2.size(), 3u));
             expect(eq(rb2.back(), 30));
         };
 
         irt::ring_buffer<int> a(8), b(8);
-        check("ring_buffer      ", a, b);
+        check(a, b);
 
         irt::small_ring_buffer<int, 8> c, d;
-        check("small_ring_buffer", c, d);
+        check(c, d);
 
         irt::ring_buffer<int> q(4);
         while (q.enqueue(0)) {
         }
 
         expect(eq(q.full(), true));
-        expect(eq(q.size(), 3));
+        expect(eq(q.size(), 3u));
         expect(eq(q.capacity(), 4));
         expect(eq(q.available(), 0));
 
@@ -1601,7 +1601,7 @@ int main()
         }
 
         expect(eq(sq.full(), true));
-        expect(eq(sq.size(), 3));
+        expect(eq(sq.size(), 3u));
         expect(eq(sq.capacity(), 4));
         expect(eq(sq.available(), 0));
     };
