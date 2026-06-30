@@ -910,7 +910,7 @@ static auto compute_weighted_sum_objective(
                               : std::numeric_limits<real>::max();
 
     for (const auto sub_id : embedded_sims) {
-        auto value = 0;
+        auto value = 0.0;
         for (const auto obj_fn_id : sim_src.selections) {
             const auto w = sim_src.objective.weighted_sum_params
                              .weights[get_index(obj_fn_id)];
@@ -942,7 +942,43 @@ status simulation_wrapper::lambda(simulation& sim) noexcept
     debug::ensure(y.size() ==
                   input_parameters.size() + sim_src->selections.size());
 
-    // What to do with multiple selections ?
+    if (sim_src->objective.method == optimization_method::weighted_sum) {
+        const auto best_sub_id =
+          compute_weighted_sum_objective(*sim_src, embedded_sims);
+
+        if (best_sub_id.has_error())
+            return best_sub_id.error();
+
+        if (not embedded_sims.exists(best_sub_id.value()))
+            return success();
+
+        auto        output_port_index = 0;
+        const auto& sub_sims_obs = embedded_sims.get<simulation_observation>();
+        const auto& sub_sim_obs  = sub_sims_obs[best_sub_id.value()];
+
+        for (const auto& elem : sub_sim_obs.data) {
+            const auto msg = message{ elem.value.values.back()[0],
+                                      elem.value.values.back()[1],
+                                      0.0 };
+            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
+            ++output_port_index;
+        }
+        const auto& sub_sims = embedded_sims.get<simulation>();
+        for (const auto factor_id : sim_src->factors) {
+            const auto id  = sim_src->factors.get<model_id>(factor_id);
+            const auto idx = get_index(id);
+            const auto msg =
+              message{ sub_sims[best_sub_id.value()].parameters[idx].reals[0],
+                       sub_sims[best_sub_id.value()].parameters[idx].reals[1],
+                       sub_sims[best_sub_id.value()].parameters[idx].reals[2] };
+            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
+            ++output_port_index;
+        }
+
+        return success();
+    }
+
+    /* Ajout d'un mode simple ? */
 
     for (const auto id : sim_src->selections) {
         const auto type   = sim_src->selections.get<criteria_type>(id);

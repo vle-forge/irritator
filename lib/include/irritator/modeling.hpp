@@ -1689,9 +1689,10 @@ public:
     simulation_component() noexcept = default;
 
     /**
-     * @brief  Moves project data into the simulation component and assign the @c factor and @c selection data structure.
+     * @brief  Moves project data into the simulation component and assign the
+     * @c factor and @c selection data structure.
      * @param pj The project to take
-     * @return 
+     * @return
      */
     status assign(project&& pj_to_move) noexcept;
 
@@ -1723,25 +1724,9 @@ public:
                     criteria_type //!< Observation selection function
                     >;
 
-    factor_t    factors;
-    selection_t selections;
-
-    struct multi_objective {
-        enum class method {
-            weighted_sum_method,
-            epsilon_constraint,
-            compromise_programming
-        };
-
-        struct weighted_sum_method {
-            enum class norm_type {
-                min_max,
-                z_score,
-            } norm;
-
-            vector<real> weights;
-        };
-    };
+    factor_t           factors;
+    selection_t        selections;
+    objective_function objective;
 
     /** pointer to the project file (.pirt) to load the project. */
     file_path_id file_id = undefined<file_path_id>();

@@ -86,6 +86,17 @@ status simulation_component::assign(project&& pj_to_move) noexcept
         }
     }
 
+    {
+        objective.clear();
+
+        if (objective.method == optimization_method::weighted_sum) {
+            objective.weighted_sum_params.types.resize(
+              selections.size(), optimization_type::maximize);
+            objective.weighted_sum_params.weights.resize(
+              selections.size(), 1.0 / selections.size());
+        }
+    }
+
     return success();
 }
 
@@ -156,6 +167,8 @@ status simulation_component::copy_to(simulation& sim) const noexcept
               selections.get<criteria_type>(id);
         }
     }
+
+    sim.objective = objective;
 
     return success();
 }
