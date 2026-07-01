@@ -310,47 +310,135 @@ bool simulation_component_editor_data::display_observation_table(
 {
     auto u = 0;
 
-    if (ImGui::BeginTable("Observation", 2, ImGuiTableFlags_RowBg)) {
-        auto& names     = m_sim.selections.get<name_str>();
-        auto& criterias = m_sim.selections.get<criteria_type>();
+    if (m_sim.objective.method == optimization_method::weighted_sum) {
+        if (ImGui::BeginTable("Observation", 4, ImGuiTableFlags_RowBg)) {
+            auto& names     = m_sim.selections.get<name_str>();
+            auto& criterias = m_sim.selections.get<criteria_type>();
 
-        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("criteria", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableHeadersRow();
+            ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("criteria",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("weights",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableHeadersRow();
 
-        for (const auto id : m_sim.selections) {
-            const auto idx = get_index(id);
+            for (const auto id : m_sim.selections) {
+                const auto idx = get_index(id);
 
-            ImGui::PushID(idx);
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
+                ImGui::PushID(idx);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-            ImGui::TextUnformatted(names[idx].c_str());
-            ImGui::TableNextColumn();
+                ImGui::TextUnformatted(names[idx].c_str());
+                ImGui::TableNextColumn();
 
-            const auto criteria_idx = static_cast<int>(criterias[idx]);
-            const auto preview = name_str(criteria_type_names[criteria_idx]);
+                const auto criteria_idx = static_cast<int>(criterias[idx]);
+                const auto preview =
+                  name_str(criteria_type_names[criteria_idx]);
 
-            if (ImGui::BeginCombo("##crit", preview.c_str())) {
-                for (auto i = 0, e = length(criteria_type_names); i != e; ++i) {
-                    const auto label    = name_str(criteria_type_names[i]);
-                    const auto selected = i == criteria_idx;
+                if (ImGui::BeginCombo("##crit", preview.c_str())) {
+                    for (auto i = 0, e = length(criteria_type_names); i != e;
+                         ++i) {
+                        const auto label    = name_str(criteria_type_names[i]);
+                        const auto selected = i == criteria_idx;
 
-                    if (ImGui::Selectable(label.c_str(), selected)) {
-                        if (criteria_idx != i) {
-                            criterias[idx] = enum_cast<criteria_type>(i);
-                            ++u;
+                        if (ImGui::Selectable(label.c_str(), selected)) {
+                            if (criteria_idx != i) {
+                                criterias[idx] = enum_cast<criteria_type>(i);
+                                ++u;
+                            }
                         }
                     }
+
+                    ImGui::EndCombo();
                 }
 
-                ImGui::EndCombo();
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1);
+                auto copy = m_sim.objective.weighted_sum_params.weights[idx]);
+                if (ImGui::InputDouble("##avlue", &copy) {
+                    if (std::isfinit(copy)) {
+                        m_sim.objective.weighted_sum_params.weights[idx] = copy;
+                        ++u;
+                    }
+                }
+                ImGui::PopItemWidth();
+
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1);
+    if (ImGui::BeginCombo(
+          "type", optimization_type_names[ordinal(m_sim.objective.weighted_sum_params.weights[idx])])) {
+                    for (auto i = 0, e = length(optimization_type_names);
+                         i != e;
+                         ++i) {
+                        const auto label = name_str(optimization_type_names[i]);
+                        const auto selected =
+                          i == ordinal(m_sim.objective.type);
+                        if (ImGui::Selectable(label.c_str(), selected)) {
+                            if (not selected) {
+                                ++u;
+                                m_sim.objective.weighted_sum_params
+                                  .weights[idx] =
+                                  enum_cast<optimization_type>(i);
+                            }
+                        }
+                    }
+                    ImGui::EndCombo();
+    }
+                ImGui::PopItemWidth();
+
+                ImGui::PopID();
             }
 
-            ImGui::PopID();
+            ImGui::EndTable();
         }
+    } else {
+        if (ImGui::BeginTable("Observation", 2, ImGuiTableFlags_RowBg)) {
+            auto& names     = m_sim.selections.get<name_str>();
+            auto& criterias = m_sim.selections.get<criteria_type>();
 
-        ImGui::EndTable();
+            ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("criteria",
+                                    ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableHeadersRow();
+
+            for (const auto id : m_sim.selections) {
+                const auto idx = get_index(id);
+
+                ImGui::PushID(idx);
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                ImGui::TextUnformatted(names[idx].c_str());
+                ImGui::TableNextColumn();
+
+                const auto criteria_idx = static_cast<int>(criterias[idx]);
+                const auto preview =
+                  name_str(criteria_type_names[criteria_idx]);
+
+                if (ImGui::BeginCombo("##crit", preview.c_str())) {
+                    for (auto i = 0, e = length(criteria_type_names); i != e;
+                         ++i) {
+                        const auto label    = name_str(criteria_type_names[i]);
+                        const auto selected = i == criteria_idx;
+
+                        if (ImGui::Selectable(label.c_str(), selected)) {
+                            if (criteria_idx != i) {
+                                criterias[idx] = enum_cast<criteria_type>(i);
+                                ++u;
+                            }
+                        }
+                    }
+
+                    ImGui::EndCombo();
+                }
+
+                ImGui::PopID();
+            }
+
+            ImGui::EndTable();
+        }
     }
 
     return u > 0;

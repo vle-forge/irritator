@@ -1458,6 +1458,16 @@ struct objective_function {
     optimization_type   type   = optimization_type::maximize;
 
     weighted_sum_parameters weighted_sum_params;
+
+    void clear() noexcept
+    {
+        method = optimization_method::weighted_sum;
+        type   = optimization_type::maximize;
+
+        weighted_sum_params.norm = norm_type::min_max;
+        weighted_sum_params.types.clear();
+        weighted_sum_params.weights.clear();
+    }
 };
 
 struct random_factor {
@@ -3302,14 +3312,13 @@ struct abstract_multiplier {
         }
 
         if constexpr (QssLevel == 3) {
-            return send_message(sim,
-                                y[0],
-                                values[0] * values[1],
-                                values[2 + 0] * values[1] +
-                                  values[2 + 1] * values[0],
-                                values[0] * values[2 + 2 + 1] +
-                                  values[2 + 0] * values[2 + 1] +
-                                  values[2 + 2 + 0] * values[1]);
+            return send_message(
+              sim,
+              y[0],
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0],
+              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
+                values[2 + 2 + 0] * values[1]);
         }
 
         return success();
@@ -3961,9 +3970,8 @@ struct abstract_exp {
             const auto mu =
               std::exp(value[0]) * (value[1] * value[1] + two * value[2]);
             const auto pu =
-              std::exp(value[0]) *
-              (three * value[1] * value[2] +
-               value[1] * value[1] * value[1] / two);
+              std::exp(value[0]) * (three * value[1] * value[2] +
+                                    value[1] * value[1] * value[1] / two);
 
             return qss_observation(X, u, mu, pu, t, e);
         }
@@ -4014,7 +4022,8 @@ struct abstract_sin {
                                 y[0],
                                 std::sin(value[0]),
                                 std::cos(value[0]) * value[1],
-                                -std::sin(value[0]) * value[1] * value[1] / two +
+                                -std::sin(value[0]) * value[1] * value[1] /
+                                    two +
                                   std::cos(value[0]) * value[2]);
 
         return success();
@@ -4108,7 +4117,8 @@ struct abstract_cos {
                                 y[0],
                                 std::cos(value[0]),
                                 -std::sin(value[0]) * value[1],
-                                -std::cos(value[0]) * value[1] * value[1] / two -
+                                -std::cos(value[0]) * value[1] * value[1] /
+                                    two -
                                   std::sin(value[0]) * value[2]);
 
         return success();
@@ -5419,7 +5429,8 @@ struct abstract_sqrt {
                                 y[0],
                                 s,
                                 fp * value[1],
-                                fpp * value[1] * value[1] / two + fp * value[2]);
+                                fpp * value[1] * value[1] / two +
+                                  fp * value[2]);
         }
         return success();
     }
@@ -5484,7 +5495,8 @@ struct abstract_atan {
                                 y[0],
                                 a,
                                 fp * value[1],
-                                fpp * value[1] * value[1] / two + fp * value[2]);
+                                fpp * value[1] * value[1] / two +
+                                  fp * value[2]);
         }
         return success();
     }
@@ -5547,7 +5559,8 @@ struct abstract_tan {
                                 y[0],
                                 T,
                                 fp * value[1],
-                                fpp * value[1] * value[1] / two + fp * value[2]);
+                                fpp * value[1] * value[1] / two +
+                                  fp * value[2]);
         }
         return success();
     }
@@ -5610,7 +5623,8 @@ struct abstract_tanh {
                                 y[0],
                                 th,
                                 fp * value[1],
-                                fpp * value[1] * value[1] / two + fp * value[2]);
+                                fpp * value[1] * value[1] / two +
+                                  fp * value[2]);
         }
         return success();
     }
@@ -5673,7 +5687,8 @@ struct abstract_sigmoid {
                                 y[0],
                                 s,
                                 fp * value[1],
-                                fpp * value[1] * value[1] / two + fp * value[2]);
+                                fpp * value[1] * value[1] / two +
+                                  fp * value[2]);
         }
         return success();
     }
