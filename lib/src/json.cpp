@@ -1402,7 +1402,8 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("threshold"sv == name)
                   return read_temp_real(value) &&
-                         copy_real_to(p.reals[integrate_and_fire_tag::threshold]);
+                         copy_real_to(
+                           p.reals[integrate_and_fire_tag::threshold]);
 
               return error("unknown element");
           });
@@ -4619,6 +4620,147 @@ struct json_dearchiver::impl {
                  });
     }
 
+    bool copy_string_to_sim_objective_method(simulation_component& sim) noexcept
+    {
+        for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
+            if (temp_string == optimization_method_names[i]) {
+                sim.objective.method = enum_cast<optimization_method>(i);
+                return true;
+            }
+        }
+
+        return error("bad simulation component objective method: {}",
+                     temp_string);
+    }
+
+    bool copy_string_to_optimization_type(optimization_type& type) noexcept
+    {
+        for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
+            if (temp_string == optimization_type_names[i]) {
+                type = enum_cast<optimization_type>(i);
+                return true;
+            }
+        }
+
+        return error("bad simulation component objective type: {}",
+                     temp_string);
+    }
+
+    bool copy_string_to_norm_type(norm_type& type) noexcept
+    {
+        for (auto i = 0, e = length(norm_type_names); i != e; ++i) {
+            if (temp_string == norm_type_names[i]) {
+                type = enum_cast<norm_type>(i);
+                return true;
+            }
+        }
+
+        return error("bad simulation component objective type: {}",
+                     temp_string);
+    }
+
+    bool copy_array_to(vector<optimization_type>&          types,
+                       const rapidjson::Value::ConstArray& arr) noexcept
+    {
+        types.clear();
+        types.reserve(arr.Size());
+
+        for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i) {
+            if (arr[i].IsString()) {
+                temp_string = arr[i].GetString();
+                optimization_type type;
+                if (not copy_string_to_optimization_type(type))
+                    return false;
+
+                types.emplace_back(type);
+            }
+        }
+
+        return true;
+    }
+
+    bool copy_array_to(vector<real>&                       values,
+                       const rapidjson::Value::ConstArray& arr) noexcept
+    {
+        values.clear();
+        values.reserve(arr.Size());
+
+        for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i)
+            if (arr[i].IsDouble())
+                values.emplace_back(arr[i].GetDouble());
+
+        return true;
+    }
+
+    bool read_simulation_component_weighted_sum_params(
+      const rapidjson::Value& val,
+      simulation_component&   sim) noexcept
+    {
+        auto_stack a(this, "component simulation weighted sum parameters");
+
+        static const std::string_view names[] = { "norm", "types", "weights" };
+
+        return is_value_object(val) and
+               for_members(
+                 val,
+                 names,
+                 [&](const auto idx, const auto& value) noexcept -> bool {
+                     switch (idx) {
+                     case 0:
+                         return read_temp_string(value) and
+                                copy_string_to_norm_type(
+                                  sim.objective.weighted_sum_params.norm);
+
+                     case 1:
+                         return is_value_array(value) and
+                                copy_array_to(
+                                  sim.objective.weighted_sum_params.types,
+                                  value.GetArray());
+
+                     case 2:
+                         return is_value_array(value) and
+                                copy_array_to(
+                                  sim.objective.weighted_sum_params.weights,
+                                  value.GetArray());
+                     };
+
+                     return true;
+                 });
+    }
+
+    bool read_simulation_component_objective(const rapidjson::Value& val,
+                                             simulation_component& sim) noexcept
+    {
+        auto_stack a(this, "component simulation objective");
+
+        static const std::string_view names[] = { "method",
+                                                  "type",
+                                                  "weighted-sum-parameters" };
+
+        return is_value_object(val) and
+               for_members(
+                 val,
+                 names,
+                 [&](const auto idx, const auto& value) noexcept -> bool {
+                     switch (idx) {
+                     case 0:
+                         return read_temp_string(value) and
+                                copy_string_to_sim_objective_method(sim);
+
+                     case 1:
+                         return read_temp_string(value) and
+                                copy_string_to_optimization_type(
+                                  sim.objective.type);
+
+                     case 2:
+                         return read_simulation_component_weighted_sum_params(
+                           value, sim);
+                     };
+
+                     return true;
+                 });
+    }
+
     bool read_simulation_component(const rapidjson::Value& val,
                                    const file_access&      files,
                                    component_access&       ids,
@@ -4662,7 +4804,7 @@ struct json_dearchiver::impl {
                          dir_path.sv(),
                          file_path.sv());
 
-        return for_each_member(
+        const auto read_component = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("factors"sv == name)
                   return read_simulation_component_factors(value, sim);
@@ -4670,8 +4812,28 @@ struct json_dearchiver::impl {
               if ("selections"sv == name)
                   return read_simulation_component_selections(value, sim);
 
+              if ("objective"sv == name)
+                  return read_simulation_component_objective(value, sim);
+
               return true;
           });
+
+        if (not read_component)
+            return error("fail to read simulation component");
+
+        if (sim.objective.method == optimization_method::weighted_sum) {
+            const auto nb = sim.selections.size();
+
+            if (nb == 0) {
+                sim.objective.weighted_sum_params.types.clear();
+                sim.objective.weighted_sum_params.weights.clear();
+            } else {
+                sim.objective.weighted_sum_params.types.resize(nb);
+                sim.objective.weighted_sum_params.weights.resize(nb);
+            }
+        }
+
+        return true;
     }
 
     bool dispatch_component_type(const rapidjson::Value& val,
@@ -7513,6 +7675,63 @@ struct json_archiver::impl {
             w.EndObject();
         }
         w.EndArray();
+
+        w.Key("objective");
+        w.StartObject();
+        w.Key("method");
+        w.String(
+          optimization_method_names[ordinal(sim.objective.method)].data(),
+          static_cast<rapidjson::SizeType>(
+            optimization_method_names[ordinal(sim.objective.method)].size()));
+
+        w.Key("type");
+        w.String(
+          optimization_type_names[ordinal(sim.objective.type)].data(),
+          static_cast<rapidjson::SizeType>(
+            optimization_type_names[ordinal(sim.objective.type)].size()));
+
+        if (sim.objective.method == optimization_method::weighted_sum) {
+            w.Key("weighted-sum-parameters");
+            w.StartObject();
+            w.Key("norm");
+            w.String(
+              norm_type_names[ordinal(sim.objective.weighted_sum_params.norm)]
+                .data(),
+              static_cast<rapidjson::SizeType>(
+                norm_type_names[ordinal(sim.objective.weighted_sum_params.norm)]
+                  .size()));
+
+            w.Key("types");
+            w.StartArray();
+            for (auto i = 0,
+                      e = length(sim.objective.weighted_sum_params.types);
+                 i != e;
+                 ++i) {
+                w.String(
+                  optimization_type_names
+                    [ordinal(sim.objective.weighted_sum_params.types[i])]
+                      .data(),
+                  static_cast<rapidjson::SizeType>(
+                    optimization_type_names
+                      [ordinal(sim.objective.weighted_sum_params.types[i])]
+                        .size()));
+            }
+            w.EndArray();
+
+            w.Key("weights");
+            w.StartArray();
+            for (auto i = 0,
+                      e = length(sim.objective.weighted_sum_params.weights);
+                 i != e;
+                 ++i) {
+                w.Double(sim.objective.weighted_sum_params.weights[i]);
+            }
+            w.EndArray();
+
+            w.EndObject();
+        }
+
+        w.EndObject();
     }
 
     template<typename Writer>

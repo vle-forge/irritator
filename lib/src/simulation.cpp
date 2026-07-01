@@ -910,7 +910,7 @@ static auto compute_weighted_sum_objective(
                               : std::numeric_limits<real>::max();
 
     for (const auto sub_id : embedded_sims) {
-        auto value = 0;
+        auto value = 0.0;
         for (const auto obj_fn_id : sim_src.selections) {
             const auto w = sim_src.objective.weighted_sum_params
                              .weights[get_index(obj_fn_id)];

@@ -152,19 +152,14 @@ static bool display_factor_random(random_factor& factor,
     return u > 0;
 }
 
-constexpr static const char*
-  optimization_method_names[] = { "weighted_sum" /*, "epsilon_constrained"*/ };
-
-constexpr static const char* optimization_type_names[] = { "maximize",
-                                                           "minimize" };
-
 bool simulation_component_editor_data::display_objective(project& pj) noexcept
 {
     auto u = 0;
 
-    if (ImGui::BeginCombo(
-          "method",
-          optimization_method_names[ordinal(m_sim.objective.method)])) {
+    const auto preview_method =
+      name_str(optimization_method_names[ordinal(m_sim.objective.method)]);
+
+    if (ImGui::BeginCombo("method", preview_method.c_str())) {
         for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
             const auto label    = name_str(optimization_method_names[i]);
             const auto selected = i == ordinal(m_sim.objective.method);
@@ -179,8 +174,10 @@ bool simulation_component_editor_data::display_objective(project& pj) noexcept
         ImGui::EndCombo();
     }
 
-    if (ImGui::BeginCombo(
-          "type", optimization_type_names[ordinal(m_sim.objective.type)])) {
+    const auto preview_type =
+      name_str(optimization_type_names[ordinal(m_sim.objective.type)]);
+
+    if (ImGui::BeginCombo("type", preview_type.c_str())) {
         for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
             const auto label    = name_str(optimization_type_names[i]);
             const auto selected = i == ordinal(m_sim.objective.type);
@@ -356,9 +353,9 @@ bool simulation_component_editor_data::display_observation_table(
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
-                auto copy = m_sim.objective.weighted_sum_params.weights[idx]);
-                if (ImGui::InputDouble("##avlue", &copy) {
-                    if (std::isfinit(copy)) {
+                auto copy = m_sim.objective.weighted_sum_params.weights[idx];
+                if (ImGui::InputDouble("##avlue", &copy)) {
+                    if (std::isfinite(copy)) {
                         m_sim.objective.weighted_sum_params.weights[idx] = copy;
                         ++u;
                     }
@@ -367,8 +364,12 @@ bool simulation_component_editor_data::display_observation_table(
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
-    if (ImGui::BeginCombo(
-          "type", optimization_type_names[ordinal(m_sim.objective.weighted_sum_params.weights[idx])])) {
+
+                const auto preview_type =
+                  name_str(optimization_type_names[ordinal(
+                    m_sim.objective.weighted_sum_params.types[idx])]);
+
+                if (ImGui::BeginCombo("type", preview_type.c_str())) {
                     for (auto i = 0, e = length(optimization_type_names);
                          i != e;
                          ++i) {
@@ -378,14 +379,13 @@ bool simulation_component_editor_data::display_observation_table(
                         if (ImGui::Selectable(label.c_str(), selected)) {
                             if (not selected) {
                                 ++u;
-                                m_sim.objective.weighted_sum_params
-                                  .weights[idx] =
+                                m_sim.objective.weighted_sum_params.types[idx] =
                                   enum_cast<optimization_type>(i);
                             }
                         }
                     }
                     ImGui::EndCombo();
-    }
+                }
                 ImGui::PopItemWidth();
 
                 ImGui::PopID();
