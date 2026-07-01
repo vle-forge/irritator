@@ -334,6 +334,7 @@ bool simulation_component_editor_data::display_observation_table(
                 const auto preview =
                   name_str(criteria_type_names[criteria_idx]);
 
+                ImGui::PushItemWidth(-1);
                 if (ImGui::BeginCombo("##crit", preview.c_str())) {
                     for (auto i = 0, e = length(criteria_type_names); i != e;
                          ++i) {
@@ -350,6 +351,7 @@ bool simulation_component_editor_data::display_observation_table(
 
                     ImGui::EndCombo();
                 }
+                ImGui::PopItemWidth();
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
@@ -417,6 +419,7 @@ bool simulation_component_editor_data::display_observation_table(
                 const auto preview =
                   name_str(criteria_type_names[criteria_idx]);
 
+                ImGui::PushItemWidth(-1);
                 if (ImGui::BeginCombo("##crit", preview.c_str())) {
                     for (auto i = 0, e = length(criteria_type_names); i != e;
                          ++i) {
@@ -433,6 +436,7 @@ bool simulation_component_editor_data::display_observation_table(
 
                     ImGui::EndCombo();
                 }
+                ImGui::PopItemWidth();
 
                 ImGui::PopID();
             }
@@ -512,10 +516,7 @@ bool simulation_component_editor_data::show(component_editor& ed,
                         "be used into experimental frames for factors.");
 
     if (ImGui::TreeNodeEx(compo.name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::TreeNode("objective")) {
-            u += display_objective(m_sim.pj);
-            ImGui::TreePop();
-        }
+        u += display_objective(m_sim.pj);
 
         if (ImGui::TreeNode("parameters")) {
             u += display_parameter_table(m_sim.pj);

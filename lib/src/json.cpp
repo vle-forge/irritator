@@ -4828,8 +4828,9 @@ struct json_dearchiver::impl {
                 sim.objective.weighted_sum_params.types.clear();
                 sim.objective.weighted_sum_params.weights.clear();
             } else {
-                sim.objective.weighted_sum_params.types.resize(nb);
-                sim.objective.weighted_sum_params.weights.resize(nb);
+                sim.objective.weighted_sum_params.types.resize(
+                  nb, optimization_type::maximize);
+                sim.objective.weighted_sum_params.weights.resize(nb, 1.0 / nb);
             }
         }
 
