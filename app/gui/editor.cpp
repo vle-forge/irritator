@@ -519,7 +519,7 @@ template<typename ExternalSourceType>
 static bool show_parameter(accumulator_2_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
     return false;
 }

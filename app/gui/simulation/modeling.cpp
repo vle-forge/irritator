@@ -7,20 +7,6 @@
 
 namespace irt {
 
-static auto search_tn_model = []<typename T>(const T&           data,
-                                             const tree_node_id tn_id,
-                                             const model_id mdl_id) noexcept ->
-  typename T::identifier_type {
-      const auto& tns  = data.template get<tree_node_id>();
-      const auto& mdls = data.template get<model_id>();
-
-      for (const auto id : data)
-          if (tns[id] == tn_id and mdls[id] == mdl_id)
-              return id;
-
-      return undefined<typename T::identifier_type>();
-  };
-
 static auto extract = []<typename T>(T& data, const project& pj) noexcept {
     for (const auto id : data) {
         const auto& path       = data.template get<unique_id_path>(id);
@@ -152,7 +138,8 @@ static bool display_factor_random(random_factor& factor,
     return u > 0;
 }
 
-bool simulation_component_editor_data::display_objective(project& pj) noexcept
+bool simulation_component_editor_data::display_objective(
+  project& /*pj*/) noexcept
 {
     auto u = 0;
 
@@ -303,7 +290,7 @@ bool simulation_component_editor_data::display_parameter_table(
 }
 
 bool simulation_component_editor_data::display_observation_table(
-  project& pj) noexcept
+  project& /*pj*/) noexcept
 {
     auto u = 0;
 

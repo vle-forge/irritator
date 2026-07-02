@@ -326,7 +326,6 @@ int main()
         }
 
         {
-            int    f0 = fail;
             double X = 1, u = .5, mu = .3;
             auto   T = [&](double t) { return X + u * t + mu / 2 * t * t; };
 
