@@ -1441,11 +1441,17 @@ struct fixed_factor {
     vector<real> values;
 };
 
-enum class optimization_method : u8 { weighted_sum /*epsilon_constrained*/ };
+enum class optimization_method : u8 {
+    epsilon_constrained,
+    simple,
+    weighted_sum
+};
 
 enum class optimization_type : u8 { maximize, minimize };
 
 enum class norm_type : u8 { min_max, z_score };
+
+enum class operation_type : u8 { equal, not_equal, greater_equal, less_equal };
 
 struct weighted_sum_parameters {
     vector<real>              weights;
@@ -1453,20 +1459,58 @@ struct weighted_sum_parameters {
     norm_type                 norm = norm_type::min_max;
 };
 
+struct epsilon_constrained_parameters {
+    vector<real>           epsilons;
+    vector<operation_type> operations;
+
+    selection_id primary = undefined<selection_id>();
+
+    bool valid(const std::integral auto i, const real v) const noexcept
+    {
+        switch (operations[i]) {
+        case operation_type::equal:
+            return epsilons[i] == v;
+
+        case operation_type::not_equal:
+            return epsilons[i] != v;
+
+        case operation_type::greater_equal:
+            return v >= epsilons[i];
+
+        case operation_type::less_equal:
+            return v <= epsilons[i];
+        }
+
+        unreachable();
+    }
+};
+
+struct simple_parameters {
+    selection_id primary = undefined<selection_id>();
+};
+
 struct objective_function {
-    optimization_method method = optimization_method::weighted_sum;
+    optimization_method method = optimization_method::simple;
     optimization_type   type   = optimization_type::maximize;
 
-    weighted_sum_parameters weighted_sum_params;
+    weighted_sum_parameters        weighted_sum_params;
+    epsilon_constrained_parameters epsilon_constrained_params;
+    simple_parameters              simple_params;
 
     void clear() noexcept
     {
-        method = optimization_method::weighted_sum;
+        method = optimization_method::simple;
         type   = optimization_type::maximize;
 
         weighted_sum_params.norm = norm_type::min_max;
         weighted_sum_params.types.clear();
         weighted_sum_params.weights.clear();
+
+        epsilon_constrained_params.epsilons.clear();
+        epsilon_constrained_params.operations.clear();
+        epsilon_constrained_params.primary = undefined<selection_id>();
+
+        simple_params.primary = undefined<selection_id>();
     }
 };
 
@@ -7342,6 +7386,13 @@ struct simulation_wrapper {
 
     enum class sub_id : u32;
 
+    using embedded_simulation_type =
+      id_data_array<void,
+                    sub_id,
+                    allocator<new_delete_memory_resource>,
+                    simulation,
+                    simulation_observation>;
+
     /** Used to store a values receives from the @c x input port vectors. */
     struct input_parameter {
         model_id     mdl_id;
@@ -7352,12 +7403,7 @@ struct simulation_wrapper {
     /** The @c run_type parameter defines the number of embedded simulation
      * objects. If @c run_type equals  complete  then sims size can be equals
      * to 1. */
-    id_data_array<void,
-                  sub_id,
-                  allocator<new_delete_memory_resource>,
-                  simulation,
-                  simulation_observation>
-      embedded_sims;
+    embedded_simulation_type embedded_sims;
 
     /** Number of @c input_parameters correspond to the number of factors in the
      * simulation-component. */

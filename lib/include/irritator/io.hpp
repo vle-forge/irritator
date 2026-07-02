@@ -239,8 +239,11 @@ enum class random_file_type : u8 {
     text,
 };
 
-static constexpr inline std::string_view
-  optimization_method_names[] = { "weighted_sum" /*, "epsilon_constrained"*/ };
+static constexpr inline std::string_view optimization_method_names[] = {
+    "epsilon-constrained",
+    "simple",
+    "weighted-sum"
+};
 
 static constexpr inline std::string_view optimization_type_names[] = {
     "maximize",
@@ -249,6 +252,13 @@ static constexpr inline std::string_view optimization_type_names[] = {
 
 static constexpr inline std::string_view norm_type_names[] = { "min-max",
                                                                "z-score" };
+
+static constexpr inline std::string_view operation_type_names[] = {
+    "equal",
+    "greater-equal",
+    "less-equal",
+    "not-equal",
+};
 
 template<typename RandomGenerator, typename Distribution>
 inline int generate_random_file(std::FILE*             os,

@@ -745,58 +745,104 @@ real simulation_wrapper::embedded_model_observation::compute_result(
     return ret;
 }
 
-/* * * * *
- *
- * weighted_sum
- *
- * * * * */
+struct pos_in_objective_function {
 
-static auto compute_weighted_sum_objective(
-  const simulation& sim_src,
-  id_data_array<void,
-                simulation_wrapper::sub_id,
-                allocator<new_delete_memory_resource>,
-                simulation,
-                simulation_wrapper::simulation_observation>
-    embedded_sims) noexcept -> expected<simulation_wrapper::sub_id>
+    pos_in_objective_function(u32 objective_fn_size_) noexcept
+      : objective_fn_size{ objective_fn_size_ }
+    {}
+
+    u32 operator()(const simulation_wrapper::sub_id sub_id,
+                   const selection_id               obj_fn_id) const noexcept
+    {
+        return static_cast<u32>(get_index(sub_id) * objective_fn_size +
+                                get_index(obj_fn_id));
+    }
+
+    const u32 objective_fn_size;
+};
+
+static auto send(const simulation_wrapper&        sim_wrapper,
+                 const simulation&                sim_src,
+                 const simulation_wrapper::sub_id best_sub_id,
+                 const std::span<const real>      objective_fn,
+                 simulation&                      sim) noexcept -> status
 {
-    auto& sim_obs =
-      embedded_sims.get<simulation_wrapper::simulation_observation>();
+    if (not sim_wrapper.embedded_sims.exists(best_sub_id))
+        return success();
 
-    // allocate vector to stores result, objective function etc. and be sure
-    // allocation success.
+    const pos_in_objective_function pos(sim_src.selections.size());
+    auto                            output_port_index = 0;
 
-    // A vector of reals models the objectives functions. The size equals the
-    // multiplication of the numbers of embedded simulations and objective
-    // function element.
-    //
-    // The form is:
-    // -------------------------------------------------------------------------
-    // | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 |
-    // -------------------------------------------------------------------------
-    // | sub_simulation_1      | sub_simulation_2      | sub_simulation_3      |
-    // -------------------------------------------------------------------------
+    // Send the observation values of the best embedded simulation
 
+    for (const auto obj_fn_id : sim_src.selections) {
+        const auto idx        = pos(best_sub_id, obj_fn_id);
+        const auto val        = objective_fn[idx];
+
+        if (auto ret = send_message(sim, sim_wrapper.y[output_port_index], val);
+            ret.has_error())
+            return ret.error();
+
+        ++output_port_index;
+    }
+
+    // Send the parameters values of the best embedded simulation to the
+
+    const auto& sub_sims = sim_wrapper.embedded_sims.get<simulation>();
+    for (const auto factor_id : sim_src.factors) {
+        const auto id  = sim_src.factors.get<model_id>(factor_id);
+        const auto idx = get_index(id);
+        const auto msg =
+          message{ sub_sims[best_sub_id].parameters[idx].reals[0],
+                   sub_sims[best_sub_id].parameters[idx].reals[1],
+                   sub_sims[best_sub_id].parameters[idx].reals[2] };
+
+        if (auto ret = send_message(
+              sim, sim_wrapper.y[output_port_index], msg[0], msg[1], msg[2]);
+            ret.has_error())
+            return ret.error();
+
+        ++output_port_index;
+    }
+
+    return success();
+}
+
+// A vector of reals models the objectives functions. The size equals the
+// multiplication of the numbers of embedded simulations and objective
+// function element.
+//
+// The form is:
+// -------------------------------------------------------------------------
+// | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 | obj_1 | obj_2 | obj_3 |
+// -------------------------------------------------------------------------
+// | sub_simulation_1      | sub_simulation_2      | sub_simulation_3      |
+// -------------------------------------------------------------------------
+static auto compute_embedded_simulation_results(
+  const simulation&                                   sim_src,
+  const simulation_wrapper::embedded_simulation_type& embedded_sims) noexcept
+  -> expected<vector<real>>
+{
     const auto objective_fn_size = sim_src.selections.size();
     const auto simulation_size   = embedded_sims.size();
     const auto size              = objective_fn_size * simulation_size;
     auto       objective_fn      = vector<real>(size);
 
-    auto pos =
-      [objective_fn_size](const simulation_wrapper::sub_id sub_id,
-                          const selection_id obj_fn_id) noexcept -> sz {
-        return static_cast<sz>(get_index(sub_id) * objective_fn_size +
-                               get_index(obj_fn_id));
-    };
+    debug::ensure(objective_fn.size() > 1);
 
     if (std::cmp_not_equal(objective_fn.size(), size))
         return make_error(
           simulation_errc::
             simulation_wrapper_too_many_embedded_simulation_error);
 
+    const pos_in_objective_function pos(objective_fn_size);
+
     // For each embedded simulation, for each objective function element,
     // computes result of the observation trajectory according to tge
     // criteria_type and fill the objective funiton.
+
+    auto& sim_obs =
+      embedded_sims.get<simulation_wrapper::simulation_observation>();
 
     for (const auto sub_id : embedded_sims) {
         for (const auto obj_fn_id : sim_src.selections) {
@@ -811,6 +857,22 @@ static auto compute_weighted_sum_objective(
             }
         }
     }
+
+    return objective_fn;
+}
+
+/* * * * * *
+ *
+ * weighted_sum
+ *
+ * * * * * */
+
+static auto compute_weighted_sum_objective(
+  const simulation&                                   sim_src,
+  const simulation_wrapper::embedded_simulation_type& embedded_sims,
+  std::span<real> objective_fn) noexcept -> expected<simulation_wrapper::sub_id>
+{
+    const pos_in_objective_function pos(sim_src.selections.size());
 
     debug::ensure(sim_src.objective.weighted_sum_params.types.size() ==
                   sim_src.selections.size());
@@ -868,8 +930,8 @@ static auto compute_weighted_sum_objective(
                     sq_sum += objective_fn[idx] * objective_fn[idx];
                 }
 
-                const auto mean    = sum / simulation_size;
-                const auto std_dev = std::sqrt(sq_sum / simulation_size);
+                const auto mean    = sum / embedded_sims.size();
+                const auto std_dev = std::sqrt(sq_sum / embedded_sims.size());
                 const auto div     = std_dev < 1e-10 ? 1e-10 : std_dev;
 
                 for (const auto sub_id : embedded_sims) {
@@ -888,9 +950,9 @@ static auto compute_weighted_sum_objective(
                     sq_sum += objective_fn[idx] * objective_fn[idx];
                 }
 
-                const auto mu = sum / simulation_size;
+                const auto mu = sum / embedded_sims.size();
                 const auto sigma =
-                  std::sqrt(sq_sum / simulation_size - mu * mu);
+                  std::sqrt(sq_sum / embedded_sims.size() - mu * mu);
 
                 const auto div = sigma < 1e-10 ? 1e-10 : sigma;
 
@@ -935,6 +997,196 @@ static auto compute_weighted_sum_objective(
     return best_sub_id;
 }
 
+static auto do_weighted_sum_optimization(const simulation_wrapper& sim_wrapper,
+                                         simulation&               sim,
+                                         const simulation& sim_src) noexcept
+  -> status
+{
+    debug::ensure(sim_src.objective.method ==
+                  optimization_method::weighted_sum);
+
+    auto objective_fn_ret =
+      compute_embedded_simulation_results(sim_src, sim_wrapper.embedded_sims);
+
+    if (objective_fn_ret.has_error())
+        return objective_fn_ret.error();
+
+    const auto best_sub_id = compute_weighted_sum_objective(
+      sim_src, sim_wrapper.embedded_sims, *objective_fn_ret);
+
+    if (best_sub_id.has_error())
+        return best_sub_id.error();
+
+    if (not sim_wrapper.embedded_sims.exists(*best_sub_id))
+        return send(sim_wrapper, sim_src, *best_sub_id, *objective_fn_ret, sim);
+
+    return success();
+}
+
+/* * * * * *
+ *
+ * compute epsilon constrained optimization
+ *
+ * * * * * */
+
+static auto filter(const simulation_wrapper& sim_wrapper,
+                   const simulation&         sim_src,
+                   const std::span<real>     objective_fn) noexcept
+  -> vector<simulation_wrapper::sub_id>
+{
+    const pos_in_objective_function pos(sim_src.selections.size());
+    const auto                      max_size = sim_wrapper.embedded_sims.size();
+
+    auto ret = vector<simulation_wrapper::sub_id>(max_size, reserve_tag);
+
+    auto& sim_obs = sim_wrapper.embedded_sims
+                      .get<simulation_wrapper::simulation_observation>();
+
+    for (const auto sub_id : sim_wrapper.embedded_sims) {
+        auto all_obj_valid = true;
+
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto obj_fn_idx = get_index(obj_fn_id);
+            const auto mdl_id     = sim_src.selections.get<model_id>(obj_fn_id);
+
+            if (sim_obs[sub_id].get(mdl_id)) {
+                const auto idx = pos(sub_id, obj_fn_id);
+                const auto val = objective_fn[idx];
+
+                if (not sim_src.objective.epsilon_constrained_params.valid(
+                      obj_fn_idx, val)) {
+                    all_obj_valid = false;
+                    break;
+                }
+            }
+        }
+
+        if (all_obj_valid)
+            ret.push_back(sub_id);
+    }
+
+    return ret;
+}
+
+static auto select(
+  const simulation&                           sim_src,
+  const std::span<real>                       objective_fn,
+  const std::span<simulation_wrapper::sub_id> candidates) noexcept
+  -> simulation_wrapper::sub_id
+{
+    const pos_in_objective_function pos(sim_src.selections.size());
+    const auto prim_id  = sim_src.objective.epsilon_constrained_params.primary;
+
+    debug::ensure(sim_src.selections.exists(prim_id));
+
+    const auto is_max = sim_src.objective.type == optimization_type::maximize;
+    auto       best_sub_id = undefined<simulation_wrapper::sub_id>();
+    auto       best_value  = is_max ? std::numeric_limits<real>::lowest()
+                                    : std::numeric_limits<real>::max();
+
+    for (const auto sub_id : candidates) {
+        const auto idx      = pos(sub_id, prim_id);
+        const auto val      = objective_fn[idx];
+
+        if (is_max) {
+            if (val > best_value) {
+                best_value  = val;
+                best_sub_id = sub_id;
+            }
+        } else {
+            if (val < best_value) {
+                best_value  = val;
+                best_sub_id = sub_id;
+            }
+        }
+    }
+
+    return best_sub_id;
+}
+
+static auto do_epsilon_constrained_optimization(
+  const simulation_wrapper& sim_wrapper,
+  simulation&               sim,
+  const simulation&         sim_src) noexcept -> status
+{
+    debug::ensure(sim_src.objective.method ==
+                  optimization_method::epsilon_constrained);
+    debug::ensure(
+      sim_src.objective.epsilon_constrained_params.epsilons.size() ==
+      sim_src.selections.size());
+    debug::ensure(
+      sim_src.objective.epsilon_constrained_params.operations.size() ==
+      sim_src.selections.size());
+    debug::ensure(sim_src.selections.exists(
+      sim_src.objective.epsilon_constrained_params.primary));
+
+    auto objective_fn_ret =
+      compute_embedded_simulation_results(sim_src, sim_wrapper.embedded_sims);
+
+    if (objective_fn_ret.has_error())
+        return objective_fn_ret.error();
+
+    auto filtered = filter(sim_wrapper, sim_src, *objective_fn_ret);
+    auto best_sub_id = select(sim_src, *objective_fn_ret, filtered);
+
+    if (is_defined(best_sub_id))
+        return send(sim_wrapper, sim_src, best_sub_id, *objective_fn_ret, sim);
+
+    return success();
+}
+
+/* * * * * *
+ *
+ * compute simple optimization for a single @c selection_id
+ *
+ * * * * * */
+
+static auto do_simple_optimization(const simulation_wrapper& sim_wrapper,
+                                   simulation&               sim,
+                                   const simulation& sim_src) noexcept -> status
+{
+    debug::ensure(sim_src.objective.method == optimization_method::simple);
+    debug::ensure(
+      sim_src.selections.exists(sim_src.objective.simple_params.primary));
+
+    const pos_in_objective_function pos(sim_src.selections.size());
+
+    auto objective_fn_ret =
+      compute_embedded_simulation_results(sim_src, sim_wrapper.embedded_sims);
+
+    if (objective_fn_ret.has_error())
+        return objective_fn_ret.error();
+
+    auto&      objective_fn = *objective_fn_ret;
+    const auto sel_id       = sim_src.objective.simple_params.primary;
+    const auto is_max = sim_src.objective.type == optimization_type::maximize;
+    auto       best_sub_id = undefined<simulation_wrapper::sub_id>();
+    auto       best_value  = is_max ? std::numeric_limits<real>::lowest()
+                                    : std::numeric_limits<real>::max();
+
+    for (const auto sub_id : sim_wrapper.embedded_sims) {
+        const auto idx = pos(sub_id, sel_id);
+        const auto val = objective_fn[idx];
+
+        if (is_max) {
+            if (val > best_value) {
+                best_value  = val;
+                best_sub_id = sub_id;
+            }
+        } else {
+            if (val < best_value) {
+                best_value  = val;
+                best_sub_id = sub_id;
+            }
+        }
+    }
+
+    if (not sim_wrapper.embedded_sims.exists(best_sub_id))
+        return send(sim_wrapper, sim_src, best_sub_id, objective_fn, sim);
+
+    return success();
+}
+
 status simulation_wrapper::lambda(simulation& sim) noexcept
 {
     const auto* sim_src = sim.sims.try_to_get(sim_id);
@@ -942,97 +1194,15 @@ status simulation_wrapper::lambda(simulation& sim) noexcept
     debug::ensure(y.size() ==
                   input_parameters.size() + sim_src->selections.size());
 
-    if (sim_src->objective.method == optimization_method::weighted_sum) {
-        const auto best_sub_id =
-          compute_weighted_sum_objective(*sim_src, embedded_sims);
+    switch (sim_src->objective.method) {
+    case optimization_method::epsilon_constrained:
+        return do_epsilon_constrained_optimization(*this, sim, *sim_src);
 
-        if (best_sub_id.has_error())
-            return best_sub_id.error();
+    case optimization_method::simple:
+        return do_simple_optimization(*this, sim, *sim_src);
 
-        if (not embedded_sims.exists(best_sub_id.value()))
-            return success();
-
-        auto        output_port_index = 0;
-        const auto& sub_sims_obs = embedded_sims.get<simulation_observation>();
-        const auto& sub_sim_obs  = sub_sims_obs[best_sub_id.value()];
-
-        for (const auto& elem : sub_sim_obs.data) {
-            const auto msg = message{ elem.value.values.back()[0],
-                                      elem.value.values.back()[1],
-                                      0.0 };
-            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
-            ++output_port_index;
-        }
-        const auto& sub_sims = embedded_sims.get<simulation>();
-        for (const auto factor_id : sim_src->factors) {
-            const auto id  = sim_src->factors.get<model_id>(factor_id);
-            const auto idx = get_index(id);
-            const auto msg =
-              message{ sub_sims[best_sub_id.value()].parameters[idx].reals[0],
-                       sub_sims[best_sub_id.value()].parameters[idx].reals[1],
-                       sub_sims[best_sub_id.value()].parameters[idx].reals[2] };
-            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
-            ++output_port_index;
-        }
-
-        return success();
-    }
-
-    /* Ajout d'un mode simple ? */
-
-    for (const auto id : sim_src->selections) {
-        const auto type   = sim_src->selections.get<criteria_type>(id);
-        const auto mdl_id = sim_src->selections.get<model_id>(id);
-        const auto [best_sub_id, best_index] =
-          [&]() -> std::pair<simulation_wrapper::sub_id, size_t> {
-            switch (type) {
-            case criteria_type::min_last:
-                return compute_min_last(embedded_sims, mdl_id);
-
-            case criteria_type::max_last:
-                return compute_max_last(embedded_sims, mdl_id);
-
-            case criteria_type::min:
-                return compute_min(embedded_sims, mdl_id);
-
-            case criteria_type::max:
-                return compute_max(embedded_sims, mdl_id);
-            }
-
-            unreachable();
-        }();
-
-        if (not embedded_sims.exists(best_sub_id))
-            return success();
-
-        auto output_port_index = 0;
-
-        const auto& sub_sims_obs = embedded_sims.get<simulation_observation>();
-        const auto& sub_sim_obs  = sub_sims_obs[best_sub_id];
-
-        for (const auto& elem : sub_sim_obs.data) {
-            const auto msg = message{ elem.value.values[best_index][0],
-                                      elem.value.values[best_index][1],
-                                      0.0 };
-
-            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
-            ++output_port_index;
-        }
-
-        const auto& sub_sims = embedded_sims.get<simulation>();
-        for (const auto factor_id : sim_src->factors) {
-            const auto id  = sim_src->factors.get<model_id>(factor_id);
-            const auto idx = get_index(id);
-            const auto msg =
-              message{ sub_sims[best_sub_id].parameters[idx].reals[0],
-                       sub_sims[best_sub_id].parameters[idx].reals[1],
-                       sub_sims[best_sub_id].parameters[idx].reals[2] };
-
-            send_message(sim, y[output_port_index], msg[0], msg[1], msg[2]);
-            ++output_port_index;
-        }
-
-        break;
+    case optimization_method::weighted_sum:
+        return do_weighted_sum_optimization(*this, sim, *sim_src);
     }
 
     return success();

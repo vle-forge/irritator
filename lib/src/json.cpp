@@ -4728,14 +4728,61 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_simulation_component_objective(const rapidjson::Value& val,
-                                             simulation_component& sim) noexcept
+    bool copy_array_to(vector<operation_type>&             operations,
+                       const rapidjson::Value::ConstArray& arr) noexcept
     {
-        auto_stack a(this, "component simulation objective");
+        operations.clear();
+        operations.reserve(arr.Size());
 
-        static const std::string_view names[] = { "method",
-                                                  "type",
-                                                  "weighted-sum-parameters" };
+        for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i) {
+            if (arr[i].IsString()) {
+                temp_string = arr[i].GetString();
+
+                if (temp_string == "equal")
+                    operations.emplace_back(operation_type::equal);
+                else if (temp_string == "not-equal")
+                    operations.emplace_back(operation_type::not_equal);
+                else if (temp_string == "greater-equal")
+                    operations.emplace_back(operation_type::greater_equal);
+                else if (temp_string == "less-equal")
+                    operations.emplace_back(operation_type::less_equal);
+            }
+        }
+
+        return true;
+    }
+
+    bool copy_string_to_selection_primary(const simulation_component& sim,
+                                          selection_id& out) noexcept
+    {
+        const auto sel_id = [](auto& sim, auto& name) noexcept -> selection_id {
+            const auto& names = sim.selections.template get<name_str>();
+
+            for (const auto id : sim.selections)
+                if (names[id].sv() == name)
+                    return id;
+
+            return undefined<selection_id>();
+        }(sim, temp_string);
+
+        if (is_defined(sel_id)) {
+            out = sel_id;
+        } else {
+            warning(
+              "simulation component objective primary selection not found: {}",
+              temp_string);
+        }
+
+        return true;
+    }
+
+    bool read_simulation_component_simple_params(
+      const rapidjson::Value& val,
+      simulation_component&   sim) noexcept
+    {
+        auto_stack a(this, "component simulation simple parameters");
+
+        static const std::string_view names[] = { "primary" };
 
         return is_value_object(val) and
                for_members(
@@ -4745,14 +4792,96 @@ struct json_dearchiver::impl {
                      switch (idx) {
                      case 0:
                          return read_temp_string(value) and
-                                copy_string_to_sim_objective_method(sim);
+                                copy_string_to_selection_primary(
+                                  sim,
+                                  sim.objective.epsilon_constrained_params
+                                    .primary);
+                     };
+
+                     return true;
+                 });
+    }
+
+    bool read_simulation_component_epsilon_constrained_parameters(
+      const rapidjson::Value& val,
+      simulation_component&   sim) noexcept
+    {
+        auto_stack a(this,
+                     "component simulation epsilon constrained parameters");
+
+        static const std::string_view names[] = { "epsilons",
+                                                  "operations",
+                                                  "primary" };
+
+        return is_value_object(val) and
+               for_members(
+                 val,
+                 names,
+                 [&](const auto idx, const auto& value) noexcept -> bool {
+                     switch (idx) {
+                     case 0:
+                         return is_value_array(value) and
+                                copy_array_to(
+                                  sim.objective.epsilon_constrained_params
+                                    .epsilons,
+                                  value.GetArray());
 
                      case 1:
+                         return is_value_array(value) and
+                                copy_array_to(
+                                  sim.objective.epsilon_constrained_params
+                                    .operations,
+                                  value.GetArray());
+
+                     case 2:
+                         return read_temp_string(value) and
+                                copy_string_to_selection_primary(
+                                  sim,
+                                  sim.objective.epsilon_constrained_params
+                                    .primary);
+                     };
+
+                     return true;
+                 });
+    }
+
+    bool read_simulation_component_objective(const rapidjson::Value& val,
+                                             simulation_component& sim) noexcept
+    {
+        auto_stack a(this, "component simulation objective");
+
+        static const std::string_view names[] = {
+            "epsilon-constrained-parameters",
+            "method",
+            "simple-parameters"
+            "type",
+            "weighted-sum-parameters"
+        };
+
+        return is_value_object(val) and
+               for_members(
+                 val,
+                 names,
+                 [&](const auto idx, const auto& value) noexcept -> bool {
+                     switch (idx) {
+                     case 0:
+                         return read_simulation_component_epsilon_constrained_parameters(
+                           value, sim);
+
+                     case 1:
+                         return read_temp_string(value) and
+                                copy_string_to_sim_objective_method(sim);
+
+                     case 2:
+                         return read_simulation_component_simple_params(value,
+                                                                        sim);
+
+                     case 3:
                          return read_temp_string(value) and
                                 copy_string_to_optimization_type(
                                   sim.objective.type);
 
-                     case 2:
+                     case 4:
                          return read_simulation_component_weighted_sum_params(
                            value, sim);
                      };
@@ -4821,17 +4950,32 @@ struct json_dearchiver::impl {
         if (not read_component)
             return error("fail to read simulation component");
 
-        if (sim.objective.method == optimization_method::weighted_sum) {
-            const auto nb = sim.selections.size();
+        const auto nb = sim.selections.size();
 
-            if (nb == 0) {
-                sim.objective.weighted_sum_params.types.clear();
-                sim.objective.weighted_sum_params.weights.clear();
-            } else {
-                sim.objective.weighted_sum_params.types.resize(
-                  nb, optimization_type::maximize);
-                sim.objective.weighted_sum_params.weights.resize(nb, 1.0 / nb);
-            }
+        if (nb == 0) {
+            sim.objective.weighted_sum_params.types.clear();
+            sim.objective.weighted_sum_params.weights.clear();
+
+            sim.objective.epsilon_constrained_params.epsilons.clear();
+            sim.objective.epsilon_constrained_params.operations.clear();
+            sim.objective.epsilon_constrained_params.primary =
+              undefined<selection_id>();
+        } else {
+            sim.objective.weighted_sum_params.types.resize(
+              nb, optimization_type::maximize);
+            sim.objective.weighted_sum_params.weights.resize(nb, 1.0 / nb);
+            sim.objective.epsilon_constrained_params.epsilons.resize(nb, 0.0);
+            sim.objective.epsilon_constrained_params.operations.resize(
+              nb, operation_type::less_equal);
+            sim.objective.epsilon_constrained_params.primary =
+              undefined<selection_id>();
+        }
+
+        if (sim.objective.method == optimization_method::simple) {
+            const auto sel_id = sim.objective.simple_params.primary;
+            if (not sim.selections.exists(sel_id) and
+                not sim.selections.empty())
+                sim.objective.simple_params.primary = *sim.selections.begin();
         }
 
         return true;
@@ -7691,7 +7835,8 @@ struct json_archiver::impl {
           static_cast<rapidjson::SizeType>(
             optimization_type_names[ordinal(sim.objective.type)].size()));
 
-        if (sim.objective.method == optimization_method::weighted_sum) {
+        switch (sim.objective.method) {
+        case optimization_method::weighted_sum:
             w.Key("weighted-sum-parameters");
             w.StartObject();
             w.Key("norm");
@@ -7730,6 +7875,68 @@ struct json_archiver::impl {
             w.EndArray();
 
             w.EndObject();
+            break;
+
+        case optimization_method::epsilon_constrained:
+            w.Key("epsilon-constrained-parameters");
+            w.StartObject();
+
+            w.Key("epsilons");
+            w.StartArray();
+            for (auto i = 0,
+                      e = length(
+                        sim.objective.epsilon_constrained_params.epsilons);
+                 i != e;
+                 ++i) {
+                w.Double(sim.objective.epsilon_constrained_params.epsilons[i]);
+            }
+            w.EndArray();
+            w.Key("operations");
+
+            w.StartArray();
+            for (auto i = 0,
+                      e = length(
+                        sim.objective.epsilon_constrained_params.operations);
+                 i != e;
+                 ++i) {
+                w.String(
+                  optimization_type_names
+                    [ordinal(
+                       sim.objective.epsilon_constrained_params.operations[i])]
+                      .data(),
+                  static_cast<rapidjson::SizeType>(
+                    optimization_type_names
+                      [ordinal(sim.objective.epsilon_constrained_params
+                                 .operations[i])]
+                        .size()));
+            }
+            w.EndArray();
+
+            if (sim.selections.exists(
+                  sim.objective.epsilon_constrained_params.primary)) {
+                w.Key("primary");
+                w.String(sim.selections
+                           .get<name_str>(
+                             sim.objective.epsilon_constrained_params.primary)
+                           .c_str());
+            }
+
+            w.EndObject();
+            break;
+
+        case optimization_method::simple:
+            w.Key("simple-parameters");
+            w.StartObject();
+            if (sim.selections.exists(
+                  sim.objective.epsilon_constrained_params.primary)) {
+                w.Key("primary");
+                w.String(sim.selections
+                           .get<name_str>(
+                             sim.objective.epsilon_constrained_params.primary)
+                           .c_str());
+            }
+            w.EndObject();
+            break;
         }
 
         w.EndObject();
