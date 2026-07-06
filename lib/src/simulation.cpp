@@ -7,7 +7,7 @@
 #include <irritator/observation.hpp>
 #include <irritator/random.hpp>
 
-#include <numeric>
+#include <fmt/ranges.h>
 
 namespace irt {
 
@@ -23,25 +23,17 @@ static status update_observations(
 
         if (auto* vec = sim_obs.get(mdl_id); debug::check(vec)) {
             if (obs.states[observer_flags::buffer_full]) {
-                auto have_error = true;
-
                 write_interpolate_data(
-                  obs, time_step, [vec, &have_error](auto t, auto v) noexcept {
+                  obs, time_step, [vec](auto t, auto v) noexcept {
                       if (not vec->values.can_alloc(1) and
                           not vec->values.grow<2, 1>(32))
                           return;
 
                       vec->values.push_back(std::array<real, 2>());
-                      auto& ar   = vec->values.back();
-                      ar[0]      = t;
-                      ar[1]      = v;
-                      have_error = false;
+                      auto& ar = vec->values.back();
+                      ar[0]    = t;
+                      ar[1]    = v;
                   });
-
-                if (have_error)
-                    return make_error(
-                      simulation_errc::
-                        simulation_wrapper_embedded_simulation_observation_error);
             }
         }
     }
@@ -58,25 +50,17 @@ static status flush_observations(
 
         if (auto* vec = sim_obs.get(mdl_id); debug::check(vec)) {
             if (obs.states[observer_flags::buffer_full]) {
-                auto have_error = true;
-
                 flush_interpolate_data(
-                  obs, time_step, [vec, &have_error](auto t, auto v) noexcept {
+                  obs, time_step, [vec](auto t, auto v) noexcept {
                       if (not vec->values.can_alloc(1) and
                           not vec->values.grow<2, 1>(32))
                           return;
 
                       vec->values.push_back(std::array<real, 2>());
-                      auto& ar   = vec->values.back();
-                      ar[0]      = t;
-                      ar[1]      = v;
-                      have_error = false;
+                      auto& ar = vec->values.back();
+                      ar[0]    = t;
+                      ar[1]    = v;
                   });
-
-                if (have_error)
-                    return make_error(
-                      simulation_errc::
-                        simulation_wrapper_embedded_simulation_observation_error);
             }
         }
     }
@@ -95,12 +79,13 @@ static status run_complete(simulation_wrapper& wrapper) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
-        while (not sim.current_time_expired()) {
+        do {
             irt_check(sim.run());
             irt_check(update_observations(sim, sim_o));
-        }
+        } while (not sim.current_time_expired());
 
         if (sim.current_time_expired()) {
+            irt_check(sim.finalize());
             irt_check(flush_observations(sim, sim_o));
         }
     }
@@ -342,22 +327,22 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
         ++i;
     }
 
-    dlogln(0, "emedded_sim     = {}", wrapper.embedded_sims.size());
-    dlogln(0, "input_parameter = {}", wrapper.input_parameters.size());
+    dlogln(0, "emedded_sim = {}", wrapper.embedded_sims.size());
+    dlogln(0, "parameters  = {}", wrapper.input_parameters.size());
 
-    dlog(0, "embedded-simulation;");
+    dlog(0, "subid;");
     for (sz i = 0, e = params.size(); i < e; ++i) {
         const auto factor_id = params[i].id;
         const auto name      = sim_src.factors.get<name_str>(factor_id).sv();
 
-        dlog(0, "{}", name);
+        dlog(0, "{:8}", name);
         if (i + 1 < e)
             dlog(0, ";");
     }
     dlog(0, "\n");
 
     for (const auto id : wrapper.embedded_sims) {
-        dlog(0, "{};", get_index(id));
+        dlog(0, "{:8};", get_index(id));
 
         // First, copy the multiple parameters values into embedded simulation
         // parameters.
@@ -397,7 +382,7 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
 
             sims[id].parameters[mdl_idx].reals[0] = new_value;
 
-            dlog(0, "{}", new_value);
+            dlog(0, "{:8}", new_value);
             if (i + 1 < e)
                 dlog(0, ";");
         }
@@ -527,13 +512,6 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
         return make_error(
           simulation_errc::
             simulation_wrapper_too_many_embedded_simulation_error);
-
-    if (const auto r = embedded_sims_alloc(*this, *sim_src, nb_sims); not r)
-        return r.error();
-
-    if (const auto r = embedded_sims_copy_parameters(*this, *sim_src, nb_sims);
-        not r)
-        return r.error();
 
     return embedded_sims_alloc(*this, *sim_src, nb_sims)
       .and_then(embedded_sims_copy_parameters, *this, *sim_src, nb_sims)
@@ -776,8 +754,8 @@ static auto send(const simulation_wrapper&        sim_wrapper,
     // Send the observation values of the best embedded simulation
 
     for (const auto obj_fn_id : sim_src.selections) {
-        const auto idx        = pos(best_sub_id, obj_fn_id);
-        const auto val        = objective_fn[idx];
+        const auto idx = pos(best_sub_id, obj_fn_id);
+        const auto val = objective_fn[idx];
 
         if (auto ret = send_message(sim, sim_wrapper.y[output_port_index], val);
             ret.has_error())
@@ -856,6 +834,36 @@ static auto compute_embedded_simulation_results(
                 objective_fn[idx] = val;
             }
         }
+    }
+
+    fmt::println("print full observation");
+    for (const auto obj_fn_id : sim_src.selections) {
+        fmt::println("selection for model {}",
+                     sim_src.selections.get<name_str>(obj_fn_id).sv());
+
+        const auto mdl_id = sim_src.selections.get<model_id>(obj_fn_id);
+
+        for (const auto sub_id : embedded_sims)
+            if (const auto* ptr = sim_obs[sub_id].get(mdl_id))
+                fmt::println("{:5} | {}", get_index(sub_id), ptr->values);
+    }
+
+    fmt::println("compute embedeed selection");
+    fmt::print("subid ");
+    for (const auto obj_fn_id : sim_src.selections) {
+        fmt::print("{:8}", sim_src.selections.get<name_str>(obj_fn_id).sv());
+    }
+    fmt::print("\n");
+    for (const auto sub_id : embedded_sims) {
+        fmt::print("{:5} ", get_index(sub_id));
+
+        for (const auto obj_fn_id : sim_src.selections) {
+            const auto idx = pos(sub_id, obj_fn_id);
+
+            fmt::print("{:8} ", objective_fn[idx]);
+        }
+
+        fmt::print("\n");
     }
 
     return objective_fn;
@@ -1017,10 +1025,9 @@ static auto do_weighted_sum_optimization(const simulation_wrapper& sim_wrapper,
     if (best_sub_id.has_error())
         return best_sub_id.error();
 
-    if (not sim_wrapper.embedded_sims.exists(*best_sub_id))
-        return send(sim_wrapper, sim_src, *best_sub_id, *objective_fn_ret, sim);
-
-    return success();
+    return sim_wrapper.embedded_sims.exists(*best_sub_id)
+             ? send(sim_wrapper, sim_src, *best_sub_id, *objective_fn_ret, sim)
+             : success();
 }
 
 /* * * * * *
@@ -1075,7 +1082,7 @@ static auto select(
   -> simulation_wrapper::sub_id
 {
     const pos_in_objective_function pos(sim_src.selections.size());
-    const auto prim_id  = sim_src.objective.epsilon_constrained_params.primary;
+    const auto prim_id = sim_src.objective.epsilon_constrained_params.primary;
 
     debug::ensure(sim_src.selections.exists(prim_id));
 
@@ -1085,8 +1092,8 @@ static auto select(
                                     : std::numeric_limits<real>::max();
 
     for (const auto sub_id : candidates) {
-        const auto idx      = pos(sub_id, prim_id);
-        const auto val      = objective_fn[idx];
+        const auto idx = pos(sub_id, prim_id);
+        const auto val = objective_fn[idx];
 
         if (is_max) {
             if (val > best_value) {
@@ -1126,13 +1133,12 @@ static auto do_epsilon_constrained_optimization(
     if (objective_fn_ret.has_error())
         return objective_fn_ret.error();
 
-    auto filtered = filter(sim_wrapper, sim_src, *objective_fn_ret);
+    auto filtered    = filter(sim_wrapper, sim_src, *objective_fn_ret);
     auto best_sub_id = select(sim_src, *objective_fn_ret, filtered);
 
-    if (is_defined(best_sub_id))
-        return send(sim_wrapper, sim_src, best_sub_id, *objective_fn_ret, sim);
-
-    return success();
+    return sim_wrapper.embedded_sims.exists(best_sub_id)
+             ? send(sim_wrapper, sim_src, best_sub_id, *objective_fn_ret, sim)
+             : success();
 }
 
 /* * * * * *
@@ -1181,10 +1187,9 @@ static auto do_simple_optimization(const simulation_wrapper& sim_wrapper,
         }
     }
 
-    if (not sim_wrapper.embedded_sims.exists(best_sub_id))
-        return send(sim_wrapper, sim_src, best_sub_id, objective_fn, sim);
-
-    return success();
+    return sim_wrapper.embedded_sims.exists(best_sub_id)
+             ? send(sim_wrapper, sim_src, best_sub_id, objective_fn, sim)
+             : success();
 }
 
 status simulation_wrapper::lambda(simulation& sim) noexcept

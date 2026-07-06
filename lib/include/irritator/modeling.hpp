@@ -1460,6 +1460,13 @@ public:
     vector<u64> seeds;
 
     /**
+     * @brief clean previous simulation cache and reinitialize the simulation.
+     * @return
+     */
+    status simulation_initialize() noexcept;
+    status simulation_run_bag() noexcept;
+
+    /**
        @brief Alloc a new variable observer and assign a name.
        @return The new instance. Be carreful, use `can_alloc()` before
        running this function to ensure allocation is possible.

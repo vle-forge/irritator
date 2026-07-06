@@ -89,11 +89,17 @@ status simulation_component::assign(project&& pj_to_move) noexcept
     {
         objective.clear();
 
-        if (objective.method == optimization_method::weighted_sum) {
+        if (not selections.empty()) {
             objective.weighted_sum_params.types.resize(
               selections.size(), optimization_type::maximize);
             objective.weighted_sum_params.weights.resize(
               selections.size(), 1.0 / selections.size());
+            objective.epsilon_constrained_params.epsilons.resize(
+              selections.size(), 0.0);
+            objective.epsilon_constrained_params.operations.resize(
+              selections.size(), operation_type::greater_equal);
+            objective.epsilon_constrained_params.primary = *selections.begin();
+            objective.simple_params.primary              = *selections.begin();
         }
     }
 

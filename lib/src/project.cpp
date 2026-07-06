@@ -380,10 +380,10 @@ public:
     table<u64, text_file_source_id>   text_files;
     table<u64, random_source_id>      randoms;
 
-    data_array<tree_node, tree_node_id>&         tree_nodes;
-    table<hsm_component_id, hsm_id>              hsm_mod_to_sim;
+    data_array<tree_node, tree_node_id>&          tree_nodes;
+    table<hsm_component_id, hsm_id>               hsm_mod_to_sim;
     table<simulation_component_id, simulation_id> sim_mod_to_sim;
-    table<component_id, vector<mod_to_sim_srcs>> srcs_mod_to_sim;
+    table<component_id, vector<mod_to_sim_srcs>>  srcs_mod_to_sim;
 
     table<grid_component_id, grid_component_cache>   grid_caches;
     table<graph_component_id, graph_component_cache> graph_caches;
@@ -779,19 +779,18 @@ static auto make_tree_leaf(simulation_copy&                sc,
           return success();
       }));
 
-    const auto is_public = (ch.flags[child_flags::configurable] or
-                            ch.flags[child_flags::observable]);
+    // const auto is_public = (ch.flags[child_flags::configurable] or
+    //                         ch.flags[child_flags::observable]);
 
     // @TODO Add a test function in bitflags to allow:
     // if (ch.flags.test(child_flags::configurable,
     // child_flags::configurable);
 
-    if (is_public) {
+    if (ch.flags[child_flags::configurable]) {
         debug::ensure(not uid.empty());
-        parent.unique_id_to_model_id.data.emplace_back(name_str(uid),
-                                                       new_mdl_id);
-        parent.model_id_to_unique_id.data.emplace_back(new_mdl_id,
-                                                       name_str(uid));
+        parent.unique_id_to_model_id.set(name_str(uid), new_mdl_id);
+        parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
+
         if (not sc.pj.parameters.can_alloc(1) and
             not sc.pj.parameters.grow<2, 1>(1))
             return make_error(project_errc::memory_error);
@@ -808,7 +807,28 @@ static auto make_tree_leaf(simulation_copy&                sc,
         sc.pj.parameters.get<model_id>(id) = new_mdl_id;
 
         sc.pj.parameters.get<parameter>(id).copy_from(new_mdl);
-        parent.parameters_ids.data.emplace_back(name_str(uid), id);
+        parent.parameters_ids.set(name_str(uid), id);
+    }
+
+    if (ch.flags[child_flags::observable]) {
+        debug::ensure(not uid.empty());
+
+        parent.unique_id_to_model_id.set(name_str(uid), new_mdl_id);
+        parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
+
+        if (sc.pj.variable_observers.empty()) {
+            if (not sc.pj.variable_observers.can_alloc(1) and
+                not sc.pj.variable_observers.grow<3, 2>())
+                return make_error(project_errc::memory_error);
+
+            auto& def = sc.pj.alloc_variable_observer();
+            def.name  = "default";
+        }
+
+        auto& vobs   = *sc.pj.variable_observers.begin();
+        auto  obs_id = sc.pj.variable_observers.get_id(vobs);
+        vobs.push_back(sc.pj.tree_nodes.get_id(parent), new_mdl_id);
+        parent.variable_observer_ids.set(name_str(uid), obs_id);
     }
 
     return new_mdl_id;
@@ -848,7 +868,7 @@ static status make_tree_recursive(simulation_copy&        sc,
             }
         } else {
             const auto mdl_type = child.id.mdl_type;
-            auto       mdl_id   = make_tree_leaf(sc,
+            auto mdl_id = make_tree_leaf(sc,
                                          jn,
                                          ids,
                                          new_tree,
@@ -2579,6 +2599,19 @@ static void assign_name(const T& obs, name_str& str) noexcept
 
     str = "New";
 };
+
+status project::simulation_initialize() noexcept
+{
+    sim.clean();
+    sim.observers.clear();
+
+    for (auto& v_obs : variable_observers)
+        irt_check(v_obs.init(*this, sim));
+
+    return sim.initialize();
+}
+
+status project::simulation_run_bag() noexcept { return sim.run(); }
 
 variable_observer& project::alloc_variable_observer() noexcept
 {

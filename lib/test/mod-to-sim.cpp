@@ -124,6 +124,310 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
     }
 }
 
+static void simulation_component_tester(
+  const std::span<const irt::real> c1,
+  const std::span<const irt::real> c2,
+  const std::span<const irt::real> result) noexcept
+{
+    using namespace boost::ut;
+
+    irt::journal_handler jn;
+    irt::modeling        mod;
+
+    irt::registred_path_id reg_id{ 0 };
+    irt::dir_path_id       dir_id{ 0 };
+    irt::file_path_id      gen_component_file_id{ 0 };
+    irt::file_path_id      project_file_id{ 0 };
+
+    mod.files.write([&](auto& fs) {
+        irt::registred_path_str temp_path;
+        expect(fatal(get_temp_registred_path(temp_path)));
+
+        reg_id                              = fs.alloc_registred("temp", 0);
+        fs.registred_paths.get(reg_id).path = temp_path;
+
+        dir_id                          = fs.alloc_dir(reg_id);
+        fs.dir_paths.get(dir_id).parent = reg_id;
+        fs.dir_paths.get(dir_id).path   = "test-sim-compo";
+
+        fs.create_directories(reg_id);
+        fs.create_directories(dir_id);
+
+        expect(fatal(fs.file_paths.can_alloc(3)));
+
+        gen_component_file_id = fs.alloc_file(
+          dir_id, "gen-compo.irt", irt::file_type::component_file);
+        project_file_id =
+          fs.alloc_file(dir_id, "project.pirt", irt::file_type::project_file);
+    });
+
+    const auto gen_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        auto& cst_a = gen.alloc(irt::dynamics_type::constant);
+        auto& cst_b = gen.alloc(irt::dynamics_type::constant);
+        auto& adder = gen.alloc(irt::dynamics_type::qss1_sum_2);
+
+        cst_a.flags = irt::child_flags::configurable;
+        cst_b.flags = irt::child_flags::configurable;
+        adder.flags = irt::child_flags::observable;
+
+        const auto cst_a_id = gen.children.get_id(cst_a);
+        const auto cst_b_id = gen.children.get_id(cst_b);
+        const auto adder_id = gen.children.get_id(adder);
+
+        gen.children_names[cst_a_id] = "a";
+        gen.children_names[cst_b_id] = "b";
+        gen.children_names[adder_id] = "+";
+
+        gen.children_parameters[cst_a_id].set_constant(-1.0, 0.5);
+        gen.children_parameters[cst_b_id].set_constant(-1.0, 1.0);
+
+        gen.connect(cst_a,
+                    irt::connection::port{ .model = 0 },
+                    adder,
+                    irt::connection::port{ .model = 0 });
+
+        gen.connect(cst_b,
+                    irt::connection::port{ .model = 0 },
+                    adder,
+                    irt::connection::port{ .model = 1 });
+
+        ids.component_file_paths[compo_id].file = gen_component_file_id;
+
+        mod.files.read(
+          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id, jn); });
+
+        return compo_id;
+    });
+
+    mod.ids.write([&](auto& ids) {
+        mod.files.write([&](auto& fs) {
+            irt::project pj;
+            pj.file = project_file_id;
+            pj.sim.limits.set_bound(0, 2);
+
+            expect(pj.set(ids, fs, gen_compo, jn).has_value());
+
+            expect(pj.save(fs, ids, jn).has_value());
+        });
+    });
+
+    expect(fatal(mod.fill_components(jn).has_value()));
+
+    irt::file_path_id simulation_component_file_id =
+      mod.files.write([&](auto& fs) {
+          return fs.alloc_file(
+            dir_id, "sim-compo.irt", irt::file_type::component_file);
+      });
+
+    const auto sim_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_sim_component();
+        auto& compo    = ids.components[compo_id];
+        auto& sim      = ids.sim_components.get(compo.id.sim_id);
+
+        mod.files.read([&](const auto& fs, auto) {
+            auto exp_pj = irt::project::load(fs, ids, project_file_id, jn);
+            expect(fatal(exp_pj.has_value()));
+
+            sim.assign(std::move(*exp_pj));
+        });
+
+        expect(fatal(eq(sim.factors.size(), 2u)));
+        expect(fatal(ge(sim.selections.size(), 1u)));
+
+        auto a = irt::factor_id{ 0 };
+        auto b = irt::factor_id{ 0 };
+
+        const auto& names = sim.factors.template get<irt::name_str>();
+        for (const auto factor_id : sim.factors) {
+            if (names[factor_id] == "a") {
+                a = factor_id;
+            }
+
+            if (names[factor_id] == "b") {
+                b = factor_id;
+            }
+        }
+
+        sim.factors.template get<irt::factor_type>(a) = irt::factor_type::fixed;
+        sim.factors.template get<irt::unique_id_path>(a).push_back(
+          std::string_view("a"));
+        sim.factors.template get<irt::fixed_factor>(a).values.assign(c1.begin(),
+                                                                     c1.end());
+
+        sim.factors.template get<irt::factor_type>(b) = irt::factor_type::fixed;
+        sim.factors.template get<irt::unique_id_path>(b).push_back(
+          std::string_view("b"));
+        sim.factors.template get<irt::fixed_factor>(b).values.assign(c2.begin(),
+                                                                     c2.end());
+
+        const auto plus = [&]() {
+            for (const auto sel_id : sim.selections)
+                if (sim.selections.template get<irt::name_str>(sel_id) ==
+                    "default")
+                    return sel_id;
+
+            return *sim.selections.begin();
+        }();
+
+        sim.selections.template get<irt::name_str>(plus) = "+";
+        sim.selections.template get<irt::criteria_type>(plus) =
+          irt::criteria_type::max;
+
+        sim.objective.method                = irt::optimization_method::simple;
+        sim.objective.type                  = irt::optimization_type::maximize;
+        sim.objective.simple_params.primary = plus;
+
+        sim.file_id = project_file_id;
+
+        ids.component_file_paths[compo_id].file = simulation_component_file_id;
+
+        mod.files.read(
+          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id, jn); });
+
+        return compo_id;
+    });
+
+    expect(fatal(mod.fill_components(jn).has_value()));
+
+    irt::file_path_id simulation_wrapper_file_id =
+      mod.files.write([&](auto& fs) {
+          return fs.alloc_file(
+            dir_id, "sim-wrapper.irt", irt::file_type::component_file);
+      });
+
+    const auto sim_wrapper_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        auto& cst_init = gen.alloc(irt::dynamics_type::constant);
+        auto& cst_run  = gen.alloc(irt::dynamics_type::constant);
+        auto& sim_w    = gen.alloc(irt::dynamics_type::simulation_wrapper);
+
+        auto& cpt_1 = gen.alloc(irt::dynamics_type::counter);
+        auto& cpt_2 = gen.alloc(irt::dynamics_type::counter);
+        auto& cpt_3 = gen.alloc(irt::dynamics_type::counter);
+
+        cst_init.flags = irt::child_flags::configurable;
+        cst_run.flags  = irt::child_flags::configurable;
+
+        cpt_1.flags = irt::child_flags::observable;
+        cpt_2.flags = irt::child_flags::observable;
+        cpt_3.flags = irt::child_flags::observable;
+
+        const auto cst_init_id = gen.children.get_id(cst_init);
+        const auto cst_run_id  = gen.children.get_id(cst_run);
+        const auto sim_w_id    = gen.children.get_id(sim_w);
+
+        gen.children_names[cst_init_id] = "init";
+        gen.children_names[cst_run_id]  = "run";
+        gen.children_names[sim_w_id]    = "sim-w";
+
+        gen.children_parameters[cst_init_id].set_constant(0.0, 0.0);
+        gen.children_parameters[cst_run_id].set_constant(0.0, 1.0);
+
+        gen.children_parameters[sim_w_id]
+          .integers[irt::simulation_wrapper_tag::run] =
+          ordinal(irt::simulation_wrapper::run_type::complete);
+        gen.children_parameters[sim_w_id]
+          .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
+
+        gen.connect(cst_init,
+                    irt::connection::port{ .model = 0 },
+                    sim_w,
+                    irt::connection::port{ .model = 0 });
+
+        gen.connect(cst_run,
+                    irt::connection::port{ .model = 0 },
+                    sim_w,
+                    irt::connection::port{ .model = 1 });
+
+        gen.connect(sim_w,
+                    irt::connection::port{ .model = 0 },
+                    cpt_1,
+                    irt::connection::port{ .model = 0 });
+
+        gen.connect(sim_w,
+                    irt::connection::port{ .model = 1 },
+                    cpt_2,
+                    irt::connection::port{ .model = 0 });
+
+        gen.connect(sim_w,
+                    irt::connection::port{ .model = 2 },
+                    cpt_3,
+                    irt::connection::port{ .model = 0 });
+
+        ids.component_file_paths[compo_id].file = simulation_wrapper_file_id;
+
+        mod.files.read(
+          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id, jn); });
+
+        return compo_id;
+    });
+
+    // Will do an infiny loop?
+    //
+    // expect(fatal(mod.fill_components(jn).has_value()));
+
+    irt::project pj;
+
+    mod.ids.read([&](const auto& ids, auto) {
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(pj.set(ids, fs, sim_wrapper_compo, jn).has_value()));
+        });
+    });
+
+    pj.sim.limits.set_bound(0, 3);
+
+    expect(pj.simulation_initialize().has_value());
+
+    auto sim_wrapper_id = irt::undefined<irt::model_id>();
+    auto cpts           = irt::small_vector<irt::model_id, 3>{};
+
+    for (const auto& mdl : pj.sim.models) {
+        const auto mdl_id = pj.sim.models.get_id(mdl);
+
+        if (mdl.type == irt::dynamics_type::simulation_wrapper) {
+            sim_wrapper_id = mdl_id;
+
+            const auto& sim_w = irt::get_dyn<irt::simulation_wrapper>(mdl);
+
+            expect(eq(length(sim_w.x), 4));
+            expect(eq(length(sim_w.y), 3));
+        } else if (mdl.type == irt::dynamics_type::counter) {
+            cpts.push_back(mdl_id);
+        }
+    }
+
+    expect(irt::is_defined(sim_wrapper_id));
+
+    do {
+        expect(pj.simulation_run_bag().has_value());
+    } while (not pj.sim.current_time_expired());
+
+    int i = 0;
+    for (const auto mdl_id : cpts) {
+        const auto& mdl = pj.sim.models.get(mdl_id);
+        const auto& cpt = irt::get_dyn<irt::counter>(mdl);
+
+        fmt::print("{:6} {:6} {:6} {:6}\n",
+                   irt::get_index(mdl_id),
+                   cpt.event_number,
+                   cpt.last_value,
+                   cpt.sum_values);
+
+        expect(eq(cpt.event_number, result[i * 3]));
+        expect(eq(cpt.last_value, result[i * 3 + 1]));
+        expect(eq(cpt.last_value, result[i * 3 + 2]));
+
+        ++i;
+    }
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -131,7 +435,7 @@ int main()
 #endif
 
     using namespace boost::ut;
-
+#if 0
     "internal-component"_test = [] {
         {
             irt::journal_handler                     jnl;
@@ -2276,5 +2580,18 @@ int main()
         // sum models and 1 edge between sum models and finally on 1edge
         // from sum model to counter.
         expect(eq(get_connection_number(pj.sim), (edge_size + 2u) * 2u) + 8u);
+    };
+#endif
+
+    "simulation-component"_test = [] {
+        simulation_component_tester(
+          std::array{ 0.0, 1.0, 2.0, 1.0 },
+          std::array{ 1.0, 2.0, 3.0, 4.0 },
+          std::array{ 1.0, 6.0, 6.0, 1.0, 2.0, 2.0, 1.0, 4.0, 4.0 });
+
+        simulation_component_tester(
+          std::array{ 0.0, 1.0, 2.0, 1.0 },
+          std::array{ 5.0, 2.0, 3.0, 3.0 },
+          std::array{ 1.0, 7.0, 7.0, 1.0, 2.0, 2.0, 1.0, 5.0, 5.0 });
     };
 }

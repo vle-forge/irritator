@@ -5550,21 +5550,46 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_project_plot_observation(const rapidjson::Value& val,
-                                       variable_observer&      plot) noexcept
+    bool read_project_plot_observation(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, "project plot observation");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("name"sv == name)
-                  return read_temp_string(value) && copy_string_to(plot.name);
+        auto vobs = undefined<variable_observer_id>();
 
-              if ("models"sv == name)
-                  return read_project_plot_observation_children(value, plot);
+        if (not for_first_member(
+              val, "name"sv, [&](const rapidjson::Value& value) {
+                  if (not read_temp_string(value))
+                      return error("bad name attribute");
 
-              return true;
-          });
+                  auto id = [&]() {
+                      for (const auto& v : pj().variable_observers)
+                          if (v.name == temp_string)
+                              return pj().variable_observers.get_id(v);
+
+                      return undefined<variable_observer_id>();
+                  }();
+
+                  if (is_undefined(id)) {
+                      if (not pj().variable_observers.can_alloc(1) and
+                          not pj().variable_observers.grow<3, 2>())
+                          return error(
+                            "can not allocate more variable observers");
+
+                      auto& new_vbos = pj().variable_observers.alloc();
+                      new_vbos.name  = temp_string;
+                      id             = pj().variable_observers.get_id(new_vbos);
+                  }
+
+                  vobs = id;
+
+                  return true;
+              }))
+            return false;
+
+        return for_first_member(val, "models"sv, [&](const auto& value) {
+            return read_project_plot_observation_children(
+              value, pj().variable_observers.get(vobs));
+        });
     }
 
     bool read_project_plot_observations(const rapidjson::Value& val) noexcept
@@ -5578,8 +5603,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& plot = pj().variable_observers.alloc();
-                     return read_project_plot_observation(value, plot);
+                     return read_project_plot_observation(value);
                  });
     }
 
