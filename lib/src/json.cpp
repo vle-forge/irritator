@@ -2162,10 +2162,11 @@ struct json_dearchiver::impl {
                 component_id c;
                 if (try_read_child_hsm_sim_component(value, files, ids, c)) {
                     p.integers[hsm_wrapper_tag::id] = static_cast<i64>(c);
-                } else {
-                    warning("HSM component not found");
+                    return true;
                 }
-                return true;
+
+                p.integers[hsm_wrapper_tag::id] = 0;
+                return false;
             }
             case 1:
                 return read_temp_i64(value) &&
