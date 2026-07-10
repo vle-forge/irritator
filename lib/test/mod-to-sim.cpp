@@ -435,7 +435,7 @@ int main()
 #endif
 
     using namespace boost::ut;
-#if 0
+
     "internal-component"_test = [] {
         {
             irt::journal_handler                     jnl;
@@ -2581,7 +2581,6 @@ int main()
         // from sum model to counter.
         expect(eq(get_connection_number(pj.sim), (edge_size + 2u) * 2u) + 8u);
     };
-#endif
 
     "simulation-component"_test = [] {
         simulation_component_tester(
