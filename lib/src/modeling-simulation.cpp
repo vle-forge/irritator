@@ -11,12 +11,27 @@
 
 namespace irt {
 
+static bool already_exists(const simulation_component::selection_t& sel,
+                           const tree_node_id                       tn_id,
+                           const model_id mdl_id) noexcept
+{
+    const auto& tn = sel.get<tree_node_id>();
+    const auto& md = sel.get<model_id>();
+
+    for (const auto id : sel)
+        if (tn[id] == tn_id and md[id] == mdl_id)
+            return true;
+
+    return false;
+};
+
 status simulation_component::assign(project&& pj_to_move) noexcept
 {
     pj = std::move(pj_to_move);
 
     {
         factors.clear();
+
         const auto& names = pj.parameters.get<name_str>();
         const auto& tns   = pj.parameters.get<tree_node_id>();
         const auto& mdls  = pj.parameters.get<model_id>();
@@ -68,6 +83,13 @@ status simulation_component::assign(project&& pj_to_move) noexcept
 
                 if (not pj.tree_nodes.exists(tns[idx]) or
                     not pj.sim.models.exists(mdls[idx]))
+                    continue;
+
+                // Do not add a selection if it already exists in the selection
+                // list. @todo: we should document this feature or block it in
+                // the GUI
+
+                if (already_exists(selections, tns[idx], mdls[idx]))
                     continue;
 
                 if (not selections.can_alloc(1) and
@@ -161,7 +183,7 @@ status simulation_component::copy_to(simulation& sim) const noexcept
     }
 
     for (const auto id : selections) {
-        const auto path       = selections.get<unique_id_path>(id);
+        const auto& path       = selections.get<unique_id_path>(id);
         const auto tn_mdl_opt = pj.get_model_path(path);
 
         if (tn_mdl_opt.has_value()) {
