@@ -1777,6 +1777,62 @@ int main()
         expect(eq(cnt.event_number, static_cast<irt::i64>(0)));
     };
 
+    "hsm_constant_access"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        hsm_t h;
+        h.constants = { 10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0 };
+
+        hsm_t::execution e;
+        e.clear();
+        e.messages = 0;
+
+        hsm_t::state_action a;
+        a.set_output(var::port_0, var::hsm_constant_2);
+
+        h.affect_action(a, e);
+
+        const double got = e.messages > 0 ? e.message_values[0] : -999.0;
+
+        expect(eq(got, 12.0));
+    };
+
+    "hsm_condition_type_mask"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+
+        hsm_t::condition_action c;
+        c.set(0b1000, 0b1111);
+
+        const auto [p, m] = c.get_bitset();
+
+        expect(eq(m.to_ulong(), 0b1111u));
+        expect(eq(p.to_ulong(), 0b1000u));
+    };
+
+    "hsm_set_unset_values"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        hsm_t            h;
+        hsm_t::execution e;
+        e.clear();
+
+        hsm_t::state_action a;
+        a.set_setport(var::port_0); // must remove bit 3
+        h.affect_action(a, e);
+
+        expect(eq(e.values.to_ulong(), 0b1000u));
+
+        e.values.reset();
+        e.values.set(3, true);
+        hsm_t::state_action u;
+        u.set_unsetport(var::port_0);
+        h.affect_action(u, e);
+
+        expect(eq(e.values.to_ulong(), 0u));
+    };
+
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
         irt::simulation sim(
