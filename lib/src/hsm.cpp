@@ -1255,8 +1255,8 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         case variable::hsm_constant_5:
         case variable::hsm_constant_6:
         case variable::hsm_constant_7:
-            e.push_message(constants[ordinal(action.var2)] -
-                             ordinal(variable::hsm_constant_0),
+            e.push_message(constants[ordinal(action.var2) -
+                                     ordinal(variable::hsm_constant_0)],
                            port);
             break;
         default:
