@@ -753,8 +753,8 @@ std::pair<std::bitset<4>, std::bitset<4>>
 hierarchical_state_machine::condition_action::get_bitset() const noexcept
 {
     return std::make_pair<std::bitset<4>, std::bitset<4>>(
-      std::bitset<4>(constant.u >> 4 & 0b111),
-      std::bitset<4>(constant.u & 0b111));
+      std::bitset<4>(constant.u >> 4 & 0b1111),
+      std::bitset<4>(constant.u & 0b1111));
 }
 
 void hierarchical_state_machine::condition_action::set_timer() noexcept
