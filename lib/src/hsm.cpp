@@ -1191,14 +1191,16 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::set: {
         debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
-        const u8 port = ordinal(action.var1) - 1u;
-        e.values |= static_cast<u8>(1u << port);
+        // @c execution::values stores the port bits in big endian order:
+        // bit 3 is @c variable::port_0 and bit 0 is @c variable::port_3.
+        const u8 bit = 4u - ordinal(action.var1);
+        e.values |= static_cast<u8>(1u << bit);
     } break;
 
     case action_type::unset: {
         debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
-        const u8 port = ordinal(action.var1) - 1u;
-        e.values &= static_cast<u8>(~(1u << port));
+        const u8 bit = 4u - ordinal(action.var1);
+        e.values &= static_cast<u8>(~(1u << bit));
     } break;
 
     case action_type::reset:
