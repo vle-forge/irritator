@@ -429,7 +429,7 @@ void hierarchical_state_machine::state_action::set_setport(variable v1) noexcept
     debug::ensure(is_port(v1));
 
     if (is_port(v1))
-        do_affect(hsm_t::action_type::set, v1);
+        *this = do_affect(hsm_t::action_type::set, v1);
 }
 
 void hierarchical_state_machine::state_action::set_unsetport(
@@ -438,7 +438,7 @@ void hierarchical_state_machine::state_action::set_unsetport(
     debug::ensure(is_port(v1));
 
     if (is_port(v1))
-        do_affect(hsm_t::action_type::unset, v1);
+        *this = do_affect(hsm_t::action_type::unset, v1);
 }
 
 void hierarchical_state_machine::state_action::set_affect(variable v1,
