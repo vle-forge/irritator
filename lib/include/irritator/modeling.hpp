@@ -1122,7 +1122,7 @@ public:
     bool can_update(const time t) const noexcept;
 
     /** For each @c file_observer_id, flush data into the open files */
-    void update(const simulation& sim, const project& pj) noexcept;
+    void update(simulation& sim, const project& pj) noexcept;
 
     /** For each @c buffered_file in @c files, close the opening file. */
     void finalize() noexcept;
@@ -1139,6 +1139,8 @@ public:
         graph_observer_id    graph;
     };
 
+    using cursor = std::size_t;
+
     enum class type : u8 { variables, grid, graph };
 
     id_data_array<file,
@@ -1146,6 +1148,7 @@ public:
                   allocator<new_delete_memory_resource>,
                   id_type,
                   type,
+                  cursor,
                   bool>
       files;
 
@@ -1486,7 +1489,7 @@ public:
     vector<observer_id>         observers;
     shared_buffer<vector<real>> values;
 
-    time tn = 0;
+    time tn = 0; /**< next time for observation */
 
     static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
 
@@ -1505,7 +1508,7 @@ public:
 
     // For each `observer`, get the latest observation value and fill the
     // values vector.
-    void update(const simulation& sim) noexcept;
+    void update(simulation& sim) noexcept;
 
     float scale_min = -100.f;
     float scale_max = +100.f;
@@ -1519,16 +1522,16 @@ class graph_observer
 public:
     name_str name;
 
-    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the
-                            ///< model. A graph component.
-    component_id compo_id;  //< @c component in the graph to observe.
-    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
-    model_id     mdl_id;    //< @c model to observe.
+    tree_node_id parent_id; /**< @c tree_node identifier ancestor of the model.
+                               A graph component. */
+    component_id compo_id;  /**< @c component in the graph to observe. */
+    tree_node_id tn_id;     /**< @c tree_node identifier parent of the model. */
+    model_id     mdl_id;    /**< @c model to observe. */
 
     vector<observer_id>         observers;
     shared_buffer<vector<real>> values;
 
-    time tn = 0;
+    time tn     = 0; /**< next time for observation */
 
     static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
 

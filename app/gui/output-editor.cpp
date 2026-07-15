@@ -24,8 +24,6 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
 
         for (const auto id : vobs.subs) {
             const auto  idx    = get_index(id);
-            const auto  obs_id = vobs.subs.template get<observer_id>(id);
-            const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
@@ -38,10 +36,7 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             ImGui::TextFormat("{}", ordinal(id));
 
             ImGui::TableNextColumn();
-            if (obs)
-                ImGui::TextFormat("{}", obs->time_step);
-            else
-                ImGui::TextUnformatted("-");
+            ImGui::TextUnformatted("-");
 
             ImGui::TableNextColumn();
             ImGui::TextUnformatted("-");
@@ -81,8 +76,8 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             auto& new_obs = app.copy_obs.alloc();
             new_obs.name  = vobs.subs.template get<name_str>(copy).sv();
 
-            obs->linearized_buffer.read(
-              [&new_obs](auto& lbuf, const auto /*version*/) noexcept {
+            obs->read_history(
+              [&](const auto& lbuf, const auto /*version*/) noexcept {
                   new_obs.linear_outputs = lbuf;
               });
         }
@@ -176,11 +171,10 @@ static void write(project&                        pj,
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.subs.template get<name_str>(id).sv() << '\n';
 
-    obs->linearized_buffer.read(
-      [&](const auto& lbuf, const auto /*version*/) noexcept {
-          for (auto& v : lbuf)
-              ofs << v.x << ',' << '\n';
-      });
+    obs->read_history([&](const auto& lbuf, const auto /*version*/) noexcept {
+        for (const auto& v : lbuf)
+            ofs << v.t << ',' << v.value << '\n';
+    });
 }
 
 static void write(application&                    app,
@@ -225,7 +219,7 @@ static void write(std::ofstream& ofs, const plot_copy& p) noexcept
     ofs << "t," << p.name.sv() << '\n';
 
     for (auto& v : p.linear_outputs)
-        ofs << v.x << ',' << v.y << '\n';
+        ofs << v.t << ',' << v.value << '\n';
 }
 
 static void write(application&       app,

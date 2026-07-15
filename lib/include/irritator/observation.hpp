@@ -9,6 +9,8 @@
 
 namespace irt {
 
+#if 0
+
 inline auto write_raw_data(ring_buffer<observation_message>& buf,
                            ring_buffer<observation>& lbuf) noexcept -> void
 {
@@ -387,6 +389,8 @@ inline auto flush_interpolate_data(observer&  obs,
       time_step,
       fn);
 }
+
+#endif
 
 } // namespace irt
 

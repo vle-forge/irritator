@@ -261,38 +261,22 @@ public:
 
     void observation_update() noexcept
     {
-        for (std::size_t i = 0, e = pj.sim.immediate_observers.size(); i != e;
-             ++i) {
-            const auto obs_id = pj.sim.immediate_observers[i];
-            if (auto* o = pj.sim.observers.try_to_get(obs_id); o)
-                if (o->states[irt::observer_flags::buffer_full])
-                    write_interpolate_data(*o, o->time_step);
-        }
-
         for (auto& g : pj.grid_observers) {
             const auto g_id = pj.grid_observers.get_id(g);
-            if (auto* g = pj.grid_observers.try_to_get(g_id); g)
+            if (auto* g = pj.grid_observers.try_to_get(g_id))
                 if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         }
 
         for (auto& g : pj.graph_observers) {
             const auto g_id = pj.graph_observers.get_id(g);
-            if (auto* g = pj.graph_observers.try_to_get(g_id); g)
+            if (auto* g = pj.graph_observers.try_to_get(g_id))
                 if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         }
 
         if (pj.file_obs.can_update(pj.sim.current_time()))
             pj.file_obs.update(pj.sim, pj);
-    }
-
-    void observation_finalize() noexcept
-    {
-        for (auto& obs : pj.sim.observers)
-            flush_interpolate_data(obs, obs.time_step);
-
-        pj.file_obs.finalize();
     }
 
     irt::expected<void> run() noexcept
@@ -316,7 +300,7 @@ public:
         } while (not pj.sim.current_time_expired());
 
         irt_check(pj.sim.finalize());
-        observation_finalize();
+        observation_update();
 
         return irt::success();
     }

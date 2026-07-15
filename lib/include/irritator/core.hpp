@@ -10,7 +10,7 @@
 #include <irritator/macros.hpp>
 
 #include <array>
-#include <cstddef>
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -293,12 +293,6 @@ using message = std::array<real, 3>;
 /// to store in the worst case a piiecewise parabolic input trajectory of the
 /// quantized integrator.
 using dated_message = std::array<real, 4>;
-
-/// @brief A observation-message is a simple array of 5 real numbers.
-/// The first three real value to store in the worst case a piiecewise parabolic
-/// input trajectory of the quantized integrator, the 4th stores the current
-/// date and the 5th stores the elapsed time since last transition.
-using observation_message = std::array<real, 5>;
 
 struct parameter;
 struct model;
@@ -1038,9 +1032,7 @@ struct observation {
     real y{};
 };
 
-enum class observer_flags : u8 { buffer_full, data_lost, use_linear_buffer };
-
-//! How to use @c observation_message and interpolate functions.
+/// Used to convert @c raw_sample in @c resampled_sample
 enum class interpolate_type : u8 {
     none,
     qss1,
@@ -1048,37 +1040,420 @@ enum class interpolate_type : u8 {
     qss3,
 };
 
-struct observer {
-    static inline constexpr auto default_buffer_size            = 4;
-    static inline constexpr auto default_linearized_buffer_size = 256;
+/// Occupancy state of the raw buffer, returned by observe() so the
+/// simulation side has a lightweight per-call signal available (e.g. for
+/// logging/telemetry, or adaptively tuning the copy task's tick rate) --
+/// it is no longer required to maintain a per-model bookkeeping list, since
+/// the copy task now sweeps every model unconditionally each tick (see
+/// resampler below). Values ordered by increasing severity -- std::max()
+/// is sufficient to aggregate multiple statuses if ever needed.
+enum class buffer_status : u8 {
+    ok        = 0, //!< all is well
+    near_full = 1, //!< occupancy threshold exceeded - come empty soon
+    overflow  = 2, //!< at least one point already lost
+};
 
-    using buffer_size_t            = constrained_value<int, 4, 64>;
-    using linearized_buffer_size_t = constrained_value<int, 64, 32768>;
+struct raw_sample {
+    constexpr raw_sample() noexcept = default;
 
-    using value_type = observation;
+    constexpr raw_sample(const real t_, const real value_) noexcept
+      : t(t_)
+      , value(value_)
+    {}
 
-    /// Allocate raw and liearized buffers with default sizes.
-    observer() noexcept;
+    constexpr raw_sample(const real t_,
+                         const real value_,
+                         const real slope_) noexcept
+      : t(t_)
+      , value(value_)
+      , slope(slope_)
+    {}
 
-    /// Change the raw and linearized buffers with specified constrained
-    /// sizes and change the time-step.
-    void init(const buffer_size_t            buffer_size,
-              const linearized_buffer_size_t linearized_buffer_size,
-              const float                    ts) noexcept;
+    constexpr raw_sample(const real t_,
+                         const real value_,
+                         const real slope_,
+                         const real curvature_) noexcept
+      : t(t_)
+      , value(value_)
+      , slope(slope_)
+      , curvature(curvature_)
+    {}
 
-    void reset() noexcept;
-    void clear() noexcept;
-    void update(const observation_message& msg) noexcept;
-    bool full() const noexcept;
+    real t         = zero;
+    real value     = zero;
+    real slope     = zero; // 1st derivative (QSS2+)
+    real curvature = zero; // 2nd derivative (QSS3)
+};
 
-    shared_buffer<ring_buffer<observation_message>> buffer;
-    shared_buffer<ring_buffer<observation>>         linearized_buffer;
+struct resampled_sample {
+    resampled_sample() noexcept = default;
 
-    model_id         model     = undefined<model_id>();
-    interpolate_type type      = interpolate_type::none;
-    float            time_step = 1e-2f;
+    resampled_sample(const real t_, const real value_) noexcept
+      : t(t_)
+      , value(value_)
+    {}
 
-    bitflags<observer_flags> states;
+    real t     = zero;
+    real value = zero;
+};
+
+class qss_interpolator
+{
+public:
+    explicit qss_interpolator(interpolate_type order) noexcept
+      : m_order(order)
+    {}
+
+    real evaluate(const raw_sample& a,
+                  const raw_sample& b,
+                  real              t) const noexcept
+    {
+        switch (m_order) {
+        case interpolate_type::none:
+            return b.value;
+
+        case interpolate_type::qss1:
+            return linear(a, b, t);
+
+        case interpolate_type::qss2:
+            return hermite_cubic(a, b, t);
+
+        case interpolate_type::qss3:
+            return taylor_quadratic(a, t);
+        }
+
+        return b.value;
+    }
+
+    real extrapolate(const raw_sample& a, const real t) const noexcept
+    {
+        switch (m_order) {
+        case interpolate_type::none:
+            return a.value;
+
+        case interpolate_type::qss1:
+            return a.value;
+
+        case interpolate_type::qss2: {
+            const auto dt = t - a.t;
+
+            return a.value + a.slope * dt;
+        }
+
+        case interpolate_type::qss3:
+            return taylor_quadratic(a, t);
+        }
+        return a.value;
+    }
+
+    interpolate_type order() const noexcept { return m_order; }
+
+private:
+    interpolate_type m_order;
+
+    static real linear(const raw_sample& a,
+                       const raw_sample& b,
+                       real              t) noexcept
+    {
+        const auto h = b.t - a.t;
+        if (h <= 0.0)
+            return a.value;
+
+        if (t <= a.t)
+            return a.value;
+
+        if (t >= b.t)
+            return b.value;
+
+        const auto u = (t - a.t) / h;
+        return a.value + u * (b.value - a.value);
+    }
+
+    static real hermite_cubic(const raw_sample& a,
+                              const raw_sample& b,
+                              real              t) noexcept
+    {
+        const auto h = b.t - a.t;
+
+        if (h <= 0.0)
+            return a.value;
+
+        const auto u  = (t - a.t) / h;
+        const auto u2 = u * u;
+        const auto u3 = u2 * u;
+
+        const auto h00 = 2 * u3 - 3 * u2 + 1;
+        const auto h10 = u3 - 2 * u2 + u;
+        const auto h01 = -2 * u3 + 3 * u2;
+        const auto h11 = u3 - u2;
+
+        return h00 * a.value + h10 * h * a.slope + h01 * b.value +
+               h11 * h * b.slope;
+    }
+
+    static double taylor_quadratic(const raw_sample& a, double t) noexcept
+    {
+        const auto dt = t - a.t;
+
+        return a.value + a.slope * dt + 0.5 * a.curvature * dt * dt;
+    }
+};
+
+/// Observer -- Pure SPSC (Single Producer, Single Consumer), simulation
+/// thread side. Reduced to a thin raw-sample relay: all resampling logic
+/// (pending/commit, interpolation, dedup) now lives in @c resampler, owned
+/// exclusively by the copy task. observe() does no coalescing of
+/// simultaneous events anymore -- every call is pushed as-is; the
+/// resampler on the reading side handles simultaneity (same t) using the
+/// global simulation clock to know when a point is truly final.
+///
+/// This split matters for interactive/UI-driven simulations where a given
+/// model can stay quiet for long stretches while the simulation clock
+/// keeps advancing elsewhere: since confirmation now depends on the global
+/// clock (read by the copy task), not on this model's own next event,
+/// data becomes visible promptly regardless of how sparse this specific
+/// model's events are.
+class observer
+{
+public:
+    static inline constexpr auto raw_buffer_size = 256;
+
+    using raw_buffer_type = circular_buffer<raw_sample, raw_buffer_size>;
+
+    observer(const model_id mdl) noexcept
+      : m_model(mdl)
+    {}
+
+    /// Push a raw sample. Called from the simulation task for each state
+    /// change. O(1), no resampling logic here anymore.
+    ///
+    /// @return buffer_status::overflow if the sample was lost (raw_buffer
+    /// full and not drained in time by the copy task), near_full if the
+    /// occupancy threshold was crossed, ok otherwise.
+    buffer_status observe(const raw_sample& s) noexcept
+    {
+        debug::ensure(s.t >= m_last_t and
+                      "observe() called with a date earlier than a previous "
+                      "observation -- violates DEVS causality");
+        m_last_t = s.t;
+
+        if (not m_raw.push(s))
+            return buffer_status::overflow;
+
+        return raw_fill_status();
+    }
+
+    void reset() noexcept
+    {
+        m_raw.clear();
+        m_last_t = -std::numeric_limits<real>::infinity();
+        m_history.reset();
+    }
+
+    /// Retrieves the underlying model identifier.
+    model_id model() const noexcept { return m_model; }
+
+    /// Designated single reader: the copy task's resampler for this
+    /// model. Justified now (unlike before) because a real, dedicated
+    /// consumer exists on the other side of the SPSC contract.
+    raw_buffer_type& raw_buffer() noexcept { return m_raw; }
+
+    /// Current occupancy of raw_buffer, queryable at any time by the
+    /// copy task, not only in reaction to observe()'s return value.
+    buffer_status raw_status() const noexcept { return raw_fill_status(); }
+
+    template<typename Fn, typename... Args>
+    void read_history(Fn&& fn, Args&&... args) const noexcept
+    {
+        m_history.read([&](const auto& history, const auto version) {
+            fn(history, version, std::forward<Args>(args)...);
+        });
+    }
+
+    /// Only @c resampler can call the write_history function.
+    class write_key
+    {
+        friend class resampler;
+
+        write_key() noexcept = default;
+    };
+
+    /// Used exclusively by this model's resampler (copy task side) to
+    /// publish a batch of resampled points in a single write() -- never
+    /// called from the simulation thread.
+    template<typename Fn>
+    void write_history(Fn&& fn, write_key) noexcept
+    {
+        m_history.write(std::forward<Fn>(fn));
+    }
+
+private:
+    // Alert threshold expressed as a fraction (Num/Denum) of raw_buffer
+    // capacity. Default 3/4 (75%).
+    template<std::size_t Num = 3, std::size_t Denum = 4>
+    bool raw_over_threshold() const noexcept
+    {
+        return m_raw.size() * Denum >= m_raw.capacity() * Num;
+    }
+
+    buffer_status raw_fill_status() const noexcept
+    {
+        return raw_over_threshold() ? buffer_status::near_full
+                                    : buffer_status::ok;
+    }
+
+    model_id m_model  = undefined<model_id>();
+    real     m_last_t = -std::numeric_limits<real>::infinity();
+
+    circular_buffer<raw_sample, raw_buffer_size> m_raw;
+
+    shared_buffer<vector<resampled_sample>,
+                  append_only_merge_policy<vector<resampled_sample>>>
+      m_history;
+};
+
+/// Resampler -- owned exclusively by the copy task, ONE instance per
+/// model (e.g. std::unordered_map<model_id, resampler>). Holds all the
+/// state that used to live in observer::observe()/commit_pending(): the
+/// pending point, the interpolation anchor, the resampling grid position,
+/// and the dedup state. Never touched by the simulation thread.
+class resampler
+{
+public:
+    resampler() noexcept
+      : m_dt(1)
+      , m_interp(interpolate_type::none)
+    {}
+
+    resampler(const real dt, const interpolate_type order) noexcept
+      : m_dt(dt)
+      , m_interp(order)
+    {}
+
+    /// Call periodically (e.g. once per UI refresh, or once per completed
+    /// global simulation step) for this model. Drains everything currently
+    /// available in raw_buffer, confirms the pending point once `now` has
+    /// passed it, and -- if `now` is +infinity -- finalizes the series
+    /// (equivalent of the former flush(+infinity)). Publishes any newly
+    /// resampled points to obs.write_history() in a single batched call.
+    void tick(observer& obs, const real now) noexcept
+    {
+        raw_sample s;
+        while (obs.raw_buffer().pop(s))
+            ingest(s);
+
+        if (m_has_pending && now > m_pending.t) {
+            commit_pending();
+            m_has_pending = false;
+        }
+
+        if (std::isinf(now))
+            finalize();
+
+        flush_batch(obs);
+    }
+
+private:
+    void ingest(const raw_sample& s) noexcept
+    {
+        if (m_has_pending && s.t == m_pending.t) {
+            m_pending = s;
+            return;
+        }
+
+        if (m_has_pending)
+            commit_pending();
+
+        m_pending     = s;
+        m_has_pending = true;
+    }
+
+    void commit_pending() noexcept
+    {
+        if (!m_has_prev) {
+            m_prev             = m_pending;
+            m_has_prev         = true;
+            m_next_sample_time = m_pending.t;
+            push_resampled(m_pending.t, m_pending.value);
+            m_next_sample_time += m_dt;
+            return;
+        }
+
+        while (m_next_sample_time <= m_pending.t) {
+            double v = m_interp.evaluate(m_prev, m_pending, m_next_sample_time);
+            push_resampled(m_next_sample_time, v);
+            m_next_sample_time += m_dt;
+        }
+
+        m_prev = m_pending;
+    }
+
+    void finalize() noexcept
+    {
+        if (m_has_pending) {
+            commit_pending();
+            m_has_pending = false;
+        }
+
+        if (!m_has_prev || std::isinf(m_next_sample_time))
+            return;
+
+        while (m_next_sample_time <= m_prev.t) {
+            double v = m_interp.extrapolate(m_prev, m_next_sample_time);
+            push_resampled(m_next_sample_time, v);
+            m_next_sample_time += m_dt;
+        }
+
+        push_resampled(m_prev.t, m_prev.value);
+        m_next_sample_time = std::numeric_limits<double>::infinity();
+    }
+
+    // Dedup: identical value since last publish -> skip (reader fills the
+    // gap). Accumulates into a local batch, NOT written directly -- see
+    // flush_batch(), called once per tick() rather than once per point.
+    void push_resampled(double t, double value) noexcept
+    {
+        if (m_has_last_pushed && value == m_last_pushed_value)
+            return;
+
+        m_has_last_pushed   = true;
+        m_last_pushed_value = value;
+        m_batch.push_back(resampled_sample{ t, value });
+    }
+
+    void flush_batch(observer& obs) noexcept
+    {
+        if (m_batch.empty())
+            return;
+
+        obs.write_history(
+          [&](auto& history) {
+              const auto n = m_batch.size();
+
+              if (not history.can_alloc(n) and
+                  not history.template grow<2, 1>(n)) {
+                  debug::print("fail to allocate more observer history\n");
+                  return;
+              }
+
+              history.insert(history.end(), m_batch.begin(), m_batch.end());
+          },
+          observer::write_key{});
+
+        m_batch.clear();
+    }
+
+    vector<resampled_sample> m_batch;
+    real                     m_dt;
+    real                     m_next_sample_time  = 0.0;
+    real                     m_last_pushed_value = 0.0;
+    raw_sample               m_pending{};
+    raw_sample               m_prev{};
+
+    qss_interpolator m_interp;
+    bool             m_has_pending     = false;
+    bool             m_has_prev        = false;
+    bool             m_has_last_pushed = false;
 };
 
 static inline constexpr u32 invalid_heap_handle = 0xffffffff;
@@ -1378,6 +1753,11 @@ struct output_port {
                   Args&&... args) noexcept;
 };
 
+using observation_system = id_data_array<observer,
+                                         observer_id,
+                                         allocator<new_delete_memory_resource>,
+                                         resampler>;
+
 /// Stores a copy main data simulation.
 ///
 /// This class is used to dump a snapshot of the simulation keeping all
@@ -1391,8 +1771,8 @@ struct simulation_snapshot {
     /// Reuse the allocated snapshot and copy simulation data
     simulation_snapshot& operator=(const simulation& sim) noexcept;
 
-    data_array<model, model_id>                              models;
-    data_array<observer, observer_id>                        observers;
+    data_array<model, model_id> models;
+    observation_system                                       observers;
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
@@ -1553,15 +1933,21 @@ class simulation
 {
 public:
     vector<model_id>       immediate_models;
-    vector<observer_id>    immediate_observers;
     vector<output_port_id> active_output_ports;
     vector<message>        message_buffer;
     vector<parameter>      parameters;
+    vector<observer_id>    immediate_observers;
 
-    data_array<model, model_id>                              models;
-    data_array<hierarchical_state_machine, hsm_id>           hsms;
-    data_array<simulation, simulation_id>                    sims;
-    data_array<observer, observer_id>                        observers;
+    data_array<model, model_id>                    models;
+    data_array<hierarchical_state_machine, hsm_id> hsms;
+    data_array<simulation, simulation_id>          sims;
+
+    id_data_array<observer,
+                  observer_id,
+                  allocator<new_delete_memory_resource>,
+                  resampler>
+      observers;
+
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
@@ -1575,9 +1961,10 @@ public:
     external_source srcs;
 
     time_limit limits;
+    time       observation_time_step = 0.01;
 
 private:
-    time t = time_domain<time>::infinity;
+    std::atomic<real> t = time_domain<time>::infinity;
 
     /**
      * The latest not infinity simulation time. At begin of the simulation,
@@ -1608,6 +1995,9 @@ public:
                  simulation_reserve_definition(),
                const external_source_reserve_definition& psrcs =
                  external_source_reserve_definition()) noexcept;
+
+    simulation(const simulation& other) noexcept;
+    simulation& operator=(const simulation& other) noexcept;
 
     /// Assign all data from the @a snap snapshot to this simulation.
     ///
@@ -1677,7 +2067,20 @@ public:
     //! @brief This function allocates dynamics and models.
     model& alloc(dynamics_type type) noexcept;
 
-    void observe(model& mdl, observer& obs) const noexcept;
+    /// Allocate a new observer for the model @c mdl. The resample raw-sample
+    /// use the @c simulation::observation_time_step as dt an automatically
+    /// detect the interpolate type.
+    status observe(model& mdl) noexcept;
+
+    /// Allocate a new observer for the model @c mdl and resample raw-sample
+    /// with @c dt time-step. The interpolate type is automatically detected.
+    status observe(model& mdl, const time) noexcept;
+
+    /// Allocate a new observer for the model @c mdl and resample raw-sample
+    /// with @c dt time-step and for the interpolate_type @c type.
+    status observe(model& mdl,
+                   const time,
+                   const interpolate_type type) noexcept;
 
     void unobserve(model& mdl) noexcept;
 
@@ -1793,6 +2196,35 @@ public:
                             DynamicsDst& dst,
                             int          port_dst) noexcept;
 
+    /// For each observer fills the history
+    void tick_resamplers() noexcept
+    {
+        const auto now        = t.load(std::memory_order_acquire);
+        auto&      resamplers = observers.get<resampler>();
+
+        for (auto& obs : observers) {
+            const auto obs_id  = observers.get_id(obs);
+            const auto obs_idx = get_index(obs_id);
+
+            resamplers[obs_idx].tick(obs, now);
+        }
+    }
+
+    /// For each observer in the vector transfert data
+    void tick_resamplers(std::span<const observer_id> v) noexcept
+    {
+        const auto now        = t.load(std::memory_order_acquire);
+        auto&      resamplers = observers.get<resampler>();
+
+        for (const auto obs_id : v) {
+            if (auto* obs = observers.try_to_get(obs_id)) {
+                const auto obs_idx = get_index(obs_id);
+
+                resamplers[obs_idx].tick(*obs, now);
+            }
+        }
+    }
+
     /** Call the initialize member function for each model of the
      * simulation an prepare the simulation class to call the `run`
      * function. */
@@ -1850,7 +2282,7 @@ concept has_transition_function =
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<raw_sample>;
 };
 
 template<typename T>
@@ -1873,35 +2305,34 @@ concept has_output_port = requires(T t) {
     { t.y };
 };
 
-constexpr observation_message qss_observation(real X,
-                                              real u,
-                                              time t,
-                                              time e) noexcept
+constexpr raw_sample qss_observation(real X, real u, time t, time e) noexcept
 {
     return { t, X + u * e };
 }
 
-constexpr observation_message qss_observation(real X,
-                                              real u,
-                                              real mu,
-                                              time t,
-                                              time e) noexcept
+constexpr raw_sample qss_observation(real X,
+                                     real u,
+                                     real mu,
+                                     time t,
+                                     time e) noexcept
 {
     return { t, X + u * e + mu * e * e / two, u + mu * e, mu };
 }
 
-constexpr observation_message qss_observation(real X,
-                                              real u,
-                                              real mu,
-                                              real pu,
-                                              time t,
-                                              time e) noexcept
+constexpr raw_sample qss_observation(real X,
+                                     real u,
+                                     real mu,
+                                     real pu,
+                                     time t,
+                                     time e) noexcept
 {
-    return { t,
-             X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
-             u + mu * e + pu * e * e,
-             mu + two * pu * e,
-             pu };
+    return {
+        t,
+        X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
+        u + mu * e + pu * e * e,
+        mu + two * pu * e /*,
+        pu */
+    };
 }
 
 template<std::size_t QssLevel>
@@ -1999,22 +2430,22 @@ inline constexpr auto get_message(simulation&       sim,
                                   const input_port& port) noexcept
   -> std::span<message>;
 
-/// Get a message from the list of messages according to the QSS level. If the
-/// lists is @c empty(), this function returns a message with zero values, if
-/// the list contains one value, is returns it finally, if the list contains
-/// more messages, the message with the maximum value, slope and derivative is
-/// returned.
+/// Get a message from the list of messages according to the QSS level.
+/// If the lists is @c empty(), this function returns a message with
+/// zero values, if the list contains one value, is returns it finally,
+/// if the list contains more messages, the message with the maximum
+/// value, slope and derivative is returned.
 template<size_t QssLevel>
 inline auto get_qss_message(std::span<const message> msgs) noexcept
   -> const message&;
 
-/// Get the minimum value (@c message[0]) from the list of messages. If the list
-/// is empty, this function returns zero.
+/// Get the minimum value (@c message[0]) from the list of messages. If
+/// the list is empty, this function returns zero.
 constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
   -> real;
 
-/// Get the maximum value (@c message[0]) from the list of messages. If the list
-/// is empty, this function returns zero.
+/// Get the maximum value (@c message[0]) from the list of messages. If
+/// the list is empty, this function returns zero.
 constexpr inline auto get_max_message(std::span<const message> msgs) noexcept
   -> real;
 
@@ -2138,7 +2569,7 @@ struct abstract_integrator<1> {
           sim, y[0], is_zero(u) ? q : q + dQ * u / std::abs(u));
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         return qss_observation(X, u, t, e);
     }
@@ -2305,7 +2736,7 @@ struct abstract_integrator<2> {
           sim, y[0], X + u * sigma + mu * sigma * sigma / two, u + mu * sigma);
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         return qss_observation(X, u, mu, t, e);
     }
@@ -2593,8 +3024,8 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    /** Reset the integrator if and only if only if the value change and all
-     * state are not zero. */
+    /** Reset the integrator if and only if only if the value change and
+     * all state are not zero. */
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
@@ -2644,7 +3075,7 @@ struct abstract_integrator<3> {
                             mu / two + pu * sigma);
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         return qss_observation(X, u, mu, pu, t, e);
     }
@@ -2725,7 +3156,7 @@ struct abstract_power {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             auto X = std::pow(value[0], n);
@@ -2822,7 +3253,7 @@ struct abstract_square {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return { t, value[0] * value[0] };
@@ -2863,8 +3294,8 @@ struct abstract_sum {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones
-    /// which are inialized in with parameters.
+    /// Initialize all values to zero except the first @c PortNumber
+    /// ones which are inialized in with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         values.fill(zero);
@@ -2969,7 +3400,7 @@ struct abstract_sum {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             real value = zero;
@@ -3035,8 +3466,8 @@ struct abstract_wsum {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones
-    /// which are inialized with parameters.
+    /// Initialize all values to zero except the first @c PortNumber
+    /// ones which are inialized with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         for (const auto elem : input_coeffs)
@@ -3146,7 +3577,7 @@ struct abstract_wsum {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             real value = zero;
@@ -3266,7 +3697,7 @@ struct abstract_inverse {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t,
@@ -3276,13 +3707,10 @@ struct abstract_inverse {
 
         if constexpr (QssLevel == 2) {
             return is_zero(value[0])
-                     ? observation_message{ t,
-                                            std::numeric_limits<
-                                              real>::infinity(),
-                                            std::numeric_limits<
-                                              real>::infinity(),
-                                            std::numeric_limits<
-                                              real>::infinity() }
+                     ? raw_sample{ t,
+                                   std::numeric_limits<real>::infinity(),
+                                   std::numeric_limits<real>::infinity(),
+                                   std::numeric_limits<real>::infinity() }
                      : qss_observation(one / value[0],
                                        -value[1] / (value[0] * value[0]),
                                        t,
@@ -3291,13 +3719,10 @@ struct abstract_inverse {
 
         if constexpr (QssLevel == 3) {
             return is_zero(value[0])
-                     ? observation_message{ t,
-                                            std::numeric_limits<
-                                              real>::infinity(),
-                                            std::numeric_limits<
-                                              real>::infinity(),
-                                            std::numeric_limits<
-                                              real>::infinity() }
+                     ? raw_sample{ t,
+                                   std::numeric_limits<real>::infinity(),
+                                   std::numeric_limits<real>::infinity(),
+                                   std::numeric_limits<real>::infinity() }
                      : qss_observation(one / value[0],
                                        -value[1] / (value[0] * value[0]),
                                        -(value[2] / (value[0] * value[0])) +
@@ -3330,8 +3755,8 @@ struct abstract_multiplier {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones
-    /// which are inialized with the parameters.
+    /// Initialize all values to zero except the first @c PortNumber
+    /// ones which are inialized with the parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         values.fill(0);
@@ -3426,7 +3851,7 @@ struct abstract_multiplier {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, values[0] * values[1] };
@@ -3572,7 +3997,7 @@ struct abstract_integer {
         return send_message(sim, y[0], std::trunc(to_send));
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return { t, std::trunc(value[0]) };
@@ -3612,7 +4037,8 @@ struct abstract_compare {
       , is_a_less_b(other.is_a_less_b)
     {}
 
-    /// Initialize all values to zero except the first element in @c a and
+    /// Initialize all values to zero except the first element in @c a
+    /// and
     /// @c b and all in @c output which are copy parameter.
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -3737,7 +4163,7 @@ struct abstract_compare {
         return send_message(sim, y[0], output[is_a_less_b]);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, output[is_a_less_b] };
     }
@@ -3807,7 +4233,7 @@ struct abstract_gain {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, k * value[0] };
@@ -3901,7 +4327,7 @@ struct abstract_log {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, std::log(value[0]) };
@@ -3995,7 +4421,7 @@ struct abstract_exp {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, std::exp(value[0]) };
@@ -4090,7 +4516,7 @@ struct abstract_sin {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, std::sin(value[0]) };
@@ -4185,7 +4611,7 @@ struct abstract_cos {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             return { t, std::cos(value[0]) };
@@ -4219,8 +4645,8 @@ using qss3_cos = abstract_cos<3>;
 struct counter {
     input_port x[1] = {};
 
-    /// Enumeration mainly used in @c observation function to output the correct
-    /// number
+    /// Enumeration mainly used in @c observation function to output the
+    /// correct number
     enum class observation_type {
         event_number, ///< addition of all received events
         last_value,   ///< stores the last received value
@@ -4275,7 +4701,7 @@ struct counter {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t,
                  type == observation_type::event_number
@@ -4435,7 +4861,7 @@ struct generator {
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -4446,36 +4872,47 @@ struct constant {
     time           sigma;
 
     enum class init_type : u8 {
-        /// A constant value initialized at startup of the simulation. Use
+        /// A constant value initialized at startup of the simulation.
+        /// Use
         /// the
         /// @c default_value.
         constant,
 
-        /// The numbers of incoming connections on all input ports of the
-        /// component. The @c default_value is filled via the component to
+        /// The numbers of incoming connections on all input ports of
+        /// the
+        /// component. The @c default_value is filled via the component
+        /// to
         /// simulation algorithm. Otherwise, the default value is
         /// unmodified.
         incoming_component_all,
 
-        /// The number of outcoming connections on all output ports of the
-        /// component. The @c default_value is filled via the component to
+        /// The number of outcoming connections on all output ports of
+        /// the
+        /// component. The @c default_value is filled via the component
+        /// to
         /// simulation algorithm. Otherwise, the default value is
         /// unmodified.
         outcoming_component_all,
 
-        /// The number of incoming connections on the nth input port of the
-        /// component. Use the @c port attribute to specify the identifier
+        /// The number of incoming connections on the nth input port of
+        /// the
+        /// component. Use the @c port attribute to specify the
+        /// identifier
         /// of
-        /// the port. The @c default_value is filled via the component to
+        /// the port. The @c default_value is filled via the component
+        /// to
         /// simulation algorithm. Otherwise, the default value is
         /// unmodified.
         incoming_component_n,
 
-        /// The number of incoming connections on the nth output ports of
-        /// the
-        /// component. Use the @c port attribute to specify the identifier
+        /// The number of incoming connections on the nth output ports
         /// of
-        /// the port. The @c default_value is filled via the component to
+        /// the
+        /// component. Use the @c port attribute to specify the
+        /// identifier
+        /// of
+        /// the port. The @c default_value is filled via the component
+        /// to
         /// simulation algorithm. Otherwise, the default value is
         /// unmodified.
         outcoming_component_n,
@@ -4526,7 +4963,7 @@ struct constant {
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -4684,7 +5121,7 @@ struct abstract_min_max_hold {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return { t, extremum };
@@ -4863,7 +5300,7 @@ struct abstract_filter {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
             if (reach_upper_threshold) {
@@ -4924,7 +5361,7 @@ struct abstract_sample_hold {
     real                       sample;
     real                       ts;
     time                       sigma;
-    bool                       emit;
+    bool emit;
 
     abstract_sample_hold() noexcept = default;
 
@@ -4974,7 +5411,7 @@ struct abstract_sample_hold {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, sample };
     }
@@ -5026,7 +5463,7 @@ struct zero_order_hold {
         return send_message(sim, y[0], held);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, held };
     }
@@ -5043,7 +5480,7 @@ struct abstract_quantizer {
     real                       q;
     real                       level;
     time                       sigma;
-    bool                       emit;
+    bool emit;
 
     abstract_quantizer() noexcept = default;
 
@@ -5114,7 +5551,7 @@ struct abstract_quantizer {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, level };
     }
@@ -5206,7 +5643,7 @@ struct abstract_integrate_and_fire {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, acc };
     }
@@ -5302,7 +5739,7 @@ struct abstract_threshold_crossing {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value[0] };
     }
@@ -5411,7 +5848,7 @@ struct abstract_pwm {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, out_level };
     }
@@ -5479,7 +5916,7 @@ struct abstract_sqrt {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value[0] <= zero ? zero : std::sqrt(value[0]) };
     }
@@ -5545,7 +5982,7 @@ struct abstract_atan {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, std::atan(value[0]) };
     }
@@ -5609,7 +6046,7 @@ struct abstract_tan {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, std::tan(value[0]) };
     }
@@ -5673,7 +6110,7 @@ struct abstract_tanh {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, std::tanh(value[0]) };
     }
@@ -5737,7 +6174,7 @@ struct abstract_sigmoid {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, one / (one + std::exp(-value[0])) };
     }
@@ -5846,7 +6283,7 @@ struct abstract_division {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t,
                  is_zero(values[1]) ? std::numeric_limits<real>::infinity()
@@ -5964,7 +6401,7 @@ struct abstract_atan2 {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, std::atan2(values[0], values[1]) };
     }
@@ -5988,7 +6425,7 @@ struct abstract_saturation {
     real                       upper; // parameter
     time                       sigma;
     zone                       z;
-    bool                       emit;
+    bool emit;
 
     abstract_saturation() noexcept = default;
     abstract_saturation(const abstract_saturation& o) noexcept
@@ -6091,7 +6528,7 @@ struct abstract_saturation {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         const real o = z == zone::below   ? lower
                        : z == zone::above ? upper
@@ -6118,7 +6555,7 @@ struct abstract_dead_zone {
     real                       upper; // parameter
     time                       sigma;
     zone                       z;
-    bool                       emit;
+    bool emit;
 
     abstract_dead_zone() noexcept = default;
     abstract_dead_zone(const abstract_dead_zone& o) noexcept
@@ -6222,7 +6659,7 @@ struct abstract_dead_zone {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         const real o = z == zone::below   ? value[0] - lower
                        : z == zone::above ? value[0] - upper
@@ -6245,7 +6682,7 @@ struct abstract_abs {
     std::array<real, QssLevel> value;
     time                       sigma;
     bool                       positive; // x >= 0 ?
-    bool                       emit;
+    bool emit;
 
     abstract_abs() noexcept = default;
     abstract_abs(const abstract_abs& o) noexcept
@@ -6324,7 +6761,7 @@ struct abstract_abs {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, std::abs(value[0]) };
     }
@@ -6344,7 +6781,7 @@ struct abstract_sign {
     std::array<real, QssLevel> value;
     time                       sigma;
     real                       out; // -1 / 0 / +1
-    bool                       emit;
+    bool emit;
 
     abstract_sign() noexcept = default;
     abstract_sign(const abstract_sign& o) noexcept
@@ -6417,7 +6854,7 @@ struct abstract_sign {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, out };
     }
@@ -6441,7 +6878,7 @@ struct abstract_hysteresis {
     real                       out_high; // param
     time                       sigma;
     bool                       high;
-    bool                       emit;
+    bool emit;
 
     abstract_hysteresis() noexcept = default;
     abstract_hysteresis(const abstract_hysteresis& o) noexcept
@@ -6512,7 +6949,7 @@ struct abstract_hysteresis {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, high ? out_high : out_low };
     }
@@ -6532,7 +6969,7 @@ struct abstract_min_max {
     std::array<real, QssLevel * 2> values; // [a0,b0, a1,b1, a2,b2]
     time                           sigma;
     bool                           sel_a;
-    bool                           emit;
+    bool emit;
 
     enum i_port_name : u8 { port_a, port_b };
 
@@ -6649,7 +7086,7 @@ struct abstract_min_max {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, sel_a ? values[0] : values[1] };
     }
@@ -6674,7 +7111,7 @@ struct abstract_wrap {
     real                       modulo;
     time                       sigma;
     real                       laps;
-    bool                       emit;
+    bool emit;
 
     abstract_wrap() noexcept = default;
     abstract_wrap(const abstract_wrap& o) noexcept
@@ -6754,7 +7191,7 @@ struct abstract_wrap {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value[0] - laps * modulo };
     }
@@ -6846,7 +7283,7 @@ struct abstract_logical {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, is_valid ? one : zero };
     }
@@ -6900,7 +7337,7 @@ struct logical_invert {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value ? zero : one };
     }
@@ -6939,7 +7376,8 @@ public:
     constexpr static int condition_type_count = 9;
 
     enum class option : u8 {
-        use_source, /**< HSM can use external data in the action part. */
+        use_source, /**< HSM can use external data in the action part.
+                     */
     };
 
     enum class event_type : u8 {
@@ -7030,9 +7468,9 @@ public:
         } constant;
 
         /**
-         * Assign the @a action_type @a t to the @a this state_action and
-         * set the @a var1, @a var2 and @a constant union to the default @a
-         * action_type.
+         * Assign the @a action_type @a t to the @a this state_action
+         * and set the @a var1, @a var2 and @a constant union to the
+         * default @a action_type.
          *
          * @param t The type of action to assign.
          */
@@ -7325,7 +7763,8 @@ public:
     std::array<real, 8> constants;
 
     /// The ordinal value of the hsm_component identifier. If defined,
-    /// simulation can get state names from component (in modeling layer).
+    /// simulation can get state names from component (in modeling
+    /// layer).
     u64 parent_id = 0;
 
     state_id         top_state = invalid_state_id;
@@ -7350,33 +7789,35 @@ struct hsm_wrapper {
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
 
-    status initialize(simulation& sim) noexcept;
-    status transition(simulation& sim, time t, time e, time r) noexcept;
-    status lambda(simulation& sim) noexcept;
-    status finalize(simulation& sim) noexcept;
-    observation_message observation(time t, time e) const noexcept;
+    status     initialize(simulation& sim) noexcept;
+    status     transition(simulation& sim, time t, time e, time r) noexcept;
+    status     lambda(simulation& sim) noexcept;
+    status     finalize(simulation& sim) noexcept;
+    raw_sample observation(time t, time e) const noexcept;
 };
 
 /// A wrapper to a simulation object in @c simulation::sims array.
 ///
 /// This dynamics allows to embed a simulation engine into the current
-/// simulation graph. The embedded simulation can be controlled via input port
-/// to initialize and run the simulation (with different run modes).
+/// simulation graph. The embedded simulation can be controlled via
+/// input port to initialize and run the simulation (with different run
+/// modes).
 ///
-/// The simulation must have only one public parameter and only one observation
-/// message. The observation message will be copied to the @c y[0] output port.
+/// The simulation must have only one public parameter and only one
+/// observation message. The observation message will be copied to the
+/// @c y[0] output port.
 struct simulation_wrapper {
-    /** x[0] is used to initialize the simulation, x[1] is used to run the
-     * simulation, x[2..] are used to  send assign new value to the public
-     * parameter of the embedded simulation. */
+    /** x[0] is used to initialize the simulation, x[1] is used to run
+     * the simulation, x[2..] are used to  send assign new value to the
+     * public parameter of the embedded simulation. */
     vector<input_port> x;
 
-    /** y[0..] are used to send the public parameter of the embedded simulation
-     * according to the selection criteria. */
+    /** y[0..] are used to send the public parameter of the embedded
+     * simulation according to the selection criteria. */
     vector<output_port_id> y;
 
     struct embedded_model_observation {
-        vector<std::array<real, 2>> values; /*<! Raw output simulation. */
+        vector<resampled_sample> values; /*<! Raw output simulation. */
 
         real compute_result(const criteria_type type) const noexcept;
     };
@@ -7393,24 +7834,25 @@ struct simulation_wrapper {
                     simulation,
                     simulation_observation>;
 
-    /** Used to store a values receives from the @c x input port vectors. */
+    /** Used to store a values receives from the @c x input port
+     * vectors. */
     struct input_parameter {
         model_id     mdl_id;
         real         value;
         vector<real> values;
     };
 
-    /** The @c run_type parameter defines the number of embedded simulation
-     * objects. If @c run_type equals  complete  then sims size can be equals
-     * to 1. */
+    /** The @c run_type parameter defines the number of embedded
+     * simulation objects. If @c run_type equals  complete  then sims
+     * size can be equals to 1. */
     embedded_simulation_type embedded_sims;
 
-    /** Number of @c input_parameters correspond to the number of factors in the
-     * simulation-component. */
+    /** Number of @c input_parameters correspond to the number of
+     * factors in the simulation-component. */
     vector<input_parameter> input_parameters;
 
-    /** Identifier of the source of the simulation to run. This identifier
-     * references simulation in simulation::sims member. */
+    /** Identifier of the source of the simulation to run. This
+     * identifier references simulation in simulation::sims member. */
     simulation_id sim_id = {};
 
     constexpr static inline std::string_view run_type_names[] = {
@@ -7430,9 +7872,10 @@ struct simulation_wrapper {
     enum class run_state : u8 { uninitialized, initialized, running, finish };
 
     enum i_port : u8 {
-        input_init, ///< Like simulation, a message on this port initialize the
-                    ///< simulation (copy parameter into models). Useless wit
-                    ///< the @c run_type::complete parameter.
+        input_init, ///< Like simulation, a message on this port
+                    ///< initialize the simulation (copy parameter into
+                    ///< models). Useless wit the @c run_type::complete
+                    ///< parameter.
         input_run,  ///< Run the simulation according to the @c run_type
                     ///< parameter.
     };
@@ -7446,21 +7889,22 @@ struct simulation_wrapper {
         0u                   ///! buffer[1]
     };
 
-    time      sigma = time_domain<time>::infinity;
-    run_type  run   = run_type::complete;
-    run_state state = run_state::uninitialized;
+    time      sigma                 = time_domain<time>::infinity;
+    time      observation_time_step = 0.1;
+    run_type  run                   = run_type::complete;
+    run_state state                 = run_state::uninitialized;
 
     simulation_wrapper() noexcept = default;
 
-    /** Copy ctor does not copy embedded simulation but keep the simulation
-     * identifier @c sim_id. */
+    /** Copy ctor does not copy embedded simulation but keep the
+     * simulation identifier @c sim_id. */
     simulation_wrapper(const simulation_wrapper& other) noexcept;
 
-    status initialize(simulation& sim) noexcept;
-    status transition(simulation& sim, time t, time e, time r) noexcept;
-    status lambda(simulation& sim) noexcept;
-    status finalize(simulation& sim) noexcept;
-    observation_message observation(time t, time e) const noexcept;
+    status     initialize(simulation& sim) noexcept;
+    status     transition(simulation& sim, time t, time e, time r) noexcept;
+    status     lambda(simulation& sim) noexcept;
+    status     finalize(simulation& sim) noexcept;
+    raw_sample observation(time t, time e) const noexcept;
 };
 
 template<std::size_t PortNumber>
@@ -7511,7 +7955,7 @@ struct accumulator {
         return success();
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, number };
     }
@@ -7557,9 +8001,9 @@ struct abstract_cross {
     constexpr zone_type compute_zone(
       [[maybe_unused]] const real old_value) noexcept
     {
-        // The value is too close to threshold, for QSS2 and 3 we use the slope
-        // or derivative to decide the zone_type otherwise for QSS1 we use the
-        // previous value.
+        // The value is too close to threshold, for QSS2 and 3 we use
+        // the slope or derivative to decide the zone_type otherwise for
+        // QSS1 we use the previous value.
 
         if (std::abs(value[0] - threshold) < 0x1p-30) {
             if constexpr (QssLevel == 1) {
@@ -7623,7 +8067,7 @@ struct abstract_cross {
                  : send_message(sim, y[port_down], output_values[1]);
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return { t, value[0] };
@@ -7708,7 +8152,7 @@ struct abstract_flipflop {
         return success();
     }
 
-    observation_message observation(time t, time e) const noexcept
+    raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1)
             return { t, value[0] };
@@ -7794,7 +8238,7 @@ struct time_func {
         return send_message(sim, y[0], value);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
     }
@@ -9867,19 +10311,23 @@ constexpr const model& get_model(const Dynamics& d) noexcept
 // inline expected<message_id> get_input_port(model& src, int port_src)
 // noexcept;
 //
-// inline status get_input_port(model& src, int port_src, message_id*& p)
-// noexcept; inline expected<block_node_id> get_output_port(model& dst,
-//                                                int    port_dst) noexcept;
+// inline status get_input_port(model& src, int port_src, message_id*&
+// p) noexcept; inline expected<block_node_id> get_output_port(model&
+// dst,
+//                                                int    port_dst)
+//                                                noexcept;
 // inline status                  get_output_port(model&          dst,
-//                                                int             port_dst,
-//                                                block_node_id*& p) noexcept;
+//                                                int port_dst,
+//                                                block_node_id*& p)
+//                                                noexcept;
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
                                 const dynamics_type mdl_dst,
                                 const int /*i_port_index*/) noexcept
 {
-    // @TODO replace this function with a more readable large boolean table?
+    // @TODO replace this function with a more readable large boolean
+    // table?
 
     switch (mdl_src) {
     case dynamics_type::qss1_integrator:
@@ -10279,74 +10727,6 @@ inline status external_source::finalize_source(source&      src,
 }
 
 //! observer
-
-inline observer::observer() noexcept
-  : buffer(default_buffer_size)
-  , linearized_buffer(default_linearized_buffer_size)
-{}
-
-inline void observer::init(
-  const buffer_size_t            buffer_size,
-  const linearized_buffer_size_t linearized_buffer_size,
-  const float                    ts) noexcept
-{
-    debug::ensure(time_step > 0.f);
-
-    buffer.write(
-      [](auto& buf, const auto len) {
-          buf.clear();
-          buf.reserve(len);
-      },
-      *buffer_size);
-
-    linearized_buffer.write(
-      [](auto& buf, const auto len) {
-          buf.clear();
-          buf.reserve(len);
-      },
-      *linearized_buffer_size);
-
-    time_step = ts <= 0.f ? 1e-2f : time_step;
-}
-
-inline void observer::reset() noexcept
-{
-    buffer.write([](auto& buf) { buf.clear(); });
-    linearized_buffer.write([](auto& buf) { buf.clear(); });
-
-    states.reset();
-}
-
-inline void observer::clear() noexcept
-{
-    const auto have_data_lost = states[observer_flags::data_lost];
-
-    reset();
-
-    states.set(observer_flags::data_lost, have_data_lost);
-}
-
-inline void observer::update(const observation_message& msg) noexcept
-{
-    states.set(observer_flags::data_lost, states[observer_flags::buffer_full]);
-
-    buffer.write(
-      [](auto& buf, const auto& msg, auto& st) {
-          if (not buf.empty() and buf.tail()->data()[0] == msg[0])
-              *(buf.tail()) = msg; // overwrite value (at same date).
-          else
-              buf.force_enqueue(msg); // otherwise push_back new message.
-
-          st.set(observer_flags::buffer_full, buf.available() <= 1);
-      },
-      msg,
-      states);
-}
-
-inline bool observer::full() const noexcept
-{
-    return states[observer_flags::buffer_full];
-}
 
 inline status send_message(simulation&    sim,
                            output_port_id output_port,
@@ -11083,10 +11463,10 @@ inline simulation::simulation(
   const simulation_reserve_definition&      res,
   const external_source_reserve_definition& p_srcs) noexcept
   : immediate_models(res.models.value())
-  , immediate_observers(res.models.value())
   , active_output_ports(res.models.value())
   , message_buffer(res.connections.value())
   , parameters(res.models.value())
+  , immediate_observers(res.models.value())
   , models(res.models.value())
   , hsms(res.hsms.value())
   , observers(res.models.value())
@@ -11096,6 +11476,52 @@ inline simulation::simulation(
   , sched(res.models)
   , srcs(p_srcs)
 {}
+
+inline simulation::simulation(const simulation& other) noexcept
+  : immediate_models(other.immediate_models)
+  , active_output_ports(other.active_output_ports)
+  , message_buffer(other.message_buffer)
+  , parameters(other.parameters)
+  , immediate_observers(other.immediate_observers)
+  , models(other.models)
+  , hsms(other.hsms)
+  , sims(other.sims)
+  , observers(other.observers)
+  , nodes(other.nodes)
+  , output_ports(other.output_ports)
+  , dated_messages(other.dated_messages)
+  , sched(other.sched)
+  , srcs(other.srcs)
+  , limits(other.limits)
+  , observation_time_step(other.observation_time_step)
+  , t(other.t.load(std::memory_order_acquire))
+{}
+
+inline simulation& simulation::operator=(const simulation& other) noexcept
+{
+    if (this == &other)
+        return *this;
+
+    immediate_models      = other.immediate_models;
+    active_output_ports   = other.active_output_ports;
+    message_buffer        = other.message_buffer;
+    parameters            = other.parameters;
+    immediate_observers   = other.immediate_observers;
+    models                = other.models;
+    hsms                  = other.hsms;
+    sims                  = other.sims;
+    observers             = other.observers;
+    nodes                 = other.nodes;
+    output_ports          = other.output_ports;
+    dated_messages        = other.dated_messages;
+    sched                 = other.sched;
+    srcs                  = other.srcs;
+    limits                = other.limits;
+    observation_time_step = other.observation_time_step;
+    t                     = other.t.load(std::memory_order_acquire);
+
+    return *this;
+}
 
 inline simulation& simulation::operator=(
   const simulation_snapshot& snap) noexcept
@@ -11121,8 +11547,8 @@ bool simulation::grow_models() noexcept
       std::cmp_equal(nb, models.capacity()) ? models.capacity() + 8 : nb;
 
     return models.reserve(req) and immediate_models.resize(req) and
-           immediate_observers.resize(req) and parameters.resize(req) and
-           observers.reserve(req) and sched.reserve(req);
+           parameters.resize(req) and observers.reserve(req) and
+           sched.reserve(req) and immediate_observers.resize(req);
 }
 
 inline bool simulation::grow_models_to(std::integral auto capacity) noexcept
@@ -11131,9 +11557,8 @@ inline bool simulation::grow_models_to(std::integral auto capacity) noexcept
         return true;
 
     return models.reserve(capacity) and immediate_models.resize(capacity) and
-           immediate_observers.resize(capacity) and
            parameters.resize(capacity) and observers.reserve(capacity) and
-           sched.reserve(capacity);
+           sched.reserve(capacity) and immediate_observers.reserve(capacity);
 }
 
 template<int Num, int Denum>
@@ -11160,10 +11585,10 @@ inline bool simulation::grow_connections_to(
 inline void simulation::destroy() noexcept
 {
     immediate_models.destroy();
-    immediate_observers.destroy();
     active_output_ports.destroy();
     message_buffer.destroy();
     parameters.destroy();
+    immediate_observers.destroy();
 
     models.destroy();
     hsms.destroy();
@@ -11194,9 +11619,9 @@ inline void simulation::clean() noexcept
     sched.clear();
 
     immediate_models.clear();
-    immediate_observers.clear();
     active_output_ports.clear();
     message_buffer.clear();
+    immediate_observers.clear();
 
     dated_messages.clear();
 
@@ -11300,20 +11725,68 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     unreachable();
 }
 
-inline void simulation::observe(model& mdl, observer& obs) const noexcept
+inline status simulation::observe(model& mdl) noexcept
 {
-    mdl.obs_id = observers.get_id(obs);
-    obs.model  = models.get_id(mdl);
-    obs.type   = get_interpolate_type(mdl.type);
+    if (debug::check(not observers.exists(mdl.obs_id))) {
+        if (not observers.can_alloc(1))
+            return make_error(simulation_errc::observers_container_full);
+
+        auto& obs = observers.alloc(models.get_id(mdl));
+
+        const auto obs_id = observers.get_id(obs);
+
+        observers.get<resampler>(obs_id) =
+          resampler{ observation_time_step, get_interpolate_type(mdl.type) };
+
+        mdl.obs_id = obs_id;
+    }
+
+    return success();
+}
+
+inline status simulation::observe(model& mdl, const time dt) noexcept
+{
+    if (debug::check(not observers.exists(mdl.obs_id))) {
+        if (not observers.can_alloc(1))
+            return make_error(simulation_errc::observers_container_full);
+
+        auto& obs = observers.alloc(models.get_id(mdl));
+
+        const auto obs_id = observers.get_id(obs);
+
+        observers.get<resampler>(obs_id) =
+          resampler{ dt, get_interpolate_type(mdl.type) };
+
+        mdl.obs_id = obs_id;
+    }
+
+    return success();
+}
+
+inline status simulation::observe(model&                 mdl,
+                                  const time             dt,
+                                  const interpolate_type type) noexcept
+{
+    if (debug::check(not observers.exists(mdl.obs_id))) {
+        if (not observers.can_alloc(1))
+            return make_error(simulation_errc::observers_container_full);
+
+        auto& obs = observers.alloc(models.get_id(mdl));
+
+        const auto obs_id = observers.get_id(obs);
+
+        observers.get<resampler>(obs_id) = resampler{ dt, type };
+
+        mdl.obs_id = obs_id;
+    }
+
+    return success();
 }
 
 inline void simulation::unobserve(model& mdl) noexcept
 {
-    if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-        obs->model = undefined<model_id>();
-        mdl.obs_id = undefined<observer_id>();
-        observers.free(*obs);
-    }
+    if (observers.exists(mdl.obs_id))
+        observers.free(mdl.obs_id);
 
     mdl.obs_id = undefined<observer_id>();
 }
@@ -11414,8 +11887,8 @@ inline status simulation::connect(output_port& port,
         return success();
     }
 
-    // If the linked list is empty, we create the first block_node and push the
-    // node.
+    // If the linked list is empty, we create the first block_node and
+    // push the node.
 
     auto* block = nodes.try_to_get(port.next);
 
@@ -11429,8 +11902,8 @@ inline status simulation::connect(output_port& port,
         return success();
     }
 
-    // Otherwise, we try to found a @c block_node in the linked list with a
-    // place for a new node.
+    // Otherwise, we try to found a @c block_node in the linked list
+    // with a place for a new node.
 
     block_node* prev = nullptr;
     for (auto* current = block; current;
@@ -11444,8 +11917,8 @@ inline status simulation::connect(output_port& port,
         prev = current;
     }
 
-    // Finally, if the all the node vectors of the linked list are full, we add
-    // a new @c block_node to the linked list.
+    // Finally, if the all the node vectors of the linked list are full,
+    // we add a new @c block_node to the linked list.
 
     debug::ensure(prev != nullptr);
 
@@ -11593,12 +12066,14 @@ inline status simulation::initialize() noexcept
     for (auto& obs : observers) {
         obs.reset();
 
-        if (auto* mdl = models.try_to_get(obs.model)) {
+        if (auto* mdl = models.try_to_get(obs.model())) {
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (has_observation_function<Dynamics>) {
-                    obs.update(dyn.observation(t, t - mdl->tl));
+                    obs.observe(dyn.observation(t, t - mdl->tl));
                 }
             });
+        } else {
+            observers.free(observers.get_id(obs));
         }
     }
 
@@ -11643,11 +12118,22 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
 {
     if constexpr (has_observation_function<Dynamics>) {
         if (mdl.obs_id != undefined<observer_id>()) {
-            if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-                obs->update(dyn.observation(t, t - mdl.tl));
+            if (auto* obs = observers.try_to_get(mdl.obs_id)) {
+                const auto st = obs->observe(dyn.observation(t, t - mdl.tl));
 
-                if (obs->full())
-                    immediate_observers.emplace_back(mdl.obs_id);
+                switch (st) {
+                case buffer_status::near_full:
+                    immediate_observers.push_back(mdl.obs_id);
+                    break;
+
+                case buffer_status::overflow:
+                    debug::print("raw-buffer full");
+                    immediate_observers.push_back(mdl.obs_id);
+                    break;
+
+                default:
+                    break;
+                };
             }
         } else {
             mdl.obs_id = static_cast<observer_id>(0);
@@ -11693,7 +12179,20 @@ status simulation::make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
 {
     if constexpr (has_observation_function<Dynamics>) {
         if (obs) {
-            obs->update(dyn.observation(t, t - get_model(dyn).tl));
+            switch (obs->observe(dyn.observation(t, t - get_model(dyn).tl))) {
+            case buffer_status::near_full:
+                immediate_observers.push_back(observers.get_id(*obs));
+                break;
+
+            case buffer_status::overflow:
+                debug::print(
+                  "raw-buffer full during observe finalize operation");
+                immediate_observers.push_back(observers.get_id(*obs));
+                break;
+
+            default:
+                break;
+            };
         }
     }
 
@@ -11706,7 +12205,7 @@ status simulation::make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
 
 inline status simulation::finalize() noexcept
 {
-    debug::ensure(std::isfinite(t));
+    debug::ensure(std::isfinite(t.load()));
 
     for (auto& mdl : models) {
         observer* obs = nullptr;
@@ -11725,7 +12224,7 @@ inline status simulation::finalize() noexcept
 
 inline status simulation::run() noexcept
 {
-    debug::ensure(std::isfinite(t));
+    debug::ensure(std::isfinite(t.load()));
 
     immediate_models.clear();
     immediate_observers.clear();
@@ -11784,8 +12283,8 @@ inline status simulation::run() noexcept
     }
 
     // Finally, we copy the @c output_port::msg messages on the @c
-    // message_buffer vector according to the @c input_port::capacity, index and
-    // position.
+    // message_buffer vector according to the @c input_port::capacity,
+    // index and position.
 
     message_buffer.resize(global_messages_number);
     u32 global_position = 0;
@@ -11820,7 +12319,7 @@ inline status simulation::run() noexcept
                   });
               },
               sched,
-              t,
+              t.load(),
               y->msg,
               message_buffer,
               global_position);
@@ -11863,15 +12362,16 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
        std::forward<Args>(args)...);
 
     // for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-    //     auto* mdl = models.try_to_get(emitting_output_ports[i].model);
-    //     if (!mdl)
+    //     auto* mdl =
+    //     models.try_to_get(emitting_output_ports[i].model); if (!mdl)
     //         continue;
 
     //    debug::ensure(sched.is_in_tree(mdl->handle));
     //    sched.update(*mdl, t);
 
     //    if (not messages.can_alloc(1))
-    //        return make_error(simulation_errc::messages_container_full);
+    //        return
+    //        make_error(simulation_errc::messages_container_full);
 
     //    auto  port = emitting_output_ports[i].port;
     //    auto& msg  = emitting_output_ports[i].msg;
@@ -12053,12 +12553,9 @@ inline status hsm_wrapper::finalize(simulation& sim) noexcept
     }
 }
 
-inline observation_message hsm_wrapper::observation(time t,
-                                                    time /*e*/) const noexcept
+inline raw_sample hsm_wrapper::observation(time t, time /*e*/) const noexcept
 {
-    return {
-        t, static_cast<real>(exec.current_state), exec.r1, exec.r2, exec.timer
-    };
+    return { t, static_cast<real>(exec.current_state), exec.r1, exec.r2 };
 }
 
 inline bool simulation::can_alloc(std::integral auto place) const noexcept
@@ -12184,10 +12681,12 @@ inline bool is_ports_compatible(const model& mdl_src,
       mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
 }
 
-// inline expected<message_id> get_input_port(model& src, int port_src) noexcept
+// inline expected<message_id> get_input_port(model& src, int port_src)
+// noexcept
 //{
 //     return dispatch(
-//       src, [&]<typename Dynamics>(Dynamics& dyn) -> expected<message_id> {
+//       src, [&]<typename Dynamics>(Dynamics& dyn) ->
+//       expected<message_id> {
 //           if constexpr (has_input_port<Dynamics>) {
 //               if (port_src >= 0 && port_src < length(dyn.x)) {
 //                   return dyn.x[port_src];
@@ -12198,28 +12697,32 @@ inline bool is_ports_compatible(const model& mdl_src,
 //       });
 // }
 //
-// inline status get_input_port(model& src, int port_src, message_id*& p)
-// noexcept
+// inline status get_input_port(model& src, int port_src, message_id*&
+// p) noexcept
 //{
 //     return dispatch(src,
-//                     [port_src, &p]<typename Dynamics>(Dynamics& dyn) ->
-//                     status {
+//                     [port_src, &p]<typename Dynamics>(Dynamics& dyn)
+//                     -> status {
 //                         if constexpr (has_input_port<Dynamics>) {
-//                             if (port_src >= 0 && port_src < length(dyn.x)) {
+//                             if (port_src >= 0 && port_src <
+//                             length(dyn.x)) {
 //                                 p = &dyn.x[port_src];
 //                                 return success();
 //                             }
 //                         }
 //
-//                         return make_error(simulation_errc::input_port_error);
+//                         return
+//                         make_error(simulation_errc::input_port_error);
 //                     });
 // }
 //
 // inline expected<block_node_id> get_output_port(model& dst,
-//                                                int    port_dst) noexcept
+//                                                int    port_dst)
+//                                                noexcept
 //{
 //     return dispatch(
-//       dst, [&]<typename Dynamics>(Dynamics& dyn) -> expected<block_node_id> {
+//       dst, [&]<typename Dynamics>(Dynamics& dyn) ->
+//       expected<block_node_id> {
 //           if constexpr (has_output_port<Dynamics>) {
 //               if (port_dst >= 0 && port_dst < length(dyn.y))
 //                   return dyn.y[port_dst];
@@ -12234,10 +12737,11 @@ inline bool is_ports_compatible(const model& mdl_src,
 //                               block_node_id*& p) noexcept
 //{
 //     return dispatch(dst,
-//                     [port_dst, &p]<typename Dynamics>(Dynamics& dyn) ->
-//                     status {
+//                     [port_dst, &p]<typename Dynamics>(Dynamics& dyn)
+//                     -> status {
 //                         if constexpr (has_output_port<Dynamics>) {
-//                             if (port_dst >= 0 && port_dst < length(dyn.y)) {
+//                             if (port_dst >= 0 && port_dst <
+//                             length(dyn.y)) {
 //                                 p = &dyn.y[port_dst];
 //                                 return success();
 //                             }

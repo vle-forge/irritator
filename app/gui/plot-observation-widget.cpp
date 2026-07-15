@@ -29,31 +29,34 @@ void plot_observation_widget::show(project& pj) noexcept
             ImPlot::SetupFinish();
 
             for (const auto id : v_obs.subs) {
+                const auto opt = v_obs.subs.template get<plot_type_options>(id);
                 const auto obs_id = v_obs.subs.template get<observer_id>(id);
                 auto*      obs    = pj.sim.observers.try_to_get(obs_id);
 
-                obs->linearized_buffer.read(
-                  [&](auto& lbuf, const auto /*version*/) noexcept {
-                      const auto opt =
-                        v_obs.subs.template get<plot_type_options>(id);
+                if (not obs)
+                    continue;
 
+                obs->read_history(
+                  [&](const auto& h, const auto /*version*/) noexcept {
                       switch (opt) {
                       case plot_type_options::line:
-                          ImPlot::PlotLineG(
-                            name.c_str(),
-                            ring_buffer_getter,
-                            const_cast<void*>(
-                              reinterpret_cast<const void*>(&lbuf)),
-                            lbuf.ssize());
+                          ImPlot::PlotLine(name.c_str(),
+                                           &h[0].t,
+                                           &h[0].value,
+                                           h.size(),
+                                           0,
+                                           0,
+                                           sizeof(resampled_sample));
                           break;
 
                       case plot_type_options::dash:
-                          ImPlot::PlotScatterG(
-                            name.c_str(),
-                            ring_buffer_getter,
-                            const_cast<void*>(
-                              reinterpret_cast<const void*>(&lbuf)),
-                            lbuf.ssize());
+                          ImPlot::PlotScatter(name.c_str(),
+                                              &h[0].t,
+                                              &h[0].value,
+                                              h.size(),
+                                              0,
+                                              0,
+                                              sizeof(resampled_sample));
                           break;
 
                       default:
@@ -74,26 +77,30 @@ static void show_discrete_plot_line(const plot_type_options options,
 {
     switch (options) {
     case plot_type_options::line:
-        obs.linearized_buffer.read(
+        obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotStairsG(
-                name.c_str(),
-                ring_buffer_getter,
-                const_cast<void*>(reinterpret_cast<const void*>(&lbuf)),
-                lbuf.ssize());
+              ImPlot::PlotStairs(name.c_str(),
+                                 &lbuf[0].t,
+                                 &lbuf[0].value,
+                                 lbuf.ssize(),
+                                 0,
+                                 0,
+                                 sizeof(resampled_sample));
           },
           name);
         break;
 
     case plot_type_options::dash:
-        obs.linearized_buffer.read(
+        obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotBarsG(
-                name.c_str(),
-                ring_buffer_getter,
-                const_cast<void*>(reinterpret_cast<const void*>(&lbuf)),
-                lbuf.ssize(),
-                1.5);
+              ImPlot::PlotBars(name.c_str(),
+                               &lbuf[0].t,
+                               &lbuf[0].value,
+                               lbuf.ssize(),
+                               1.5,
+                               0,
+                               0,
+                               sizeof(resampled_sample));
           },
           name);
         break;
@@ -103,43 +110,36 @@ static void show_discrete_plot_line(const plot_type_options options,
     }
 }
 
-inline static auto local_ring_buffer_getter(int idx, void* data) noexcept
-  -> ImPlotPoint
-{
-    const auto* lbuf   = reinterpret_cast<ring_buffer<observation>*>(data);
-    const auto  index  = lbuf->index_from_begin(idx);
-    const auto& values = (*lbuf)[index];
-
-    return ImPlotPoint(values.x, values.y);
-};
-
 static void show_continuous_plot_line(const plot_type_options options,
                                       const name_str&         name,
                                       const observer&         obs) noexcept
 {
-    obs.linearized_buffer.try_read(
-      [&](const auto& lbuf, const auto /*version*/) noexcept {
-          switch (options) {
-          case plot_type_options::line:
-              ImPlot::PlotLineG(
-                name.c_str(),
-                local_ring_buffer_getter,
-                const_cast<void*>(reinterpret_cast<const void*>(&lbuf)),
-                lbuf.ssize());
-              break;
+    obs.read_history([&](const auto& lbuf, const auto /*version*/) noexcept {
+        switch (options) {
+        case plot_type_options::line:
+            ImPlot::PlotLine(name.c_str(),
+                             &lbuf[0].t,
+                             &lbuf[0].value,
+                             lbuf.ssize(),
+                             0,
+                             0,
+                             sizeof(resampled_sample));
+            break;
 
-          case plot_type_options::dash:
-              ImPlot::PlotScatterG(
-                name.c_str(),
-                local_ring_buffer_getter,
-                const_cast<void*>(reinterpret_cast<const void*>(&lbuf)),
-                lbuf.ssize());
-              break;
+        case plot_type_options::dash:
+            ImPlot::PlotScatter(name.c_str(),
+                                &lbuf[0].t,
+                                &lbuf[0].value,
+                                lbuf.ssize(),
+                                0,
+                                0,
+                                sizeof(resampled_sample));
+            break;
 
-          default:
-              break;
-          }
-      });
+        default:
+            break;
+        }
+    });
 }
 
 void plot_observation_widget::show_plot_line(const observer&         obs,
@@ -148,11 +148,10 @@ void plot_observation_widget::show_plot_line(const observer&         obs,
 {
     ImGui::PushID(&obs);
 
-    if (obs.type == interpolate_type::none) {
+    if (options == plot_type_options::dash)
         show_discrete_plot_line(options, name, obs);
-    } else {
+    else
         show_continuous_plot_line(options, name, obs);
-    }
 
     ImGui::PopID();
 }

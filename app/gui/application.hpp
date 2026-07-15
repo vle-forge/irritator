@@ -532,7 +532,7 @@ private:
 
 struct plot_copy {
     small_string<16u>        name;
-    ring_buffer<observation> linear_outputs;
+    vector<resampled_sample> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
 };
 

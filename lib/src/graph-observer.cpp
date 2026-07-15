@@ -44,11 +44,9 @@ static void build_graph(graph_observer&  graph_obs,
                                   graph_compo.g.nodes.size());
                     debug::ensure(index < graph_obs.observers.size());
 
-                    auto&      obs    = sim.observers.alloc();
-                    const auto obs_id = sim.observers.get_id(obs);
-                    sim.observe(*mdl, obs);
+                    sim.observe(*mdl);
 
-                    graph_obs.observers[index] = obs_id;
+                    graph_obs.observers[index] = mdl->obs_id;
                 } else {
                     jn.push(log_level::warning, [&](auto& t, auto& m) noexcept {
                         t = "Graph observer error";
@@ -111,23 +109,17 @@ void graph_observer::update(const simulation& sim) noexcept
         if (v.size() != observers.size())
             return;
 
-        std::fill_n(v.data(), v.capacity(), 0.0);
         for (sz i = 0, e = observers.size(); i < e; ++i) {
-            if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
-                if (obs->states[observer_flags::use_linear_buffer]) {
-                    obs->linearized_buffer.read(
-                      [](const auto& buf, auto /*version*/, auto& v) {
-                          v = not buf.empty() ? buf.back().y : zero;
-                      },
-                      v[i]);
-                } else {
-                    obs->buffer.read(
-                      [](const auto& buf, auto /*version*/, auto& v) {
-                          v = not buf.empty() ? buf.back()[1] : zero;
-                      },
-                      v[i]);
-                }
-            }
+            const auto obs_id = observers[i];
+            auto*      obs    = sim.observers.try_to_get(obs_id);
+
+            if (not obs)
+                continue;
+
+            obs->read_history([&](const auto& h, const auto) {
+                if (not h.empty())
+                    v[i] = h.back().value;
+            });
         }
 
         tn = sim.current_time() + static_cast<time>(time_step);

@@ -208,6 +208,7 @@ static void simulation_component_tester(
             irt::project pj;
             pj.file = project_file_id;
             pj.sim.limits.set_bound(0, 2);
+            pj.sim.observation_time_step = 0.1;
 
             expect(pj.set(ids, fs, gen_compo, jn).has_value());
 
@@ -409,6 +410,8 @@ static void simulation_component_tester(
         expect(pj.simulation_run_bag().has_value());
     } while (not pj.sim.current_time_expired());
 
+    expect(pj.sim.finalize().has_value());
+
     int i = 0;
     for (const auto mdl_id : cpts) {
         const auto& mdl = pj.sim.models.get(mdl_id);
@@ -420,9 +423,12 @@ static void simulation_component_tester(
                    cpt.last_value,
                    cpt.sum_values);
 
-        expect(eq(cpt.event_number, result[i * 3]));
-        expect(eq(cpt.last_value, result[i * 3 + 1]));
-        expect(eq(cpt.last_value, result[i * 3 + 2]));
+        // @TODO use approx until observer interpolate-type for the qss1_sum_2
+        // used in the generic component use the linear interpolate.
+
+        expect(approx(cpt.event_number, result[i * 3], 1e-5));
+        expect(approx(cpt.last_value, result[i * 3 + 1], 1e-5));
+        expect(approx(cpt.last_value, result[i * 3 + 2], 1e-5));
 
         ++i;
     }

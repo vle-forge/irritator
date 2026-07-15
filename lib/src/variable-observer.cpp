@@ -10,38 +10,29 @@ namespace irt {
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
     for (const auto id : subs) {
-        auto       obs_id = undefined<observer_id>();
         const auto tn_id  = subs.get<tree_node_id>(id);
         const auto mdl_id = subs.get<model_id>(id);
         auto*      tn     = pj.tree_nodes.try_to_get(tn_id);
         auto*      mdl    = sim.models.try_to_get(mdl_id);
 
+        subs.get<observer_id>(id) = undefined<observer_id>();
+
         if (tn and mdl) {
             auto* obs = sim.observers.try_to_get(mdl->obs_id);
 
             if (obs) {
-                obs_id = mdl->obs_id;
-                obs->init(observer::buffer_size_t(raw_buffer_size.value()),
-                          observer::linearized_buffer_size_t(
-                            linearized_buffer_size.value()),
-                          time_step.value());
+                obs->reset();
             } else {
-                if (not sim.observers.can_alloc() and
-                    not sim.observers.grow<3, 2>())
-                    return make_error(simulation_errc::observers_container_full);
+                if (not sim.observers.can_alloc(1) and
+                    not sim.observers.grow<3, 2>(1))
+                    return make_error(
+                      simulation_errc::observers_container_full);
 
-                auto& new_obs = sim.observers.alloc();
-                new_obs.init(observer::buffer_size_t(raw_buffer_size.value()),
-                             observer::linearized_buffer_size_t(
-                               linearized_buffer_size.value()),
-                             time_step.value());
-
-                obs_id = sim.observers.get_id(new_obs);
-                sim.observe(*mdl, new_obs);
+                sim.observe(*mdl);
             }
-        }
 
-        subs.get<observer_id>(id) = obs_id;
+            subs.get<observer_id>(id) = mdl->obs_id;
+        }
     }
 
     return success();

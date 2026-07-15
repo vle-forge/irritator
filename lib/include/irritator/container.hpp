@@ -775,17 +775,17 @@ class static_buffer
 {
 public:
     static_assert(Size > 0);
-
     static_assert(std::is_default_constructible_v<T>,
                   "T must be default-constructible for dynamic_buffer");
 
     using size_type  = small_storage_size_t<Size>;
     using index_type = std::make_signed_t<size_type>;
 
+    static_buffer() noexcept                                  = default;
     static_buffer(const static_buffer& o) noexcept            = delete;
-    static_buffer(static_buffer&& o) noexcept                 = delete;
     static_buffer& operator=(const static_buffer& o) noexcept = delete;
-    static_buffer& operator=(static_buffer&& o) noexcept      = delete;
+    static_buffer(static_buffer&& o) noexcept                 = default;
+    static_buffer& operator=(static_buffer&& o) noexcept      = default;
 
     T& operator[](std::integral auto position) noexcept
     {
@@ -794,7 +794,7 @@ public:
 
     const T& operator[](std::integral auto position) const noexcept
     {
-        return *(static_cast<T*>(m_buffer.data()) + position);
+        return *(static_cast<const T*>(m_buffer.data()) + position);
     }
 
     size_type capacity() const noexcept { return Size; }
@@ -811,7 +811,6 @@ class dynamic_buffer
 {
 public:
     static_assert(Size > 0);
-
     static_assert(std::is_default_constructible_v<T>,
                   "T must be default-constructible for dynamic_buffer");
 
@@ -825,9 +824,24 @@ public:
     }
 
     dynamic_buffer(const dynamic_buffer& o) noexcept            = delete;
-    dynamic_buffer(dynamic_buffer&& o) noexcept                 = delete;
     dynamic_buffer& operator=(const dynamic_buffer& o) noexcept = delete;
-    dynamic_buffer& operator=(dynamic_buffer&& o) noexcept      = delete;
+
+    dynamic_buffer(dynamic_buffer&& o) noexcept
+      : m_buffer(std::exchange(o.m_buffer, nullptr))
+    {}
+
+    dynamic_buffer& operator=(dynamic_buffer&& o) noexcept
+    {
+        if (this == &o)
+            return *this;
+
+        if (m_buffer)
+            A::deallocate(m_buffer, Size * sizeof(T));
+
+        m_buffer = std::exchange(o.m_buffer, nullptr);
+
+        return *this;
+    }
 
     ~dynamic_buffer() noexcept
     {
@@ -887,9 +901,50 @@ public:
         }
     }
 
-    circular_buffer_base(const circular_buffer_base&) noexcept = delete;
-    circular_buffer_base& operator=(const circular_buffer_base&) noexcept =
-      delete;
+    constexpr circular_buffer_base(const circular_buffer_base& other) noexcept
+    {
+        copy_from(other);
+    }
+
+    constexpr circular_buffer_base& operator=(
+      const circular_buffer_base& other) noexcept
+    {
+        if (this == &other)
+            return *this;
+
+        clear();
+        copy_from(other);
+        return *this;
+    }
+
+    constexpr circular_buffer_base(circular_buffer_base&& other) noexcept
+      : m_buffer(std::move(other.m_buffer))
+      , m_head(other.m_head.load(std::memory_order_relaxed))
+      , m_tail(other.m_tail.load(std::memory_order_relaxed))
+    {
+        other.m_head.store(0, std::memory_order_relaxed);
+        other.m_tail.store(0, std::memory_order_relaxed);
+    }
+
+    constexpr circular_buffer_base& operator=(
+      circular_buffer_base&& other) noexcept
+    {
+        if (this == &other)
+            return *this;
+
+        clear();
+
+        m_buffer = std::move(other.m_buffer);
+        m_head.store(other.m_head.load(std::memory_order_relaxed),
+                     std::memory_order_relaxed);
+        m_tail.store(other.m_tail.load(std::memory_order_relaxed),
+                     std::memory_order_relaxed);
+
+        other.m_head.store(0, std::memory_order_relaxed);
+        other.m_tail.store(0, std::memory_order_relaxed);
+
+        return *this;
+    }
 
     bool push(const T& value) noexcept
     {
@@ -901,6 +956,17 @@ public:
         std::construct_at(&m_buffer[head], value);
         m_head.store(next_head, std::memory_order_release);
 
+        return true;
+    }
+
+    bool push(T&& value) noexcept
+    {
+        int head      = m_head.load(std::memory_order_relaxed);
+        int next_head = next(head);
+        if (next_head == m_tail.load(std::memory_order_acquire))
+            return false;
+        std::construct_at(&m_buffer[head], std::move(value));
+        m_head.store(next_head, std::memory_order_release);
         return true;
     }
 
@@ -923,6 +989,16 @@ public:
         return true;
     }
 
+    template<typename Fn>
+    void for_each(Fn&& fn) const noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        int head = m_head.load(std::memory_order_acquire);
+
+        for (int i = tail; i != head; i = next(i))
+            fn(m_buffer[i]);
+    }
+
     bool empty() const noexcept
     {
         int tail = m_tail.load(std::memory_order_relaxed);
@@ -932,15 +1008,41 @@ public:
         return false;
     }
 
-    constexpr auto capacity() noexcept { return m_buffer.capacity(); }
+    constexpr auto capacity() const noexcept { return m_buffer.capacity(); }
+
+    size_type size() const noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        int head = m_head.load(std::memory_order_acquire);
+        return static_cast<size_type>((head - tail + capacity()) % capacity());
+    }
+
+    void clear() noexcept
+    {
+        if constexpr (std::is_trivially_destructible_v<T>) {
+            m_tail.store(m_head.load(std::memory_order_relaxed),
+                         std::memory_order_relaxed);
+        } else {
+            int tail = m_tail.load(std::memory_order_relaxed);
+            int head = m_head.load(std::memory_order_relaxed);
+            for (int i = tail; i != head; i = next(i))
+                std::destroy_at(&m_buffer[i]);
+            m_tail.store(head, std::memory_order_relaxed);
+        }
+    }
 
 private:
-    constexpr auto next(int current) noexcept -> int
+    constexpr auto next(int current) const noexcept -> int
     {
         return (current + 1) % capacity();
     }
 
-private:
+    void copy_from(const circular_buffer_base& other) noexcept
+    {
+        other.for_each(
+          [this](const T& value) { [[maybe_unused]] bool ok = push(value); });
+    }
+
     underlying_memory_type m_buffer;
     std::atomic_int        m_head;
     std::atomic_int        m_tail;
@@ -968,10 +1070,63 @@ using static_circular_buffer = circular_buffer_base<T, static_buffer<T, Size>>;
 template<typename T, int Size>
 using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
 
+/* * * * * *
+ *
+ * shared-buffer
+ *
+ * * * * * */
+
+/// Default policy: full copy, behavior identical to historical version of the 
+/// shared_buffer. Valid for any T, including those modified in place (not only
+/// growing).
+template<typename T>
+struct copy_merge_policy
+{
+    static void merge(T& dst, const T& src) noexcept
+    {
+        dst = src;
+    }
+
+    static void reset(T& dst) noexcept
+    {
+        dst = T{};
+    }
+};
+
+/** Policy for containers with monotonic growth via addition only (never
+ * editing/deleting existing elements). `dst` is guaranteed to be a strict
+ * prefix of `src` by the triple-buffering construction (see
+ * shared_buffer::pick_staging_slot) -- only copies the missing delta instead of
+ * the entire content.
+ *
+ * WARNING: Strong precondition. If T is modified in place elsewhere in the code
+ * (not just via push_back/emplace_back), this policy  would silently produce an
+ * incorrect state. Use only for truly append-only logs/journals. */
+template<typename T>
+struct append_only_merge_policy {
+    static void merge(T& dst, const T& src) noexcept
+    {
+        debug::ensure(dst.size() <= src.size() &&
+                      "append_only_merge_policy requires dst to be a prefix of "
+                      "src -- T must never be modified in place");
+
+        dst.insert(dst.end(),
+                   src.begin() + static_cast<std::ptrdiff_t>(dst.size()),
+                   src.end());
+    }
+
+
+    static void reset(T& dst) noexcept
+    {
+        dst.clear();
+    }
+};
+
 /**
  * Atomic-only triple buffer: readers never lock, writers use a short lock.
  */
-template<typename T>
+
+template<typename T, typename MergePolicy = copy_merge_policy<T>>
 class shared_buffer
 {
     static_assert(std::is_default_constructible_v<T>,
@@ -1028,8 +1183,9 @@ public:
     }
 
     /**
-     * Writer: copy-from-active, update staging, then publish. Avoids slots
-     * currently pinned by readers.
+     * Writer: merges staging from active via MergePolicy (full copy by default,
+     * delta only for append-only T), then publishes. Avoids slots currently
+     * pinned by readers.
      */
     template<typename Fn, typename... Args>
     auto write(Fn&& fn, Args&&... args) noexcept
@@ -1044,7 +1200,7 @@ public:
         const std::size_t s = pick_staging_slot(a);
         debug::ensure(s != a);
 
-        m_buffers[s] = m_buffers[a];
+        MergePolicy::merge(m_buffers[s], m_buffers[a]);
         m_versions[s].store(m_versions[a].load(std::memory_order_relaxed),
                             std::memory_order_relaxed);
 
@@ -1080,6 +1236,8 @@ public:
 
     /**
      * Writer: overwrite staging without copying from active.
+     * Inchange : write_only never handles merging; MergePolicy is only involved
+     * in @c write().
      */
     template<typename Fn, typename... Args>
     auto write_only(Fn&& fn, Args&&... args) noexcept
@@ -1122,6 +1280,26 @@ public:
 
             return result;
         }
+    }
+
+    /// Reset all three slots to their empty state via MergePolicy::reset().
+    void reset() noexcept
+    {
+        std::lock_guard<std::mutex> wlock(m_writer);
+
+        for (auto& count : m_reader_counts)
+            while (count.load(std::memory_order_acquire) != 0)
+                std::this_thread::yield();
+
+        for (auto& buf : m_buffers)
+            MergePolicy::reset(buf);
+
+        for (auto& v : m_versions)
+            v.store(0, std::memory_order_relaxed);
+
+        m_active.store(0, std::memory_order_relaxed);
+        m_staging = 1;
+        m_spare   = 2;
     }
 
     /**
@@ -1215,26 +1393,21 @@ private:
                    m_reader_counts[i].load(std::memory_order_acquire) == 0;
         };
 
-        // Prefer current spare if free
         if (is_free(m_spare))
             return m_spare;
 
-        // Otherwise, pick the remaining index (0+1+2 - a - spare_)
         const std::size_t other = 0 + 1 + 2 - a - m_spare;
         if (is_free(other))
             return other;
 
-        // Both non-active slots are being read: wait very briefly
-        // (with one writer and ~10 readers, this is rare and short)
         while (m_reader_counts[m_spare].load(std::memory_order_acquire) != 0) {
-            // Yield to let readers complete quickly
             std::this_thread::yield();
         }
         return m_spare;
     }
 
 private:
-    mutable std::mutex m_writer; /**< Writer-side mutex */
+    mutable std::mutex m_writer;
 
     std::array<T, 3> m_buffers{};
 
@@ -1250,12 +1423,9 @@ private:
           std::atomic<unsigned>{ 0 } }
     };
 
-    /** Atomic index of the active buffer */
     std::atomic<std::size_t> m_active{ 0 };
-
-    /** Non-atomic writer-managed indices (single writer under mutex) */
-    std::size_t m_staging{ 1 };
-    std::size_t m_spare{ 2 };
+    std::size_t              m_staging{ 1 };
+    std::size_t              m_spare{ 2 };
 };
 
 /**
@@ -1450,6 +1620,11 @@ public:
     void push_back_unsafe(const T& value) noexcept;
     void swap_pop_back(std::integral auto i) noexcept;
     void swap_pop_back(const_iterator pos) noexcept;
+
+    template<std::input_iterator It>
+    iterator insert(const_iterator pos, It first, It last) noexcept;
+    iterator insert(const_iterator pos, const T& value) noexcept;
+    iterator insert(const_iterator pos, T&& value) noexcept;
 
     template<typename Pred>
     size_type erase_if(Pred pred) noexcept;
@@ -2220,6 +2395,14 @@ public:
     template<typename Type>
     Type* try_to_get(const identifier_type id) noexcept;
 
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    const T* try_to_get(const identifier_type id) const noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    T* try_to_get(const identifier_type id) noexcept;
+
     //! Call the @c fn function if @c id is valid.
     //!
     //! The function take one value from Index (integer or type).
@@ -2269,6 +2452,7 @@ public:
     constexpr const_iterator end() const noexcept;
 
     void clear() noexcept;
+    void destroy() noexcept;
     bool reserve(std::integral auto len) noexcept;
     template<int Num, int Denum = 1>
     bool grow(std::integral auto count = 1) noexcept;
@@ -4022,7 +4206,7 @@ auto id_data_array<T, Identifier, A, Ts...>::operator=(
     }
 
     if (capacity() != other.capacity()) { // mismatch: delete and realloc.
-        if (capacity() > 0) {            // not nullptr we delete
+        if (capacity() > 0) {             // not nullptr we delete
             do_destroy_buffer_views(m_ids.capacity(),
                                     std::index_sequence_for<Ts...>());
             m_ids.destroy();
@@ -4179,6 +4363,20 @@ auto id_data_array<T, Identifier, A, Ts...>::try_to_get(
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
+auto id_data_array<T, Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) const noexcept -> const T*
+{
+    return m_ids.try_to_get(id);
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
+auto id_data_array<T, Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) noexcept -> T*
+{
+    return m_ids.try_to_get(id);
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type, typename Function>
 void id_data_array<T, Identifier, A, Ts...>::if_exists_do(
   const identifier_type id,
@@ -4279,6 +4477,15 @@ template<typename T, typename Identifier, typename A, class... Ts>
 void id_data_array<T, Identifier, A, Ts...>::clear() noexcept
 {
     m_ids.clear();
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
+void id_data_array<T, Identifier, A, Ts...>::destroy() noexcept
+{
+    if (capacity() > 0)
+        do_destroy_buffer_views(capacity(), std::index_sequence_for<Ts...>());
+
+    m_ids.destroy();
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -5329,6 +5536,76 @@ void vector<T, A>::swap_pop_back(const_iterator pos) noexcept
 }
 
 template<typename T, typename A>
+template<std::input_iterator It>
+typename vector<T, A>::iterator vector<T, A>::insert(const_iterator pos,
+                                                     It             first,
+                                                     It last) noexcept
+{
+    const size_type index =
+      static_cast<size_type>(std::distance(cbegin(), pos));
+    const size_type count = static_cast<size_type>(std::distance(first, last));
+
+    if (count == 0)
+        return m_data + index;
+
+    if (m_size + count > m_capacity && !grow<2, 1>(count))
+        return nullptr;
+
+    T* target = m_data + index;
+
+    if (index == m_size) {
+        if constexpr (std::is_trivially_copyable_v<T> &&
+                      std::contiguous_iterator<It>) {
+            std::memcpy(target, &(*first), count * sizeof(T));
+        } else {
+            std::uninitialized_copy(first, last, target);
+        }
+        m_size += count;
+
+        return target;
+    }
+
+    const size_type tail = m_size - index;
+
+    if constexpr (std::is_trivially_copyable_v<T> &&
+                  std::contiguous_iterator<It>) {
+        std::memmove(target + count, target, tail * sizeof(T));
+        std::memcpy(target, &(*first), count * sizeof(T));
+    } else {
+        T* old_end = m_data + m_size;
+
+        if (count >= tail) {
+            std::uninitialized_move(target, old_end, target + count);
+            std::destroy(target, old_end);
+            std::uninitialized_copy(first, last, target);
+        } else {
+            std::uninitialized_move(old_end - count, old_end, old_end);
+            std::move_backward(target, old_end - count, old_end);
+            std::destroy(target, target + count);
+            std::uninitialized_copy(first, last, target);
+        }
+    }
+
+    m_size += count;
+
+    return target;
+}
+
+template<typename T, typename A>
+typename vector<T, A>::iterator vector<T, A>::insert(const_iterator pos,
+                                                     const T& value) noexcept
+{
+    return emplace(pos, value);
+}
+
+template<typename T, typename A>
+typename vector<T, A>::iterator vector<T, A>::insert(const_iterator pos,
+                                                     T&& value) noexcept
+{
+    return emplace(pos, std::move(value));
+}
+
+template<typename T, typename A>
 template<typename... Args>
 typename vector<T, A>::iterator vector<T, A>::emplace(const_iterator pos,
                                                       Args&&... args) noexcept
@@ -6279,8 +6556,8 @@ constexpr ring_buffer<T, A>::ring_buffer(const ring_buffer& rhs) noexcept
 
         if (m_capacity != rhs.m_capacity) {
             if (rhs.m_capacity > 0) {
-                auto* ptr = reinterpret_cast<T*>(
-                  A::allocate(sizeof(T) * rhs.m_capacity));
+                auto* ptr =
+                  reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
                 if (ptr) {
                     if (buffer)
                         A::deallocate(buffer, sizeof(T) * m_capacity);
@@ -6309,8 +6586,8 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
 
         if (m_capacity != rhs.m_capacity) {
             if (rhs.m_capacity > 0) {
-                auto* ptr = reinterpret_cast<T*>(
-                  A::allocate(sizeof(T) * rhs.m_capacity));
+                auto* ptr =
+                  reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
                 if (ptr) {
                     if (buffer)
                         A::deallocate(buffer, sizeof(T) * m_capacity);

@@ -88,9 +88,6 @@ void memory_window::show() noexcept
                   "observers", "{}", p.pj.sim.observers.size());
                 ImGui::LabelFormat(
                   "immediate models", "{}", p.pj.sim.immediate_models.size());
-                ImGui::LabelFormat("immediate observers",
-                                   "{}",
-                                   p.pj.sim.immediate_observers.size());
                 ImGui::LabelFormat(
                   "message buffer alloc", "{}", p.pj.sim.message_buffer.size());
                 ImGui::LabelFormat("node", "{}", p.pj.sim.nodes.size());

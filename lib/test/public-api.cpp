@@ -15,7 +15,6 @@
 
 #include <numbers>
 #include <random>
-#include <sstream>
 
 #include <cstdio>
 
@@ -52,38 +51,25 @@ struct file_output {
       : os{ std::fopen(filename, "w") }
       , obs{ obs_ }
     {
+        using namespace boost::ut;
+
+        expect(neq(os, nullptr));
+
         if (os)
             fmt::print(os, "t,v\n");
     }
 
-    void push_back(const irt::observation& vec) const noexcept
-    {
-        if (os)
-            fmt::print(os, "{},{}\n", vec.x, vec.y);
-    }
-
-    void write() noexcept
-    {
-        if (obs.states[irt::observer_flags::buffer_full]) {
-            irt::write_interpolate_data(obs, 0.1, [&](auto t, auto v) noexcept {
-                fmt::print(os, "{},{}\n", t, v);
-            });
-        }
-    }
-
-    void flush() noexcept
-    {
-        irt::flush_interpolate_data(obs, 0.1, [&](auto t, auto v) noexcept {
-            fmt::print(os, "{},{}\n", t, v);
-        });
-
-        std::fflush(os);
-    }
-
     ~file_output() noexcept
     {
-        if (os)
+        if (os) {
+            obs.read_history([&](const auto& h, const auto) {
+                for (std::size_t i = 0, e = h.size(); i != e; ++i)
+                    fmt::print(os, "{},{}\n", h[i].t, h[i].value);
+            });
+
+            std::fflush(os);
             std::fclose(os);
+        }
     }
 };
 
@@ -1056,50 +1042,6 @@ int main()
         }
     };
 
-    "observation_message"_test = [] {
-        using namespace irt::literals;
-
-        {
-            irt::observation_message vdouble({ 0 });
-            expect(vdouble[0] == 0.0_r);
-            expect(vdouble[1] == 0.0_r);
-            expect(vdouble[2] == 0.0_r);
-            expect(vdouble[3] == 0.0_r);
-        }
-
-        {
-            irt::observation_message vdouble({ 1.0_r });
-            expect(vdouble[0] == 1.0_r);
-            expect(vdouble[1] == 0.0_r);
-            expect(vdouble[2] == 0.0_r);
-            expect(vdouble[3] == 0.0_r);
-        }
-
-        {
-            irt::observation_message vdouble({ 0.0_r, 1.0_r });
-            expect(vdouble[0] == 0.0_r);
-            expect(vdouble[1] == 1.0_r);
-            expect(vdouble[2] == 0.0_r);
-            expect(vdouble[3] == 0.0_r);
-        }
-
-        {
-            irt::observation_message vdouble({ 0.0_r, 0.0_r, 1.0_r });
-            expect(vdouble[0] == 0.0_r);
-            expect(vdouble[1] == 0.0_r);
-            expect(vdouble[2] == 1.0_r);
-            expect(vdouble[3] == 0.0_r);
-        }
-
-        {
-            irt::observation_message vdouble({ 0.0_r, 0.0_r, 0.0_r, 1.0_r });
-            expect(vdouble[0] == 0.0_r);
-            expect(vdouble[1] == 0.0_r);
-            expect(vdouble[2] == 0.0_r);
-            expect(vdouble[3] == 1.0_r);
-        }
-    };
-
     "heap_order"_test = [] {
         irt::heap h(4u);
 
@@ -1346,6 +1288,54 @@ int main()
         } while (not sim.current_time_expired());
 
         expect(eq(cnt.event_number, static_cast<irt::i64>(2)));
+    };
+
+    "observation_simulation"_test = [] {
+        irt::simulation sim;
+
+        expect(sim.can_alloc(4));
+
+        auto& cnt = sim.alloc<irt::qss1_sum_3>();
+        auto& c1  = sim.alloc<irt::constant>();
+        auto& c2  = sim.alloc<irt::constant>();
+        auto& c3  = sim.alloc<irt::constant>();
+
+        get_p(sim, c1).set_constant(10, 0);
+        get_p(sim, c2).set_constant(100, 1);
+        get_p(sim, c3).set_constant(1000, 2);
+
+        expect(!!sim.connect_dynamics(c1, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(c2, 0, cnt, 1));
+        expect(!!sim.connect_dynamics(c3, 0, cnt, 2));
+
+        sim.observation_time_step = 1;
+        sim.limits.set_bound(0, 3);
+
+        expect(sim.observe(get_model(cnt)).has_value());
+        expect(!!sim.initialize());
+
+        do {
+            expect(!!sim.run());
+        } while (not sim.current_time_expired());
+
+        expect(sim.finalize().has_value());
+
+        expect(fatal(eq(sim.observers.size(), 1u)));
+        expect(fatal(sim.observers.begin() != sim.observers.end()));
+
+        sim.tick_resamplers();
+
+        auto& obs = *sim.observers.begin();
+
+        obs.read_history([&](const auto& h, const auto) {
+            expect(fatal(eq(h.ssize(), 3)));
+            expect(eq(h[0].value, 10.0));
+            expect(eq(h[0].t, 0.0));
+            expect(eq(h[1].value, 110.0));
+            expect(eq(h[1].t, 1.0));
+            expect(eq(h[2].value, 1110.0));
+            expect(eq(h[2].t, 2.0));
+        });
     };
 
     "cross_simulation"_test = [] {
@@ -1910,16 +1900,21 @@ int main()
         get_p(sim, l_or).integers[0] = false;
         get_p(sim, l_or).integers[1] = false;
 
-        auto&       obs = sim.observers.alloc();
-        file_output fo_a(obs, "boolean_simulation.csv");
-        sim.observe(irt::get_model(l_and), obs);
+        sim.observe(irt::get_model(l_and));
+        auto* obs = sim.observers.try_to_get(irt::get_model(l_and).obs_id);
+
+        expect(fatal(obs != nullptr));
+        file_output fo_a(*obs, "boolean_simulation.csv");
 
         sim.limits.set_bound(0, 10);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
         do {
             expect(!!sim.run());
-            fo_a.write();
+
+            if (not sim.immediate_observers.empty())
+                sim.tick_resamplers();
+
         } while (not sim.current_time_expired());
     };
 

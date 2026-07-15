@@ -206,7 +206,7 @@ static void finalize_raw_obs(project_editor& ed) noexcept
 
                       std::fwrite(&t, sizeof(t), 1, ofs);
                       std::fwrite(&index, sizeof(index), 1, ofs);
-                      std::fwrite(obs.data(), obs.size(), 1, ofs);
+                      std::fwrite(&obs, sizeof(raw_sample), 1, ofs);
                   }
               },
               ed.raw_ofs.to_file(),
@@ -227,14 +227,13 @@ static void finalize_raw_obs(project_editor& ed) noexcept
                       const auto obs = dyn.observation(t, t - tl);
 
                       fmt::print(ofs,
-                                 "{};{};{};{};{};{};{}\n",
+                                 "{};{};{};{};{};{}\n",
                                  t,
                                  index,
-                                 obs[0],
-                                 obs[1],
-                                 obs[2],
-                                 obs[3],
-                                 obs[4]);
+                                 obs.t,
+                                 obs.value,
+                                 obs.slope,
+                                 obs.curvature);
                   }
               },
               ed.raw_ofs.to_file(),
@@ -269,7 +268,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
 
                                 std::fwrite(&t, sizeof(t), 1, ofs);
                                 std::fwrite(&index, sizeof(index), 1, ofs);
-                                std::fwrite(obs.data(), obs.size(), 1, ofs);
+                                std::fwrite(&obs, sizeof(raw_sample), 1, ofs);
                             }
                         },
                         ofs,
@@ -292,14 +291,13 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
                                 const auto obs = dyn.observation(t, t - tl);
 
                                 fmt::print(ofs,
-                                           "{};{};{};{};{};{};{}\n",
+                                           "{};{};{};{};{};{}\n",
                                            t,
                                            index,
-                                           obs[0],
-                                           obs[1],
-                                           obs[2],
-                                           obs[3],
-                                           obs[4]);
+                                           obs.t,
+                                           obs.value,
+                                           obs.slope,
+                                           obs.curvature);
                             }
                         },
                         ofs,
@@ -519,8 +517,7 @@ static void new_observer(application&                   app,
 {
     if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (ed.pj.sim.observers.can_alloc(1)) {
-            auto& obs = ed.pj.sim.observers.alloc();
-            ed.pj.sim.observe(*mdl, obs);
+            ed.pj.sim.observe(*mdl);
         } else {
             app.jn.push(log_level::error,
                         [&](auto& title, auto& /*msg*/) noexcept {
@@ -727,12 +724,11 @@ void project_editor::start_simulation_observation(application& app) noexcept
             auto obs_id = pj.sim.immediate_observers[i + current];
 
             task_list.add([&, obs_id]() noexcept {
-                if_data_exists_do(pj.sim.observers,
-                                  obs_id,
-                                  [&](observer& obs) noexcept -> void {
-                                      write_interpolate_data(obs,
-                                                             obs.time_step);
-                                  });
+                if (auto* obs = pj.sim.observers.try_to_get(obs_id)) {
+                    auto& res = pj.sim.observers.get<resampler>(obs_id);
+
+                    res.tick(*obs, pj.sim.current_time());
+                }
             });
         }
 
@@ -794,24 +790,26 @@ void project_editor::stop_simulation_observation(application& app) noexcept
     debug::ensure(simulation_state == simulation_status::finishing);
 
     constexpr int capacity = 255;
-    int           obs_max  = pj.sim.observers.ssize();
-    observer*     obs      = nullptr;
+    auto          obs_max  = pj.sim.observers.ssize();
 
-    while (pj.sim.observers.next(obs)) {
-        int loop = std::min(obs_max, capacity);
+    auto it = pj.sim.observers.begin();
+    auto et = pj.sim.observers.end();
+
+    while (it != et) {
+        const auto loop = std::min(obs_max, capacity);
 
         for (int i = 0; i != loop; ++i) {
-            auto obs_id = pj.sim.observers.get_id(*obs);
-            pj.sim.observers.next(obs);
+            const auto obs_id = pj.sim.observers.get_id(*it);
 
             task_list.add([&, obs_id]() noexcept {
-                if_data_exists_do(pj.sim.observers,
-                                  obs_id,
-                                  [&](observer& obs) noexcept -> void {
-                                      flush_interpolate_data(obs,
-                                                             obs.time_step);
-                                  });
+                if (auto* obs = pj.sim.observers.try_to_get(obs_id)) {
+                    auto& res = pj.sim.observers.get<resampler>(obs_id);
+
+                    res.tick(*obs, pj.sim.current_time());
+                }
             });
+
+            ++it;
         }
 
         task_list.submit();

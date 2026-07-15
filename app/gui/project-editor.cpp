@@ -1083,12 +1083,12 @@ static void show_component_observations(application&    app,
 
                                 ImPlot::PlotLine(
                                   format_n<64>("{}", idx).c_str(),
-                                  &data->values[0][0],
-                                  &data->values[0][1],
+                                  &data->values[0].t,
+                                  &data->values[0].value,
                                   length(data->values),
                                   ImPlotLineFlags_SkipNaN,
                                   0,
-                                  sizeof(data->values[0]));
+                                  sizeof(resampled_sample));
                             }
                         }
 

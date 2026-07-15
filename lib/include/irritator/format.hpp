@@ -124,6 +124,23 @@ inline small_string<N> format_n(fmt::format_string<Args...> fmt_str,
 } //  irt
 
 template<>
+struct fmt::formatter<::irt::resampled_sample> {
+    constexpr auto parse(format_parse_context& ctx) noexcept
+      -> format_parse_context::iterator
+    {
+        // @todo Howto use the double representation format?
+
+        return ctx.begin();
+    }
+
+    auto format(const ::irt::resampled_sample& r,
+                format_context& ctx) const noexcept -> format_context::iterator
+    {
+        return format_to(ctx.out(), "{} {}", r.t, r.value);
+    }
+};
+
+template<>
 struct fmt::formatter<::irt::human_readable_bytes> {
 
     constexpr auto parse(format_parse_context& ctx) noexcept

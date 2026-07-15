@@ -145,6 +145,18 @@ irt_force_inline_attribute constexpr bool check(
     return static_cast<bool>(assertion);
 }
 
+template<typename T>
+    requires(::irt::debug::enable_ensure == true)
+inline void print(const T str) noexcept
+{
+    std::fputs(str, stderr);
+}
+
+template<typename T>
+    requires(::irt::debug::enable_ensure == false)
+irt_force_inline_attribute constexpr void print(const T) noexcept
+{}
+
 } // namespace debug
 
 [[noreturn]] inline void unreachable() noexcept

@@ -11,57 +11,37 @@
 
 namespace irt {
 
-// @TODO Make @c time_step a parameter of the simulation-wrapper.
-constexpr real time_step = 0.1;
-
-static status update_observations(
-  simulation&                                 sim,
-  simulation_wrapper::simulation_observation& sim_obs) noexcept
+/** Fill the observers history vector. */
+static void update_observations(simulation& sim) noexcept
 {
-    for (auto& obs : sim.observers) {
-        const auto mdl_id = obs.model;
-
-        if (auto* vec = sim_obs.get(mdl_id); debug::check(vec)) {
-            if (obs.states[observer_flags::buffer_full]) {
-                write_interpolate_data(
-                  obs, time_step, [vec](auto t, auto v) noexcept {
-                      if (not vec->values.can_alloc(1) and
-                          not vec->values.grow<2, 1>(32))
-                          return;
-
-                      vec->values.push_back(std::array<real, 2>());
-                      auto& ar = vec->values.back();
-                      ar[0]    = t;
-                      ar[1]    = v;
-                  });
-            }
-        }
-    }
-
-    return success();
+    if (not sim.immediate_observers.empty())
+        sim.tick_resamplers();
 }
 
-static status flush_observations(
+static status copy_history(
   simulation&                                 sim,
   simulation_wrapper::simulation_observation& sim_obs) noexcept
 {
+    sim.tick_resamplers();
+
     for (auto& obs : sim.observers) {
-        const auto mdl_id = obs.model;
+        const auto mdl_id = obs.model();
+        auto       ok     = true;
+        auto*      vec    = sim_obs.get(mdl_id);
 
-        if (auto* vec = sim_obs.get(mdl_id); debug::check(vec)) {
-            if (obs.states[observer_flags::buffer_full]) {
-                flush_interpolate_data(
-                  obs, time_step, [vec](auto t, auto v) noexcept {
-                      if (not vec->values.can_alloc(1) and
-                          not vec->values.grow<2, 1>(32))
-                          return;
+        if (debug::check(vec != nullptr)) {
+            obs.read_history([&vec, &ok](const auto& h, const auto) {
+                if (not vec->values.reserve(h.size())) {
+                    ok &= false;
+                    return;
+                }
 
-                      vec->values.push_back(std::array<real, 2>());
-                      auto& ar = vec->values.back();
-                      ar[0]    = t;
-                      ar[1]    = v;
-                  });
-            }
+                vec->values = h;
+            });
+
+            if (not ok)
+                return make_error(
+                  simulation_errc::simulation_wrapper_not_enough_memory);
         }
     }
 
@@ -79,14 +59,17 @@ static status run_complete(simulation_wrapper& wrapper) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
+        if (sim.current_time_expired())
+            continue;
+
         do {
             irt_check(sim.run());
-            irt_check(update_observations(sim, sim_o));
+            update_observations(sim);
         } while (not sim.current_time_expired());
 
         if (sim.current_time_expired()) {
             irt_check(sim.finalize());
-            irt_check(flush_observations(sim, sim_o));
+            copy_history(sim, sim_o);
         }
     }
 
@@ -104,8 +87,17 @@ static status run_bag(simulation_wrapper& wrapper) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
+        if (sim.current_time_expired())
+            continue;
+
         irt_check(sim.run());
-        irt_check(update_observations(sim, sim_o));
+        update_observations(sim);
+
+        if (sim.current_time_expired()) {
+            irt_check(sim.finalize());
+        }
+
+        copy_history(sim, sim_o);
     }
 
     return success();
@@ -123,14 +115,19 @@ static status run_time(simulation_wrapper& wrapper) noexcept
         auto&      sim_o = sim_obs[idx];
         const auto t     = sim.current_time();
 
+        if (sim.current_time_expired())
+            continue;
+
         while (not sim.current_time_expired() and sim.current_time() == t) {
             irt_check(sim.run());
-            irt_check(update_observations(sim, sim_o));
+            update_observations(sim);
         }
 
         if (sim.current_time_expired()) {
-            irt_check(flush_observations(sim, sim_o));
+            irt_check(sim.finalize());
         }
+
+        copy_history(sim, sim_o);
     }
 
     return success();
@@ -147,14 +144,19 @@ static status run_until(simulation_wrapper& wrapper, const time until) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
+        if (sim.current_time_expired())
+            continue;
+
         while (not sim.current_time_expired() and sim.current_time() < until) {
             irt_check(sim.run());
-            irt_check(update_observations(sim, sim_o));
+            update_observations(sim);
         }
 
         if (sim.current_time_expired()) {
-            irt_check(flush_observations(sim, sim_o));
+            irt_check(sim.finalize());
         }
+
+        copy_history(sim, sim_o);
     }
 
     return success();
@@ -173,14 +175,19 @@ static status run_during(simulation_wrapper& wrapper,
         auto&      sim_o = sim_obs[idx];
         const auto limit = sim.current_time() + during;
 
+        if (sim.current_time_expired())
+            continue;
+
         while (not sim.current_time_expired() and sim.current_time() < limit) {
             irt_check(sim.run());
-            irt_check(update_observations(sim, sim_o));
+            update_observations(sim);
         }
 
         if (sim.current_time_expired()) {
-            irt_check(flush_observations(sim, sim_o));
+            irt_check(sim.finalize());
         }
+
+        copy_history(sim, sim_o);
     }
 
     return success();
@@ -214,7 +221,8 @@ static status embedded_sims_alloc(simulation_wrapper& wrapper,
         const auto id  = wrapper.embedded_sims.alloc_id();
         const auto idx = get_index(id);
 
-        sims[idx] = source;
+        sims[idx]                       = source;
+        sims[idx].observation_time_step = wrapper.observation_time_step;
         sim_obs[idx].data.clear();
 
         for (const auto sel_id : source.selections) {
@@ -436,10 +444,9 @@ static status embedded_sims_init(simulation_wrapper& wrapper,
 
         for (const auto sel_id : sim_src.selections) {
             const auto mdl_id = sim_src.selections.get<model_id>(sel_id);
-            auto&      obs    = sims[idx].observers.alloc();
             debug::ensure(sims[idx].models.exists(mdl_id));
 
-            sims[idx].observe(sims[idx].models.get(mdl_id), obs);
+            sims[idx].observe(sims[idx].models.get(mdl_id));
         }
 
         if (sims[idx].srcs.prepare().has_error())
@@ -690,24 +697,24 @@ static auto compute_max(const auto& embedded_sims, const auto mdl_id) noexcept
 real simulation_wrapper::embedded_model_observation::compute_result(
   const criteria_type type) const noexcept
 {
-    debug::ensure(std::cmp_greater(values.size(), 1));
+    debug::ensure(std::cmp_greater(values.size(), 0));
 
     auto ret = real{};
 
     switch (type) {
     case criteria_type::min_last:
-        ret = values.back()[1];
+        ret = values.back().value;
         break;
 
     case criteria_type::max_last:
-        ret = values.back()[1];
+        ret = values.back().value;
         break;
 
     case criteria_type::min:
         ret = std::numeric_limits<real>::max();
 
         for (auto i = 0, e = length(values); i != e; ++i)
-            ret = std::min(ret, values[i][1]);
+            ret = std::min(ret, values[i].value);
 
         break;
 
@@ -715,7 +722,7 @@ real simulation_wrapper::embedded_model_observation::compute_result(
         ret = std::numeric_limits<real>::lowest();
 
         for (auto i = 0, e = length(values); i != e; ++i)
-            ret = std::max(ret, values[i][1]);
+            ret = std::max(ret, values[i].value);
 
         break;
     }
@@ -1223,12 +1230,15 @@ status simulation_wrapper::finalize(simulation& /*sim*/) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
+        sim.observation_time_step = 0.1;
+
         if (sim.finalize().has_error())
             return make_error(
               simulation_errc::
                 simulation_wrapper_embedded_simulation_finalization_error);
 
-        if (flush_observations(sim, sim_o).has_error())
+        update_observations(sim);
+        if (copy_history(sim, sim_o).has_error())
             return make_error(
               simulation_errc::
                 simulation_wrapper_embedded_simulation_finalization_error);
@@ -1237,8 +1247,7 @@ status simulation_wrapper::finalize(simulation& /*sim*/) noexcept
     return success();
 }
 
-observation_message simulation_wrapper::observation(time t,
-                                                    time /*e*/) const noexcept
+raw_sample simulation_wrapper::observation(time t, time /*e*/) const noexcept
 {
     return { t, static_cast<real>(embedded_sims.size()) };
 }
