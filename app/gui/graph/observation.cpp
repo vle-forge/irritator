@@ -327,8 +327,7 @@ void graph_editor::draw_graph(const graph&          g,
                 const auto M = static_cast<double>(obs.scale_max);
                 const auto d = std::abs(m) + std::abs(M);
                 const auto o = v[i] + m;
-                const auto t = o / d;
-                debug::ensure(0.0 <= t and t <= 1.0);
+                const auto t = std::clamp(o / d, 0.0, 1.0);
 
                 draw_list->AddRectFilled(p_min,
                                          p_max,
@@ -860,8 +859,8 @@ void graph_editor::show(application&    app,
             return;
 
         const auto& graph     = ids.graph_components.get(compo.id.graph_id).g;
-        const auto canvas_p0 = ImGui::GetCursorScreenPos();
-        canvas_sz            = ImGui::GetContentRegionAvail();
+        const auto  canvas_p0 = ImGui::GetCursorScreenPos();
+        canvas_sz             = ImGui::GetContentRegionAvail();
 
         if (canvas_sz.x < 50.0f)
             canvas_sz.x = 50.0f;
