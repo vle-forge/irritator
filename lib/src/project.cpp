@@ -2059,15 +2059,38 @@ std::optional<std::filesystem::path> project::get_observation_dir(
       });
 }
 
+struct required_data {
+    std::size_t tree_node_nb{ 1u };
+    std::size_t model_nb{ 0u };
+    std::size_t hsm_nb{ 0u };
+
+    constexpr friend required_data operator+(const required_data lhs,
+                                             const required_data rhs) noexcept
+    {
+        return { lhs.tree_node_nb + rhs.tree_node_nb,
+                 lhs.model_nb + rhs.model_nb,
+                 lhs.hsm_nb + rhs.hsm_nb };
+    }
+
+    constexpr required_data& operator+=(const required_data other) noexcept
+    {
+        tree_node_nb += other.tree_node_nb;
+        model_nb += other.model_nb;
+        hsm_nb += other.hsm_nb;
+
+        return *this;
+    }
+};
+
 class treenode_require_computer
 {
 public:
-    table<component_id, project::required_data> map;
+    table<component_id, required_data> map;
 
-    project::required_data compute(const component_access&  ids,
-                                   const generic_component& g) noexcept
+    required_data compute(const component_access&  ids,
+                          const generic_component& g) noexcept
     {
-        project::required_data ret;
+        required_data ret;
 
         for (const auto& ch : g.children) {
             if (ch.type == child_type::component) {
@@ -2082,10 +2105,10 @@ public:
         return ret;
     }
 
-    project::required_data compute(const component_access& ids,
-                                   const grid_component&   g) noexcept
+    required_data compute(const component_access& ids,
+                          const grid_component&   g) noexcept
     {
-        project::required_data ret;
+        required_data ret;
 
         for (auto r = 0; r < g.row(); ++r) {
             for (auto c = 0; c < g.column(); ++c) {
@@ -2098,10 +2121,10 @@ public:
         return ret;
     }
 
-    project::required_data compute(const component_access& ids,
-                                   const graph_component&  g) noexcept
+    required_data compute(const component_access& ids,
+                          const graph_component&  g) noexcept
     {
-        project::required_data ret;
+        required_data ret;
 
         for (const auto id : g.g.nodes) {
             const auto idx = get_index(id);
@@ -2113,11 +2136,10 @@ public:
         return ret;
     }
 
-public:
-    project::required_data compute(const component_access& ids,
-                                   const component_id      c_id) noexcept
+    required_data compute(const component_access& ids,
+                          const component_id      c_id) noexcept
     {
-        project::required_data ret{ .tree_node_nb = 1 };
+        required_data          ret{ .tree_node_nb = 1 };
         const auto&            c = ids.components[c_id];
 
         if (auto* ptr = map.get(c_id)) {
@@ -2159,17 +2181,20 @@ public:
 
         return ret;
     }
-};
 
-project::required_data project::compute_memory_required(
-  const component_access& ids,
-  const component_id      c) const noexcept
-{
-    if (ids.exists(c))
-        return treenode_require_computer().compute(ids, c);
-    else
-        return project::required_data{};
-}
+public:
+    /** Compute the number of @c tree_node required to load the component @c
+     * into the @c project and estimates number of @c irt::model and @c
+     * @c irt::hierarchical_state_machine, @c irt::simulation to fill the @C
+     * irt::simulation structures. */
+    static required_data compute_memory_required(const component_access& ids,
+                                                 const component_id c) noexcept
+    {
+        treenode_require_computer trc;
+
+        return ids.exists(c) ? trc.compute(ids, c) : required_data{};
+    }
+};
 
 static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
   simulation_copy&        sc,
@@ -2226,19 +2251,15 @@ status project::set(const component_access& ids,
 {
     clear();
 
-    auto numbers = compute_memory_required(ids, compo_id);
-    numbers.fix();
+    const auto req =
+      treenode_require_computer::compute_memory_required(ids, compo_id);
 
-    if (std::cmp_greater(numbers.tree_node_nb, tree_nodes.capacity())) {
-        tree_nodes.reserve(numbers.tree_node_nb);
-
-        if (std::cmp_greater(numbers.tree_node_nb, tree_nodes.capacity()))
-            return make_error(project_errc::memory_error);
-    }
+    if (not tree_nodes.reserve(req.tree_node_nb))
+        return make_error(project_errc::memory_error);
 
     sim.clear();
-    sim.grow_models_to(numbers.model_nb);
-    sim.grow_connections_to(numbers.model_nb * 8);
+    sim.grow_models_to(req.model_nb);
+    sim.grow_connections_to(req.model_nb * 8);
 
     jn.push(log_level::debug, [&](auto&, auto& m) {
         format(m, "Project memory initialization");
