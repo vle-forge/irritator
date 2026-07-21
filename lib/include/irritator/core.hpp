@@ -1773,7 +1773,7 @@ struct simulation_snapshot {
     /// Reuse the allocated snapshot and copy simulation data
     simulation_snapshot& operator=(const simulation& sim) noexcept;
 
-    data_array<model, model_id> models;
+    data_array<model, model_id>                              models;
     observation_system                                       observers;
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
@@ -5362,7 +5362,7 @@ struct abstract_sample_hold {
     real                       sample;
     real                       ts;
     time                       sigma;
-    bool emit;
+    bool                       emit;
 
     abstract_sample_hold() noexcept = default;
 
@@ -5481,7 +5481,7 @@ struct abstract_quantizer {
     real                       q;
     real                       level;
     time                       sigma;
-    bool emit;
+    bool                       emit;
 
     abstract_quantizer() noexcept = default;
 
@@ -6426,7 +6426,7 @@ struct abstract_saturation {
     real                       upper; // parameter
     time                       sigma;
     zone                       z;
-    bool emit;
+    bool                       emit;
 
     abstract_saturation() noexcept = default;
     abstract_saturation(const abstract_saturation& o) noexcept
@@ -6556,7 +6556,7 @@ struct abstract_dead_zone {
     real                       upper; // parameter
     time                       sigma;
     zone                       z;
-    bool emit;
+    bool                       emit;
 
     abstract_dead_zone() noexcept = default;
     abstract_dead_zone(const abstract_dead_zone& o) noexcept
@@ -6683,7 +6683,7 @@ struct abstract_abs {
     std::array<real, QssLevel> value;
     time                       sigma;
     bool                       positive; // x >= 0 ?
-    bool emit;
+    bool                       emit;
 
     abstract_abs() noexcept = default;
     abstract_abs(const abstract_abs& o) noexcept
@@ -6782,7 +6782,7 @@ struct abstract_sign {
     std::array<real, QssLevel> value;
     time                       sigma;
     real                       out; // -1 / 0 / +1
-    bool emit;
+    bool                       emit;
 
     abstract_sign() noexcept = default;
     abstract_sign(const abstract_sign& o) noexcept
@@ -6879,7 +6879,7 @@ struct abstract_hysteresis {
     real                       out_high; // param
     time                       sigma;
     bool                       high;
-    bool emit;
+    bool                       emit;
 
     abstract_hysteresis() noexcept = default;
     abstract_hysteresis(const abstract_hysteresis& o) noexcept
@@ -6970,7 +6970,7 @@ struct abstract_min_max {
     std::array<real, QssLevel * 2> values; // [a0,b0, a1,b1, a2,b2]
     time                           sigma;
     bool                           sel_a;
-    bool emit;
+    bool                           emit;
 
     enum i_port_name : u8 { port_a, port_b };
 
@@ -7112,7 +7112,7 @@ struct abstract_wrap {
     real                       modulo;
     time                       sigma;
     real                       laps;
-    bool emit;
+    bool                       emit;
 
     abstract_wrap() noexcept = default;
     abstract_wrap(const abstract_wrap& o) noexcept
@@ -11502,22 +11502,22 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     if (this == &other)
         return *this;
 
-    immediate_models      = other.immediate_models;
-    active_output_ports   = other.active_output_ports;
-    message_buffer        = other.message_buffer;
-    parameters            = other.parameters;
-    immediate_observers   = other.immediate_observers;
-    models                = other.models;
-    hsms                  = other.hsms;
-    sims                  = other.sims;
-    observers             = other.observers;
-    nodes                 = other.nodes;
-    output_ports          = other.output_ports;
-    dated_messages        = other.dated_messages;
-    sched                 = other.sched;
-    srcs                  = other.srcs;
-    limits                = other.limits;
-    t                     = other.t.load(std::memory_order_acquire);
+    immediate_models    = other.immediate_models;
+    active_output_ports = other.active_output_ports;
+    message_buffer      = other.message_buffer;
+    parameters          = other.parameters;
+    immediate_observers = other.immediate_observers;
+    models              = other.models;
+    hsms                = other.hsms;
+    sims                = other.sims;
+    observers           = other.observers;
+    nodes               = other.nodes;
+    output_ports        = other.output_ports;
+    dated_messages      = other.dated_messages;
+    sched               = other.sched;
+    srcs                = other.srcs;
+    limits              = other.limits;
+    t                   = other.t.load(std::memory_order_acquire);
 
     return *this;
 }
@@ -11651,6 +11651,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_max_hold:
     case dynamics_type::qss1_min_hold:
     case dynamics_type::qss1_flipflop:
+    case dynamics_type::qss1_filter:
     case dynamics_type::qss1_power:
     case dynamics_type::qss1_square:
     case dynamics_type::qss1_sum_2:
@@ -11667,6 +11668,26 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_cos:
     case dynamics_type::qss1_log:
     case dynamics_type::qss1_exp:
+    case dynamics_type::qss1_sample_hold:
+    case dynamics_type::qss1_quantizer:
+    case dynamics_type::qss1_integrate_and_fire:
+    case dynamics_type::qss1_threshold_crossing:
+    case dynamics_type::qss1_pwm:
+    case dynamics_type::qss1_abs:
+    case dynamics_type::qss1_atan:
+    case dynamics_type::qss1_atan2:
+    case dynamics_type::qss1_dead_zone:
+    case dynamics_type::qss1_division:
+    case dynamics_type::qss1_hysteresis:
+    case dynamics_type::qss1_maximum:
+    case dynamics_type::qss1_minimum:
+    case dynamics_type::qss1_saturation:
+    case dynamics_type::qss1_sigmoid:
+    case dynamics_type::qss1_sign:
+    case dynamics_type::qss1_sqrt:
+    case dynamics_type::qss1_tan:
+    case dynamics_type::qss1_tanh:
+    case dynamics_type::qss1_wrap:
         return interpolate_type::qss1;
 
     case dynamics_type::qss2_integrator:
@@ -11675,6 +11696,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_max_hold:
     case dynamics_type::qss2_min_hold:
     case dynamics_type::qss2_flipflop:
+    case dynamics_type::qss2_filter:
     case dynamics_type::qss2_power:
     case dynamics_type::qss2_square:
     case dynamics_type::qss2_sum_2:
@@ -11691,6 +11713,26 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_cos:
     case dynamics_type::qss2_log:
     case dynamics_type::qss2_exp:
+    case dynamics_type::qss2_sample_hold:
+    case dynamics_type::qss2_quantizer:
+    case dynamics_type::qss2_integrate_and_fire:
+    case dynamics_type::qss2_threshold_crossing:
+    case dynamics_type::qss2_pwm:
+    case dynamics_type::qss2_abs:
+    case dynamics_type::qss2_atan:
+    case dynamics_type::qss2_atan2:
+    case dynamics_type::qss2_dead_zone:
+    case dynamics_type::qss2_division:
+    case dynamics_type::qss2_hysteresis:
+    case dynamics_type::qss2_maximum:
+    case dynamics_type::qss2_minimum:
+    case dynamics_type::qss2_saturation:
+    case dynamics_type::qss2_sigmoid:
+    case dynamics_type::qss2_sign:
+    case dynamics_type::qss2_sqrt:
+    case dynamics_type::qss2_tan:
+    case dynamics_type::qss2_tanh:
+    case dynamics_type::qss2_wrap:
         return interpolate_type::qss2;
 
     case dynamics_type::qss3_integrator:
@@ -11699,6 +11741,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_max_hold:
     case dynamics_type::qss3_min_hold:
     case dynamics_type::qss3_flipflop:
+    case dynamics_type::qss3_filter:
     case dynamics_type::qss3_power:
     case dynamics_type::qss3_square:
     case dynamics_type::qss3_sum_2:
@@ -11715,6 +11758,26 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_cos:
     case dynamics_type::qss3_log:
     case dynamics_type::qss3_exp:
+    case dynamics_type::qss3_sample_hold:
+    case dynamics_type::qss3_quantizer:
+    case dynamics_type::qss3_integrate_and_fire:
+    case dynamics_type::qss3_threshold_crossing:
+    case dynamics_type::qss3_pwm:
+    case dynamics_type::qss3_abs:
+    case dynamics_type::qss3_atan:
+    case dynamics_type::qss3_atan2:
+    case dynamics_type::qss3_dead_zone:
+    case dynamics_type::qss3_division:
+    case dynamics_type::qss3_hysteresis:
+    case dynamics_type::qss3_maximum:
+    case dynamics_type::qss3_minimum:
+    case dynamics_type::qss3_saturation:
+    case dynamics_type::qss3_sigmoid:
+    case dynamics_type::qss3_sign:
+    case dynamics_type::qss3_sqrt:
+    case dynamics_type::qss3_tan:
+    case dynamics_type::qss3_tanh:
+    case dynamics_type::qss3_wrap:
         return interpolate_type::qss3;
 
     default:
