@@ -12,8 +12,9 @@
 
 namespace irt {
 
-static auto init_or_reuse_observer(simulation& sim,
-                                   model&      mdl,
+static auto init_or_reuse_observer(simulation&    sim,
+                                   model&         mdl,
+                                   const fraction timestep,
                                    std::integral auto /*row*/,
                                    std::integral auto /*col*/) noexcept
   -> observer_id
@@ -21,7 +22,7 @@ static auto init_or_reuse_observer(simulation& sim,
     if (auto* obs = sim.observers.try_to_get(mdl.obs_id)) {
         obs->reset();
     } else {
-        if (sim.observe(mdl).has_error()) {
+        if (sim.observe(mdl, timestep.to_double()).has_error()) {
             // @todo Handle error
         }
     }
@@ -82,8 +83,8 @@ static void build_grid_observer(grid_observer&   grid_obs,
                     debug::ensure(
                       std::cmp_less(index, grid_obs.observers.size()));
 
-                    grid_obs.observers[index] =
-                      init_or_reuse_observer(sim, *mdl, w.first, w.second);
+                    grid_obs.observers[index] = init_or_reuse_observer(
+                      sim, *mdl, grid_obs.timestep, w.first, w.second);
                 } else {
                     jn.push(log_level::warning, [&](auto& t, auto& m) noexcept {
                         t = "Grid observer error";
@@ -134,17 +135,12 @@ void grid_observer::init(project&         pj,
             });
         }
     });
-
-    tn = sim.current_time() + static_cast<time>(time_step);
 }
 
 void grid_observer::clear() noexcept
 {
     observers.clear();
-
     values.write([](auto& v) noexcept { v.clear(); });
-
-    tn = 0;
 }
 
 void grid_observer::update(simulation& sim) noexcept
@@ -171,8 +167,6 @@ void grid_observer::update(simulation& sim) noexcept
                 });
             }
         }
-
-        tn = sim.current_time() + static_cast<time>(time_step);
     });
 }
 

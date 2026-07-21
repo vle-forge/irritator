@@ -44,7 +44,7 @@ static void build_graph(graph_observer&  graph_obs,
                                   graph_compo.g.nodes.size());
                     debug::ensure(index < graph_obs.observers.size());
 
-                    sim.observe(*mdl);
+                    sim.observe(*mdl, graph_obs.timestep.to_double());
 
                     graph_obs.observers[index] = mdl->obs_id;
                 } else {
@@ -89,16 +89,12 @@ void graph_observer::init(project&         pj,
             });
         }
     });
-
-    tn = sim.current_time();
 }
 
 void graph_observer::clear() noexcept
 {
     observers.clear();
     values.write([](auto& v) noexcept { v.clear(); });
-
-    tn = 0;
 }
 
 void graph_observer::update(const simulation& sim) noexcept
@@ -121,8 +117,6 @@ void graph_observer::update(const simulation& sim) noexcept
                     v[i] = h.back().value;
             });
         }
-
-        tn = sim.current_time() + static_cast<time>(time_step);
     });
 }
 

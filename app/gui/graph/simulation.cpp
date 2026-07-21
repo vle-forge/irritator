@@ -46,7 +46,7 @@ bool show_local_observers(application&    app,
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
-            if (ImGui::InputFilteredString("name", graph.name))
+            if (ImGui::InputFilteredString("##name", graph.name))
                 ++is_modified;
             ImGui::PopItemWidth();
 
@@ -65,13 +65,8 @@ bool show_local_observers(application&    app,
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            float time_step = graph.time_step;
-            if (ImGui::DragFloat("time-step",
-                                 &time_step,
-                                 0.01f,
-                                 graph.time_step.lower,
-                                 graph.time_step.upper))
-                graph.time_step.set(time_step);
+            if (ImGui::DragFraction("##timestep", &graph.timestep))
+                is_modified = true;
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();

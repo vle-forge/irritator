@@ -208,7 +208,6 @@ static void simulation_component_tester(
             irt::project pj;
             pj.file = project_file_id;
             pj.sim.limits.set_bound(0, 2);
-            pj.sim.observation_time_step = 0.1;
 
             expect(pj.set(ids, fs, gen_compo, jn).has_value());
 

@@ -28,7 +28,7 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
                     return make_error(
                       simulation_errc::observers_container_full);
 
-                sim.observe(*mdl);
+                sim.observe(*mdl, timestep.to_double());
             }
 
             subs.get<observer_id>(id) = mdl->obs_id;

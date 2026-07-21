@@ -1308,10 +1308,9 @@ int main()
         expect(!!sim.connect_dynamics(c2, 0, cnt, 1));
         expect(!!sim.connect_dynamics(c3, 0, cnt, 2));
 
-        sim.observation_time_step = 1;
         sim.limits.set_bound(0, 3);
 
-        expect(sim.observe(get_model(cnt)).has_value());
+        expect(sim.observe(get_model(cnt), 1.0).has_value());
         expect(!!sim.initialize());
 
         do {

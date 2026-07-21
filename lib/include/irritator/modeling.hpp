@@ -1489,9 +1489,7 @@ public:
     vector<observer_id>         observers;
     shared_buffer<vector<real>> values;
 
-    time tn = 0; /**< next time for observation */
-
-    static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
+    fraction timestep = { 1, 10 }; //!< Affect resampler::m_dt.
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1502,9 +1500,6 @@ public:
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
-
-    /** Check if the simulation time is greater than wake up time @c tn. */
-    bool can_update(const time t) const noexcept { return t > tn; }
 
     // For each `observer`, get the latest observation value and fill the
     // values vector.
@@ -1531,9 +1526,7 @@ public:
     vector<observer_id>         observers;
     shared_buffer<vector<real>> values;
 
-    time tn     = 0; /**< next time for observation */
-
-    static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
+    fraction timestep = { 1, 10 }; //!< Affect resampler::m_dt.
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1544,9 +1537,6 @@ public:
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
-
-    /** Check if the simulation time is greater than wake up time @c tn. */
-    bool can_update(const time t) const noexcept { return t > tn; }
 
     // For each `observer`, get the latest observation value and fill the
     // values vector.
@@ -1575,7 +1565,7 @@ public:
     static_bounded_value<i32, 1024, 65536> linearized_buffer_size = 32768;
     static_bounded_floating_point<float, 1, 100, 1, 10> time_step = .01f;
 
-    time tn = 0;
+    fraction timestep = { 1, 100 }; //!< Affect resampler::m_dt.
 
     enum class sub_id : u32;
 

@@ -63,6 +63,8 @@ constexpr static inline real three = to_real(3.L);
 constexpr static inline real four  = to_real(4.L);
 constexpr static inline real zero  = to_real(0.L);
 
+constexpr static inline real default_observation_time_step = 0.1;
+
 template<std::signed_integral Integer>
 constexpr typename std::make_unsigned_t<Integer> to_unsigned(
   Integer value) noexcept
@@ -1961,7 +1963,6 @@ public:
     external_source srcs;
 
     time_limit limits;
-    time       observation_time_step = 0.01;
 
 private:
     std::atomic<real> t = time_domain<time>::infinity;
@@ -11493,7 +11494,6 @@ inline simulation::simulation(const simulation& other) noexcept
   , sched(other.sched)
   , srcs(other.srcs)
   , limits(other.limits)
-  , observation_time_step(other.observation_time_step)
   , t(other.t.load(std::memory_order_acquire))
 {}
 
@@ -11517,7 +11517,6 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     sched                 = other.sched;
     srcs                  = other.srcs;
     limits                = other.limits;
-    observation_time_step = other.observation_time_step;
     t                     = other.t.load(std::memory_order_acquire);
 
     return *this;
@@ -11736,7 +11735,8 @@ inline status simulation::observe(model& mdl) noexcept
         const auto obs_id = observers.get_id(obs);
 
         observers.get<resampler>(obs_id) =
-          resampler{ observation_time_step, get_interpolate_type(mdl.type) };
+          resampler{ default_observation_time_step,
+                     get_interpolate_type(mdl.type) };
 
         mdl.obs_id = obs_id;
     }
@@ -12332,7 +12332,7 @@ inline status simulation::run() noexcept
 template<typename Fn, typename... Args>
 inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
 {
-    debug::ensure(std::isfinite(t));
+    debug::ensure(std::isfinite(t.load()));
 
     immediate_models.clear();
     immediate_observers.clear();

@@ -437,7 +437,7 @@ static bool show_simulation_table_grid_observers(application& /*app*/,
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
-            if (ImGui::InputFilteredString("name", grid.name))
+            if (ImGui::InputFilteredString("##name", grid.name))
                 is_modified = true;
             ImGui::PopItemWidth();
 
@@ -455,14 +455,9 @@ static bool show_simulation_table_grid_observers(application& /*app*/,
             }
 
             ImGui::TableNextColumn();
-            float time_step = grid.time_step;
-            ImGui::PushItemWidth(-1.0f);
-            if (ImGui::DragFloat("time-step",
-                                 &time_step,
-                                 0.01f,
-                                 grid.time_step.lower,
-                                 grid.time_step.upper))
-                grid.time_step.set(time_step);
+            ImGui::PushItemWidth(-1);
+            if (ImGui::DragFraction("##timestep", &grid.timestep))
+                is_modified = true;
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
@@ -504,7 +499,7 @@ static bool show_simulation_table_graph_observers(application& /*app*/,
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
-            if (ImGui::InputFilteredString("name", graph.name))
+            if (ImGui::InputFilteredString("##name", graph.name))
                 is_modified = true;
             ImGui::PopItemWidth();
 
@@ -522,14 +517,9 @@ static bool show_simulation_table_graph_observers(application& /*app*/,
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            float time_step = graph.time_step;
             ImGui::PushItemWidth(-1);
-            if (ImGui::DragFloat("time-step",
-                                 &time_step,
-                                 0.01f,
-                                 graph.time_step.lower,
-                                 graph.time_step.upper))
-                graph.time_step.set(time_step);
+            if (ImGui::DragFraction("##timestep", &graph.timestep))
+                is_modified = true;
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
@@ -579,7 +569,7 @@ static bool show_simulation_table_variable_observers(
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
-            if (ImGui::InputFilteredString("name", variable.name))
+            if (ImGui::InputFilteredString("##name", variable.name))
                 is_modified = true;
             ImGui::PopItemWidth();
 
@@ -597,14 +587,9 @@ static bool show_simulation_table_variable_observers(
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
-            float time_step = variable.time_step;
             ImGui::PushItemWidth(-1);
-            if (ImGui::DragFloat("time-step",
-                                 &time_step,
-                                 0.01f,
-                                 variable.time_step.lower,
-                                 variable.time_step.upper))
-                variable.time_step.set(time_step);
+            if (ImGui::DragFraction("##frac", &variable.timestep))
+                is_modified = true;
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();

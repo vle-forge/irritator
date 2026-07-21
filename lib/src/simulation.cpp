@@ -222,7 +222,6 @@ static status embedded_sims_alloc(simulation_wrapper& wrapper,
         const auto idx = get_index(id);
 
         sims[idx]                       = source;
-        sims[idx].observation_time_step = wrapper.observation_time_step;
         sim_obs[idx].data.clear();
 
         for (const auto sel_id : source.selections) {
@@ -1229,8 +1228,6 @@ status simulation_wrapper::finalize(simulation& /*sim*/) noexcept
         const auto idx   = get_index(id);
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
-
-        sim.observation_time_step = 0.1;
 
         if (sim.finalize().has_error())
             return make_error(

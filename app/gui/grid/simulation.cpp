@@ -206,7 +206,7 @@ bool show_local_observers(application&    app,
               ImGui::TableNextColumn();
 
               ImGui::PushItemWidth(-1.0f);
-              if (ImGui::InputFilteredString("name", grid.name))
+              if (ImGui::InputFilteredString("##name", grid.name))
                   is_modified = true;
               ImGui::PopItemWidth();
 
@@ -226,13 +226,8 @@ bool show_local_observers(application&    app,
 
               ImGui::TableNextColumn();
               ImGui::PushItemWidth(-1);
-              float time_step = grid.time_step;
-              if (ImGui::DragFloat("time-step",
-                                   &time_step,
-                                   0.01f,
-                                   grid.time_step.lower,
-                                   grid.time_step.upper))
-                  grid.time_step.set(time_step);
+              if (ImGui::DragFraction("##timestep", &grid.timestep))
+                  is_modified = true;
               ImGui::PopItemWidth();
 
               ImGui::TableNextColumn();

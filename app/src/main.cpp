@@ -264,15 +264,13 @@ public:
         for (auto& g : pj.grid_observers) {
             const auto g_id = pj.grid_observers.get_id(g);
             if (auto* g = pj.grid_observers.try_to_get(g_id))
-                if (g->can_update(pj.sim.current_time()))
-                    g->update(pj.sim);
+                g->update(pj.sim);
         }
 
         for (auto& g : pj.graph_observers) {
             const auto g_id = pj.graph_observers.get_id(g);
             if (auto* g = pj.graph_observers.try_to_get(g_id))
-                if (g->can_update(pj.sim.current_time()))
-                    g->update(pj.sim);
+                g->update(pj.sim);
         }
 
         if (pj.file_obs.can_update(pj.sim.current_time()))

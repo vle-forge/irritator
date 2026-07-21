@@ -747,8 +747,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.grid_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.current_time()))
-                    g->update(pj.sim);
+                g->update(pj.sim);
         });
 
         ++current;
@@ -763,8 +762,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.graph_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.current_time()))
-                    g->update(pj.sim);
+                g->update(pj.sim);
         });
         ++current;
         if (current == obs_max) {
