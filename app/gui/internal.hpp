@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_INTERNAL_2020
 
 #include <irritator/core.hpp>
+#include <irritator/ext.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 
@@ -322,6 +323,34 @@ inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
       (content_width - (nb_space * item_spacing)) / static_cast<float>(button);
 
     return ImVec2(button_width, 0.f);
+}
+
+inline auto InputFraction(const char* label, irt::fraction* f) noexcept
+{
+    int vec[2] = { f->numerator(), f->denominator() };
+
+    if (ImGui::InputInt2(label, &vec[0])) {
+        if (vec[0] > 0 and vec[1] > 0) {
+            *f = irt::fraction{ vec[0], vec[1] };
+            return true;
+        }
+    }
+
+    return false;
+}
+
+inline auto DragFraction(const char* label, irt::fraction* f) noexcept
+{
+    int vec[2] = { f->numerator(), f->denominator() };
+
+    if (ImGui::DragScalarN(label, ImGuiDataType_S32, &vec[0], 2)) {
+        if (vec[0] > 0 and vec[1] > 0) {
+            *f = irt::fraction{ vec[0], vec[1] };
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } // namespace ImGui
