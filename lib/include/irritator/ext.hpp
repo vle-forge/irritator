@@ -7,9 +7,12 @@
 
 #include <irritator/core.hpp>
 
+#include <charconv>
+#include <cstdint>
 #include <forward_list>
-
 #include <iterator>
+#include <numeric>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -345,6 +348,129 @@ public:
 
     explicit operator bool() const { return callback; }
 };
+
+/// Small exact fraction class (signed 32-bit integers), designed for
+/// capturing a time step (dt) in a graphical interface without relying on
+/// approximate floating-point representation. Always kept in reduced form
+/// (GCD applied), denominator always strictly positive after construction.
+class fraction
+{
+public:
+    constexpr fraction() noexcept = default;
+
+    constexpr fraction(std::int64_t num, std::int64_t den) noexcept
+      : m_num(num)
+      , m_den(den)
+    {
+        normalize();
+    }
+
+    constexpr fraction(std::int64_t whole) noexcept
+      : m_num(whole)
+      , m_den(1)
+    {}
+
+    constexpr std::int32_t numerator() const noexcept { return m_num; }
+    constexpr std::int32_t denominator() const noexcept { return m_den; }
+
+    constexpr double to_double() const noexcept
+    {
+        return static_cast<double>(m_num) / static_cast<double>(m_den);
+    }
+
+    constexpr explicit operator double() const noexcept { return to_double(); }
+
+    constexpr fraction operator+(const fraction& o) const noexcept
+    {
+        return fraction(m_num * o.m_den + o.m_num * m_den, m_den * o.m_den);
+    }
+
+    constexpr fraction operator-(const fraction& o) const noexcept
+    {
+        return fraction(m_num * o.m_den - o.m_num * m_den, m_den * o.m_den);
+    }
+
+    constexpr fraction operator*(const fraction& o) const noexcept
+    {
+        return fraction(m_num * o.m_num, m_den * o.m_den);
+    }
+
+    constexpr fraction operator/(const fraction& o) const noexcept
+    {
+        return fraction(m_num * o.m_den, m_den * o.m_num);
+    }
+
+    constexpr fraction operator*(std::int64_t k) const noexcept
+    {
+        return fraction(m_num * k, m_den);
+    }
+
+    constexpr bool operator==(const fraction& o) const noexcept
+    {
+        return m_num == o.m_num && m_den == o.m_den;
+    }
+
+    constexpr auto operator<=>(const fraction& o) const noexcept
+    {
+        return (m_num * o.m_den) <=> (o.m_num * m_den);
+    }
+
+private:
+    constexpr void normalize() noexcept
+    {
+        debug::ensure(m_den != 0);
+
+        if (m_den < 0) {
+            m_num = -m_num;
+            m_den = -m_den;
+        }
+
+        const auto g = std::gcd(m_num < 0 ? -m_num : m_num, m_den);
+        if (g > 1) {
+            m_num /= g;
+            m_den /= g;
+        }
+    }
+
+    std::int32_t m_num = 0;
+    std::int32_t m_den = 1;
+};
+
+/// Parse a string "num/den" and build a fraction if possible
+inline expected<fraction> parse_fraction(std::string_view text) noexcept
+{
+    const auto slash = text.find('/');
+
+    if (slash == std::string_view::npos) {
+        std::int64_t num = 0;
+        auto [ptr, ec] =
+          std::from_chars(text.data(), text.data() + text.size(), num);
+        if (ec != std::errc{} || ptr != text.data() + text.size())
+            return make_error(static_cast<i16>(std::errc::invalid_argument),
+                              category::generic);
+
+        return fraction(num);
+    }
+
+    const auto num_part = text.substr(0, slash);
+    const auto den_part = text.substr(slash + 1);
+
+    std::int64_t num = 0;
+    std::int64_t den = 0;
+
+    auto [p1, ec1] =
+      std::from_chars(num_part.data(), num_part.data() + num_part.size(), num);
+    auto [p2, ec2] =
+      std::from_chars(den_part.data(), den_part.data() + den_part.size(), den);
+
+    if (ec1 != std::errc{} || ec2 != std::errc{} || den == 0 ||
+        p1 != num_part.data() + num_part.size() ||
+        p2 != den_part.data() + den_part.size())
+        return make_error(static_cast<i16>(std::errc::invalid_argument),
+                          category::generic);
+
+    return fraction(num, den);
+}
 
 template<typename T>
 class hierarchy
