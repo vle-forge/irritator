@@ -51,7 +51,7 @@ static void do_initialize(const variable_observer& vars,
     }
 }
 
-static void do_update(simulation&              sim,
+static void do_update(const simulation&        sim,
                       const variable_observer& vars,
                       file_observers::cursor&  cursor,
                       std::FILE*               file) noexcept
@@ -110,25 +110,23 @@ static void do_update(const simulation&    sim,
 {
     fmt::print(file, "{},", sim.current_time());
 
-    grid.values.read([&](const auto& v, const auto /*version*/) noexcept {
-        for (int row = 0; row < grid.rows; ++row) {
-            for (int col = 0; col < grid.cols; ++col) {
-                const auto pos = col * grid.rows + row;
+    for (int row = 0; row < grid.rows; ++row) {
+        for (int col = 0; col < grid.cols; ++col) {
+            const auto pos = col * grid.rows + row;
 
-                if (sim.observers.try_to_get(grid.observers[pos])) {
-                    if (row + 1 == grid.rows and col + 1 == grid.cols)
-                        fmt::print(file, "{:e}\n,", v[pos]);
-                    else
-                        fmt::print(file, "{:e},", v[pos]);
-                } else {
-                    if (row + 1 == grid.rows and col + 1 == grid.cols)
-                        std::fputs("NA\n,", file);
-                    else
-                        std::fputs("NA,", file);
-                }
+            if (sim.observers.try_to_get(grid.observers[pos])) {
+                if (row + 1 == grid.rows and col + 1 == grid.cols)
+                    fmt::print(file, "{:e}\n,", grid.values[pos]);
+                else
+                    fmt::print(file, "{:e},", grid.values[pos]);
+            } else {
+                if (row + 1 == grid.rows and col + 1 == grid.cols)
+                    std::fputs("NA\n,", file);
+                else
+                    std::fputs("NA,", file);
             }
         }
-    });
+    }
 }
 
 static void do_initialize(const graph_observer& vars, std::FILE* file) noexcept
@@ -206,9 +204,9 @@ void file_observers::initialize(const simulation&      sim,
 
 bool file_observers::can_update(const time t) const noexcept { return t > tn; }
 
-void file_observers::update(simulation& sim, const project& pj) noexcept
+void file_observers::update(const project& pj) noexcept
 {
-    tn = sim.current_time() + static_cast<time>(time_step.value());
+    tn = pj.sim.current_time() + static_cast<time>(time_step.value());
 
     auto& subids  = files.template get<id_type>();
     auto& types   = files.template get<type>();
@@ -225,17 +223,17 @@ void file_observers::update(simulation& sim, const project& pj) noexcept
         switch (types[idx]) {
         case type::variables:
             if (auto* vars = pj.variable_observers.try_to_get(subids[idx].var))
-                do_update(sim, *vars, cursors[idx], fd.to_file());
+                do_update(pj.sim, *vars, cursors[idx], fd.to_file());
             break;
 
         case type::grid:
             if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid))
-                do_update(sim, *vars, cursors[idx], fd.to_file());
+                do_update(pj.sim, *vars, cursors[idx], fd.to_file());
             break;
 
         case type::graph:
             if (auto* vars = pj.graph_observers.try_to_get(subids[idx].graph))
-                do_update(sim, *vars, cursors[idx], fd.to_file());
+                do_update(pj.sim, *vars, cursors[idx], fd.to_file());
             break;
         }
     }

@@ -306,35 +306,32 @@ void graph_editor::draw_graph(const graph&          g,
         if (d.nodes.empty())
             return;
 
-        obs.values.read([&](const auto& v, const auto /*version*/) noexcept {
-            if (d.nodes.size() != v.size())
-                return;
+        if (d.nodes.size() != obs.values.size())
+            return;
 
-            for (const auto id : g.nodes) {
-                const auto i      = get_index(id);
-                const auto area   = g.node_areas[i];
-                const auto [x, y] = d.nodes[i];
+        for (const auto id : g.nodes) {
+            const auto i      = get_index(id);
+            const auto area   = g.node_areas[i];
+            const auto [x, y] = d.nodes[i];
 
-                const ImVec2 p_min(origin.x + (x * zoom),
-                                   origin.y + (y * zoom));
+            const ImVec2 p_min(origin.x + (x * zoom), origin.y + (y * zoom));
 
-                const ImVec2 p_max(origin.x + ((x + area) * zoom),
-                                   origin.y + ((y + area) * zoom));
+            const ImVec2 p_max(origin.x + ((x + area) * zoom),
+                               origin.y + ((y + area) * zoom));
 
-                debug::ensure(i < v.size());
+            debug::ensure(i < obs.values.size());
 
-                const auto m = static_cast<double>(obs.scale_min);
-                const auto M = static_cast<double>(obs.scale_max);
-                const auto d = std::abs(m) + std::abs(M);
-                const auto o = v[i] + m;
-                const auto t = std::clamp(o / d, 0.0, 1.0);
+            const auto m = static_cast<double>(obs.scale_min);
+            const auto M = static_cast<double>(obs.scale_max);
+            const auto d = std::abs(m) + std::abs(M);
+            const auto o = obs.values[i] + m;
+            const auto t = std::clamp(o / d, 0.0, 1.0);
 
-                draw_list->AddRectFilled(p_min,
-                                         p_max,
-                                         ImPlot::SampleColormapU32(
-                                           static_cast<float>(t), IMPLOT_AUTO));
-            }
-        });
+            draw_list->AddRectFilled(
+              p_min,
+              p_max,
+              ImPlot::SampleColormapU32(static_cast<float>(t), IMPLOT_AUTO));
+        }
 
         for (const auto id : g.edges) {
             const auto& [from, to] = g.edges_nodes[id];

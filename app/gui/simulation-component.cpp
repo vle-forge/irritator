@@ -747,7 +747,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.grid_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                g->update(pj.sim);
+                g->update(pj);
         });
 
         ++current;
@@ -762,7 +762,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.graph_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                g->update(pj.sim);
+                g->update(pj);
         });
         ++current;
         if (current == obs_max) {
@@ -778,7 +778,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
     }
 
     if (pj.file_obs.can_update(pj.sim.current_time()))
-        pj.file_obs.update(pj.sim, pj);
+        pj.file_obs.update(pj);
 }
 
 void project_editor::stop_simulation_observation(application& app) noexcept
@@ -861,7 +861,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             }
 
             if (pj.file_obs.can_update(pj.sim.current_time()))
-                pj.file_obs.update(pj.sim, pj);
+                pj.file_obs.update(pj);
 
             const auto current_rt   = stdc::high_resolution_clock::now();
             const auto diff_rt      = current_rt - start_task_rt;
@@ -1002,7 +1002,7 @@ void project_editor::start_simulation_step_by_step(application& app) noexcept
                     snaps.emplace_back(pj.sim);
 
                 if (pj.file_obs.can_update(pj.sim.current_time()))
-                    pj.file_obs.update(pj.sim, pj);
+                    pj.file_obs.update(pj);
 
                 if (pj.sim.current_time_expired()) {
                     simulation_state = simulation_status::finish_requiring;

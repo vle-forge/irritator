@@ -15,23 +15,21 @@ void grid_observation_widget::show(grid_observer& grid,
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
     if (ImGui::BeginChild("grid")) {
-        grid.values.read([&](const auto& v, const auto /*version*/) noexcept {
-            if (not v.empty()) {
-                ImPlot::PushColormap(grid.color_map);
-                if (ImPlot::BeginPlot(grid.name.c_str(),
-                                      size,
-                                      ImPlotFlags_NoLegend |
-                                        ImPlotFlags_NoMouseText)) {
-                    ImPlot::PlotHeatmap(grid.name.c_str(),
-                                        v.data(),
-                                        grid.rows,
-                                        grid.cols,
-                                        grid.scale_min,
-                                        grid.scale_max);
-                    ImPlot::EndPlot();
-                }
+        if (not grid.values.empty()) {
+            ImPlot::PushColormap(grid.color_map);
+            if (ImPlot::BeginPlot(grid.name.c_str(),
+                                  size,
+                                  ImPlotFlags_NoLegend |
+                                    ImPlotFlags_NoMouseText)) {
+                ImPlot::PlotHeatmap(grid.name.c_str(),
+                                    grid.values.data(),
+                                    grid.rows,
+                                    grid.cols,
+                                    grid.scale_min,
+                                    grid.scale_max);
+                ImPlot::EndPlot();
             }
-        });
+        }
     }
 
     ImGui::EndChild();

@@ -788,8 +788,6 @@ static auto make_tree_leaf(simulation_copy&                sc,
 
     if (ch.flags[child_flags::configurable]) {
         debug::ensure(not uid.empty());
-        parent.unique_id_to_model_id.set(name_str(uid), new_mdl_id);
-        parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
 
         if (not sc.pj.parameters.can_alloc(1) and
             not sc.pj.parameters.grow<2, 1>(1))
@@ -799,21 +797,28 @@ static auto make_tree_leaf(simulation_copy&                sc,
             not parent.parameters_ids.data.grow<2, 1>())
             return make_error(project_errc::memory_error);
 
-        const auto id = sc.pj.parameters.alloc_id();
+        const auto param_id = sc.pj.parameters.alloc_id();
 
-        sc.pj.parameters.get<name_str>(id) = name_str(uid);
-        sc.pj.parameters.get<tree_node_id>(id) =
+        parent.unique_id_to_model_id.set(
+          name_str(uid),
+          tree_node::target{ .mdl_id = new_mdl_id, .g_param_id = param_id });
+
+        parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
+
+        sc.pj.parameters.get<name_str>(param_id) = name_str(uid);
+        sc.pj.parameters.get<tree_node_id>(param_id) =
           sc.pj.tree_nodes.get_id(parent);
-        sc.pj.parameters.get<model_id>(id) = new_mdl_id;
+        sc.pj.parameters.get<model_id>(param_id) = new_mdl_id;
 
-        sc.pj.parameters.get<parameter>(id).copy_from(new_mdl);
-        parent.parameters_ids.set(name_str(uid), id);
+        sc.pj.parameters.get<parameter>(param_id).copy_from(new_mdl);
+        parent.parameters_ids.set(name_str(uid), param_id);
     }
 
     if (ch.flags[child_flags::observable]) {
         debug::ensure(not uid.empty());
 
-        parent.unique_id_to_model_id.set(name_str(uid), new_mdl_id);
+        parent.unique_id_to_model_id.set(
+          name_str(uid), tree_node::target{ .mdl_id = new_mdl_id });
         parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
 
         if (sc.pj.variable_observers.empty()) {
@@ -2139,8 +2144,8 @@ public:
     required_data compute(const component_access& ids,
                           const component_id      c_id) noexcept
     {
-        required_data          ret{ .tree_node_nb = 1 };
-        const auto&            c = ids.components[c_id];
+        required_data ret{ .tree_node_nb = 1 };
+        const auto&   c = ids.components[c_id];
 
         if (auto* ptr = map.get(c_id)) {
             ret = *ptr;
@@ -2399,10 +2404,19 @@ auto project::get_model(const tree_node&        tn,
                         const relative_id_path& path) noexcept
   -> std::pair<tree_node_id, model_id>
 {
+    const auto [tn_id, target] = get_target(tn, path);
+
+    return std::make_pair(tn_id, target.mdl_id);
+}
+
+auto project::get_target(const tree_node&        tn,
+                         const relative_id_path& path) noexcept
+  -> std::pair<tree_node_id, tree_node::target>
+{
     debug::ensure(path.ids.size() >= 2);
 
-    tree_node_id ret_node_id = tree_nodes.get_id(tn);
-    model_id     ret_mdl_id  = undefined<model_id>();
+    tree_node_id      tn_id = tree_nodes.get_id(tn);
+    tree_node::target target;
 
     const auto* from = &tn;
     const sz    first =
@@ -2414,8 +2428,8 @@ auto project::get_model(const tree_node&        tn,
         const auto* ptr = from->unique_id_to_tree_node_id.get(path.ids[i]);
 
         if (ptr) {
-            ret_node_id = *ptr;
-            from        = tree_nodes.try_to_get(*ptr);
+            tn_id = *ptr;
+            from  = tree_nodes.try_to_get(*ptr);
             --i;
         } else {
             break;
@@ -2425,10 +2439,10 @@ auto project::get_model(const tree_node&        tn,
     if (i == 0 and from != nullptr) {
         const auto* mdl_id_ptr = from->unique_id_to_model_id.get(path.ids[0]);
         if (mdl_id_ptr)
-            ret_mdl_id = *mdl_id_ptr;
+            target = *mdl_id_ptr;
     }
 
-    return std::make_pair(ret_node_id, ret_mdl_id);
+    return std::make_pair(tn_id, target);
 }
 
 void project::build_unique_id_path(const tree_node_id tn_id,

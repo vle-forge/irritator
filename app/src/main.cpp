@@ -264,17 +264,17 @@ public:
         for (auto& g : pj.grid_observers) {
             const auto g_id = pj.grid_observers.get_id(g);
             if (auto* g = pj.grid_observers.try_to_get(g_id))
-                g->update(pj.sim);
+                g->update(pj);
         }
 
         for (auto& g : pj.graph_observers) {
             const auto g_id = pj.graph_observers.get_id(g);
             if (auto* g = pj.graph_observers.try_to_get(g_id))
-                g->update(pj.sim);
+                g->update(pj);
         }
 
         if (pj.file_obs.can_update(pj.sim.current_time()))
-            pj.file_obs.update(pj.sim, pj);
+            pj.file_obs.update(pj);
     }
 
     irt::expected<void> run() noexcept

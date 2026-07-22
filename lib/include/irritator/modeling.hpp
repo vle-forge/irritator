@@ -1122,7 +1122,7 @@ public:
     bool can_update(const time t) const noexcept;
 
     /** For each @c file_observer_id, flush data into the open files */
-    void update(simulation& sim, const project& pj) noexcept;
+    void update(const project& pj) noexcept;
 
     /** For each @c buffered_file in @c files, close the opening file. */
     void finalize() noexcept;
@@ -1240,8 +1240,13 @@ struct tree_node {
         }
     };
 
+    struct target {
+        model_id            mdl_id     = undefined<model_id>();
+        global_parameter_id g_param_id = undefined<global_parameter_id>();
+    };
+
     table<name_str, tree_node_id, name_str_compare> unique_id_to_tree_node_id;
-    table<name_str, model_id, name_str_compare>     unique_id_to_model_id;
+    table<name_str, target, name_str_compare>       unique_id_to_model_id;
     table<model_id, name_str>                       model_id_to_unique_id;
 
     table<name_str, global_parameter_id, name_str_compare> parameters_ids;
@@ -1256,7 +1261,7 @@ struct tree_node {
     {
         auto* ptr = unique_id_to_model_id.get(u_id);
 
-        return ptr ? std::make_optional(*ptr) : std::nullopt;
+        return ptr ? std::make_optional(ptr->mdl_id) : std::nullopt;
     }
 
     auto get_tree_node_id(const std::string_view u_id) const noexcept
@@ -1269,10 +1274,11 @@ struct tree_node {
 
     auto get_unique_id(const model_id mdl_id) const noexcept -> std::string_view
     {
-        auto it = std::find_if(
-          unique_id_to_model_id.data.begin(),
-          unique_id_to_model_id.data.end(),
-          [mdl_id](const auto& elem) noexcept { return elem.value == mdl_id; });
+        auto it = std::find_if(unique_id_to_model_id.data.begin(),
+                               unique_id_to_model_id.data.end(),
+                               [mdl_id](const auto& elem) noexcept {
+                                   return elem.value.mdl_id == mdl_id;
+                               });
 
         return it == unique_id_to_model_id.data.end() ? std::string_view{}
                                                       : it->id.sv();
@@ -1366,6 +1372,9 @@ public:
 
     auto get_model(const tree_node& tn, const relative_id_path& path) noexcept
       -> std::pair<tree_node_id, model_id>;
+
+    auto get_target(const tree_node& tn, const relative_id_path& path) noexcept
+      -> std::pair<tree_node_id, tree_node::target>;
 
     void build_unique_id_path(const tree_node_id tn_id,
                               const model_id     mdl_id,
@@ -1480,30 +1489,42 @@ class grid_observer
 public:
     name_str name;
 
-    tree_node_id parent_id; //!< @c tree_node identifier ancestor of the
-                            //!< model a grid component.
-    component_id compo_id;  //!< @c component in the grid to observe.
-    tree_node_id tn_id;     //!< @c tree_node identifier parent of the model.
-    model_id     mdl_id;    //!< @c model to observe.
+    tree_node_id parent_id; /**< @c tree_node identifier ancestor of the model.
+                               A grid component. */
+    component_id compo_id;  /**< @c component in the grid to observe. */
+    tree_node_id tn_id;     /**< @c tree_node identifier parent of the model. */
+    model_id     mdl_id;    /**< @c model to observe. */
 
-    vector<observer_id>         observers;
-    shared_buffer<vector<real>> values;
+    vector<observer_id> observers;
+    vector<real>        values;
 
-    fraction timestep = { 1, 10 }; //!< Affect resampler::m_dt.
+    fraction timestep = { 1, 10 }; /**< Affect resampler::m_dt. */
 
-    // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
-    // reinitialize all buffers.
+    /**
+     * @brief Allocate or reuse existing observer for each model.
+     * @param pj
+     * @param mod
+     * @param sim
+     * @param jn
+     */
     void init(project&         pj,
               modeling&        mod,
               simulation&      sim,
               journal_handler& jn) noexcept;
 
-    // Clear the `observers` and `values` vectors.
+    /**
+     * @brief Clear the @c observers and @c values vectors.
+     */
     void clear() noexcept;
 
-    // For each `observer`, get the latest observation value and fill the
-    // values vector.
-    void update(simulation& sim) noexcept;
+    /**
+     * @brief For each observer in @c observers get the last value from history
+     * buffer.
+     *
+     * @param pj Get access of @c project::observations and @c
+     * project::simulation::observers
+     */
+    void update(const project& pj) noexcept;
 
     float scale_min = -100.f;
     float scale_max = +100.f;
@@ -1523,24 +1544,36 @@ public:
     tree_node_id tn_id;     /**< @c tree_node identifier parent of the model. */
     model_id     mdl_id;    /**< @c model to observe. */
 
-    vector<observer_id>         observers;
-    shared_buffer<vector<real>> values;
+    vector<observer_id> observers;
+    vector<real>        values;
 
-    fraction timestep = { 1, 10 }; //!< Affect resampler::m_dt.
+    fraction timestep = { 1, 10 }; /**< Affect resampler::m_dt. */
 
-    // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
-    // reinitialize all buffers.
+    /**
+     * @brief Allocate or reuse existing observer for each model.
+     * @param pj
+     * @param mod
+     * @param sim
+     * @param jn
+     */
     void init(project&         pj,
               modeling&        mod,
               simulation&      sim,
               journal_handler& jn) noexcept;
 
-    // Clear the `observers` and `values` vectors.
+    /**
+     * @brief Clear the @c observers and @c values vectors.
+     */
     void clear() noexcept;
 
-    // For each `observer`, get the latest observation value and fill the
-    // values vector.
-    void update(const simulation& sim) noexcept;
+    /**
+     * @brief For each observer in @c observers get the last value from history
+     * buffer.
+     *
+     * @param pj Get access of @c project::observations and @c
+     * project::simulation::observers
+     */
+    void update(const project& pj) noexcept;
 
     float scale_min = -100.f;
     float scale_max = +100.f;
@@ -1556,9 +1589,6 @@ enum class plot_type_options : u8 {
 class variable_observer
 {
 public:
-    spin_mutex mutex; //!< To write-protect the swap between buffers
-                      //!< (values and values_2nd).
-
     name_str                               name;
     static_bounded_value<i32, 8, 64>       max_observers          = 8;
     static_bounded_value<i32, 8, 512>      raw_buffer_size        = 64;
@@ -1569,15 +1599,6 @@ public:
 
     enum class sub_id : u32;
 
-    /** A DOD structure to store sub-variable observers with:
-     *
-     * tree_node_id `tree_node` parent of the model.
-     * model_id      `model` to observe.
-     * observer_id   `observer` connected to `model`.
-     * color         Colors used for observers.
-     * plot_type_options Line, dash etc. for observers.
-     * name_str      Name of the observation.
-     */
     id_data_array<void,
                   sub_id,
                   irt::allocator<new_delete_memory_resource>,
