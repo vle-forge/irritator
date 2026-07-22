@@ -67,7 +67,7 @@ struct lambda_signature<R (C::*)(Args...) const volatile> {
 
 // ref-qualifiers variants
 template<typename C, typename R, typename... Args>
-struct lambda_signature<R (C::*)(Args...)&> {
+struct lambda_signature<R (C::*)(Args...) &> {
     using type = R(Args...);
 };
 template<typename C, typename R, typename... Args>
@@ -358,14 +358,14 @@ class fraction
 public:
     constexpr fraction() noexcept = default;
 
-    constexpr fraction(std::int64_t num, std::int64_t den) noexcept
+    constexpr fraction(std::int32_t num, std::int32_t den) noexcept
       : m_num(num)
       , m_den(den)
     {
         normalize();
     }
 
-    constexpr fraction(std::int64_t whole) noexcept
+    constexpr fraction(std::int32_t whole) noexcept
       : m_num(whole)
       , m_den(1)
     {}
@@ -400,7 +400,7 @@ public:
         return fraction(m_num * o.m_den, m_den * o.m_num);
     }
 
-    constexpr fraction operator*(std::int64_t k) const noexcept
+    constexpr fraction operator*(std::int32_t k) const noexcept
     {
         return fraction(m_num * k, m_den);
     }
@@ -442,7 +442,7 @@ inline expected<fraction> parse_fraction(std::string_view text) noexcept
     const auto slash = text.find('/');
 
     if (slash == std::string_view::npos) {
-        std::int64_t num = 0;
+        std::int32_t num = 0;
         auto [ptr, ec] =
           std::from_chars(text.data(), text.data() + text.size(), num);
         if (ec != std::errc{} || ptr != text.data() + text.size())
@@ -455,8 +455,8 @@ inline expected<fraction> parse_fraction(std::string_view text) noexcept
     const auto num_part = text.substr(0, slash);
     const auto den_part = text.substr(slash + 1);
 
-    std::int64_t num = 0;
-    std::int64_t den = 0;
+    std::int32_t num = 0;
+    std::int32_t den = 0;
 
     auto [p1, ec1] =
       std::from_chars(num_part.data(), num_part.data() + num_part.size(), num);
