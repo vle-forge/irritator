@@ -758,6 +758,16 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    bool project_graph_observers_can_alloc(std::integral auto i) noexcept
+    {
+        if (not pj().graph_observers.can_alloc(i) and
+            not pj().graph_observers.grow<2, 1>())
+            return error("can not allocate more graph observers (max: {})",
+                         pj().graph_observers.capacity());
+
+        return true;
+    }
+
     bool project_grid_observers_can_alloc(std::integral auto i) noexcept
     {
         if (not pj().grid_observers.can_alloc(i) and
@@ -5379,6 +5389,9 @@ struct json_dearchiver::impl {
               if ("grid"sv == name)
                   return read_project_grid_observations(value);
 
+              if ("graph"sv == name)
+                  return read_project_graph_observations(value);
+
               return error("unknown element: {}", name);
           });
     }
@@ -5605,6 +5618,80 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      return read_project_plot_observation(value);
+                 });
+    }
+
+    bool graph_observation_init(graph_observer& graph,
+                                tree_node_id    parent_id,
+                                tree_node_id    graph_tn_id,
+                                model_id        mdl_id) const
+    {
+        auto* parent     = pj().tree_nodes.try_to_get(parent_id);
+        auto* mdl_parent = pj().tree_nodes.try_to_get(graph_tn_id);
+
+        debug::ensure(parent and mdl_parent);
+
+        if (parent and mdl_parent) {
+            graph.parent_id = parent_id;
+            graph.tn_id     = graph_tn_id;
+            graph.mdl_id    = mdl_id;
+            graph.compo_id  = mdl_parent->id;
+            parent->graph_observer_ids.emplace_back(
+              pj().graph_observers.get_id(graph));
+            return true;
+        }
+
+        return false;
+    }
+
+    bool read_project_graph_observation(const rapidjson::Value& val,
+                                        graph_observer&         graph) noexcept
+    {
+        auto_stack s(this, "project graph observation");
+
+        std::optional<tree_node_id> parent_id;
+        std::optional<tree_node_id> graph_tn_id;
+        std::optional<model_id>     mdl_id;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     unique_id_path path;
+
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(graph.name);
+
+                     if ("graph"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_id(path, parent_id);
+
+                     if ("access"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_model_ids(
+                                  path, graph_tn_id, mdl_id);
+
+                     return true;
+                 }) and
+               optional_has_value(parent_id) and
+               optional_has_value(graph_tn_id) and
+               optional_has_value(mdl_id) and
+               graph_observation_init(graph, *parent_id, *graph_tn_id, *mdl_id);
+    }
+
+    bool read_project_graph_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, "project graph observations");
+
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_graph_observers_can_alloc(size) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& graph = pj().graph_observers.alloc();
+                     return read_project_graph_observation(value, graph);
                  });
     }
 
@@ -8136,27 +8223,30 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_plot_observations(Writer& w, project& pj) noexcept
+    void do_project_save_variable_observation(Writer& w, project& pj) noexcept
     {
+        if (pj.variable_observers.empty())
+            return;
+
         w.Key("global");
         w.StartArray();
 
-        for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
+        for (const auto& vobs : pj.variable_observers) {
             unique_id_path path;
 
             w.StartObject();
             w.Key("name");
-            w.String(plot.name.begin(), plot.name.size());
+            w.String(vobs.name.begin(), vobs.name.size());
 
             w.Key("models");
             w.StartArray();
 
-            for (const auto id : plot.subs) {
+            for (const auto id : vobs.subs) {
                 w.StartObject();
-                const auto tn  = plot.subs.template get<tree_node_id>(id);
-                const auto mdl = plot.subs.template get<model_id>(id);
-                const auto str = plot.subs.template get<name_str>(id);
-                const auto col = plot.subs.template get<color>(id);
+                const auto tn  = vobs.subs.template get<tree_node_id>(id);
+                const auto mdl = vobs.subs.template get<model_id>(id);
+                const auto str = vobs.subs.template get<name_str>(id);
+                const auto col = vobs.subs.template get<color>(id);
 
                 if (not str.empty()) {
                     w.Key("name");
@@ -8174,10 +8264,10 @@ struct json_archiver::impl {
                 w.String("line");
                 w.EndObject();
             }
-            w.EndArray();
 
+            w.EndArray();
             w.EndObject();
-        });
+        }
 
         w.EndArray();
     }
@@ -8185,15 +8275,19 @@ struct json_archiver::impl {
     template<typename Writer>
     void do_project_save_grid_observations(Writer& w, project& pj) noexcept
     {
+        if (pj.grid_observers.empty())
+            return;
+
         w.Key("grid");
         w.StartArray();
 
-        for_each_data(pj.grid_observers, [&](auto& grid) noexcept {
+        for (const auto& grid : pj.grid_observers) {
             w.StartObject();
             w.Key("name");
             w.String(grid.name.begin(), grid.name.size());
 
             unique_id_path path;
+
             w.Key("grid");
             pj.build_unique_id_path(grid.parent_id, path);
             write_project_unique_id_path(w, path);
@@ -8203,7 +8297,37 @@ struct json_archiver::impl {
             write_project_unique_id_path(w, path);
 
             w.EndObject();
-        });
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_project_save_graph_observations(Writer& w, project& pj) noexcept
+    {
+        if (pj.graph_observers.empty())
+            return;
+
+        w.Key("graph");
+        w.StartArray();
+
+        for (const auto& graph : pj.graph_observers) {
+            w.StartObject();
+            w.Key("name");
+            w.String(graph.name.begin(), graph.name.size());
+
+            unique_id_path path;
+
+            w.Key("graph");
+            pj.build_unique_id_path(graph.parent_id, path);
+            write_project_unique_id_path(w, path);
+
+            w.Key("access");
+            pj.build_unique_id_path(graph.tn_id, graph.mdl_id, path);
+            write_project_unique_id_path(w, path);
+
+            w.EndObject();
+        }
 
         w.EndArray();
     }
@@ -8214,8 +8338,9 @@ struct json_archiver::impl {
         w.Key("observations");
 
         w.StartObject();
-        do_project_save_plot_observations(w, pj);
+        do_project_save_variable_observation(w, pj);
         do_project_save_grid_observations(w, pj);
+        do_project_save_graph_observations(w, pj);
         w.EndObject();
     }
 
