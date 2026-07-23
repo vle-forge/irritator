@@ -2641,7 +2641,7 @@ status project::simulation_initialize() noexcept
     sim.observers.clear();
 
     for (auto& v_obs : variable_observers)
-        irt_check(v_obs.init(*this, sim));
+        irt_check(v_obs.init(*this));
 
     return sim.initialize();
 }

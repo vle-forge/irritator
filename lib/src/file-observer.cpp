@@ -148,11 +148,10 @@ static void do_update(const simulation&       sim,
 
 void file_observers::clear() noexcept { files.clear(); }
 
-void file_observers::initialize(const simulation&      sim,
-                                project&               pj,
+void file_observers::initialize(project&               pj,
                                 const std::string_view output_dir) noexcept
 {
-    tn = sim.current_time() + static_cast<time>(time_step);
+    tn = pj.sim.current_time() + static_cast<time>(time_step);
 
     auto& subids  = files.template get<id_type>();
     auto& types   = files.template get<type>();

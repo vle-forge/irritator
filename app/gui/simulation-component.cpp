@@ -53,16 +53,16 @@ static status simulation_init_observation(modeling&        mod,
                                           journal_handler& jn) noexcept
 {
     for (auto& grid_obs : pj.grid_observers)
-        grid_obs.init(pj, mod, pj.sim, jn);
+        grid_obs.init(pj, mod, jn);
 
     for (auto& graph_obs : pj.graph_observers)
-        graph_obs.init(pj, mod, pj.sim, jn);
+        graph_obs.init(pj, mod, jn);
 
     for (auto& v_obs : pj.variable_observers)
-        irt_check(v_obs.init(pj, pj.sim));
+        irt_check(v_obs.init(pj));
 
     if (const auto path = pj.get_observation_dir(mod); path.has_value())
-        pj.file_obs.initialize(pj.sim, pj, path->string());
+        pj.file_obs.initialize(pj, path->string());
 
     return success();
 }

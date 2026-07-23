@@ -52,7 +52,6 @@ std::optional<std::pair<int, int>> get_row_column(
 static void build_grid_observer(grid_observer&   grid_obs,
                                 project&         pj,
                                 journal_handler& jn,
-                                simulation&      sim,
                                 tree_node&       grid_parent,
                                 grid_component&  grid_compo) noexcept
 {
@@ -99,7 +98,6 @@ static void build_grid_observer(grid_observer&   grid_obs,
 
 void grid_observer::init(project&         pj,
                          modeling&        mod,
-                         simulation&      sim,
                          journal_handler& jn) noexcept
 {
     observers.clear();
@@ -123,7 +121,7 @@ void grid_observer::init(project&         pj,
                         rows = grid->row();
                         cols = grid->column();
 
-                        build_grid_observer(*this, pj, jn, sim, *tn, *grid);
+                        build_grid_observer(*this, pj, jn, *tn, *grid);
                     }
                 }
             }

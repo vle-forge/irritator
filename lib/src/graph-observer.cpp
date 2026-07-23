@@ -29,7 +29,6 @@ static auto init_or_reuse_observer(project&       pj,
 static void build_graph(graph_observer&  graph_obs,
                         journal_handler& jn,
                         project&         pj,
-                        simulation&      sim,
                         tree_node&       graph_parent,
                         graph_component& graph_compo) noexcept
 {
@@ -79,7 +78,6 @@ static void build_graph(graph_observer&  graph_obs,
 
 void graph_observer::init(project&         pj,
                           modeling&        mod,
-                          simulation&      sim,
                           journal_handler& jn) noexcept
 {
     observers.clear();
@@ -99,7 +97,7 @@ void graph_observer::init(project&         pj,
 
                         values.resize(len, zero);
 
-                        build_graph(*this, jn, pj, sim, *tn, *graph);
+                        build_graph(*this, jn, pj, *tn, *graph);
                     }
                 }
             }

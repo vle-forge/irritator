@@ -1114,9 +1114,7 @@ public:
 
     /** For each variable_observers, grid_observers and graph_observers from
      * @c project try to initialize the @c buffered_file in @c files. */
-    void initialize(const simulation& sim,
-                    project&          pj,
-                    std::string_view  output_dir) noexcept;
+    void initialize(project& pj, std::string_view output_dir) noexcept;
 
     /** Check if the @c tn is lower than @c t. */
     bool can_update(const time t) const noexcept;
@@ -1509,7 +1507,6 @@ public:
      */
     void init(project&         pj,
               modeling&        mod,
-              simulation&      sim,
               journal_handler& jn) noexcept;
 
     /**
@@ -1558,7 +1555,6 @@ public:
      */
     void init(project&         pj,
               modeling&        mod,
-              simulation&      sim,
               journal_handler& jn) noexcept;
 
     /**
@@ -1616,7 +1612,7 @@ public:
     //! @details Build or reuse existing observer in `obs_id` vector for
     //! each pair `tn_id` and `mdl_id` and (re)initialize buffer reserve
     //! buffer.
-    status init(project& pj, simulation& sim) noexcept;
+    status init(project& pj) noexcept;
 
     //! @brief Fill the `observer_id` vector with undefined value.
     void clear() noexcept;

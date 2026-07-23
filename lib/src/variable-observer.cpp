@@ -7,28 +7,28 @@
 
 namespace irt {
 
-status variable_observer::init(project& pj, simulation& sim) noexcept
+status variable_observer::init(project& pj) noexcept
 {
     for (const auto id : subs) {
         const auto tn_id  = subs.get<tree_node_id>(id);
         const auto mdl_id = subs.get<model_id>(id);
         auto*      tn     = pj.tree_nodes.try_to_get(tn_id);
-        auto*      mdl    = sim.models.try_to_get(mdl_id);
+        auto*      mdl    = pj.sim.models.try_to_get(mdl_id);
 
         subs.get<observer_id>(id) = undefined<observer_id>();
 
         if (tn and mdl) {
-            auto* obs = sim.observers.try_to_get(mdl->obs_id);
+            auto* obs = pj.sim.observers.try_to_get(mdl->obs_id);
 
             if (obs) {
                 obs->reset();
             } else {
-                if (not sim.observers.can_alloc(1) and
-                    not sim.observers.grow<3, 2>(1))
+                if (not pj.sim.observers.can_alloc(1) and
+                    not pj.sim.observers.grow<3, 2>(1))
                     return make_error(
                       simulation_errc::observers_container_full);
 
-                sim.observe(*mdl, timestep.to_double());
+                pj.sim.observe(*mdl, timestep.to_double());
             }
 
             subs.get<observer_id>(id) = mdl->obs_id;

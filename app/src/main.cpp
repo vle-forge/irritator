@@ -241,22 +241,22 @@ public:
     void observation_initialize() noexcept
     {
         for (auto& o : pj.grid_observers) {
-            o.init(pj, mod, pj.sim, jn);
+            o.init(pj, mod, jn);
             pj.file_obs.alloc(pj.grid_observers.get_id(o));
         }
 
         for (auto& o : pj.graph_observers) {
-            o.init(pj, mod, pj.sim, jn);
+            o.init(pj, mod, jn);
             pj.file_obs.alloc(pj.graph_observers.get_id(o));
         }
 
         for (auto& o : pj.variable_observers)
-            if (auto ret = o.init(pj, pj.sim); !!ret)
+            if (auto ret = o.init(pj); !!ret)
                 pj.file_obs.alloc(pj.variable_observers.get_id(o));
 
         const auto path = pj.get_observation_dir(mod);
         if (path.has_value())
-            pj.file_obs.initialize(pj.sim, pj, path->string());
+            pj.file_obs.initialize(pj, path->string());
     }
 
     void observation_update() noexcept
