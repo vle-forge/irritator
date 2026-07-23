@@ -38,6 +38,7 @@ enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
+enum class global_observable_id : u64;
 enum class file_observer_id : u32;
 
 enum class graph_node_id : irt::u32;
@@ -1241,6 +1242,7 @@ struct tree_node {
     struct target {
         model_id            mdl_id     = undefined<model_id>();
         global_parameter_id g_param_id = undefined<global_parameter_id>();
+        bool                observable = false;
     };
 
     table<name_str, tree_node_id, name_str_compare> unique_id_to_tree_node_id;
@@ -1248,6 +1250,8 @@ struct tree_node {
     table<model_id, name_str>                       model_id_to_unique_id;
 
     table<name_str, global_parameter_id, name_str_compare> parameters_ids;
+    table<name_str, global_observable_id, name_str_compare> observables_ids;
+
     table<name_str, variable_observer_id, name_str_compare>
       variable_observer_ids;
 
@@ -1427,6 +1431,15 @@ public:
                   parameter     //!< Default parameter
                   >
       parameters;
+
+    id_data_array<void,
+                  global_observable_id,
+                  allocator<new_delete_memory_resource>,
+                  name_str,
+                  tree_node_id, //!< model's parent
+                  model_id      //!< model to parametrize
+                  >
+      observables;
 
     /// Experimental frames replicas
     vector<u64> seeds;

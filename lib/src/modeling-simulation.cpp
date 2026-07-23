@@ -73,38 +73,28 @@ status simulation_component::assign(project&& pj_to_move) noexcept
     {
         selections.clear();
 
-        for (const auto& vobs : pj.variable_observers) {
-            const auto& tns   = vobs.subs.get<tree_node_id>();
-            const auto& mdls  = vobs.subs.get<model_id>();
-            const auto& names = vobs.subs.get<name_str>();
+        const auto& names = pj.observables.get<name_str>();
+        const auto& tns   = pj.observables.get<tree_node_id>();
+        const auto& mdls  = pj.observables.get<model_id>();
 
-            for (const auto sub_id : vobs.subs) {
-                const auto idx = get_index(sub_id);
+        for (const auto g_obs_id : pj.observables) {
+            const auto g_obs_idx = get_index(g_obs_id);
 
-                if (not pj.tree_nodes.exists(tns[idx]) or
-                    not pj.sim.models.exists(mdls[idx]))
-                    continue;
+            if (not pj.tree_nodes.exists(tns[g_obs_idx]) or
+                not pj.sim.models.exists(mdls[g_obs_idx]))
+                continue;
 
-                // Do not add a selection if it already exists in the selection
-                // list. @todo: we should document this feature or block it in
-                // the GUI
+            if (not selections.can_alloc(1) and not selections.grow<2, 1>(1))
+                return make_error(modeling_errc::component_container_full);
 
-                if (already_exists(selections, tns[idx], mdls[idx]))
-                    continue;
+            const auto new_id = selections.alloc_id();
 
-                if (not selections.can_alloc(1) and
-                    not selections.grow<2, 1>(1))
-                    return make_error(modeling_errc::component_container_full);
-
-                const auto new_id = selections.alloc_id();
-
-                selections.get<unique_id_path>(new_id) =
-                  pj.build_unique_id_path(tns[idx], mdls[idx]);
-                selections.get<tree_node_id>(new_id)  = tns[idx];
-                selections.get<model_id>(new_id)      = mdls[idx];
-                selections.get<name_str>(new_id)      = names[idx];
-                selections.get<criteria_type>(new_id) = criteria_type::max;
-            }
+            selections.get<unique_id_path>(new_id) =
+              pj.build_unique_id_path(tns[g_obs_idx], mdls[g_obs_idx]);
+            selections.get<tree_node_id>(new_id)  = tns[g_obs_idx];
+            selections.get<model_id>(new_id)      = mdls[g_obs_idx];
+            selections.get<name_str>(new_id)      = names[g_obs_idx];
+            selections.get<criteria_type>(new_id) = criteria_type::max;
         }
     }
 

@@ -779,13 +779,6 @@ static auto make_tree_leaf(simulation_copy&                sc,
           return success();
       }));
 
-    // const auto is_public = (ch.flags[child_flags::configurable] or
-    //                         ch.flags[child_flags::observable]);
-
-    // @TODO Add a test function in bitflags to allow:
-    // if (ch.flags.test(child_flags::configurable,
-    // child_flags::configurable);
-
     if (ch.flags[child_flags::configurable]) {
         debug::ensure(not uid.empty());
 
@@ -802,7 +795,6 @@ static auto make_tree_leaf(simulation_copy&                sc,
         parent.unique_id_to_model_id.set(
           name_str(uid),
           tree_node::target{ .mdl_id = new_mdl_id, .g_param_id = param_id });
-
         parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
 
         sc.pj.parameters.get<name_str>(param_id) = name_str(uid);
@@ -817,23 +809,34 @@ static auto make_tree_leaf(simulation_copy&                sc,
     if (ch.flags[child_flags::observable]) {
         debug::ensure(not uid.empty());
 
-        parent.unique_id_to_model_id.set(
-          name_str(uid), tree_node::target{ .mdl_id = new_mdl_id });
-        parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
+        if (not sc.pj.observables.can_alloc(1) and
+            not sc.pj.observables.grow<2, 1>(1))
+            return make_error(project_errc::memory_error);
 
-        if (sc.pj.variable_observers.empty()) {
-            if (not sc.pj.variable_observers.can_alloc(1) and
-                not sc.pj.variable_observers.grow<3, 2>())
+        if (auto* target = parent.unique_id_to_model_id.get(uid)) {
+            debug::ensure(target->mdl_id == new_mdl_id);
+            debug::ensure(is_defined(target->g_param_id));
+
+            target->observable = true;
+        } else {
+            if (not parent.observables_ids.data.can_alloc(1) and
+                not parent.observables_ids.data.grow<2, 1>())
                 return make_error(project_errc::memory_error);
 
-            auto& def = sc.pj.alloc_variable_observer();
-            def.name  = "default";
+            parent.unique_id_to_model_id.set(
+              name_str(uid),
+              tree_node::target{ .mdl_id = new_mdl_id, .observable = true });
+            parent.model_id_to_unique_id.set(new_mdl_id, name_str(uid));
         }
 
-        auto& vobs   = *sc.pj.variable_observers.begin();
-        auto  obs_id = sc.pj.variable_observers.get_id(vobs);
-        vobs.push_back(sc.pj.tree_nodes.get_id(parent), new_mdl_id);
-        parent.variable_observer_ids.set(name_str(uid), obs_id);
+        const auto g_obs_id = sc.pj.observables.alloc_id();
+
+        sc.pj.observables.get<name_str>(g_obs_id) = name_str(uid);
+        sc.pj.observables.get<tree_node_id>(g_obs_id) =
+          sc.pj.tree_nodes.get_id(parent);
+        sc.pj.observables.get<model_id>(g_obs_id) = new_mdl_id;
+
+        parent.observables_ids.set(name_str(uid), g_obs_id);
     }
 
     return new_mdl_id;
