@@ -617,8 +617,10 @@ void application::try_open_project_window(const file_access& /*files*/,
 
 void application::close_project_window(const project_id pj_id) noexcept
 {
-    if (pjs.try_to_get(pj_id))
+    if (pjs.try_to_get(pj_id)) {
+        output_ed.remove_project(pj_id);
         pjs.free(pj_id);
+    }
 }
 
 void application::free_project_window(const project_id pj_id) noexcept
@@ -634,48 +636,48 @@ void application::free_project_window(const project_id pj_id) noexcept
             });
         });
 
+        output_ed.remove_project(pj_id);
         pjs.free(pj_id);
     }
 }
 
 bool application::init() noexcept
 {
-    config.vars.rec_paths.read(
-      [&](const auto& conf, const auto /*vers*/) noexcept {
-          const auto& paths =
-            conf.recs.template get<recorded_paths::long_path_str>();
-          const auto& names =
-            conf.recs.template get<recorded_paths::name_str>();
-          const auto& priorities = conf.recs.template get<i8>();
+    config.vars.rec_paths.read([&](const auto& conf,
+                                   const auto /*vers*/) noexcept {
+        const auto& paths =
+          conf.recs.template get<recorded_paths::long_path_str>();
+        const auto& names = conf.recs.template get<recorded_paths::name_str>();
+        const auto& priorities = conf.recs.template get<i8>();
 
-          mod.files.write([&](auto& fs) {
-              if (not(fs.registred_paths.can_alloc(conf.recs.size()) or
-                      fs.registred_paths.template grow<2, 1>()))
-                  return;
+        mod.files.write([&](auto& fs) {
+            if (not(fs.registred_paths.can_alloc(conf.recs.size()) or
+                    fs.registred_paths.template grow<2, 1>()))
+                return;
 
-              for (const auto id : conf.recs) {
-                  const auto idx = get_index(id);
+            for (const auto id : conf.recs) {
+                const auto idx = get_index(id);
 
-                  auto& new_dir    = fs.registred_paths.alloc();
-                  auto  new_dir_id = fs.registred_paths.get_id(new_dir);
-                  new_dir.name     = names[idx].sv();
-                  new_dir.path     = paths[idx].sv();
-                  new_dir.priority = priorities[idx];
+                auto& new_dir    = fs.registred_paths.alloc();
+                auto  new_dir_id = fs.registred_paths.get_id(new_dir);
+                new_dir.name     = names[idx].sv();
+                new_dir.path     = paths[idx].sv();
+                new_dir.priority = priorities[idx];
 
-                  jn.push(log_level::info,
-                          [&new_dir](auto& title, auto& msg) noexcept {
-                              title = "New directory registred";
-                              format(msg,
-                                     "{} registred as path `{}' priority: {}",
-                                     new_dir.name.sv(),
-                                     new_dir.path.sv(),
-                                     new_dir.priority);
-                          });
+                jn.push(log_level::info,
+                        [&new_dir](auto& title, auto& msg) noexcept {
+                            title = "New directory registred";
+                            format(msg,
+                                   "{} registred as path `{}' priority: {}",
+                                   new_dir.name.sv(),
+                                   new_dir.path.sv(),
+                                   new_dir.priority);
+                        });
 
-                  fs.recorded_paths.emplace_back(new_dir_id);
-              }
-          });
-      });
+                fs.recorded_paths.emplace_back(new_dir_id);
+            }
+        });
+    });
 
     if (auto ret = mod.fill_components(jn); ret.has_error()) {
         jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
@@ -839,6 +841,7 @@ void application::show_dock() noexcept
                           auto& pj = pjs.alloc(label, std::move(*pj_released));
                           const auto pj_id = pjs.get_id(pj);
                           library_wnd.add_open_file(f_id, pj_id);
+                          output_ed.add_project(pj_id);
                           return true;
                       }
 
@@ -848,8 +851,10 @@ void application::show_dock() noexcept
                 if (not opened) {
                     const auto next_key = pjs.next_key();
                     const auto label    = format_n<32>("project-{}", next_key);
-
-                    pjs.alloc(label.sv(), std::move(*pj_released));
+                    auto& pj = pjs.alloc(label.sv(), std::move(*pj_released));
+                    const auto pj_id = pjs.get_id(pj);
+                    
+                    output_ed.add_project(pj_id);
                 }
             }
         }

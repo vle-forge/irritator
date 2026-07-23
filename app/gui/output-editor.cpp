@@ -23,7 +23,7 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
         auto to_copy = std::optional<variable_observer::sub_id>();
 
         for (const auto id : vobs.subs) {
-            const auto  idx    = get_index(id);
+            const auto idx = get_index(id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
@@ -129,35 +129,59 @@ static void show_copy_table(application& app) noexcept
         app.copy_obs.free(*to_del);
 }
 
-static void show_observation_table(application& app) noexcept
+static void show_observation_table(application&  app,
+                                   bool&         display_all,
+                                   vector<bool>& display_by_project) noexcept
 {
     constexpr static auto flags =
       ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    if (ImGui::BeginTable("Observations", 6, flags)) {
-        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthFixed, 80.f);
-        ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
-        ImGui::TableSetupColumn(
-          "time-step", ImGuiTableColumnFlags_WidthFixed, 80.f);
-        ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed, 60.f);
-        ImGui::TableSetupColumn(
-          "plot", ImGuiTableColumnFlags_WidthFixed, 180.f);
-        ImGui::TableSetupColumn("actions", ImGuiTableColumnFlags_WidthStretch);
+    if (ImGui::BeginChild("Table")) {
+        if (ImGui::BeginTable("Observations", 6, flags)) {
+            ImGui::TableSetupColumn(
+              "name", ImGuiTableColumnFlags_WidthFixed, 80.f);
+            ImGui::TableSetupColumn(
+              "id", ImGuiTableColumnFlags_WidthFixed, 60.f);
+            ImGui::TableSetupColumn(
+              "time-step", ImGuiTableColumnFlags_WidthFixed, 80.f);
+            ImGui::TableSetupColumn(
+              "size", ImGuiTableColumnFlags_WidthFixed, 60.f);
+            ImGui::TableSetupColumn(
+              "plot", ImGuiTableColumnFlags_WidthFixed, 180.f);
+            ImGui::TableSetupColumn("actions",
+                                    ImGuiTableColumnFlags_WidthStretch);
 
-        ImGui::TableHeadersRow();
+            ImGui::TableHeadersRow();
 
-        for (auto& pj : app.pjs) {
-            const auto id = app.pjs.get_id(pj);
-            ImGui::PushID(get_index(id));
-            show_observers_table(app, pj);
-            show_copy_table(app);
-            ImGui::PopID();
+            if (display_all) {
+                for (auto& pj : app.pjs) {
+                    const auto id = app.pjs.get_id(pj);
+                    ImGui::PushID(get_index(id));
+                    show_observers_table(app, pj);
+                    show_copy_table(app);
+                    ImGui::PopID();
+                }
+            } else {
+                for (auto& pj : app.pjs) {
+                    const auto id  = app.pjs.get_id(pj);
+                    const auto idx = get_index(id);
+
+                    if (display_by_project[idx]) {
+                        ImGui::PushID(idx);
+                        show_observers_table(app, pj);
+                        show_copy_table(app);
+                        ImGui::PopID();
+                    }
+                }
+            }
+
+            ImGui::EndTable();
         }
-
-        ImGui::EndTable();
     }
+
+    ImGui::EndChild();
 }
 
 static void write(project&                        pj,
@@ -262,16 +286,42 @@ output_editor::~output_editor() noexcept
 
 void output_editor::show() noexcept
 {
-    if (!ImGui::Begin(output_editor::name, &is_open)) {
+    if (!ImGui::Begin(
+          output_editor::name, &is_open, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
     }
 
     auto& app = container_of(this, &application::output_ed);
 
-    if (ImGui::CollapsingHeader("Observations list",
-                                ImGuiTreeNodeFlags_DefaultOpen))
-        show_observation_table(app);
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("Selections")) {
+            ImGui::MenuItem("Display all", nullptr, &m_display_all);
+
+            for (const auto& pj : app.pjs) {
+                const auto id  = app.pjs.get_id(pj);
+                const auto idx = get_index(id);
+
+                ImGui::MenuItem(
+                  pj.title.c_str(), nullptr, &m_display_selected_project[idx]);
+            }
+
+            if (ImGui::MenuItem("clear")) {
+                std::fill_n(m_display_selected_project.data(),
+                            m_display_selected_project.size(),
+                            false);
+
+                m_display_all = false;
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
+    if (ImGui::CollapsingHeader("Observations list"))
+        show_observation_table(app, m_display_all, m_display_selected_project);
 
     if (ImGui::CollapsingHeader("Plots outputs",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -285,34 +335,44 @@ void output_editor::show() noexcept
                               nullptr,
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
+            if (m_display_all == true) {
+                for (auto& pj : app.pjs) {
+                    const auto id = app.pjs.get_id(pj);
+                    ImGui::PushID(get_index(id));
 
-            for (auto& pj : app.pjs) {
-                const auto id = app.pjs.get_id(pj);
-                ImGui::PushID(get_index(id));
+                    for (const auto& obs : pj.pj.sim.observers) {
+                        const auto obs_id = pj.pj.sim.observers.get_id(obs);
+                        const auto name   = format_n<32>(
+                          "{}-{}", pj.pj.name.sv(), get_index(obs_id));
 
-                for (auto& vobs : pj.pj.variable_observers) {
-                    for (const auto id : vobs.subs) {
-                        const auto obs_id =
-                          vobs.subs.template get<observer_id>(id);
-                        const auto* obs =
-                          pj.pj.sim.observers.try_to_get(obs_id);
+                        obs.read_history([&](const auto& h, const auto) {
+                            app.plot_obs.show_plot_line(
+                              obs, plot_type_options::line, name.c_str());
+                        });
+                    }
 
-                        if (not obs)
-                            return;
+                    ImGui::PopID();
+                }
+            } else {
+                for (auto& pj : app.pjs) {
+                    const auto id  = app.pjs.get_id(pj);
+                    const auto idx = get_index(id);
 
-                        const auto opts =
-                          vobs.subs.template get<plot_type_options>(id);
+                    if (m_display_selected_project[idx]) {
+                        ImGui::PushID(idx);
+                        for (const auto& obs : pj.pj.sim.observers) {
+                            const auto obs_id = pj.pj.sim.observers.get_id(obs);
+                            const auto name   = format_n<32>(
+                              "{}-{}", pj.pj.name.sv(), get_index(obs_id));
 
-                        if (opts != plot_type_options::none) {
-                            const auto& name =
-                              vobs.subs.template get<name_str>(id);
-
-                            app.plot_obs.show_plot_line(*obs, opts, name);
+                            obs.read_history([&](const auto& h, const auto) {
+                                app.plot_obs.show_plot_line(
+                                  obs, plot_type_options::line, name.c_str());
+                            });
                         }
+                        ImGui::PopID();
                     }
                 }
-
-                ImGui::PopID();
             }
 
             for (auto& p : app.copy_obs)
@@ -364,6 +424,29 @@ void output_editor::save_copy(const plot_copy_id id) noexcept
 {
     m_copy_id   = id;
     m_need_save = save_option::copy;
+}
+
+void output_editor::add_project(const project_id id) noexcept
+{
+    debug::ensure(container_of(this, &application::output_ed).pjs.exists(id));
+
+    const auto idx = get_index(id);
+
+    if (idx >= m_display_selected_project.ssize())
+        if (not m_display_selected_project.grow<2, 1>(1))
+            return;
+
+    m_display_selected_project[idx] = true;
+}
+
+void output_editor::remove_project(const project_id id) noexcept
+{
+    debug::ensure(container_of(this, &application::output_ed).pjs.exists(id));
+    debug::ensure(get_index(id) < m_display_selected_project.ssize());
+
+    const auto idx = get_index(id);
+
+    m_display_selected_project[idx] = false;
 }
 
 } // namespace irt
