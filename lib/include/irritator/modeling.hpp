@@ -1249,7 +1249,7 @@ struct tree_node {
     table<name_str, target, name_str_compare>       unique_id_to_model_id;
     table<model_id, name_str>                       model_id_to_unique_id;
 
-    table<name_str, global_parameter_id, name_str_compare> parameters_ids;
+    table<name_str, global_parameter_id, name_str_compare>  parameters_ids;
     table<name_str, global_observable_id, name_str_compare> observables_ids;
 
     table<name_str, variable_observer_id, name_str_compare>
@@ -1432,13 +1432,15 @@ public:
                   >
       parameters;
 
+    using show_in_output = bool;
+
     id_data_array<void,
                   global_observable_id,
                   allocator<new_delete_memory_resource>,
                   name_str,
                   tree_node_id, //!< model's parent
-                  model_id      //!< model to parametrize
-                  >
+                  model_id,     //!< model to observe
+                  show_in_output>
       observables;
 
     /// Experimental frames replicas
@@ -1518,9 +1520,7 @@ public:
      * @param sim
      * @param jn
      */
-    void init(project&         pj,
-              modeling&        mod,
-              journal_handler& jn) noexcept;
+    void init(project& pj, modeling& mod, journal_handler& jn) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1566,9 +1566,7 @@ public:
      * @param sim
      * @param jn
      */
-    void init(project&         pj,
-              modeling&        mod,
-              journal_handler& jn) noexcept;
+    void init(project& pj, modeling& mod, journal_handler& jn) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.

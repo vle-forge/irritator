@@ -367,7 +367,7 @@ public:
      */
     void show_plot_line(const observer&         obs,
                         const plot_type_options options,
-                        const name_str&         name) noexcept;
+                        const char*             name) noexcept;
 };
 
 /** A class to compute 3D projection of 3D points using three rotation
@@ -563,6 +563,9 @@ public:
                   const variable_observer::sub_id svobs) noexcept;
     void save_copy(const plot_copy_id id) noexcept;
 
+    void add_project(const project_id id) noexcept;
+    void remove_project(const project_id id) noexcept;
+
 private:
     ImPlotContext* m_ctx = nullptr;
 
@@ -572,6 +575,9 @@ private:
     project_id                m_pj_id   = undefined<project_id>();
     variable_observer_id      m_vobs_id = undefined<variable_observer_id>();
     variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
+
+    bool         m_display_all = true;
+    vector<bool> m_display_selected_project;
 
     enum class save_option : u8 {
         none,

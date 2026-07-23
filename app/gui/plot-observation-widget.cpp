@@ -43,7 +43,7 @@ void plot_observation_widget::show(project& pj) noexcept
                           ImPlot::PlotLine(name.c_str(),
                                            &h[0].t,
                                            &h[0].value,
-                                           h.size(),
+                                           static_cast<int>(h.size()),
                                            0,
                                            0,
                                            sizeof(resampled_sample));
@@ -53,7 +53,7 @@ void plot_observation_widget::show(project& pj) noexcept
                           ImPlot::PlotScatter(name.c_str(),
                                               &h[0].t,
                                               &h[0].value,
-                                              h.size(),
+                                              static_cast<int>(h.size()),
                                               0,
                                               0,
                                               sizeof(resampled_sample));
@@ -72,17 +72,17 @@ void plot_observation_widget::show(project& pj) noexcept
 }
 
 static void show_discrete_plot_line(const plot_type_options options,
-                                    const name_str&         name,
+                                    const char*             name,
                                     const observer&         obs) noexcept
 {
     switch (options) {
     case plot_type_options::line:
         obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotStairs(name.c_str(),
+              ImPlot::PlotStairs(name,
                                  &lbuf[0].t,
                                  &lbuf[0].value,
-                                 lbuf.ssize(),
+                                 static_cast<int>(lbuf.size()),
                                  0,
                                  0,
                                  sizeof(resampled_sample));
@@ -93,10 +93,10 @@ static void show_discrete_plot_line(const plot_type_options options,
     case plot_type_options::dash:
         obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotBars(name.c_str(),
+              ImPlot::PlotBars(name,
                                &lbuf[0].t,
                                &lbuf[0].value,
-                               lbuf.ssize(),
+                               static_cast<int>(lbuf.ssize()),
                                1.5,
                                0,
                                0,
@@ -111,26 +111,26 @@ static void show_discrete_plot_line(const plot_type_options options,
 }
 
 static void show_continuous_plot_line(const plot_type_options options,
-                                      const name_str&         name,
+                                      const char*             name,
                                       const observer&         obs) noexcept
 {
     obs.read_history([&](const auto& lbuf, const auto /*version*/) noexcept {
         switch (options) {
         case plot_type_options::line:
-            ImPlot::PlotLine(name.c_str(),
+            ImPlot::PlotLine(name,
                              &lbuf[0].t,
                              &lbuf[0].value,
-                             lbuf.ssize(),
+                             static_cast<int>(lbuf.size()),
                              0,
                              0,
                              sizeof(resampled_sample));
             break;
 
         case plot_type_options::dash:
-            ImPlot::PlotScatter(name.c_str(),
+            ImPlot::PlotScatter(name,
                                 &lbuf[0].t,
                                 &lbuf[0].value,
-                                lbuf.ssize(),
+                                static_cast<int>(lbuf.size()),
                                 0,
                                 0,
                                 sizeof(resampled_sample));
@@ -144,7 +144,7 @@ static void show_continuous_plot_line(const plot_type_options options,
 
 void plot_observation_widget::show_plot_line(const observer&         obs,
                                              const plot_type_options options,
-                                             const name_str& name) noexcept
+                                             const char* name) noexcept
 {
     ImGui::PushID(&obs);
 
