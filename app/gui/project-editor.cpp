@@ -56,7 +56,7 @@ void project_editor::select(application& app, tree_node_id id) noexcept
     if (id != m_selected_tree_node) {
         m_selected_tree_node = undefined<tree_node_id>();
 
-        if (auto* tree = pj.node(id); tree) {
+        if (auto* tree = pj.tree_nodes.try_to_get(id)) {
             app.mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (ids.exists(tree->id)) {
                     auto& compo          = ids.components[tree->id];
@@ -1162,7 +1162,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##ed-sim", ImGui::GetContentRegionAvail())) {
-            auto* selected = pj.node(m_selected_tree_node);
+            auto* selected = pj.tree_nodes.try_to_get(m_selected_tree_node);
 
             if (ImGui::BeginTabBar("##SimulationTabBar")) {
                 if (ImGui::BeginTabItem("Parameters")) {

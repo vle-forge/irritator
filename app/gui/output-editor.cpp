@@ -7,7 +7,6 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
-#include <algorithm>
 #include <optional>
 
 namespace irt {
@@ -228,37 +227,95 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(m_ctx);
 }
 
-static int compute_tree_node_state(const tree_node& tn,
-                                   const project&   pj) noexcept
+void output_editor::force_display(const project_id pj_id,
+                                  const bool       display_or_not) noexcept
 {
-    const auto& show_in_outputs = pj.observables.get<project::show_in_output>();
-    auto        nb_show         = 0;
-    auto        nb_hide         = 0;
+    auto& app = container_of(this, &application::output_ed);
+    auto* pj  = app.pjs.try_to_get(pj_id);
 
-    for (const auto& g_obs : tn.observables_ids.data) {
+    if (not pj)
+        return;
+
+    auto  tn_head_id = pj->pj.tn_head();
+    auto* tn         = pj->pj.tree_nodes.try_to_get(tn_head_id);
+
+    if (not tn)
+        return;
+
+    force_display(pj_id, tn_head_id, display_or_not);
+}
+
+void output_editor::force_display(const project_id   pj_id,
+                                  const tree_node_id tn_id,
+                                  const bool         display_or_not) noexcept
+{
+    auto& app = container_of(this, &application::output_ed);
+    auto* pj  = app.pjs.try_to_get(pj_id);
+
+    if (not pj)
+        return;
+
+    auto* tn = pj->pj.tree_nodes.try_to_get(tn_id);
+
+    if (not tn)
+        return;
+
+    auto& tree_nodes      = pj->pj.tree_nodes;
+    auto& outputs         = tree_nodes.get<project::output_state>();
+    auto& show_in_outputs = pj->pj.observables.get<project::show_in_output>();
+    auto  stack = small_vector<const tree_node*, max_component_stack_size>{};
+
+    for (const auto& g_obs : tn->observables_ids.data) {
         const auto g_obs_id  = g_obs.value;
         const auto g_obs_idx = get_index(g_obs_id);
 
-        if (pj.observables.exists(g_obs.value)) {
-            if (show_in_outputs[g_obs_idx])
-                nb_show++;
-            else
-                nb_hide++;
-        }
+        if (pj->pj.observables.exists(g_obs.value))
+            show_in_outputs[g_obs_idx] = display_or_not;
     }
 
-    return nb_show > 0 ? nb_hide > 0 ? -1 : 1 : nb_hide > 0 ? 0 : -1;
+    outputs[get_index(tn_id)] =
+      display_or_not ? tn->observables_ids.data.size() : 0u;
+
+    if (auto* child = tn->tree.get_child())
+        stack.emplace_back(child);
+
+    while (!stack.empty()) {
+        auto cur = stack.back();
+        stack.pop_back();
+
+        const auto tn_id  = tree_nodes.get_id(*cur);
+        const auto tn_idx = get_index(tn_id);
+
+        outputs[tn_idx] =
+          display_or_not ? cur->observables_ids.data.size() : 0u;
+
+        for (const auto& g_obs : cur->observables_ids.data) {
+            const auto g_obs_id  = g_obs.value;
+            const auto g_obs_idx = get_index(g_obs_id);
+
+            if (pj->pj.observables.exists(g_obs.value))
+                show_in_outputs[g_obs_idx] = display_or_not;
+        }
+
+        if (auto* sibling = cur->tree.get_sibling(); sibling)
+            stack.emplace_back(sibling);
+
+        if (auto* child = cur->tree.get_child(); child)
+            stack.emplace_back(child);
+    }
 }
 
-static void display_project_observation(
-  irt::application&    app,
-  irt::project_editor& pj,
-  vector<bool>&        display_selected_project) noexcept
+void output_editor::display_project(const project_id pj_id) noexcept
 {
-    const auto pj_id      = app.pjs.get_id(pj);
+    auto& app = container_of(this, &application::output_ed);
+    auto* pj  = app.pjs.try_to_get(pj_id);
+
+    if (not pj)
+        return;
+
     const auto pj_idx     = get_index(pj_id);
     const auto checkbox_x = ImGui::GetContentRegionAvail().x - 30.0f;
-    const auto j_name     = format_n<32>("{}##{}", pj.title.sv(), pj_idx);
+    const auto j_name     = format_n<32>("{}##{}", pj->title.sv(), pj_idx);
     const auto c_name     = format_n<32>("##chkbox-{}", pj_idx);
 
     ImGui::PushID(pj_idx);
@@ -267,276 +324,114 @@ static void display_project_observation(
     const auto is_project_open =
       ImGui::TreeNodeEx(j_name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
 
-    // ImGui::SameLine();
-    // ImGui::SetCursorPosX(checkbox_x);
+    ImGui::SameLine();
+    ImGui::SetCursorPosX(checkbox_x);
 
-    // bool force_true  = false;
-    // bool force_false = false;
+    if (ImGui::Checkbox(c_name.c_str(), &m_display_selected_project[pj_idx]))
+        force_display(pj_id, m_display_selected_project[pj_idx]);
 
-    // if (ImGui::Checkbox(c_name.c_str(), &display_selected_project[pj_idx])) {
-    //     if (display_selected_project[pj_idx])
-    //         force_true = true;
-    //     else
-    //         force_false = true;
-    // }
+    const auto tn_head_id = pj->pj.tn_head();
+    auto&      outputs    = pj->pj.tree_nodes.get<project::output_state>();
+    auto*      tn_head    = pj->pj.tree_nodes.try_to_get(tn_head_id);
 
     if (is_project_open) {
-
-        struct stack_elem {
-            stack_elem(tree_node* tn_, bool child = false, bool sibling = false)
-              : tn(tn_)
-              , read_child(child)
-              , read_sibling(sibling)
-            {}
-
-            tree_node* tn           = nullptr;
-            bool       read_child   = false;
-            bool       read_sibling = false;
-            bool       read_model   = false;
-
-            // bool force_true  = false;
-            // bool force_false = false;
-            // int  state       = -1;
+        struct ss {
+            const tree_node* tn              = nullptr;
+            bool             have_read_child = false;
+            bool             is_open         = false;
         };
 
-        auto*      tn_head    = pj.pj.tn_head();
-        const auto tn_head_id = pj.pj.tree_nodes.get_id(*tn_head);
-        // auto       stack = small_vector<stack_elem,
-        // max_component_stack_size>{};
-        auto stack = vector<stack_elem>{};
+        auto stack = small_vector<ss, max_component_stack_size>{};
 
-        stack.emplace_back(tn_head);
+        stack.push_back(
+          ss{ .tn = pj->pj.tree_nodes.try_to_get(pj->pj.tn_head()) });
 
         while (not stack.empty()) {
-            const stack_elem cur = stack.back();
+            auto       cur    = stack.back();
+            const auto tn_id  = pj->pj.tree_nodes.get_id(*cur.tn);
+            const auto tn_idx = get_index(tn_id);
+            const auto name =
+              format_n<32>("{}##{}", cur.tn->unique_id.sv(), tn_idx);
+            stack.pop_back();
 
-            if (cur.read_child and not cur.read_model and
-                not cur.read_sibling) {
-                stack.back().read_model = true;
+            if (not cur.have_read_child) {
+                ImGui::AlignTextToFramePadding();
 
+                cur.have_read_child = true;
+                cur.is_open = ImGui::TreeNodeEx(name.c_str(),
+                                                ImGuiTreeNodeFlags_DefaultOpen);
+
+                if (cur.tn->observables_ids.data.size() > 0) {
+                    ImGui::SameLine();
+                    ImGui::SetCursorPosX(checkbox_x);
+
+                    auto v =
+                      outputs[tn_idx] == 0 ? 0
+                      : outputs[tn_idx] == cur.tn->observables_ids.data.ssize()
+                        ? 1
+                        : -1;
+
+                    auto copy_v = v;
+                    if (ImGui::CheckBoxTristate(name.c_str(), &v)) {
+                        force_display(pj_id, tn_id, v == 0 ? false : true);
+                    }
+                }
+
+                if (cur.is_open) {
+                    if (auto* child = cur.tn->tree.get_child()) {
+                        stack.push_back(cur);
+                        stack.push_back(ss{ .tn = child });
+                        continue;
+                    }
+                }
+            }
+
+            if (cur.is_open) {
                 for (const auto& g_obs : cur.tn->observables_ids.data) {
                     const auto g_obs_id  = g_obs.value;
                     const auto g_obs_idx = get_index(g_obs_id);
                     auto&      show_in_outputs =
-                      pj.pj.observables.get<project::show_in_output>();
+                      pj->pj.observables.get<project::show_in_output>();
 
-                    if (pj.pj.observables.exists(g_obs.value)) {
+                    if (pj->pj.observables.exists(g_obs.value)) {
                         ImGui::AlignTextToFramePadding();
                         ImGui::TextUnformatted(g_obs.id.c_str());
 
                         const auto cname =
-                          format_n<32>("{}##{}", g_obs.id.c_str(), g_obs_idx);
+                          format_n<32>("##chkbox-{}-{}", tn_idx, g_obs_idx);
 
                         ImGui::SameLine();
                         ImGui::SetCursorPosX(checkbox_x);
-                        ImGui::Checkbox(cname.c_str(),
-                                        &show_in_outputs[g_obs_idx]);
+                        if (ImGui::Checkbox(cname.c_str(),
+                                            &show_in_outputs[g_obs_idx])) {
+                            outputs[tn_idx] +=
+                              show_in_outputs[g_obs_idx] ? 1 : -1;
+                        }
                     }
                 }
 
                 ImGui::TreePop();
-                ImGui::PopID();
-                continue;
             }
 
-            if (not cur.read_child and not cur.read_sibling) {
-                const auto tn_id  = pj.pj.tree_nodes.get_id(stack.back().tn);
-                const auto tn_idx = get_index(tn_id);
-                const auto name   = format_n<64>(
-                  "{}##{}", stack.back().tn->unique_id.sv(), tn_idx);
-
-                ImGui::PushID(tn_idx);
-                ImGui::AlignTextToFramePadding();
-
-                const auto is_open = ImGui::TreeNodeEx(
-                  name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
-
-                // ImGui::SameLine();
-                // ImGui::SetCursorPosX(checkbox_x);
-
-                if (not is_open) {
-                    stack.back().read_child = true;
-                    stack.back().read_model = true;
-                    ImGui::PopID();
-                    continue;
-                }
-            }
-
-            if (cur.read_child) {
-                if (cur.read_sibling) {
-                    stack.pop_back();
-                } else {
-                    stack.back().read_sibling = true;
-                    if (auto* sibling = cur.tn->tree.get_sibling(); sibling) {
-                        stack.emplace_back(sibling);
-                    }
-                }
-            } else {
-                stack.back().read_child = true;
-                if (auto* child = cur.tn->tree.get_child()) {
-                    stack.emplace_back(child);
-                }
+            if (auto* sibling = cur.tn->tree.get_sibling()) {
+                stack.emplace_back(sibling);
             }
         }
 
         ImGui::TreePop();
     }
 
-    // struct elem {
-    //     explicit constexpr elem(const tree_node_id id) noexcept
-    //       : tn(id)
-    //     {}
-
-    //    tree_node_id tn;
-
-    //    bool children_read = false;
-    //    bool sibling_read  = false;
-    //    bool model_read    = false;
-    //    bool pop_required  = false;
-
-    //    bool force_true  = false;
-    //    bool force_false = false;
-
-    //    int state = -1;
-    //};
-
-    // auto        stack      = small_vector<elem, max_component_stack_size>{};
-    // const auto& tn_head    = *pj.pj.tn_head();
-    // const auto  tn_head_id = pj.pj.tree_nodes.get_id(tn_head);
-    // stack.emplace_back(tn_head_id);
-    // stack.back().force_true  = force_true;
-    // stack.back().force_false = force_false;
-    // stack.back().state       = compute_tree_node_state(tn_head, pj.pj);
-
-    // while (not stack.empty()) {
-    //     if (stack.back().children_read and stack.back().sibling_read and
-    //         stack.back().model_read) {
-    //         if (stack.back().pop_required)
-    //             ImGui::TreePop();
-    //         stack.pop_back();
-    //         continue;
-    //     }
-
-    //    const auto  tn_id  = stack.back().tn;
-    //    const auto  tn_idx = get_index(tn_id);
-    //    const auto& tn     = pj.pj.tree_nodes.get(tn_id);
-    //    const auto name = format_n<64>("{}##{}", tn.unique_id.sv(), tn_idx);
-
-    //    if (not stack.back().children_read) {
-    //        stack.back().children_read = true;
-
-    //        ImGui::PushID(pj_idx);
-    //        ImGui::AlignTextToFramePadding();
-
-    //        const auto is_open = ImGui::TreeNodeEx(
-    //          name.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
-
-    //        ImGui::SameLine();
-    //        ImGui::SetCursorPosX(checkbox_x);
-
-    //        auto old_state = stack.back().state;
-    //        if (ImGui::CheckBoxTristate(j_name.c_str(), &old_state)) {
-    //            if (old_state == 1) {
-    //                stack.back().force_true  = true;
-    //                stack.back().force_false = false;
-    //                stack.back().state       = 1;
-    //            } else if (old_state == 0) {
-    //                stack.back().force_true  = false;
-    //                stack.back().force_false = true;
-    //                stack.back().state       = 0;
-    //            } else {
-    //                stack.back().force_true  = false;
-    //                stack.back().force_false = false;
-    //                stack.back().state       = -1;
-    //            }
-    //        }
-
-    //        if (is_open) {
-    //            stack.back().pop_required = true;
-    //            const auto force_true     = stack.back().force_true;
-    //            const auto force_false    = stack.back().force_false;
-
-    //            if (const auto* child = tn.tree.get_child()) {
-    //                const auto child_id = pj.pj.tree_nodes.get_id(*child);
-    //                stack.emplace_back(child_id);
-    //                stack.back().force_true  = force_true;
-    //                stack.back().force_false = force_false;
-    //                stack.back().state =
-    //                  force_true ? 1
-    //                  : force_false
-    //                    ? 0
-    //                    : compute_tree_node_state(*child, pj.pj);
-    //            }
-    //        }
-
-    //        ImGui::PopID();
-    //        continue;
-    //    }
-
-    //    if (not stack.back().model_read) {
-    //        stack.back().model_read = true;
-
-    //        for (const auto& g_obs : tn.observables_ids.data) {
-    //            const auto g_obs_id  = g_obs.value;
-    //            const auto g_obs_idx = get_index(g_obs_id);
-    //            auto&      show_in_outputs =
-    //              pj.pj.observables.get<project::show_in_output>();
-
-    //            if (pj.pj.observables.exists(g_obs.value)) {
-    //                ImGui::AlignTextToFramePadding();
-    //                ImGui::TextUnformatted(g_obs.id.c_str());
-
-    //                const auto cname =
-    //                  format_n<32>("{}##{}", g_obs.id.c_str(), g_obs_idx);
-
-    //                if (stack.back().force_true)
-    //                    show_in_outputs[g_obs_idx] = true;
-    //                if (stack.back().force_false)
-    //                    show_in_outputs[g_obs_idx] = false;
-
-    //                ImGui::SameLine();
-    //                ImGui::SetCursorPosX(checkbox_x);
-    //                ImGui::Checkbox(cname.c_str(),
-    //                                &show_in_outputs[g_obs_idx]);
-    //            }
-    //        }
-
-    //        continue;
-    //    }
-
-    //    if (not stack.back().sibling_read) {
-    //        stack.back().sibling_read = true;
-
-    //        const auto force_true     = stack.back().force_true;
-    //        const auto force_false    = stack.back().force_false;
-
-    //        if (stack.back().children_read and
-    //            not stack.back().pop_required)
-    //            stack.pop_back();
-
-    //        if (auto* sibling = tn.tree.get_sibling()) {
-    //            stack.emplace_back(
-    //              pj.pj.tree_nodes.get_id(*tn.tree.get_sibling()));
-    //            stack.back().force_true  = force_true;
-    //            stack.back().force_false = force_false;
-    //            stack.back().state       = force_true ? 1
-    //                                       : force_false
-    //                                         ? 0
-    //                                         : compute_tree_node_state(
-    //                                             *tn.tree.get_sibling(),
-    //                                             pj.pj);
-    //        }
-    //    }
-    //}
-
     ImGui::PopID();
 }
 
-static void display_project_plot(irt::application&    app,
-                                 irt::project_editor& pj) noexcept
+void output_editor::display_plot(const project_id pj_id) noexcept
 {
-    const auto pj_id  = app.pjs.get_id(pj);
-    const auto pj_idx = get_index(pj_id);
+    auto&       app    = container_of(this, &application::output_ed);
+    const auto  pj_idx = get_index(pj_id);
+    const auto* pj     = app.pjs.try_to_get(pj_id);
+
+    if (not pj)
+        return;
 
     ImGui::PushID(pj_idx);
 
@@ -552,8 +447,10 @@ static void display_project_plot(irt::application&    app,
         bool pop_required  = false;
     };
 
-    auto stack = small_vector<elem, max_component_stack_size>{};
-    stack.emplace_back(pj.pj.tree_nodes.get_id(*pj.pj.tn_head()));
+    auto       stack      = small_vector<elem, max_component_stack_size>{};
+    const auto tn_head_id = pj->pj.tn_head();
+
+    stack.emplace_back(tn_head_id);
 
     while (not stack.empty()) {
         if (stack.back().children_read and stack.back().sibling_read) {
@@ -562,16 +459,15 @@ static void display_project_plot(irt::application&    app,
         }
 
         const auto  tn_id  = stack.back().tn;
-        const auto  tn_idx = get_index(tn_id);
-        const auto& tn     = pj.pj.tree_nodes.get(tn_id);
-        const auto  name   = format_n<64>("{}##{}", tn.unique_id.sv(), tn_idx);
+        const auto* tn_ptr = pj->pj.tree_nodes.try_to_get(tn_id);
+        const auto& tn     = *tn_ptr;
 
         if (not stack.back().children_read) {
             stack.back().children_read = true;
             if (not tn.tree.get_child()) {
                 auto& show_in_outputs =
-                  pj.pj.observables.get<project::show_in_output>();
-                auto& models = pj.pj.observables.get<model_id>();
+                  pj->pj.observables.get<project::show_in_output>();
+                auto& models = pj->pj.observables.get<model_id>();
 
                 for (const auto& g_obs : tn.observables_ids.data) {
                     const auto g_obs_id  = g_obs.value;
@@ -581,24 +477,19 @@ static void display_project_plot(irt::application&    app,
                         const auto mdl_id = models[g_obs_idx];
 
                         if (const auto* mdl =
-                              pj.pj.sim.models.try_to_get(mdl_id)) {
+                              pj->pj.sim.models.try_to_get(mdl_id)) {
                             const auto obs_id = mdl->obs_id;
 
                             if (const auto* obs =
-                                  pj.pj.sim.observers.try_to_get(obs_id)) {
+                                  pj->pj.sim.observers.try_to_get(obs_id)) {
                                 const auto obs_idx = get_index(obs_id);
                                 const auto name = format_n<64>("{}-{}##{}",
-                                                               pj.pj.name.sv(),
+                                                               pj->pj.name.sv(),
                                                                g_obs.id.sv(),
                                                                obs_idx);
 
-                                obs->read_history(
-                                  [&](const auto& h, const auto) {
-                                      app.plot_obs.show_plot_line(
-                                        *obs,
-                                        plot_type_options::line,
-                                        name.c_str());
-                                  });
+                                app.plot_obs.show_plot_line(
+                                  *obs, plot_type_options::line, name.c_str());
                             }
                         }
                     }
@@ -606,7 +497,7 @@ static void display_project_plot(irt::application&    app,
             } else {
                 stack.back().pop_required = true;
                 stack.emplace_back(
-                  pj.pj.tree_nodes.get_id(*tn.tree.get_child()));
+                  pj->pj.tree_nodes.get_id(*tn.tree.get_child()));
             }
             continue;
         }
@@ -617,9 +508,9 @@ static void display_project_plot(irt::application&    app,
             if (stack.back().children_read and not stack.back().pop_required)
                 stack.pop_back();
 
-            if (auto* sibling = tn.tree.get_sibling())
+            if (tn.tree.get_sibling())
                 stack.emplace_back(
-                  pj.pj.tree_nodes.get_id(*tn.tree.get_sibling()));
+                  pj->pj.tree_nodes.get_id(*tn.tree.get_sibling()));
         }
     }
 
@@ -646,9 +537,11 @@ void output_editor::show() noexcept
 
         if (not app.pjs.empty()) {
             if (ImGui::BeginChild("ProjectsTreeNode")) {
-                for (auto& pj : app.pjs)
-                    display_project_observation(
-                      app, pj, m_display_selected_project);
+                for (auto& pj : app.pjs) {
+                    const auto pj_id = app.pjs.get_id(pj);
+
+                    display_project(pj_id);
+                }
             }
 
             ImGui::EndChild();
@@ -673,7 +566,7 @@ void output_editor::show() noexcept
                     const auto pj_idx = get_index(pj_id);
 
                     if (m_display_selected_project[pj_idx])
-                        display_project_plot(app, pj);
+                        display_plot(pj_id);
                 }
             }
 

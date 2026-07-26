@@ -481,14 +481,14 @@ static auto is_component_used_in_components(const component_access& ids,
     return false;
 };
 
-static auto is_component_used_in_projects(const application&  app,
-                                          const component_id  id,
-                                          vector<tree_node*>& stack) noexcept
-  -> bool
+static auto is_component_used_in_projects(
+  const application&        app,
+  const component_id        id,
+  vector<const tree_node*>& stack) noexcept -> bool
 {
     for (const auto& pj : app.pjs) {
         stack.clear();
-        auto* head = pj.pj.tn_head();
+        auto* head = pj.pj.tree_nodes.try_to_get(pj.pj.tn_head());
         if (head->id == id)
             return true;
 

@@ -1349,11 +1349,7 @@ public:
     void clear() noexcept;
 
     auto head() const noexcept -> component_id;
-    auto tn_head() const noexcept -> tree_node*;
-
-    auto node(tree_node_id id) const noexcept -> tree_node*;
-    auto node(tree_node& node) const noexcept -> tree_node_id;
-    auto node(const tree_node& node) const noexcept -> tree_node_id;
+    auto tn_head() const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
     void for_each_children(tree_node& tn,
@@ -1406,7 +1402,14 @@ public:
 
     auto get_tn_id(const unique_id_path& path) const noexcept -> tree_node_id;
 
-    data_array<tree_node, tree_node_id> tree_nodes;
+    using output_state = sz;
+
+    using tree_nodes_type = id_data_array<tree_node,
+                                          tree_node_id,
+                                          allocator<new_delete_memory_resource>,
+                                          output_state>;
+
+    tree_nodes_type tree_nodes;
 
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;

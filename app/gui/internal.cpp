@@ -35,19 +35,13 @@ bool CheckBoxTristate(const char* label, int* v_tristate) noexcept
         bool b = false;
         ret    = ImGui::Checkbox(label, &b);
         if (ret)
-            *v_tristate = 0;
+            *v_tristate = 1;
         ImGui::PopItemFlag();
     } else {
-        bool b     = (*v_tristate != 0);
-        bool old_b = b;
-
-        ret = ImGui::Checkbox(label, &b);
-        if (ret) {
-            if (old_b == true)
-                *v_tristate = -1;
-            else
-                *v_tristate = 1;
-        }
+        bool b = (*v_tristate != 0);
+        ret    = ImGui::Checkbox(label, &b);
+        if (ret)
+            *v_tristate = (int)b;
     }
     return ret;
 }

@@ -97,8 +97,9 @@ void component_model_selector::component_comboxbox(
     }
 }
 
-void component_model_selector::observable_model_treenode(const project& pj,
-                                                         tree_node& tn) noexcept
+void component_model_selector::observable_model_treenode(
+  const project&   pj,
+  const tree_node& tn) noexcept
 {
     auto& app = container_of(this, &application::component_model_sel);
 
@@ -123,7 +124,7 @@ void component_model_selector::observable_model_treenode(const project& pj,
                           const auto current_mdl_id = pj.sim.models.get_id(mdl);
                           ImGui::PushID(get_index(current_mdl_id));
 
-                          const auto current_tn_id = pj.node(tn);
+                          const auto current_tn_id = pj.tree_nodes.get_id(tn);
                           if (ImGui::Selectable(
                                 dynamics_type_names[ordinal(mdl.type)],
                                 tn_id == current_tn_id &&

@@ -2120,10 +2120,13 @@ int main()
                       ));
 
             mod.ids.read([&](const auto& ids, auto) noexcept {
-                expect(
-                  eq(get_input_connection_number(
-                       pj.sim, pj.tn_head()->children[counter_child_id].mdl, 0),
-                     25u));
+                expect(eq(get_input_connection_number(
+                            pj.sim,
+                            pj.tree_nodes.try_to_get(pj.tn_head())
+                              ->children[counter_child_id]
+                              .mdl,
+                            0),
+                          25u));
 
                 auto& cg = ids.components[cg_id];
 
@@ -2180,10 +2183,13 @@ int main()
                         + 25u / 3u + 1u // The 9 sum models
                       ));
 
-            expect(
-              eq(get_input_connection_number(
-                   pj.sim, pj.tn_head()->children[counter_child_id].mdl, 0),
-                 1u));
+            expect(eq(get_input_connection_number(
+                        pj.sim,
+                        pj.tree_nodes.try_to_get(pj.tn_head())
+                          ->children[counter_child_id]
+                          .mdl,
+                        0),
+                      1u));
         }
     };
 

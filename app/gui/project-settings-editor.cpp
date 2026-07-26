@@ -51,7 +51,7 @@ static tree_node_id show_project_hierarchy(application&    app,
             }
 
             const auto  tn_id         = stack.back().tn;
-            const auto& tn            = pj_ed.pj.tree_nodes.get(tn_id);
+            const auto& tn            = *pj_ed.pj.tree_nodes.try_to_get(tn_id);
             const auto& compo         = ids.components[tn.id];
             auto        is_selected   = tn_id == selection;
             const auto  copy_selected = is_selected;
@@ -544,7 +544,7 @@ static bool show_project_simulation_settings(application&    app,
 
 void project_editor::show_settings_and_hierarchy(application& app) noexcept
 {
-    if (auto* parent = pj.tn_head(); parent) {
+    if (auto* parent = pj.tree_nodes.try_to_get(pj.tn_head())) {
         auto next_selection = m_selected_tree_node;
 
         if (ImGui::BeginTabBar("Project")) {

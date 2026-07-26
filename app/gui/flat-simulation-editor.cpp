@@ -276,8 +276,8 @@ bool flat_simulation_editor::display(application&    app,
         if (d.positions.empty())
             return;
 
-        small_vector<tree_node*, max_component_stack_size> stack;
-        stack.emplace_back(pj_ed.pj.tn_head());
+        small_vector<const tree_node*, max_component_stack_size> stack;
+        stack.emplace_back(pj_ed.pj.tree_nodes.try_to_get(pj_ed.pj.tn_head()));
 
         while (!stack.empty()) {
             auto cur   = stack.back();
@@ -571,9 +571,9 @@ static auto compute_automatic_layout(const project&        pj,
                     .width  = max_width_height.x,
                     .height = max_width_height.y,
                     .x      = (max_width_height.x * to_float(x + 1)) -
-                         max_width_height_2.x - grid_width_height_2.x,
-                    .y = (max_width_height.y * to_float(y + 1)) -
-                         max_width_height_2.y - grid_width_height_2.y });
+                              max_width_height_2.x - grid_width_height_2.x,
+                    .y      = (max_width_height.y * to_float(y + 1)) -
+                              max_width_height_2.y - grid_width_height_2.y });
 
             bound.update(nodes.back().x - max_width_height_2.x,
                          nodes.back().y - max_width_height_2.y);
@@ -691,11 +691,11 @@ static void compute_automatic_layout(const project&         pj,
                 .width  = max_width_height.x,
                 .height = max_width_height.y,
                 .x      = (h_v_lines.hpoints * center_width_height.x *
-                      gen.g.node_positions[c][0] / width_height.x) -
-                     graph_center.x,
-                .y = (h_v_lines.vpoints * center_width_height.y *
-                      gen.g.node_positions[c][1] / width_height.y) -
-                     graph_center.y });
+                           gen.g.node_positions[c][0] / width_height.x) -
+                          graph_center.x,
+                .y      = (h_v_lines.vpoints * center_width_height.y *
+                           gen.g.node_positions[c][1] / width_height.y) -
+                          graph_center.y });
 
         bound.update(nodes.back().x - nodes.back().width,
                      nodes.back().y - nodes.back().height);
@@ -869,7 +869,8 @@ void flat_simulation_editor::compute_rects(application&    app,
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         vector<stack_elem> stack(max_component_stack_size, reserve_tag);
-        stack.push_back(stack_elem{ .tn = pj_ed.pj.tn_head() });
+        stack.push_back(stack_elem{
+          .tn = pj_ed.pj.tree_nodes.try_to_get(pj_ed.pj.tn_head()) });
 
         while (not stack.empty()) {
             const stack_elem cur = stack.back();

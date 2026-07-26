@@ -8748,7 +8748,7 @@ status json_archiver::operator()(project&                pj,
     if (not ids.exists(head_id))
         return make_error(project_errc::empty_project);
 
-    auto* parent = pj.tn_head();
+    auto* parent = pj.tree_nodes.try_to_get(pj.tn_head());
     if (not parent)
         return make_error(project_errc::empty_project);
 
@@ -8796,7 +8796,7 @@ status json_archiver::operator()(project&                pj,
     if (not ids.exists(head_id))
         return make_error(project_errc::empty_project);
 
-    auto* parent = pj.tn_head();
+    auto* parent = pj.tree_nodes.try_to_get(pj.tn_head());
     if (not parent)
         return make_error(project_errc::empty_project);
 

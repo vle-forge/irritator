@@ -143,7 +143,7 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 
     ed.snaps.reset();
 
-    if (ed.pj.tn_head()) {
+    if (ed.pj.tree_nodes.try_to_get(ed.pj.tn_head())) {
         ed.pj.sim.clean();
         ed.pj.sim.observers.clear();
         ed.simulation_last_finite_t   = ed.pj.sim.limits.begin();
@@ -651,7 +651,7 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
     debug::ensure(state);
 
     if (state) {
-        auto* modeling_head = pj.tn_head();
+        auto* modeling_head = pj.tree_nodes.try_to_get(pj.tn_head());
         if (!modeling_head) {
             app.jn.push(log_level::error,
                         [](auto& t, auto&) { t = "Empty model"; });
@@ -988,7 +988,7 @@ void project_editor::start_simulation_step_by_step(application& app) noexcept
 
     if (state) {
         app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-            if (auto* parent = pj.tn_head(); parent) {
+            if (auto* parent = pj.tree_nodes.try_to_get(pj.tn_head())) {
                 simulation_state = simulation_status::running;
 
                 const auto current_time = pj.sim.current_time();

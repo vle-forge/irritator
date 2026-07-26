@@ -567,6 +567,13 @@ public:
     void remove_project(const project_id id) noexcept;
 
 private:
+    void display_project(const project_id pj) noexcept;
+    void display_plot(const project_id pj) noexcept;
+    void force_display(const project_id, const bool display_or_not) noexcept;
+    void force_display(const project_id,
+                       const tree_node_id,
+                       const bool display_or_not) noexcept;
+
     ImPlotContext* m_ctx = nullptr;
 
     std::filesystem::path m_file;
@@ -576,8 +583,8 @@ private:
     variable_observer_id      m_vobs_id = undefined<variable_observer_id>();
     variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
 
-    bool         m_display_all = true;
-    vector<bool> m_display_selected_project;
+    vector<bool> m_display_selected_project; //!< list of projects. @TODO merge
+                                             //!< it with app.pjs structure.
 
     enum class save_option : u8 {
         none,
@@ -1583,7 +1590,7 @@ public:
     bool is_open = true;
 
 private:
-    vector<tree_node*> stack;
+    vector<const tree_node*> stack;
 
     /// Stores the list of opened files.
     table<file_path_id, file_target> open_file_list;
@@ -1805,7 +1812,8 @@ private:
     void component_comboxbox(const char* label, const data_type& data) noexcept;
     void observable_model_treenode(const project&   pj,
                                    const data_type& data) noexcept;
-    void observable_model_treenode(const project& pj, tree_node& tn) noexcept;
+    void observable_model_treenode(const project&   pj,
+                                   const tree_node& tn) noexcept;
 };
 
 class simulation_to_cpp

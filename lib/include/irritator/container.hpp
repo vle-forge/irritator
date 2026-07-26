@@ -4338,7 +4338,7 @@ id_data_array<T, Identifier, A, Ts...>::get_id(const Type& t) const noexcept
 
         return m_ids.get_from_index(pos);
     } else {
-        return m_ids.get_id(&t);
+        return m_ids.get_id(t);
     }
 }
 
