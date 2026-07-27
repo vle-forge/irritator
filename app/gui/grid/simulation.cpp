@@ -284,7 +284,7 @@ bool show_local_observers(application&    app,
             tn.grid_observer_ids.emplace_back(grid_id);
 
             if (not files.can_alloc(1) or not files.grow<3, 2>(1)) {
-                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                log(log_level::error, [](auto& t, auto& m) {
                     t = "Grid observer creation failed";
                     m = "Not enough memory to create a grid observer.";
                 });
@@ -292,7 +292,7 @@ bool show_local_observers(application&    app,
                 return false;
             }
 
-            const auto id  = files.alloc_id();
+            const auto id = files.alloc_id();
 
             files.template get<file_observers::id_type>(id).grid = grid_id;
             files.template get<file_observers::type>(id) =

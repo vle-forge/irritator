@@ -236,7 +236,7 @@ static constexpr bool starts_as_number(int c) noexcept
 class input_stream_buffer
 {
 private:
-    journal_handler::descr warnings;
+    small_string<1022> warnings;
 
     template<msg_id Index, typename... Args>
     constexpr void warning(Args&&... args) noexcept
@@ -249,7 +249,7 @@ private:
 
         const auto start     = warnings.size();
         const auto remaining = warnings.capacity() - start;
-        const auto ret       = fmt::vformat_to_n(warnings.data() + start,
+        const auto ret = fmt::vformat_to_n(warnings.data() + start,
                                            remaining,
                                            msg_fmt[idx],
                                            fmt::make_format_args(args...));
@@ -257,11 +257,11 @@ private:
         warnings.resize(start + ret.size);
 
         if (warnings.size() + 20 > warnings.capacity())
-            jn.push(
+            log(
               log_level::warning,
               [](auto& title, auto& msg, const auto& w) {
                   title = "Dot parser warning";
-                  msg   = w;
+                  msg   = w.sv();
               },
               warnings);
     }
@@ -272,7 +272,7 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        jn.push(
+        log(
           log_level::error,
           [](auto& title, auto& msg, auto& format, auto args) {
               title = "Dot parser error";
@@ -385,7 +385,6 @@ public:
 
     const file_access&      fs;
     const component_access& ids;
-    journal_handler&        jn;
 
     irt::id_array<str_id>    strings_ids;
     irt::vector<std::string> strings;
@@ -410,12 +409,10 @@ public:
      */
     input_stream_buffer(const file_access&      fs_,
                         const component_access& ids_,
-                        journal_handler&        jn_,
                         std::istream&           stream,
                         bool start_fill_tokens = true) noexcept
       : fs{ fs_ }
       , ids{ ids_ }
-      , jn{ jn_ }
       , strings_ids{ 64 }
       , strings{ 64 }
       , is{ stream }
@@ -869,7 +866,7 @@ private:
         const auto  file_id = fs.find_file(name_3.reg, name_3.dir, name_3.file);
         const auto* fp      = fs.file_paths.try_to_get(file_id);
         if (not fp) {
-            jn.push(log_level::error, [&](auto& t, auto& m) {
+            log(log_level::error, [&](auto& t, auto& m) {
                 t = "Dot parser error";
                 format(m, "Fail to found component from string: `{}'", str);
             });
@@ -881,7 +878,7 @@ private:
             if (ids.component_file_paths[id].file == file_id)
                 return id;
 
-        jn.push(log_level::error, [&](auto& t, auto& m) {
+        log(log_level::error, [&](auto& t, auto& m) {
             t = "Dot parser error";
             format(m, "Fail to found component from string: `{}'", str);
         });
@@ -1267,25 +1264,23 @@ public:
 
 expected<graph> parse_dot_buffer(const file_access&      fs,
                                  const component_access& ids,
-                                 const std::string_view  buffer,
-                                 journal_handler&        jn) noexcept
+                                 const std::string_view  buffer) noexcept
 {
     if (buffer.empty())
         return make_error(modeling_errc::dot_buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
-    input_stream_buffer sb{ fs, ids, jn, isvs };
+    input_stream_buffer sb{ fs, ids, isvs };
 
     return sb.parse();
 }
 
 expected<graph> parse_dot_file(const file_access&           fs,
                                const component_access&      ids,
-                               const std::filesystem::path& p,
-                               journal_handler&             jn) noexcept
+                               const std::filesystem::path& p) noexcept
 {
     if (std::ifstream ifs{ p }; ifs) {
-        input_stream_buffer sb{ fs, ids, jn, ifs };
+        input_stream_buffer sb{ fs, ids, ifs };
         return sb.parse();
     }
 

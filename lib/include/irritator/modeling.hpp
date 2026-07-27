@@ -1313,21 +1313,15 @@ public:
 
     static expected<project> load(const file_access&      fs,
                                   const component_access& cs,
-                                  const std::span<char>   buffer,
-                                  journal_handler&        jn) noexcept;
+                                  const std::span<char>   buffer) noexcept;
 
     static expected<project> load(const file_access&      fs,
                                   const component_access& cs,
-                                  const file_path_id      file_id,
-                                  journal_handler&        jn) noexcept;
+                                  const file_path_id      file_id) noexcept;
 
-    status load(const file_access&      fs,
-                const component_access& ids,
-                journal_handler&        jn) noexcept;
+    status load(const file_access& fs, const component_access& ids) noexcept;
 
-    status save(const file_access&      fs,
-                const component_access& ids,
-                journal_handler&        jn) noexcept;
+    status save(const file_access& fs, const component_access& ids) noexcept;
 
     name_str   name;
     simulation sim;
@@ -1336,14 +1330,11 @@ public:
     /// hierarchy is removed and a newly one is allocated.
     status set(const component_access& ids,
                const file_access&      fs,
-               const component_id      compo_id,
-               journal_handler&        jn) noexcept;
+               const component_id      compo_id) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component
     /// head.
-    status rebuild(const component_access& ids,
-                   const file_access&      fs,
-                   journal_handler&        jn) noexcept;
+    status rebuild(const component_access& ids, const file_access& fs) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
@@ -1521,9 +1512,8 @@ public:
      * @param pj
      * @param mod
      * @param sim
-     * @param jn
      */
-    void init(project& pj, modeling& mod, journal_handler& jn) noexcept;
+    void init(project& pj, modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1567,9 +1557,8 @@ public:
      * @param pj
      * @param mod
      * @param sim
-     * @param jn
      */
-    void init(project& pj, modeling& mod, journal_handler& jn) noexcept;
+    void init(project& pj, modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1823,9 +1812,8 @@ struct file_access {
     data_array<file_path, file_path_id>           file_paths;
     vector<registred_path_id>                     recorded_paths;
 
-    int browse_registred(journal_handler&        jn,
-                         const registred_path_id id) noexcept;
-    int browse_registreds(journal_handler& jn) noexcept;
+    int browse_registred(const registred_path_id id) noexcept;
+    int browse_registreds() noexcept;
 
     /// Removes the :;c file_path from :c file_paths and remove the file
     /// from the filesystem.
@@ -1935,21 +1923,18 @@ public:
 
     /**
      * Browse the file system then reads the content of all components.
-     * \param jnl A journal handler reference stores in this class.
      */
-    status fill_components(journal_handler& jnl) noexcept;
+    status fill_components() noexcept;
 
     /**
      * Browse the file system to search components, projects and data file in
      * registred paths. The @c fill_components function use this function.
-     * \param jnl A journal handler reference stores in this class.
      */
-    void browse_file_system(journal_handler& jnl) noexcept;
+    void browse_file_system() noexcept;
 
     status save(const component_access& ids,
                 const file_access&      fs,
-                const component_id      id,
-                journal_handler&        jn) noexcept;
+                const component_id      id) noexcept;
 
     status import(const component_id         src,
                   const component_id         dst,

@@ -49,11 +49,10 @@ std::optional<std::pair<int, int>> get_row_column(
     return std::nullopt;
 }
 
-static void build_grid_observer(grid_observer&   grid_obs,
-                                project&         pj,
-                                journal_handler& jn,
-                                tree_node&       grid_parent,
-                                grid_component&  grid_compo) noexcept
+static void build_grid_observer(grid_observer&  grid_obs,
+                                project&        pj,
+                                tree_node&      grid_parent,
+                                grid_component& grid_compo) noexcept
 {
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
     if (not to)
@@ -84,7 +83,7 @@ static void build_grid_observer(grid_observer&   grid_obs,
                 grid_obs.observers[index] =
                   init_or_reuse_observer(pj, *mdl, grid_obs.timestep);
             } else {
-                jn.push(log_level::warning, [&](auto& t, auto& m) noexcept {
+                log(log_level::warning, [&](auto& t, auto& m) noexcept {
                     t = "Grid observer error";
                     format(
                       m, "unique_id {} is not found", child->unique_id.sv());
@@ -96,9 +95,7 @@ static void build_grid_observer(grid_observer&   grid_obs,
     }
 }
 
-void grid_observer::init(project&         pj,
-                         modeling&        mod,
-                         journal_handler& jn) noexcept
+void grid_observer::init(project& pj, modeling& mod) noexcept
 {
     observers.clear();
     values.clear();
@@ -121,7 +118,7 @@ void grid_observer::init(project&         pj,
                         rows = grid->row();
                         cols = grid->column();
 
-                        build_grid_observer(*this, pj, jn, *tn, *grid);
+                        build_grid_observer(*this, pj, *tn, *grid);
                     }
                 }
             }

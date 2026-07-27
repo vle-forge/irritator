@@ -342,6 +342,9 @@ public:
     bool is_open = true;
 
 private:
+    u64 version = 0;
+
+    bool clear_expected   = false;
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
 };
@@ -1079,9 +1082,7 @@ private:
     void show_nodes(application& app, project_editor& pj_ed) noexcept;
     void show_links() noexcept;
     void compute_automatic_layout() noexcept;
-    int  show_menu(application&    app,
-                   project_editor& pj_ed,
-                   const ImVec2    click_pos) noexcept;
+    int  show_menu(project_editor& pj_ed, const ImVec2 click_pos) noexcept;
 
     spin_mutex mutex;
 };
@@ -1843,7 +1844,7 @@ struct global_simulation_window {
 class application
 {
 public:
-    explicit application(journal_handler& jn) noexcept;
+    explicit application(log_history& jn) noexcept;
 
     ~application() noexcept;
 
@@ -1853,9 +1854,9 @@ private:
 public:
     ImFont* icons = nullptr;
 
-    config_manager   config;
-    modeling         mod;
-    journal_handler& jn;
+    config_manager config;
+    modeling       mod;
+    log_history&   jn;
 
     data_array<project_editor, project_id>            pjs;
     data_array<text_file_viewer, text_file_viewer_id> file_viewers;

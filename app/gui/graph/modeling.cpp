@@ -268,7 +268,7 @@ bool graph_component_editor_data::show_graph(application& app,
                     selected_nodes.emplace_back(*id);
                     ++update;
                 } else {
-                    app.jn.push(
+                    log(
                       log_level::error,
                       [](auto& t, auto& m, auto& id) {
                           t = "Failed to add new node.";
@@ -746,8 +746,8 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
                             if (auto path = fs.get_fs_path(m_graph.dot.file)) {
                                 app.mod.ids.read([&](const auto& ids,
                                                      auto) noexcept {
-                                    if (auto dot_graph = parse_dot_file(
-                                          fs, ids, *path, app.jn)) {
+                                    if (auto dot_graph =
+                                          parse_dot_file(fs, ids, *path)) {
 
                                         new_graph.g   = std::move(*dot_graph);
                                         new_graph.dot = m_graph.dot;
@@ -788,7 +788,7 @@ void save_dot_file(application&       app,
             app.mod.ids.read([&](const auto& ids, auto) {
                 const auto file = fs.get_fs_path(file_id);
                 if (file.has_error()) {
-                    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                    log(log_level::error, [&](auto& t, auto& m) {
                         t = "Graph component editor";
                         format(m, "Fail to open file {}\n", ordinal(file_id));
                     });
@@ -798,7 +798,7 @@ void save_dot_file(application&       app,
 
                 const auto ret = write_dot_file(fs, ids, *g, *file);
                 if (ret.has_error()) {
-                    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+                    log(log_level::error, [&](auto& t, auto& m) {
                         t = "Graph component editor";
                         format(m, "Fail to write file {}\n", file->string());
                     });

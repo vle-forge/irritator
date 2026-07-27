@@ -25,6 +25,18 @@
 
 namespace irt {
 
+//! Enumeration class used everywhere in irritator to produce log data.
+enum class log_level : u8 {
+    emergency,
+    alert,
+    critical,
+    error,
+    warning,
+    notice,
+    info,
+    debug
+};
+
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
 //!

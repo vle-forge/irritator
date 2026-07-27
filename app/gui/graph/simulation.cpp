@@ -100,12 +100,11 @@ bool show_local_observers(application&    app,
 
                         g_ed.update(app, cgraph.g);
                     } else {
-                        app.jn.push(
-                          log_level::error, [](auto& title, auto& msg) {
-                              title = "Project editor";
-                              msg   = "Too many graph editor opened. Close "
-                                      "some before to open a new one.";
-                          });
+                        log(log_level::error, [](auto& title, auto& msg) {
+                            title = "Project editor";
+                            msg   = "Too many graph editor opened. Close "
+                                    "some before to open a new one.";
+                        });
                     }
                 }
             }
@@ -138,7 +137,7 @@ bool show_local_observers(application&    app,
         tn.graph_observer_ids.emplace_back(graph_id);
 
         if (not files.can_alloc(1) or not files.grow<3, 2>(1)) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            log(log_level::error, [](auto& t, auto& m) {
                 t = "Grid observer creation failed";
                 m = "Not enough memory to create a grid observer.";
             });
@@ -146,7 +145,7 @@ bool show_local_observers(application&    app,
             return false;
         }
 
-        const auto id  = files.alloc_id();
+        const auto id = files.alloc_id();
 
         files.template get<file_observers::id_type>(id).graph = graph_id;
         files.template get<file_observers::type>(id) =

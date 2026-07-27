@@ -167,8 +167,7 @@ bool registred_path::exists(const data_array<dir_path, dir_path_id>& data,
     return search(data, dir_name) != undefined<dir_path_id>();
 }
 
-static status browse_directory(journal_handler&      jn,
-                               file_access&          fs,
+static status browse_directory(file_access&          fs,
                                registred_path&       reg_dir,
                                dir_path&             dir,
                                std::filesystem::path path) noexcept
@@ -204,7 +203,7 @@ static status browse_directory(journal_handler&      jn,
         }
         return success();
     } catch (...) {
-        jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
+        log(log_level::error, [&](auto& t, auto& m) noexcept {
             t = "Modeling initialization error";
             format(m, "Fail to register path {}", reg_dir.path.sv());
         });
@@ -213,8 +212,7 @@ static status browse_directory(journal_handler&      jn,
     return make_error(modeling_errc::memory_error);
 }
 
-static status browse_dirs_registred(journal_handler&             jn,
-                                    file_access&                 fs,
+static status browse_dirs_registred(file_access&                 fs,
                                     registred_path&              reg_dir,
                                     const std::filesystem::path& path) noexcept
 {
@@ -245,20 +243,19 @@ static status browse_dirs_registred(journal_handler&             jn,
 
                     reg_dir.children.emplace_back(dir_id);
                     if (auto ret =
-                          browse_directory(jn, fs, reg_dir, dir, it->path());
+                          browse_directory(fs, reg_dir, dir, it->path());
                         ret.has_error()) {
-                        jn.push(
-                          log_level::error, [&](auto& t, auto& m) noexcept {
-                              t = "Modeling initialization error";
-                              format(m,
-                                     "Too many file in application for "
-                                     "registred path {} "
-                                     "directory {} (size={}, capacityr={})",
-                                     reg_dir.name.sv(),
-                                     dir.path.sv(),
-                                     fs.file_paths.size(),
-                                     fs.file_paths.capacity());
-                          });
+                        log(log_level::error, [&](auto& t, auto& m) noexcept {
+                            t = "Modeling initialization error";
+                            format(m,
+                                   "Too many file in application for "
+                                   "registred path {} "
+                                   "directory {} (size={}, capacityr={})",
+                                   reg_dir.name.sv(),
+                                   dir.path.sv(),
+                                   fs.file_paths.size(),
+                                   fs.file_paths.capacity());
+                        });
                     }
                 }
 
@@ -266,7 +263,7 @@ static status browse_dirs_registred(journal_handler&             jn,
             }
         }
     } catch (...) {
-        jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
+        log(log_level::error, [&](auto& t, auto& m) noexcept {
             t = "Modeling initialization error";
             format(m, "File system error in paths {}\n", reg_dir.path.sv());
         });
@@ -275,8 +272,7 @@ static status browse_dirs_registred(journal_handler&             jn,
     return success();
 }
 
-int file_access::browse_registred(journal_handler&        jn,
-                                  const registred_path_id id) noexcept
+int file_access::browse_registred(const registred_path_id id) noexcept
 {
     const auto old = file_paths.ssize();
 
@@ -286,7 +282,7 @@ int file_access::browse_registred(journal_handler&        jn,
             std::error_code       ec;
 
             if (std::filesystem::exists(p, ec)) {
-                if (const auto ret = browse_dirs_registred(jn, *this, *r, p);
+                if (const auto ret = browse_dirs_registred(*this, *r, p);
                     ret.has_error()) {
                     r->flags[fs_flag::access_error];
                 } else {
@@ -295,7 +291,7 @@ int file_access::browse_registred(journal_handler&        jn,
             } else {
                 r->flags[fs_flag::access_error];
 
-                jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
+                log(log_level::error, [&](auto& t, auto& m) noexcept {
                     t = "Modeling initialization error";
                     format(m,
                            "Registred path {} with value `{}' does not exists",
@@ -304,7 +300,7 @@ int file_access::browse_registred(journal_handler&        jn,
                 });
             }
         } catch (...) {
-            jn.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            log(log_level::error, [&](auto& t, auto& m) noexcept {
                 t = "Modeling initialization error";
                 format(m,
                        "File system error registred patg {} with value `{}'\n",
@@ -317,14 +313,14 @@ int file_access::browse_registred(journal_handler&        jn,
     return file_paths.ssize() - old;
 }
 
-int file_access::browse_registreds(journal_handler& jn) noexcept
+int file_access::browse_registreds() noexcept
 {
     const auto old = file_paths.ssize();
 
     const auto to_del = std::ranges::remove_if(
       recorded_paths, [&](const auto id) noexcept -> bool {
           if (registred_paths.try_to_get(id)) {
-              (void)browse_registred(jn, id);
+              (void)browse_registred(id);
               return false;
           }
           return true;
@@ -335,8 +331,7 @@ int file_access::browse_registreds(journal_handler& jn) noexcept
     return file_paths.ssize() - old;
 }
 
-static auto load_component(journal_handler&             jn,
-                           const file_access&           files,
+static auto load_component(const file_access&           files,
                            component_access&            ids,
                            const std::filesystem::path& filename,
                            const component_id compo_id) noexcept -> status
@@ -352,7 +347,7 @@ static auto load_component(journal_handler&             jn,
         if (f.has_value()) {
             json_dearchiver j;
 
-            if (not j(files, ids, filename.string(), compo_id, compo, *f, jn)) {
+            if (not j(files, ids, filename.string(), compo_id, compo, *f)) {
                 return error_code(modeling_errc::component_load_error);
             }
 
@@ -388,12 +383,12 @@ static auto load_component(journal_handler&             jn,
     return success();
 }
 
-status modeling::fill_components(journal_handler& jn) noexcept
+status modeling::fill_components() noexcept
 {
     return ids.write([&](auto& ids) noexcept -> status {
         const auto file_read_status =
           files.write([&](auto& fs) noexcept -> status {
-              fs.browse_registreds(jn);
+              fs.browse_registreds();
 
               for (auto& f : fs.file_paths) {
                   if (f.type == file_type::dot_file) {
@@ -427,12 +422,12 @@ status modeling::fill_components(journal_handler& jn) noexcept
                   const auto file_id = g.file;
 
                   if (const auto file = fs.get_fs_path(file_id)) {
-                      if (auto ret = parse_dot_file(fs, ids, *file, jn);
+                      if (auto ret = parse_dot_file(fs, ids, *file);
                           ret.has_value()) {
                           g      = std::move(*ret);
                           g.file = file_id;
                       } else {
-                          jn.push(
+                          log(
                             log_level::warning,
                             [&](auto& t, auto& m, const auto& f) noexcept {
                                 t = "Modeling initialization error";
@@ -468,20 +463,19 @@ status modeling::fill_components(journal_handler& jn) noexcept
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
                         if (const auto ret =
-                              load_component(jn, fs, ids, *f, id);
+                              load_component(fs, ids, *f, id);
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
-                                jn.push(log_level::warning,
-                                        [&](auto& t, auto& m) noexcept {
-                                            t = "Modeling initialization error";
-                                            format(
-                                              m,
-                                              "Need to read dependency for "
-                                              "component {} ({})",
-                                              compo.name.sv(),
-                                              ordinal(id));
-                                        });
+                                log(log_level::warning,
+                                    [&](auto& t, auto& m) noexcept {
+                                        t = "Modeling initialization error";
+                                        format(m,
+                                               "Need to read dependency for "
+                                               "component {} ({})",
+                                               compo.name.sv(),
+                                               ordinal(id));
+                                    });
                                 have_unread_component = true;
                                 break;
 
@@ -494,14 +488,13 @@ status modeling::fill_components(journal_handler& jn) noexcept
                                 break;
 
                             case component_status::unreadable:
-                                jn.push(log_level::warning,
-                                        [&](auto& t, auto& m) noexcept {
-                                            t = "Modeling initialization error";
-                                            format(
-                                              m,
-                                              "Fail to read component `{}'",
-                                              compo.name.sv());
-                                        });
+                                log(log_level::warning,
+                                    [&](auto& t, auto& m) noexcept {
+                                        t = "Modeling initialization error";
+                                        format(m,
+                                               "Fail to read component `{}'",
+                                               compo.name.sv());
+                                    });
                                 break;
                             }
                         } else {
@@ -525,9 +518,9 @@ status modeling::fill_components(journal_handler& jn) noexcept
     return success();
 }
 
-void modeling::browse_file_system(journal_handler& jn) noexcept
+void modeling::browse_file_system() noexcept
 {
-    files.write([&](file_access& fs) { fs.browse_registreds(jn); });
+    files.write([&](file_access& fs) { fs.browse_registreds(); });
 }
 
 void file_access::remove(const file_path_id id) noexcept
@@ -1388,8 +1381,7 @@ void component_access::free(const component_id compo_id) noexcept
 
 status modeling::save(const component_access& ids,
                       const file_access&      fs,
-                      const component_id      id,
-                      journal_handler&        jn) noexcept
+                      const component_id      id) noexcept
 {
     if (not ids.exists(id))
         return make_error(modeling_errc::component_load_error);
@@ -1405,7 +1397,7 @@ status modeling::save(const component_access& ids,
         return cfile.error();
 
     json_archiver j;
-    if (auto ret = j(fs, ids, id, *cfile, jn); ret.has_error())
+    if (auto ret = j(fs, ids, id, *cfile); ret.has_error())
         return ret.error();
 
     auto dfile =

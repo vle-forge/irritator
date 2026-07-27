@@ -16,6 +16,172 @@
 
 namespace irt {
 
+/* * * * *
+ *
+ * thread-safe log / journal
+ *
+ * * * * */
+
+struct log_record {
+    constexpr static inline auto title_length = 63;
+    constexpr static inline auto msg_length   = 254;
+
+    u64                        ts;
+    std::thread::id            tid;
+    small_string<title_length> t;
+    small_string<msg_length>   msg;
+    log_level                  level;
+};
+
+using thread_journal = static_circular_buffer<log_record, 4096>;
+
+class journal_registry
+{
+private:
+    journal_registry() noexcept
+      : m_journals(8, reserve_tag)
+    {}
+
+public:
+    static journal_registry& instance() noexcept
+    {
+        static journal_registry r;
+        return r;
+    }
+
+    thread_journal& attach() noexcept
+    {
+        std::scoped_lock lock(m_mutex);
+
+        m_journals.push_back(std::make_unique<thread_journal>());
+        return *m_journals.back();
+    }
+
+    template<typename F>
+    void for_each(F&& f) noexcept
+    {
+        std::scoped_lock lock(m_mutex);
+
+        for (auto& j : m_journals)
+            f(*j);
+    }
+
+private:
+    spin_mutex                              m_mutex;
+    vector<std::unique_ptr<thread_journal>> m_journals;
+};
+
+inline thread_local thread_journal* current_journal = nullptr;
+
+struct journal_scope {
+    journal_scope()
+    {
+        current_journal = &journal_registry::instance().attach();
+    }
+};
+
+inline u64 get_time_since_epoch() noexcept
+{
+    const auto timepoint = std::chrono::system_clock::now();
+
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+             timepoint.time_since_epoch())
+      .count();
+}
+
+inline void log(log_level        lvl,
+                std::string_view t,
+                std::string_view msg = std::string_view{}) noexcept
+{
+    if (current_journal) [[likely]]
+        current_journal->push(log_record{
+          get_time_since_epoch(), std::this_thread::get_id(), t, msg, lvl });
+}
+
+template<typename Fn, typename... Args>
+inline void log(log_level level, Fn&& fn, Args&&... args) noexcept
+{
+    if (current_journal) [[likely]] {
+        current_journal->push([&](log_record& l) noexcept {
+            l.ts    = get_time_since_epoch();
+            l.level = level;
+            l.tid   = std::this_thread::get_id();
+
+            std::invoke(
+              std::forward<Fn>(fn), l.t, l.msg, std::forward<Args>(args)...);
+        });
+    }
+}
+
+/** Aggregation and diffusion journal log
+ *
+ *  A single append-only shared buffer. A collector writes (periodic drain of
+ * thread buffers), any number of readers read without ever blocking each other
+ * or the collector.
+ */
+class log_history
+{
+public:
+    using full_log_history_type =
+      shared_buffer<vector<log_record>,
+                    append_only_merge_policy<vector<log_record>>>;
+
+    /** Copy log from @c thread_journal into @c global_log_history.
+     *
+     * To be called periodically: once per frame on the ImGui side, or by a
+     * dedicated thread on the CLI/cluster side.
+     */
+    void collect() noexcept
+    {
+        m_history.write([](vector<log_record>& dst) {
+            journal_registry::instance().for_each([&](thread_journal& j) {
+                log_record rec;
+                while (j.pop(rec))
+                    dst.push_back(std::move(rec));
+            });
+        });
+    }
+
+    /** Reset the @c m_history @c shared_buffer. */
+    void reset_history() { m_history.reset(); }
+
+    /** Copy the history log span from @c m_history into output.
+     *
+     * Lock-free reading on the consumer side, with version tracking to only
+     * process new lines since the last call (useful to avoid re-scanning the
+     * entire log every ImGui frame).
+     *
+     * @param last_version @c shared_bbuffer version.
+     * @param last_size The cursor into the buffer.
+     */
+    template<typename Fn>
+    void read_log(u64& last_version, u64& last_size, Fn&& fn)
+    {
+        m_history.read([&](const vector<log_record>& buf,
+                           std::uint64_t             ver) noexcept {
+            if (ver == last_version)
+                return;
+
+            if (last_size > buf.size())
+                last_size = 0;
+
+            fn(std::span<const log_record>(buf.begin() + last_size, buf.end()));
+
+            last_version = ver;
+            last_size    = buf.size();
+        });
+    }
+
+private:
+    full_log_history_type m_history;
+};
+
+/* * * * *
+ *
+ * task system
+ *
+ * * * * */
+
 using task = lambda_function<void(void), 64>;
 
 class ordered_task_list;
@@ -135,6 +301,9 @@ public:
     void start() noexcept
     {
         m_thread = std::thread([this] {
+            journal_scope scope;
+            m_initialized = true;
+
             task t;
             while (m_list->pop(t)) {
                 try {
@@ -157,6 +326,7 @@ public:
     }
 
     u64 tasks_completed() const noexcept { return m_tasks_completed; }
+    int initialized() const noexcept { return m_initialized; }
 
 private:
     ordered_task_list* m_list;
@@ -164,6 +334,8 @@ private:
 
     u64                           m_tasks_completed{ 0 };
     std::chrono::nanoseconds::rep m_execution_time;
+
+    bool m_initialized = false;
 };
 
 class unordered_task_list
@@ -291,6 +463,9 @@ public:
     void start() noexcept
     {
         m_thread = std::thread([this] {
+            journal_scope scope;
+            m_initialized = true;
+
             while (true) {
                 bool found = false;
                 for (auto& l : m_lists) {
@@ -328,6 +503,7 @@ public:
     }
 
     u64 tasks_completed() const noexcept { return m_tasks_completed; }
+    int initialized() const noexcept { return m_initialized; }
 
 private:
     std::span<unordered_task_list> m_lists;
@@ -335,6 +511,8 @@ private:
 
     u64                           m_tasks_completed{ 0 };
     std::chrono::nanoseconds::rep m_execution_time;
+
+    bool m_initialized = false;
 };
 
 class task_manager
@@ -365,8 +543,24 @@ public:
     {
         for (auto& w : m_ordered_workers)
             w.start();
+
         for (auto& w : m_unordered_workers)
             w.start();
+
+        const auto nb = m_ordered_workers.size() + m_unordered_workers.size();
+        auto       initialized = 0u;
+
+        do {
+            initialized = 0u;
+
+            for (auto& w : m_ordered_workers)
+                initialized += w.initialized();
+
+            for (auto& w : m_unordered_workers)
+                initialized += w.initialized();
+
+            std::this_thread::yield();
+        } while (nb != initialized);
     }
 
     void shutdown()

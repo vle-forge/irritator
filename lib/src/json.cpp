@@ -45,14 +45,13 @@ enum class connection_type : u8 {
 
 struct json_dearchiver::impl {
     json_dearchiver& self;
-    journal_handler& jn;
 
     simulation* m_sim = nullptr;
     project*    m_pj  = nullptr;
 
     // Stores warnings during the dearchiving process to be flushed at the end
     // of the process.
-    journal_handler::descr warnings;
+    small_string<1022> warnings;
 
     std::string_view m_path;
 
@@ -85,16 +84,16 @@ struct json_dearchiver::impl {
         warnings.resize(start + ret.size);
 
         if (warnings.size() + 20 > warnings.capacity())
-            jn.push(log_level::warning, [&](auto& title, auto& msg) {
+            log(log_level::warning, [&](auto& title, auto& msg) {
                 format(title, "json warning {}\n", m_path);
-                msg = warnings;
+                msg = warnings.sv();
             });
     }
 
     template<typename... T>
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        jn.push(
+        log(
           log_level::error,
           [](auto& title,
              auto& msg,
@@ -158,30 +157,24 @@ struct json_dearchiver::impl {
     }
 
     impl(json_dearchiver& self_,
-         journal_handler& jn_,
          std::string_view path = std::string_view{}) noexcept
       : self(self_)
-      , jn(jn_)
       , m_path(path)
     {}
 
     impl(json_dearchiver& self_,
-         journal_handler& jn_,
          simulation&      sim_,
          std::string_view path = std::string_view{}) noexcept
       : self(self_)
-      , jn(jn_)
       , m_sim(&sim_)
       , m_path(path)
     {}
 
     impl(json_dearchiver& self_,
-         journal_handler& jn_,
          simulation&      sim_,
          project&         pj_,
          std::string_view path = std::string_view{}) noexcept
       : self(self_)
-      , jn(jn_)
       , m_sim(&sim_)
       , m_pj(&pj_)
       , m_path(path)
@@ -4447,13 +4440,13 @@ struct json_dearchiver::impl {
         if (is_defined(f_id)) {
             sim.file_id = f_id;
 
-            auto pj_opt = project::load(files, ids, f_id, jn);
+            auto pj_opt = project::load(files, ids, f_id);
             if (pj_opt.has_value()) {
                 sim.pj = *pj_opt;
                 return true;
             } else {
                 has_missing_dependent_component = true;
-                jn.push(log_level::info, [&](auto& t, auto& m) {
+                log(log_level::info, [&](auto& t, auto& m) {
                     format(t, "simulation-component loader: {}", file);
                     format(m,
                            "Fail to load project ({}, {})",
@@ -5179,7 +5172,7 @@ struct json_dearchiver::impl {
         auto_stack s(this, "project set components");
 
         if (ids.exists(c_id)) {
-            if (auto ret = pj().set(ids, fs, c_id, jn); ret)
+            if (auto ret = pj().set(ids, fs, c_id); ret)
                 return true;
             else
                 return error("fail to build project");
@@ -5876,12 +5869,10 @@ static status parse_json_data(std::span<char>      buffer,
 //
 
 struct json_archiver::impl {
-    json_archiver&   self;
-    journal_handler& jn;
+    json_archiver& self;
 
-    impl(json_archiver& self_, journal_handler& jn_) noexcept
+    impl(json_archiver& self_) noexcept
       : self{ self_ }
-      , jn{ jn_ }
     {}
 
     template<typename Writer>
@@ -7592,7 +7583,7 @@ struct json_archiver::impl {
 
             if (auto f = files.get_fs_path(p.file); f.has_value()) {
                 if (not write_dot_file(files, ids, g.g, *f)) {
-                    jn.push(
+                    log(
                       log_level::error,
                       [](auto&       t,
                          auto&       m,
@@ -7608,7 +7599,7 @@ struct json_archiver::impl {
                       file);
                 }
             } else {
-                jn.push(log_level::error, [](auto& t, auto& m) noexcept {
+                log(log_level::error, [](auto& t, auto& m) noexcept {
                     t = "Fail to write dot file";
                     m = "File path is undefined";
                 });
@@ -8505,8 +8496,7 @@ status json_dearchiver::operator()(const file_access& files,
                                    std::string_view   path,
                                    const component_id compo_id,
                                    component&         compo,
-                                   file&              io,
-                                   journal_handler&   jn) noexcept
+                                   file&              io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode()[file_open_options::read] or
@@ -8525,7 +8515,7 @@ status json_dearchiver::operator()(const file_access& files,
         return ret.error();
     }
 
-    json_dearchiver::impl i(*this, jn, path);
+    json_dearchiver::impl i(*this, path);
     if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
         ret.has_error()) {
         if (i.has_missing_dependent_component) {
@@ -8542,8 +8532,7 @@ status json_dearchiver::operator()(project&                pj,
                                    const file_access&      files,
                                    const component_access& ids,
                                    std::string_view        path,
-                                   file&                   io,
-                                   journal_handler&        jn) noexcept
+                                   file&                   io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode()[file_open_options::read] or
@@ -8560,7 +8549,7 @@ status json_dearchiver::operator()(project&                pj,
         ret.has_error())
         return ret.error();
 
-    json_dearchiver::impl i(*this, jn, pj.sim, pj, path);
+    json_dearchiver::impl i(*this, pj.sim, pj, path);
     return i.parse_project(doc, files, ids);
 }
 
@@ -8568,8 +8557,7 @@ status json_dearchiver::operator()(const file_access& files,
                                    component_access&  ids,
                                    const component_id compo_id,
                                    component&         compo,
-                                   std::span<char>    io,
-                                   journal_handler&   jn) noexcept
+                                   std::span<char>    io) noexcept
 {
     clear();
     rapidjson::Document doc;
@@ -8579,7 +8567,7 @@ status json_dearchiver::operator()(const file_access& files,
         return ret.error();
     }
 
-    json_dearchiver::impl i(*this, jn);
+    json_dearchiver::impl i(*this);
 
     if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
         ret.has_error()) {
@@ -8596,8 +8584,7 @@ status json_dearchiver::operator()(const file_access& files,
 status json_dearchiver::operator()(project&                pj,
                                    const file_access&      files,
                                    const component_access& ids,
-                                   std::span<char>         io,
-                                   journal_handler&        jn) noexcept
+                                   std::span<char>         io) noexcept
 {
     clear();
     rapidjson::Document doc;
@@ -8605,7 +8592,7 @@ status json_dearchiver::operator()(project&                pj,
     if (const auto ret = parse_json_data(io, doc); ret.has_error())
         return ret.error();
 
-    json_dearchiver::impl i(*this, jn, pj.sim, pj);
+    json_dearchiver::impl i(*this, pj.sim, pj);
     return i.parse_project(doc, files, ids);
 }
 
@@ -8613,7 +8600,6 @@ status json_archiver::operator()(const file_access&          files,
                                  const component_access&     ids,
                                  const component_id          compo_id,
                                  file&                       io,
-                                 journal_handler&            jn,
                                  json_archiver::print_option print) noexcept
 {
     clear();
@@ -8637,7 +8623,7 @@ status json_archiver::operator()(const file_access&          files,
                             rapidjson::kWriteNanAndInfFlag>
       w(os);
 
-    json_archiver::impl i{ *this, jn };
+    json_archiver::impl i{ *this };
 
     if (not ids.exists(compo_id))
         return make_error(modeling_errc::component_not_found);
@@ -8668,7 +8654,6 @@ status json_archiver::operator()(const file_access&          files,
                                  const component_access&     ids,
                                  const component_id          compo_id,
                                  vector<char>&               out,
-                                 journal_handler&            jn,
                                  json_archiver::print_option print) noexcept
 {
     clear();
@@ -8676,7 +8661,7 @@ status json_archiver::operator()(const file_access&          files,
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
-    json_archiver::impl i{ *this, jn };
+    json_archiver::impl i{ *this };
 
     if (not ids.exists(compo_id))
         return make_error(modeling_errc::component_not_found);
@@ -8730,7 +8715,6 @@ status json_archiver::operator()(project&                pj,
                                  const file_access&      files,
                                  const component_access& ids,
                                  file&                   io,
-                                 journal_handler&        jn,
                                  print_option            print_options) noexcept
 {
     clear();
@@ -8765,7 +8749,7 @@ status json_archiver::operator()(project&                pj,
                             rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
                         w(os);
-    json_archiver::impl i{ *this, jn };
+    json_archiver::impl i{ *this };
 
     switch (print_options) {
     case print_option::indent_2:
@@ -8786,7 +8770,6 @@ status json_archiver::operator()(project&                pj,
                                  const file_access&      files,
                                  const component_access& ids,
                                  vector<char>&           out,
-                                 journal_handler&        jn,
                                  print_option            print_options) noexcept
 {
     clear();
@@ -8804,7 +8787,7 @@ status json_archiver::operator()(project&                pj,
 
     rapidjson::StringBuffer rbuffer;
     rbuffer.Reserve(4096u);
-    json_archiver::impl i{ *this, jn };
+    json_archiver::impl i{ *this };
 
     switch (print_options) {
     case print_option::indent_2: {

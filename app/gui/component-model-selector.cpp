@@ -233,7 +233,7 @@ void component_model_selector::update(const project&     pj,
             tn_id              = undefined<tree_node_id>();
             mdl_id             = undefined<model_id>();
 
-            app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            log(log_level::error, [&](auto& title, auto& msg) noexcept {
                 title = "Component model selector error";
                 msg   = "Fail to update component list";
             });

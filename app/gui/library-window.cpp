@@ -18,14 +18,14 @@ static bool can_delete_component(application& app, component_id id) noexcept
         return true;
 
     case library_window::is_component_deletable_t::used_by_component:
-        app.jn.push(log_level::info, [](auto& title, auto& msg) noexcept {
+        log(log_level::info, [](auto& title, auto& msg) noexcept {
             title = "Can not delete this component";
             msg   = "This component is used in another component";
         });
         break;
 
     case library_window::is_component_deletable_t::used_by_project:
-        app.jn.push(log_level::info, [](auto& title, auto& msg) noexcept {
+        log(log_level::info, [](auto& title, auto& msg) noexcept {
             title = "Can not delete this component";
             msg   = "This component is used in project";
         });
@@ -63,23 +63,22 @@ static void show_component_popup_menu(application&            app,
             app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
                 app.mod.ids.write([&](auto& ids) noexcept {
                     if (not ids.can_alloc_component(1)) {
-                        app.jn.push(
-                          log_level::error,
-                          [](auto& title, auto& msg) noexcept {
-                              title = "Library";
-                              msg   = "Fail to copy model: too many component";
-                          });
+                        log(log_level::error,
+                            [](auto& title, auto& msg) noexcept {
+                                title = "Library";
+                                msg = "Fail to copy model: too many component";
+                            });
 
                         return;
                     }
 
                     const auto c = ids.copy(compo_id);
                     if (c.has_error()) {
-                        app.jn.push(log_level::error,
-                                    [](auto& title, auto& msg) noexcept {
-                                        title = "Library";
-                                        msg   = "Fail to copy model";
-                                    });
+                        log(log_level::error,
+                            [](auto& title, auto& msg) noexcept {
+                                title = "Library";
+                                msg   = "Fail to copy model";
+                            });
                         return;
                     }
                 });
@@ -116,14 +115,13 @@ static void show_component_popup_menu(application&            app,
 
                                 if (std::filesystem::exists(*file, ec)) {
                                     std::filesystem::remove(*file, ec);
-                                    app.jn.push(
-                                      log_level::notice,
-                                      [&](auto& title, auto& msg) noexcept {
-                                          title = "Remove component file";
-                                          format(msg,
-                                                 "File `{}' removed",
-                                                 file->string());
-                                      });
+                                    log(log_level::notice,
+                                        [&](auto& title, auto& msg) noexcept {
+                                            title = "Remove component file";
+                                            format(msg,
+                                                   "File `{}' removed",
+                                                   file->string());
+                                        });
                                 }
                             }
                         });
@@ -584,12 +582,11 @@ void library_window::show_menu() noexcept
                             const auto compo_id = ids.alloc_generic_component();
 
                             if (is_undefined(compo_id)) {
-                                app.jn.push(
-                                  log_level::error, [](auto& t, auto& m) {
-                                      t = "Library: copy in generic "
-                                          "component";
-                                      m = "Can not allocate a new component";
-                                  });
+                                log(log_level::error, [](auto& t, auto& m) {
+                                    t = "Library: copy in generic "
+                                        "component";
+                                    m = "Can not allocate a new component";
+                                });
                                 return;
                             }
 
@@ -597,16 +594,14 @@ void library_window::show_menu() noexcept
                               enum_cast<internal_component>(i), compo_id);
 
                             if (ret.has_error())
-                                app.jn.push(
-                                  log_level::error, [i](auto& t, auto& m) {
-                                      t = "Library: copy in "
-                                          "generic component";
-                                      format(
-                                        m,
-                                        "Fail to copy {} into a new generic "
-                                        "component",
-                                        internal_component_names[i]);
-                                  });
+                                log(log_level::error, [i](auto& t, auto& m) {
+                                    t = "Library: copy in "
+                                        "generic component";
+                                    format(m,
+                                           "Fail to copy {} into a new generic "
+                                           "component",
+                                           internal_component_names[i]);
+                                });
                         });
                     });
 

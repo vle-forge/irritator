@@ -869,28 +869,26 @@ static bool compute_grid_layout(generic_component& s_compo,
     return true;
 }
 
-static bool add_component_to_current(application&            app,
-                                     const component_access& ids,
+static bool add_component_to_current(const component_access& ids,
                                      const component_id      parent_id,
                                      generic_component&      parent_compo,
                                      const component_id      compo_to_add_id,
                                      ImVec2                  click_pos)
 {
     if (not ids.can_add(parent_id, compo_to_add_id)) {
-        app.jn.push(
-          log_level::error, [&ids, compo_to_add_id](auto& t, auto& m) {
-              t = "Fail to add component";
-              format(m,
-                     "Irritator does not accept recursive component {}",
-                     ids.components[compo_to_add_id].name.sv());
-          });
+        log(log_level::error, [&ids, compo_to_add_id](auto& t, auto& m) {
+            t = "Fail to add component";
+            format(m,
+                   "Irritator does not accept recursive component {}",
+                   ids.components[compo_to_add_id].name.sv());
+        });
 
         return false;
     }
 
     if (not parent_compo.children.can_alloc(1) and
         not parent_compo.grow_children()) {
-        app.jn.push(log_level::error, [](auto& t, auto& m) {
+        log(log_level::error, [](auto& t, auto& m) {
             t = "Generic component";
             m = "Can not allocate new model. Delete models or increase "
                 "generic component default size.";
@@ -1338,15 +1336,14 @@ static bool show_popup_menuitem(const component_access&        ids,
             if (ids.exists(res.id)) {
                 auto& c = ids.components[res.id];
                 if (c.type == component_type::hsm)
-                    app.jn.push(
-                      log_level::error, [](auto& title, auto& msg) noexcept {
-                          title = "Component editor";
-                          msg   = "Please, use the hsm_wrapper model to add a "
-                                  "hierarchical state machine";
-                      });
+                    log(log_level::error, [](auto& title, auto& msg) noexcept {
+                        title = "Component editor";
+                        msg   = "Please, use the hsm_wrapper model to add a "
+                                "hierarchical state machine";
+                    });
                 else
                     u += add_component_to_current(
-                      app, ids, parent_id, gen, res.id, click_pos);
+                      ids, parent_id, gen, res.id, click_pos);
             }
         }
 
@@ -1457,23 +1454,22 @@ static bool show_popup_menuitem(const component_access&        ids,
     return u > 0;
 }
 
-static void error_not_enough_connections(application& app, sz capacity) noexcept
+static void error_not_enough_connections(sz capacity) noexcept
 {
-    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+    log(log_level::error, [&](auto& t, auto& m) {
         t = "Not enough connection slot in this component";
         format(m, "All connections slots ({}) are used.", capacity);
     });
 }
 
-static void error_not_connection_auth(application& app) noexcept
+static void error_not_connection_auth() noexcept
 {
-    app.jn.push(log_level::error, [&](auto& t, auto&) {
+    log(log_level::error, [&](auto& t, auto&) {
         t = "Can not connect component input on output ports";
     });
 }
 
-static bool is_link_created(application&            app,
-                            const component_access& ids,
+static bool is_link_created(const component_access& ids,
                             generic_component_editor_data& /*data*/,
                             component&         parent,
                             generic_component& s_parent) noexcept
@@ -1485,7 +1481,7 @@ static bool is_link_created(application&            app,
 
     if (not s_parent.connections.can_alloc() and
         not s_parent.connections.grow<2, 1>()) {
-        error_not_enough_connections(app, s_parent.connections.capacity());
+        error_not_enough_connections(s_parent.connections.capacity());
         return false;
     }
 
@@ -1495,7 +1491,7 @@ static bool is_link_created(application&            app,
         debug::ensure(is_defined(port_id));
 
         if (is_output_Y(end)) {
-            error_not_connection_auth(app);
+            error_not_connection_auth();
             return false;
         }
 
@@ -1691,7 +1687,7 @@ static bool show_component_editor(component_editor&              ed,
 
     ImNodes::EndNodeEditor();
 
-    u += is_link_created(app, ids, data, compo, s_compo);
+    u += is_link_created(ids, data, compo, s_compo);
     u += is_link_destroyed(s_compo);
 
     int num_selected_nodes = ImNodes::NumSelectedNodes();

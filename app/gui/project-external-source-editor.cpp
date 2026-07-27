@@ -86,7 +86,7 @@ static void display_allocate_external_source(application&    app,
         if (not ret.has_value()) {
             switch (ret.error().cat()) {
             case category::external_source:
-                app.jn.push(log_level::error, [&](auto& title, auto&) {
+                log(log_level::error, [&](auto& title, auto&) {
                     format(title,
                            "Fail to initialize {} source",
                            external_source_str(*part));
@@ -95,7 +95,7 @@ static void display_allocate_external_source(application&    app,
                 break;
 
             default:
-                app.jn.push(log_level::error, [&](auto& title, auto&) {
+                log(log_level::error, [&](auto& title, auto&) {
                     format(title,
                            "Fail to initialize {} source",
                            external_source_str(*part));
@@ -741,7 +741,7 @@ void project_external_source_editor::show(application&    app,
                           ImGuiDataType_U32,
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         if (auto ret = ptr->init(); !ret) {
-                            app.jn.push(log_level::error, [](auto& t, auto&) {
+                            log(log_level::error, [](auto& t, auto&) {
                                 t = "Fail to initialize binary file source";
                             });
                         }
@@ -1031,8 +1031,7 @@ bool show_external_sources_combo(const char*                 title,
     return false;
 }
 
-void show_menu_external_sources(application&     app,
-                                external_source& srcs,
+void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src,
                                 source_data&     src_data) noexcept
@@ -1126,7 +1125,7 @@ void show_menu_external_sources(application&     app,
     if (constant_ptr) {
         src.reset();
         if (auto ret = constant_ptr->init(src, src_data); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto&) {
+            log(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize constant source";
             });
         }
@@ -1135,7 +1134,7 @@ void show_menu_external_sources(application&     app,
     if (binary_file_ptr) {
         src.reset();
         if (auto ret = binary_file_ptr->init(src, src_data); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto&) {
+            log(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize binary file source";
             });
         }
@@ -1144,7 +1143,7 @@ void show_menu_external_sources(application&     app,
     if (text_file_ptr) {
         src.reset();
         if (auto ret = text_file_ptr->init(src, src_data); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto&) {
+            log(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize text file source";
             });
         }
@@ -1153,7 +1152,7 @@ void show_menu_external_sources(application&     app,
     if (random_ptr) {
         src.reset();
         // if (auto ret = random_ptr->init(src, src_data); !ret) {
-        //     app.jn.push(log_level::error, [](auto& t, auto&) {
+        //     log(log_level::error, [](auto& t, auto&) {
         //         t = "Fail to initalize random source";
         //     });
         // }

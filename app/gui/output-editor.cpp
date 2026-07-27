@@ -144,34 +144,31 @@ static void write(project&                        pj,
     });
 }
 
-static void write(application&                    app,
-                  project&                        pj,
+static void write(project&                        pj,
                   std::ofstream&                  ofs,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id sub_id) noexcept
 {
+    using namespace std::literals;
+
     ofs.imbue(std::locale::classic());
 
     if (const auto* vobs = pj.variable_observers.try_to_get(vobs_id);
         vobs and vobs->exists(sub_id))
         write(pj, ofs, *vobs, sub_id);
     else
-        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
-            title = "Output editor";
-            msg   = "Unknown observation";
-        });
+        log(log_level::error, "Output editor"sv, "Unknown observation"sv);
 }
 
-static void write(application&                    app,
-                  project&                        pj,
+static void write(project&                        pj,
                   const std::filesystem::path&    file_path,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id obs_id) noexcept
 {
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
-        write(app, pj, ofs, vobs_id, obs_id);
+        write(pj, ofs, vobs_id, obs_id);
     else
-        app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+        log(log_level::error, [&](auto& title, auto& msg) noexcept {
             title = "Output editor";
             format(msg,
                    "Failed to open file `{}' to write observation",
@@ -196,7 +193,7 @@ static void write(application&       app,
     if (auto* p = app.copy_obs.try_to_get(id); p)
         write(ofs, *p);
     else
-        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+        log(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Output editor";
             msg   = "Unknown copy observation";
         });
@@ -209,7 +206,7 @@ static void write(application&                 app,
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
         write(app, ofs, id);
     else
-        app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+        log(log_level::error, [&](auto& title, auto& msg) noexcept {
             title = "Output editor";
             format(msg,
                    "Failed to open file `{}' to write observation",
@@ -330,9 +327,7 @@ void output_editor::display_project(const project_id pj_id) noexcept
     if (ImGui::Checkbox(c_name.c_str(), &m_display_selected_project[pj_idx]))
         force_display(pj_id, m_display_selected_project[pj_idx]);
 
-    const auto tn_head_id = pj->pj.tn_head();
-    auto&      outputs    = pj->pj.tree_nodes.get<project::output_state>();
-    auto*      tn_head    = pj->pj.tree_nodes.try_to_get(tn_head_id);
+    auto& outputs = pj->pj.tree_nodes.get<project::output_state>();
 
     if (is_project_open) {
         struct ss {
@@ -367,11 +362,10 @@ void output_editor::display_project(const project_id pj_id) noexcept
 
                     auto v =
                       outputs[tn_idx] == 0 ? 0
-                      : outputs[tn_idx] == cur.tn->observables_ids.data.ssize()
+                      : outputs[tn_idx] == cur.tn->observables_ids.data.size()
                         ? 1
                         : -1;
 
-                    auto copy_v = v;
                     if (ImGui::CheckBoxTristate(name.c_str(), &v)) {
                         force_display(pj_id, tn_id, v == 0 ? false : true);
                     }
@@ -597,7 +591,7 @@ void output_editor::show() noexcept
                         write(app, m_file, m_copy_id);
                 } else if (m_need_save == save_option::obs) {
                     if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
-                        write(app, pj->pj, m_file, m_vobs_id, m_sub_id);
+                        write(pj->pj, m_file, m_vobs_id, m_sub_id);
                 }
             }
 

@@ -20,28 +20,17 @@ static inline constexpr std::string_view log_level_enhanced_names[] = {
     "\ue08a", // debug
 };
 
-static auto get_level(const log_level level, const log_level config) noexcept
-  -> std::string_view
+static inline constexpr std::size_t max_history_size = 4096;
 
+static auto display_text(
+  ImFont&                                       font,
+  const std::string_view                        level,
+  const small_string<log_record::title_length>& title,
+  const small_string<log_record::msg_length>&   description) noexcept -> void
 {
-    constexpr auto empty_string = std::string_view{};
-
-    return std::string_view(ordinal(level) > ordinal(config)
-                              ? empty_string
-                              : log_level_enhanced_names[ordinal(level)]);
-}
-
-static auto display_text(ImFont&                       font,
-                         std::string_view              level,
-                         const journal_handler::title& title,
-                         const journal_handler::descr& description) noexcept
-  -> void
-{
-    if (not level.empty()) {
-        ImGui::PushFont(&font);
-        ImGui::TextFormat("{}", level);
-        ImGui::PopFont();
-    }
+    ImGui::PushFont(&font);
+    ImGui::TextFormat("{}", level);
+    ImGui::PopFont();
 
     if (not title.empty()) {
         ImGui::SameLine();
@@ -61,46 +50,69 @@ static auto display_text(ImFont&                       font,
 
 void window_logger::show() noexcept
 {
+    auto& app = container_of(this, &application::log_wnd);
+    const auto level_min = app.config.vars.loglevel.load();
+
+    app.jn.collect();
+
+    if (clear_expected) {
+        app.jn.reset_history();
+        clear_expected = false;
+    }
+
     if (!ImGui::Begin(window_logger::name, &is_open)) {
         ImGui::End();
         return;
     }
 
-    auto& app = container_of(this, &application::log_wnd);
     if (ImGui::BeginPopup("Options")) {
         if (ImGui::Checkbox("Auto-scroll", &auto_scroll))
             if (auto_scroll)
                 scroll_to_bottom = true;
+
+        auto sel = ordinal(level_min);
+
+        for (sz i = 0, e = std::size(log_level_names); i != e; ++i) {
+            const auto label    = small_string<32>(log_level_names[i]);
+            const auto selected = sel == i;
+
+            if (ImGui::MenuItem(label.c_str(), nullptr, selected))
+                sel = i;
+        }
+
+        if (sel != ordinal(level_min))
+            app.config.vars.loglevel = enum_cast<log_level>(sel);
+
         ImGui::EndPopup();
     }
 
-    const auto level_min = app.config.vars.loglevel.load();
 
     if (ImGui::Button("Options"))
         ImGui::OpenPopup("Options");
     ImGui::SameLine();
     if (ImGui::Button("Clear"))
-        app.jn.clear();
+        app.jn.reset_history();
 
     ImGui::Separator();
     ImGui::BeginChild(
       "scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-    app.jn.read([&](const auto& ring,
-                    const auto& ids,
-                    const auto& titles,
-                    const auto& descriptions) noexcept {
-        for (const auto id : ring) {
-            if (not ids.exists(id))
-                continue;
 
-            const auto  level       = get_level(ids[id].second, level_min);
-            const auto& title       = titles[id];
-            const auto& description = descriptions[id];
+    auto cursor = u64{ 0 };
 
-            display_text(*app.icons, level, title, description);
+    app.jn.read_log(version, cursor, [&](const auto span) {
+        for (const auto& l : span) {
+            const auto l_min     = ordinal(level_min);
+            const auto l_current = ordinal(l.level);
+            const auto str       = log_level_enhanced_names[l_current];
+
+            if (l_min >= l_current)
+                display_text(*app.icons, str, l.t, l.msg);
         }
+
+        if (span.size() > max_history_size)
+            clear_expected = true;
     });
 
     ImGui::PopStyleVar();

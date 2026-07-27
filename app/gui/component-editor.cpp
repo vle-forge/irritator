@@ -38,20 +38,18 @@ static bool can_add(const vector<component_id>& vec,
                                 [id](const auto other) { return id == other; });
 }
 
-static bool push_back_if_not_find(application&          app,
-                                  vector<component_id>& vec,
+static bool push_back_if_not_find(vector<component_id>& vec,
                                   const component_id    id) noexcept
 {
     if (can_add(vec, id)) {
         if (not vec.can_alloc(1) and not vec.template grow<2, 1>()) {
-            app.jn.push(log_level::error,
-                        [&vec](auto& title, auto& msg) noexcept {
-                            title = "Adding connection pack error";
-                            format(msg,
-                                   "Not enough memory to allocate "
-                                   "more connection pack ({})",
-                                   vec.capacity());
-                        });
+            log(log_level::error, [&vec](auto& title, auto& msg) noexcept {
+                title = "Adding connection pack error";
+                format(msg,
+                       "Not enough memory to allocate "
+                       "more connection pack ({})",
+                       vec.capacity());
+            });
 
             return false;
         }
@@ -84,8 +82,8 @@ static void update_child_component_task(
                              ids.generic_components.get(compo.id.generic_id)
                                .children)
                             if (c.type == child_type::component)
-                                if (not push_back_if_not_find(
-                                      app, vec, c.id.compo_id))
+                                if (not push_back_if_not_find(vec,
+                                                              c.id.compo_id))
                                     break;
                         break;
 
@@ -93,7 +91,7 @@ static void update_child_component_task(
                         for (const auto id :
                              ids.grid_components.get(compo.id.grid_id)
                                .children())
-                            if (not push_back_if_not_find(app, vec, id))
+                            if (not push_back_if_not_find(vec, id))
                                 break;
                         break;
 
@@ -104,7 +102,7 @@ static void update_child_component_task(
                             const auto c_id =
                               ids.graph_components.get(compo.id.graph_id)
                                 .g.node_components[id];
-                            if (not push_back_if_not_find(app, vec, c_id))
+                            if (not push_back_if_not_find(vec, c_id))
                                 break;
                         }
                         break;
@@ -747,8 +745,7 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
     return selected;
 }
 
-static bool show_input_connections_new(application&            app,
-                                       const component_access& ids,
+static bool show_input_connections_new(const component_access& ids,
                                        component_editor::tab&  tab,
                                        grid_component&         grid) noexcept
 {
@@ -812,7 +809,7 @@ static bool show_input_connections_new(application&            app,
                 if (auto ret =
                       grid.connect_input(con.x, con.row, con.col, con.id);
                     not ret) {
-                    app.jn.push(
+                    log(
                       log_level::error,
                       [](auto& t, auto& m, auto ec) {
                           t = "Fail to add input connection";
@@ -839,8 +836,7 @@ static bool show_input_connections_new(application&            app,
     return u > 0;
 }
 
-static bool show_output_connections_new(application&            app,
-                                        const component_access& ids,
+static bool show_output_connections_new(const component_access& ids,
                                         component_editor::tab&  tab,
                                         grid_component&         grid) noexcept
 {
@@ -904,7 +900,7 @@ static bool show_output_connections_new(application&            app,
                 if (auto ret =
                       grid.connect_input(con.y, con.row, con.col, con.id);
                     not ret) {
-                    app.jn.push(
+                    log(
                       log_level::error,
                       [](auto& t, auto& m, auto ec) {
                           t = "Fail to add input connection";
@@ -943,18 +939,15 @@ static bool connect_input(const port_id      g_port_id,
                           const child_id     selected,
                           const port_id      p_selected,
                           const int          pp_selected,
-                          generic_component& g,
-                          application&       app);
+                          generic_component& g) noexcept;
 
 static bool connect_output(const port_id      g_port_id,
                            const child_id     selected,
                            const port_id      p_selected,
                            int                pp_selected,
-                           generic_component& g,
-                           application&       app);
+                           generic_component& g) noexcept;
 
-static bool show_input_connections_new(application&            app,
-                                       const component_access& ids,
+static bool show_input_connections_new(const component_access& ids,
                                        component_editor::tab&  tab,
                                        generic_component&      g) noexcept
 {
@@ -1034,7 +1027,7 @@ static bool show_input_connections_new(application&            app,
         if (is_defined(con.x) and is_defined(con.dst) and
             (is_defined(con.port.compo) or con.port.model >= 0)) {
             if (connect_input(
-                  con.x, con.dst, con.port.compo, con.port.model, g, app)) {
+                  con.x, con.dst, con.port.compo, con.port.model, g)) {
                 con.clear();
                 ++u;
             }
@@ -1050,20 +1043,19 @@ static bool connect_input(const port_id      g_port_id,
                           const child_id     selected,
                           const port_id      p_selected,
                           const int          pp_selected,
-                          generic_component& g,
-                          application&       app)
+                          generic_component& g) noexcept
 {
     const auto& child = g.children.get(selected);
     const auto  ret =
       (child.type == child_type::component)
-         ? g.connect_input(g_port_id,
+        ? g.connect_input(g_port_id,
                           g.children.get(selected),
                           connection::port{ .compo = p_selected })
-         : g.connect_input(
+        : g.connect_input(
             g_port_id, child, connection::port{ .model = pp_selected });
 
     if (not ret) {
-        app.jn.push(
+        log(
           log_level::error,
           [](auto& t, auto& m, auto ec) {
               t = "Fail to add input connection";
@@ -1085,8 +1077,7 @@ static bool connect_input(const port_id      g_port_id,
     return true;
 }
 
-static bool show_output_connections_new(application&            app,
-                                        const component_access& ids,
+static bool show_output_connections_new(const component_access& ids,
                                         component_editor::tab&  tab,
                                         generic_component&      g) noexcept
 {
@@ -1166,7 +1157,7 @@ static bool show_output_connections_new(application&            app,
         if (is_defined(con.y) and is_defined(con.src) and
             (is_defined(con.port.compo) or con.port.model >= 0)) {
             if (connect_output(
-                  con.y, con.src, con.port.compo, con.port.model, g, app)) {
+                  con.y, con.src, con.port.compo, con.port.model, g)) {
                 con.clear();
                 ++u;
             }
@@ -1182,8 +1173,7 @@ static bool connect_output(const port_id      g_port_id,
                            const child_id     selected,
                            const port_id      p_selected,
                            int                pp_selected,
-                           generic_component& g,
-                           application&       app)
+                           generic_component& g) noexcept
 {
     auto&          child = g.children.get(selected);
     expected<void> ret;
@@ -1197,7 +1187,7 @@ static bool connect_output(const port_id      g_port_id,
           g_port_id, child, connection::port{ .model = pp_selected });
 
     if (not ret) {
-        app.jn.push(
+        log(
           log_level::error,
           [](auto& t, auto& m, auto ec) {
               t = "Fail to add output connection";
@@ -1220,8 +1210,7 @@ static bool connect_output(const port_id      g_port_id,
     return true;
 }
 
-static bool show_input_connections_new(application&            app,
-                                       const component_access& ids,
+static bool show_input_connections_new(const component_access& ids,
                                        component_editor::tab&  tab,
                                        graph_component&        graph) noexcept
 {
@@ -1271,7 +1260,7 @@ static bool show_input_connections_new(application&            app,
 
         if (is_defined(con.x) and is_defined(con.v) and is_defined(con.id)) {
             if (auto ret = graph.connect_input(con.x, con.v, con.id); not ret) {
-                app.jn.push(
+                log(
                   log_level::error,
                   [](auto& t, auto& m, auto ec) {
                       t = "Fail to add input connection";
@@ -1296,8 +1285,7 @@ static bool show_input_connections_new(application&            app,
     return u > 0;
 }
 
-static bool show_output_connections_new(application&            app,
-                                        const component_access& ids,
+static bool show_output_connections_new(const component_access& ids,
                                         component_editor::tab&  tab,
                                         graph_component&        graph) noexcept
 {
@@ -1348,7 +1336,7 @@ static bool show_output_connections_new(application&            app,
         if (is_defined(con.y) and is_defined(con.v) and is_defined(con.id)) {
             if (auto ret = graph.connect_output(con.y, con.v, con.id);
                 not ret) {
-                app.jn.push(
+                log(
                   log_level::error,
                   [](auto& t, auto& m, auto ec) {
                       t = "Fail to add output connection";
@@ -1374,8 +1362,7 @@ static bool show_output_connections_new(application&            app,
     return u > 0;
 }
 
-static bool show_input_connections(application&            app,
-                                   const component_access& ids,
+static bool show_input_connections(const component_access& ids,
                                    component_editor::tab&  tab,
                                    generic_component&      g) noexcept
 {
@@ -1429,13 +1416,12 @@ static bool show_input_connections(application&            app,
         ++u;
     }
 
-    u += show_input_connections_new(app, ids, tab, g);
+    u += show_input_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_output_connections(application&            app,
-                                    const component_access& ids,
+static bool show_output_connections(const component_access& ids,
                                     component_editor::tab&  tab,
                                     generic_component&      g) noexcept
 {
@@ -1487,13 +1473,12 @@ static bool show_output_connections(application&            app,
         ++u;
     }
 
-    u += show_output_connections_new(app, ids, tab, g);
+    u += show_output_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_input_connections(application&            app,
-                                   const component_access& ids,
+static bool show_input_connections(const component_access& ids,
                                    component_editor::tab&  tab,
                                    grid_component&         g) noexcept
 {
@@ -1537,13 +1522,12 @@ static bool show_input_connections(application&            app,
         ++u;
     }
 
-    u += show_input_connections_new(app, ids, tab, g);
+    u += show_input_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_output_connections(application&            app,
-                                    const component_access& ids,
+static bool show_output_connections(const component_access& ids,
                                     component_editor::tab&  tab,
                                     grid_component&         g) noexcept
 {
@@ -1588,13 +1572,12 @@ static bool show_output_connections(application&            app,
         ++u;
     }
 
-    u += show_output_connections_new(app, ids, tab, g);
+    u += show_output_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_input_connections(application&            app,
-                                   const component_access& ids,
+static bool show_input_connections(const component_access& ids,
                                    component_editor::tab&  tab,
                                    graph_component&        g) noexcept
 {
@@ -1637,13 +1620,12 @@ static bool show_input_connections(application&            app,
         ++u;
     }
 
-    u += show_input_connections_new(app, ids, tab, g);
+    u += show_input_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_output_connections(application&            app,
-                                    const component_access& ids,
+static bool show_output_connections(const component_access& ids,
                                     component_editor::tab&  tab,
                                     graph_component&        g) noexcept
 {
@@ -1685,13 +1667,12 @@ static bool show_output_connections(application&            app,
         ++u;
     }
 
-    u += show_output_connections_new(app, ids, tab, g);
+    u += show_output_connections_new(ids, tab, g);
 
     return u > 0;
 }
 
-static bool show_input_connections(application&            app,
-                                   const component_access& ids,
+static bool show_input_connections(const component_access& ids,
                                    component_editor::tab&  tab) noexcept
 {
     switch (tab.compo.type) {
@@ -1701,17 +1682,17 @@ static bool show_input_connections(application&            app,
     case component_type::generic:
         if (auto* g =
               ids.generic_components.try_to_get(tab.compo.id.generic_id))
-            return show_input_connections(app, ids, tab, *g);
+            return show_input_connections(ids, tab, *g);
         break;
 
     case component_type::grid:
         if (auto* g = ids.grid_components.try_to_get(tab.compo.id.grid_id))
-            return show_input_connections(app, ids, tab, *g);
+            return show_input_connections(ids, tab, *g);
         break;
 
     case component_type::graph:
         if (auto* g = ids.graph_components.try_to_get(tab.compo.id.graph_id))
-            return show_input_connections(app, ids, tab, *g);
+            return show_input_connections(ids, tab, *g);
         break;
 
     case component_type::hsm:
@@ -1724,8 +1705,7 @@ static bool show_input_connections(application&            app,
     return false;
 }
 
-static bool show_output_connections(application&            app,
-                                    const component_access& ids,
+static bool show_output_connections(const component_access& ids,
                                     component_editor::tab&  tab) noexcept
 {
     switch (tab.compo.type) {
@@ -1735,17 +1715,17 @@ static bool show_output_connections(application&            app,
     case component_type::generic:
         if (auto* g =
               ids.generic_components.try_to_get(tab.compo.id.generic_id))
-            return show_output_connections(app, ids, tab, *g);
+            return show_output_connections(ids, tab, *g);
         break;
 
     case component_type::grid:
         if (auto* g = ids.grid_components.try_to_get(tab.compo.id.grid_id))
-            return show_output_connections(app, ids, tab, *g);
+            return show_output_connections(ids, tab, *g);
         break;
 
     case component_type::graph:
         if (auto* g = ids.graph_components.try_to_get(tab.compo.id.graph_id))
-            return show_output_connections(app, ids, tab, *g);
+            return show_output_connections(ids, tab, *g);
         break;
 
     case component_type::hsm:
@@ -1872,12 +1852,12 @@ static bool show_input_connection_packs(const component_access& ids,
               ids, "child component", vec, con.child_component, con.child_port);
 
             con.child_component = child.first;
-            con.child_port      = ids.exists(con.child_component)
-                                    ? combobox_component_port_id(
+            con.child_port = ids.exists(con.child_component)
+                               ? combobox_component_port_id(
                                    "child port",
                                    ids.components[con.child_component].x,
                                    child.second)
-                                    : combobox_component_port_id_empty("child port");
+                               : combobox_component_port_id_empty("child port");
 
             if (is_defined(con.child_component) and
                 is_defined(con.child_port) and is_defined(con.parent_port) and
@@ -1916,12 +1896,12 @@ static bool show_output_connection_packs(const component_access& ids,
               ids, "child component", vec, con.child_component, con.child_port);
 
             con.child_component = child.first;
-            con.child_port      = ids.exists(con.child_component)
-                                    ? combobox_component_port_id(
+            con.child_port = ids.exists(con.child_component)
+                               ? combobox_component_port_id(
                                    "child port",
                                    ids.components[con.child_component].y,
                                    child.second)
-                                    : combobox_component_port_id_empty("child port");
+                               : combobox_component_port_id_empty("child port");
 
             if (is_defined(con.child_component) and
                 is_defined(con.child_port) and is_defined(con.parent_port) and
@@ -2143,7 +2123,7 @@ static component_editor_result display_component_editor_subtable(
 
                         app.mod.ids.read([&](const auto& ids, auto) noexcept {
                             if (ImGui::TreeNode("Connections")) {
-                                if (show_input_connections(app, ids, tab))
+                                if (show_input_connections(ids, tab))
                                     action |= component_editor_result_type::
                                       do_store_component;
                                 ImGui::TreePop();
@@ -2151,7 +2131,7 @@ static component_editor_result display_component_editor_subtable(
 
                             if (not tab.compo.y.empty() and
                                 ImGui::TreeNode("Output connection")) {
-                                if (show_output_connections(app, ids, tab))
+                                if (show_output_connections(ids, tab))
                                     action |= component_editor_result_type::
                                       do_store_component;
                                 ImGui::TreePop();
@@ -2295,27 +2275,25 @@ static auto display_component_editor(component_editor&      ed,
                         ids.components[tab->id]             = tab->compo;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
-                            if (auto ret =
-                                  app.mod.save(ids, fs, tab->id, app.jn);
+                            if (auto ret = app.mod.save(ids, fs, tab->id);
                                 not ret) {
-                                app.jn.push(
-                                  log_level::error,
-                                  [&](auto& title, auto& msg) {
-                                      title = "Component save error";
-                                      format(msg,
-                                             "Fail to save {} (part: {} {})",
-                                             tab->compo.name.sv(),
-                                             ordinal(ret.error().cat()),
-                                             ret.error().value());
-                                  });
+                                log(log_level::error,
+                                    [&](auto& title, auto& msg) {
+                                        title = "Component save error";
+                                        format(msg,
+                                               "Fail to save {} (part: {} {})",
+                                               tab->compo.name.sv(),
+                                               ordinal(ret.error().cat()),
+                                               ret.error().value());
+                                    });
                             } else {
-                                app.jn.push(log_level::notice,
-                                            [&](auto& title, auto& msg) {
-                                                title = "Component save";
-                                                format(msg,
-                                                       "Save {} success",
-                                                       tab->compo.name.sv());
-                                            });
+                                log(log_level::notice,
+                                    [&](auto& title, auto& msg) {
+                                        title = "Component save";
+                                        format(msg,
+                                               "Save {} success",
+                                               tab->compo.name.sv());
+                                    });
                             }
                         });
 
@@ -2501,7 +2479,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                       ids.generic_components.get(compo.id.generic_id)));
                     m_request_to_open = id;
                 } else
-                    app.jn.push(log_level::error, log_not_enough_memory);
+                    log(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::grid:
@@ -2511,7 +2489,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                       app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
                     m_request_to_open = id;
                 } else
-                    app.jn.push(log_level::error, log_not_enough_memory);
+                    log(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::graph:
@@ -2522,7 +2500,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                       app.graphs.alloc(id, compo.id.graph_id));
                     m_request_to_open = id;
                 } else
-                    app.jn.push(log_level::error, log_not_enough_memory);
+                    log(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::hsm:
@@ -2534,7 +2512,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                                      ids.hsm_components.get(compo.id.hsm_id)));
                     m_request_to_open = id;
                 } else
-                    app.jn.push(log_level::error, log_not_enough_memory);
+                    log(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::simulation:
@@ -2547,7 +2525,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                                      ids.sim_components.get(compo.id.sim_id)));
                     m_request_to_open = id;
                 } else
-                    app.jn.push(log_level::error, log_not_enough_memory);
+                    log(log_level::error, log_not_enough_memory);
                 break;
 
             case component_type::none:

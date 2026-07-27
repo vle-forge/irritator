@@ -251,16 +251,15 @@ void settings_window::show() noexcept
             timer_started = false;
             app.add_gui_task([&app]() noexcept {
                 if (auto ret = app.config.save(); ret) {
-                    app.jn.push(log_level::error,
-                                [ret](auto& title, auto& msg) noexcept {
-                                    title = "Settings save failure";
-                                    format(msg, "Error in {}", ret.message());
-                                });
+                    log(log_level::error,
+                        [ret](auto& title, auto& msg) noexcept {
+                            title = "Settings save failure";
+                            format(msg, "Error in {}", ret.message());
+                        });
                 } else {
-                    app.jn.push(log_level::info,
-                                [](auto& title, auto&) noexcept {
-                                    title = "Settings save success";
-                                });
+                    log(log_level::info, [](auto& title, auto&) noexcept {
+                        title = "Settings save success";
+                    });
                 }
             });
         }

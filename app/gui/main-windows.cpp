@@ -421,7 +421,7 @@ int main(int, char**)
 #endif
 
     ImNodes::CreateContext();
-    irt::journal_handler jn(256);
+    irt::log_history jn;
     if (irt::application app(jn); app.init()) {
         const auto icons_fonts = irt::get_font_icons();
 

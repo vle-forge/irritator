@@ -38,18 +38,6 @@ enum class style_color : u8 {
     COUNT,
 };
 
-//! Enumeration class used everywhere in irritator to produce log data.
-enum class log_level : u8 {
-    emergency,
-    alert,
-    critical,
-    error,
-    warning,
-    notice,
-    info,
-    debug
-};
-
 struct theme_colors {
     using color_type = std::array<float, 4>;
 

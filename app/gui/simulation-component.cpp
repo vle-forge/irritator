@@ -48,15 +48,13 @@ static expected<file> save_simulation_raw_data(
     }
 }
 
-static status simulation_init_observation(modeling&        mod,
-                                          project&         pj,
-                                          journal_handler& jn) noexcept
+static status simulation_init_observation(modeling& mod, project& pj) noexcept
 {
     for (auto& grid_obs : pj.grid_observers)
-        grid_obs.init(pj, mod, jn);
+        grid_obs.init(pj, mod);
 
     for (auto& graph_obs : pj.graph_observers)
-        graph_obs.init(pj, mod, jn);
+        graph_obs.init(pj, mod);
 
     for (auto& v_obs : pj.variable_observers)
         irt_check(v_obs.init(pj));
@@ -67,49 +65,13 @@ static status simulation_init_observation(modeling&        mod,
     return success();
 }
 
-template<typename S>
-constexpr static void make_copy_error_msg(application& app,
-                                          const S&     str) noexcept
-{
-    app.jn.push(log_level::error, [&](auto& t, auto& m) {
-        t = "Component copy failed";
-        m = str;
-    });
-}
-
-template<typename S, typename... Args>
-constexpr static void make_copy_error_msg(application& app,
-                                          const S&     fmt,
-                                          Args&&... args) noexcept
-{
-    app.jn.push(log_level::error, [&](auto& t, auto& m) {
-        t = "Component copy failed";
-        format(m, fmt, std::forward<Args>(args)...);
-    });
-}
-
-template<typename S, typename... Args>
-static void make_init_error_msg(application& app,
-                                const S&     fmt,
-                                Args&&... args) noexcept
-{
-    app.jn.push(log_level::error, [&](auto& t, auto& m) {
-        t        = "Simulation initialization fail";
-        auto ret = fmt::vformat_to_n(m.begin(),
-                                     static_cast<size_t>(m.capacity() - 1),
-                                     fmt,
-                                     fmt::make_format_args(args...));
-        m.resize(static_cast<int>(ret.size));
-    });
-}
-
 static void simulation_copy(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
     const auto ret = app.mod.ids.read([&](const auto& ids, auto) -> status {
         return app.mod.files.read([&](const auto& fs, auto) -> status {
-            irt_check(ed.pj.set(ids, fs, ed.pj.head(), app.jn));
+            irt_check(ed.pj.set(ids, fs, ed.pj.head()));
             irt_check(ed.pj.sim.srcs.prepare());
             irt_check(ed.pj.sim.initialize());
             ed.simulation_state = simulation_status::initialized;
@@ -120,18 +82,20 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
     if (not ret.has_value()) {
         ed.simulation_state = simulation_status::not_started;
 
+        using namespace std::literals;
+
         switch (ret.error().cat()) {
         case category::project:
-            make_copy_error_msg(app, "Error in project copy");
+            log(log_level::error, "Error in project copy"sv);
             break;
         case category::external_source:
-            make_copy_error_msg(app, "Error {} external source preparation");
+            log(log_level::error, "Error external source preparation"sv);
             break;
         case category::simulation:
-            make_copy_error_msg(app, "Error in simulation copy");
+            log(log_level::error, "Error in simulation copy"sv);
             break;
         default:
-            make_copy_error_msg(app, "Unknown copy error");
+            log(log_level::error, "Unknown copy error"sv);
             break;
         }
     }
@@ -139,28 +103,49 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
 
 static void simulation_init(application& app, project_editor& ed) noexcept
 {
-    ed.simulation_state = simulation_status::initializing;
+    using namespace std::literals;
 
+    ed.simulation_state = simulation_status::initializing;
     ed.snaps.reset();
 
-    if (ed.pj.tree_nodes.try_to_get(ed.pj.tn_head())) {
-        ed.pj.sim.clean();
-        ed.pj.sim.observers.clear();
-        ed.simulation_last_finite_t   = ed.pj.sim.limits.begin();
-        ed.simulation_display_current = ed.pj.sim.limits.begin();
-
-        if (simulation_init_observation(app.mod, ed.pj, app.jn) and
-            ed.pj.sim.srcs.prepare() and ed.pj.sim.initialize()) {
-            ed.simulation_state = simulation_status::initialized;
-        } else {
-            ed.simulation_state = simulation_status::not_started;
-            make_copy_error_msg(app, "Error in initialization");
-        }
-    } else {
+    if (not ed.pj.tree_nodes.exists(ed.pj.tn_head())) {
         ed.simulation_state = simulation_status::not_started;
-        make_init_error_msg(app, "Empty component");
+        log(log_level::error,
+            "Error during initialization"sv,
+            "The component is empty"sv);
         return;
     }
+
+    ed.pj.sim.clean();
+    ed.pj.sim.observers.clear();
+    ed.simulation_last_finite_t   = ed.pj.sim.limits.begin();
+    ed.simulation_display_current = ed.pj.sim.limits.begin();
+
+    if (simulation_init_observation(app.mod, ed.pj).has_error()) {
+        ed.simulation_state = simulation_status::not_started;
+        log(log_level::error,
+            "Error during initialization"sv,
+            "Observation system failed"sv);
+        return;
+    }
+
+    if (ed.pj.sim.srcs.prepare().has_error()) {
+        ed.simulation_state = simulation_status::not_started;
+        log(log_level::error,
+            "Error during initialization"sv,
+            "External source system failed"sv);
+        return;
+    }
+
+    if (ed.pj.sim.initialize().has_error()) {
+        ed.simulation_state = simulation_status::not_started;
+        log(log_level::error,
+            "Error during initialization"sv,
+            "Simulation system failed"sv);
+        return;
+    }
+
+    ed.simulation_state = simulation_status::initialized;
 
     if (ed.save_simulation_raw_data != project_editor::raw_data_type::none)
         if (const auto path = ed.pj.get_observation_dir(app.mod);
@@ -179,7 +164,12 @@ static void simulation_init(application& app, project_editor& ed) noexcept
                 ed.raw_ofs = std::move(ret.value());
             else {
                 ed.simulation_state = simulation_status::not_started;
-                make_init_error_msg(app, "Fail to open raw data file");
+
+                log(log_level::error, [&](auto& t, auto& m) {
+                    t = "Error during initialization"sv,
+                    format(m, "Fail to open raw data file {}", path->string());
+                });
+
                 ed.save_simulation_raw_data =
                   project_editor::raw_data_type::none;
             }
@@ -246,7 +236,7 @@ static void finalize_raw_obs(project_editor& ed) noexcept
     ed.raw_ofs.close();
 }
 
-static bool run_raw_obs(application& app, project_editor& ed) noexcept
+static bool run_raw_obs(project_editor& ed) noexcept
 {
     debug::ensure(ed.raw_ofs.is_open());
     debug::ensure(std::ferror(ed.raw_ofs.to_file()) == 0);
@@ -314,7 +304,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
     if (ret.has_error()) {
         ed.simulation_state = simulation_status::finish_requiring;
 
-        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+        log(log_level::error, [&](auto& t, auto& msg) noexcept {
             t = "Simulation debug task run error";
             format(msg,
                    "Fail in {} with error {}",
@@ -324,7 +314,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
     }
 
     if (std::ferror(ed.raw_ofs.to_file())) {
-        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+        log(log_level::error, [&](auto& t, auto& msg) noexcept {
             t = "Simulation debug task run error";
             format(msg, "Fail to write raw data to file");
         });
@@ -335,12 +325,12 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
     return ret.has_value();
 }
 
-static bool run(application& app, project_editor& ed) noexcept
+static bool run(project_editor& ed) noexcept
 {
     if (auto ret = ed.pj.sim.run(); not ret) {
         ed.simulation_state = simulation_status::finish_requiring;
 
-        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+        log(log_level::error, [&](auto& t, auto& msg) noexcept {
             t = "Simulation debug task run error";
             format(msg,
                    "Fail in {} with error {}",
@@ -353,14 +343,13 @@ static bool run(application& app, project_editor& ed) noexcept
     return true;
 }
 
-static int new_model(application&                app,
-                     project_editor&             pj_ed,
+static int new_model(project_editor&             pj_ed,
                      const command::new_model_t& data) noexcept
 {
     int rebuild = false;
 
     if (not pj_ed.pj.sim.can_alloc(1)) {
-        app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+        log(log_level::error, [](auto& title, auto&) noexcept {
             title = "Internal error: fail to initialize new model.";
         });
     } else {
@@ -378,8 +367,7 @@ static int new_model(application&                app,
     return rebuild;
 }
 
-static int free_model(application& /*app*/,
-                      project_editor&              pj_ed,
+static int free_model(project_editor&              pj_ed,
                       const command::free_model_t& data) noexcept
 {
     if (pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
@@ -401,13 +389,12 @@ static int free_model(application& /*app*/,
     return false;
 }
 
-static int copy_model(application&                 app,
-                      project_editor&              pj_ed,
+static int copy_model(project_editor&              pj_ed,
                       const command::copy_model_t& data) noexcept
 {
     if (auto* src_mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (not pj_ed.pj.sim.can_alloc(1)) {
-            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+            log(log_level::error, [](auto& title, auto&) noexcept {
                 title = "Internal error: fail to allocate more models.";
             });
 
@@ -418,7 +405,7 @@ static int copy_model(application&                 app,
 
         if (not pj_ed.pj.sim.make_initialize(dst_mdl,
                                              pj_ed.pj.sim.current_time())) {
-            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+            log(log_level::error, [](auto& title, auto&) noexcept {
                 title = "Internal error: fail to initialize new model.";
             });
 
@@ -451,14 +438,13 @@ static int copy_model(application&                 app,
     return 0;
 }
 
-static int new_connection(application&                     app,
-                          project_editor&                  ed,
+static int new_connection(project_editor&                  ed,
                           const command::new_connection_t& data) noexcept
 {
     int rebuild = false;
 
     if (not ed.pj.sim.can_connect(1)) {
-        app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+        log(log_level::error, [](auto& title, auto&) noexcept {
             title = "Internal error: fail to initialize new model.";
         });
     } else {
@@ -473,11 +459,10 @@ static int new_connection(application&                     app,
                     // }
 
                 } else {
-                    app.jn.push(log_level::error,
-                                [](auto& title, auto&) noexcept {
-                                    title = "Internal error: fail to buid new "
-                                            "connection.";
-                                });
+                    log(log_level::error, [](auto& title, auto&) noexcept {
+                        title = "Internal error: fail to buid new "
+                                "connection.";
+                    });
                 }
             }
         }
@@ -486,8 +471,7 @@ static int new_connection(application&                     app,
     return rebuild;
 }
 
-static int free_connection(application&                      app,
-                           project_editor&                   ed,
+static int free_connection(project_editor&                   ed,
                            const command::free_connection_t& data) noexcept
 
 {
@@ -501,7 +485,7 @@ static int free_connection(application&                      app,
 
             return true;
         } else {
-            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+            log(log_level::error, [](auto& title, auto&) noexcept {
                 title = "Internal error: fail to buid new connection.";
             });
         }
@@ -510,8 +494,7 @@ static int free_connection(application&                      app,
     return false;
 }
 
-static void new_observer(application&                   app,
-                         project_editor&                ed,
+static void new_observer(project_editor&                ed,
                          const command::new_observer_t& data) noexcept
 
 {
@@ -519,29 +502,26 @@ static void new_observer(application&                   app,
         if (ed.pj.sim.observers.can_alloc(1)) {
             ed.pj.sim.observe(*mdl);
         } else {
-            app.jn.push(log_level::error,
-                        [&](auto& title, auto& /*msg*/) noexcept {
-                            title = "Internal error: fail to add observer.";
-                        });
+            log(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+                title = "Internal error: fail to add observer.";
+            });
         }
     }
 }
 
-static void free_observer(application&                    app,
-                          project_editor&                 ed,
+static void free_observer(project_editor&                 ed,
                           const command::free_observer_t& data) noexcept
 {
     if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
         ed.pj.sim.unobserve(*mdl);
     } else {
-        app.jn.push(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+        log(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
             title = "Internal error: fail to delete observer.";
         });
     }
 }
 
-static void send_message(application&                   app,
-                         project_editor&                ed,
+static void send_message(project_editor&                ed,
                          const command::send_message_t& data) noexcept
 {
     const auto t = irt::time_domain<time>::is_infinity(ed.pj.sim.current_time())
@@ -565,7 +545,7 @@ static void send_message(application&                   app,
         }
     }
 
-    app.jn.push(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+    log(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
         title = "Internal error: fail to send message.";
     });
 }
@@ -583,30 +563,28 @@ void start_simulation_commands_apply(application& app, project_id id) noexcept
                     case command_type::none:
                         break;
                     case command_type::new_model:
-                        rebuild += new_model(app, *ed, c.data.new_model);
+                        rebuild += new_model(*ed, c.data.new_model);
                         break;
                     case command_type::free_model:
-                        rebuild += free_model(app, *ed, c.data.free_model);
+                        rebuild += free_model(*ed, c.data.free_model);
                         break;
                     case command_type::copy_model:
-                        rebuild += copy_model(app, *ed, c.data.copy_model);
+                        rebuild += copy_model(*ed, c.data.copy_model);
                         break;
                     case command_type::new_connection:
-                        rebuild +=
-                          new_connection(app, *ed, c.data.new_connection);
+                        rebuild += new_connection(*ed, c.data.new_connection);
                         break;
                     case command_type::free_connection:
-                        rebuild +=
-                          free_connection(app, *ed, c.data.free_connection);
+                        rebuild += free_connection(*ed, c.data.free_connection);
                         break;
                     case command_type::new_observer:
-                        new_observer(app, *ed, c.data.new_observer);
+                        new_observer(*ed, c.data.new_observer);
                         break;
                     case command_type::free_observer:
-                        free_observer(app, *ed, c.data.free_observer);
+                        free_observer(*ed, c.data.free_observer);
                         break;
                     case command_type::send_message:
-                        send_message(app, *ed, c.data.send_message);
+                        send_message(*ed, c.data.send_message);
                         break;
                     }
                 }
@@ -653,8 +631,7 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
     if (state) {
         auto* modeling_head = pj.tree_nodes.try_to_get(pj.tn_head());
         if (!modeling_head) {
-            app.jn.push(log_level::error,
-                        [](auto& t, auto&) { t = "Empty model"; });
+            log(log_level::error, [](auto& t, auto&) { t = "Empty model"; });
         } else {
             force_pause = false;
             force_stop  = false;
@@ -899,7 +876,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             if (store_all_changes)
                 snaps.emplace_back(pj.sim);
 
-            if (auto ret = run(app, *this); !ret) {
+            if (auto ret = run(*this); !ret) {
                 simulation_state = simulation_status::finish_requiring;
                 return;
             }
@@ -933,7 +910,7 @@ void project_editor::start_simulation_static_run(application& app) noexcept
 
             if (save_simulation_raw_data !=
                 project_editor::raw_data_type::none) {
-                if (auto ret = run_raw_obs(app, *this); !ret) {
+                if (auto ret = run_raw_obs(*this); !ret) {
                     simulation_state = simulation_status::finish_requiring;
                     simulation_display_current = pj.sim.current_time();
                     return;
@@ -942,7 +919,7 @@ void project_editor::start_simulation_static_run(application& app) noexcept
                 if (store_all_changes)
                     snaps.emplace_back(pj.sim);
 
-                if (not run(app, *this)) {
+                if (not run(*this)) {
                     simulation_state = simulation_status::finish_requiring;
                     simulation_display_current = pj.sim.current_time();
                     return;
@@ -988,12 +965,12 @@ void project_editor::start_simulation_step_by_step(application& app) noexcept
 
     if (state) {
         app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-            if (auto* parent = pj.tree_nodes.try_to_get(pj.tn_head())) {
+            if (pj.tree_nodes.try_to_get(pj.tn_head())) {
                 simulation_state = simulation_status::running;
 
                 const auto current_time = pj.sim.current_time();
 
-                if (not run(app, *this)) {
+                if (not run(*this)) {
                     simulation_state = simulation_status::finish_requiring;
                     return;
                 }
@@ -1058,7 +1035,7 @@ void project_editor::start_simulation_finish(application& app) noexcept
             snaps.emplace_back(pj.sim);
 
         if (pj.sim.finalize().has_error()) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            log(log_level::error, [](auto& t, auto& m) {
                 t = "Simulation finalizing fail";
                 m = "FIXME from ret";
             });

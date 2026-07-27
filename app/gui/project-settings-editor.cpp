@@ -349,20 +349,20 @@ static bool show_project_simulation_settings(application&    app,
 
                 app.mod.files.read([&](const auto& fs, auto) noexcept {
                     app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                        if (auto ret = ed.pj.save(fs, ids, app.jn); ret) {
-                            app.jn.push(
-                              log_level::info,
-                              [&](auto& title, auto& /*msg*/) noexcept {
-                                  app.mod.files.read(
-                                    [&](const auto& fs, const auto /*vers*/) {
-                                        format(title,
-                                               "Saving project file {} success",
-                                               fs.file_paths.get(ed.pj.file)
-                                                 .path.sv());
-                                    });
-                              });
+                        if (auto ret = ed.pj.save(fs, ids); ret) {
+                            log(log_level::info,
+                                [&](auto& title, auto& /*msg*/) noexcept {
+                                    app.mod.files.read(
+                                      [&](const auto& fs, const auto /*vers*/) {
+                                          format(
+                                            title,
+                                            "Saving project file {} success",
+                                            fs.file_paths.get(ed.pj.file)
+                                              .path.sv());
+                                      });
+                                });
                         } else {
-                            app.jn.push(
+                            log(
                               log_level::error,
                               [&](auto& title, auto& msg) noexcept {
                                   const small_string<127> name =

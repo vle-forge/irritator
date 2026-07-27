@@ -955,8 +955,7 @@ static void build_flat_nodes(
     }
 }
 
-static int copy(application&                                   app,
-                project_editor&                                pj_ed,
+static int copy(project_editor&                                pj_ed,
                 const vector<generic_simulation_editor::node>& nodes,
                 const tree_node_id                             current,
                 const vector<int>& selection) noexcept
@@ -969,11 +968,10 @@ static int copy(application&                                   app,
                   .type = command_type::copy_model,
                   .data{ .copy_model{ .tn_id  = current,
                                       .mdl_id = nodes[index].mdl } } })) {
-                app.jn.push(log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Internal error during copy";
-                                msg = "The project commands order list is full";
-                            });
+                log(log_level::error, [](auto& title, auto& msg) noexcept {
+                    title = "Internal error during copy";
+                    msg   = "The project commands order list is full";
+                });
                 return ret;
             }
 
@@ -984,8 +982,7 @@ static int copy(application&                                   app,
     return ret;
 }
 
-static int new_model(application&        app,
-                     project_editor&     pj_ed,
+static int new_model(project_editor&     pj_ed,
                      const tree_node_id  current,
                      const dynamics_type type,
                      const ImVec2        click_pos) noexcept
@@ -996,7 +993,7 @@ static int new_model(application&        app,
                                       .type  = type,
                                       .x     = click_pos.x,
                                       .y     = click_pos.y } } })) {
-        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+        log(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Internal error during model allocation";
             msg   = "Project command order list is full";
         });
@@ -1007,8 +1004,7 @@ static int new_model(application&        app,
     return true;
 }
 
-static int free_model(application&       app,
-                      project_editor&    pj_ed,
+static int free_model(project_editor&    pj_ed,
                       const tree_node_id current,
                       const vector<int>& selection) noexcept
 {
@@ -1021,11 +1017,10 @@ static int free_model(application&       app,
                   .data{ .free_model{
                     .tn_id  = current,
                     .mdl_id = pj_ed.pj.sim.models.get_id(*mdl) } } })) {
-                app.jn.push(log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Internal error during model deletion";
-                                msg = "The project commands order list is full";
-                            });
+                log(log_level::error, [](auto& title, auto& msg) noexcept {
+                    title = "Internal error during model deletion";
+                    msg   = "The project commands order list is full";
+                });
                 return ret;
             }
 
@@ -1036,8 +1031,7 @@ static int free_model(application&       app,
     return ret;
 }
 
-static int connect(application&       app,
-                   project_editor&    pj_ed,
+static int connect(project_editor&    pj_ed,
                    const tree_node_id current,
                    int                start,
                    int                end) noexcept
@@ -1060,7 +1054,7 @@ static int connect(application&       app,
                      .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                      .port_src   = static_cast<i8>(out.port_index),
                      .port_dst   = static_cast<i8>(in.port_index) } } })) {
-        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+        log(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Internal error during connection";
             msg   = "Project command order list is full";
         });
@@ -1071,8 +1065,7 @@ static int connect(application&       app,
     return 1;
 }
 
-static int disconnect(application&                                   app,
-                      project_editor&                                pj_ed,
+static int disconnect(project_editor&                                pj_ed,
                       const tree_node_id                             current,
                       const vector<generic_simulation_editor::link>& links,
                       const vector<int>& selection) noexcept
@@ -1092,11 +1085,10 @@ static int disconnect(application&                                   app,
                     .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                     .port_src   = static_cast<i8>(out.port_index),
                     .port_dst   = static_cast<i8>(in.port_index) } } })) {
-                app.jn.push(log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Internal error during disconnection";
-                                msg   = "Project command order list is full";
-                            });
+                log(log_level::error, [](auto& title, auto& msg) noexcept {
+                    title = "Internal error during disconnection";
+                    msg   = "Project command order list is full";
+                });
 
                 return ret;
             }
@@ -1257,20 +1249,18 @@ static void compute_grid_layout(
     }
 }
 
-static int popup_menu(application&        app,
-                      project_editor&     pj_ed,
+static int popup_menu(project_editor&     pj_ed,
                       const tree_node_id  current,
                       const dynamics_type type,
                       const ImVec2        click_pos) noexcept
 {
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)]))
-        return new_model(app, pj_ed, current, type, click_pos);
+        return new_model(pj_ed, current, type, click_pos);
 
     return false;
 }
 
-static int show_menu_edit(application&       app,
-                          project_editor&    pj_ed,
+static int show_menu_edit(project_editor&    pj_ed,
                           const tree_node_id current,
                           const ImVec2       click_pos) noexcept
 {
@@ -1281,7 +1271,7 @@ static int show_menu_edit(application&       app,
         const auto e = static_cast<int>(dynamics_type::qss1_compare) + 1;
         for (; i != e; ++i)
             r += popup_menu(
-              app, pj_ed, current, static_cast<dynamics_type>(i), click_pos);
+              pj_ed, current, static_cast<dynamics_type>(i), click_pos);
         ImGui::EndMenu();
     }
 
@@ -1291,7 +1281,7 @@ static int show_menu_edit(application&       app,
 
         for (; i != e; ++i)
             r += popup_menu(
-              app, pj_ed, current, static_cast<dynamics_type>(i), click_pos);
+              pj_ed, current, static_cast<dynamics_type>(i), click_pos);
         ImGui::EndMenu();
     }
 
@@ -1301,42 +1291,36 @@ static int show_menu_edit(application&       app,
 
         for (; i != e; ++i)
             r += popup_menu(
-              app, pj_ed, current, static_cast<dynamics_type>(i), click_pos);
+              pj_ed, current, static_cast<dynamics_type>(i), click_pos);
         ImGui::EndMenu();
     }
 
     if (ImGui::BeginMenu("Logical")) {
-        r += popup_menu(
-          app, pj_ed, current, dynamics_type::logical_and_2, click_pos);
-        r += popup_menu(
-          app, pj_ed, current, dynamics_type::logical_or_2, click_pos);
-        r += popup_menu(
-          app, pj_ed, current, dynamics_type::logical_and_3, click_pos);
-        r += popup_menu(
-          app, pj_ed, current, dynamics_type::logical_or_3, click_pos);
-        r += popup_menu(
-          app, pj_ed, current, dynamics_type::logical_invert, click_pos);
+        r +=
+          popup_menu(pj_ed, current, dynamics_type::logical_and_2, click_pos);
+        r += popup_menu(pj_ed, current, dynamics_type::logical_or_2, click_pos);
+        r +=
+          popup_menu(pj_ed, current, dynamics_type::logical_and_3, click_pos);
+        r += popup_menu(pj_ed, current, dynamics_type::logical_or_3, click_pos);
+        r +=
+          popup_menu(pj_ed, current, dynamics_type::logical_invert, click_pos);
         ImGui::EndMenu();
     }
 
-    r += popup_menu(app, pj_ed, current, dynamics_type::counter, click_pos);
-    r += popup_menu(app, pj_ed, current, dynamics_type::queue, click_pos);
-    r +=
-      popup_menu(app, pj_ed, current, dynamics_type::dynamic_queue, click_pos);
-    r +=
-      popup_menu(app, pj_ed, current, dynamics_type::priority_queue, click_pos);
-    r += popup_menu(app, pj_ed, current, dynamics_type::generator, click_pos);
-    r += popup_menu(app, pj_ed, current, dynamics_type::constant, click_pos);
-    r += popup_menu(app, pj_ed, current, dynamics_type::time_func, click_pos);
-    r +=
-      popup_menu(app, pj_ed, current, dynamics_type::accumulator_2, click_pos);
-    r += popup_menu(app, pj_ed, current, dynamics_type::hsm_wrapper, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::counter, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::queue, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::dynamic_queue, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::priority_queue, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::generator, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::constant, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::time_func, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::accumulator_2, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::hsm_wrapper, click_pos);
 
     return r;
 }
 
-int generic_simulation_editor::show_menu(application&    app,
-                                         project_editor& pj_ed,
+int generic_simulation_editor::show_menu(project_editor& pj_ed,
                                          ImVec2          click_pos) noexcept
 {
     const bool open_popup =
@@ -1366,7 +1350,7 @@ int generic_simulation_editor::show_menu(application&    app,
         ImGui::Separator();
 
         if (pj_ed.can_edit())
-            r += show_menu_edit(app, pj_ed, current, click_pos);
+            r += show_menu_edit(pj_ed, current, click_pos);
 
         ImGui::EndPopup();
     }
@@ -1662,7 +1646,7 @@ bool generic_simulation_editor::display(application&    app,
             show_links();
 
             auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-            changes += show_menu(app, pj_ed, click_pos);
+            changes += show_menu(pj_ed, click_pos);
 
             if (show_minimap)
                 ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -1671,7 +1655,7 @@ bool generic_simulation_editor::display(application&    app,
 
             int start = 0, end = 0;
             if (ImNodes::IsLinkCreated(&start, &end) and pj_ed.can_edit())
-                changes += connect(app, pj_ed, current, start, end);
+                changes += connect(pj_ed, current, start, end);
 
             auto num_selected_links = ImNodes::NumSelectedLinks();
             auto num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1692,14 +1676,12 @@ bool generic_simulation_editor::display(application&    app,
                     ImNodes::GetSelectedNodes(selected_nodes.begin());
 
                     if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-                        changes +=
-                          free_model(app, pj_ed, current, selected_nodes);
+                        changes += free_model(pj_ed, current, selected_nodes);
                         selected_nodes.clear();
                         ++changes;
                         ImNodes::ClearNodeSelection();
                     } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
-                        changes +=
-                          copy(app, pj_ed, nodes, current, selected_nodes);
+                        changes += copy(pj_ed, nodes, current, selected_nodes);
                         selected_nodes.clear();
                         ImNodes::ClearNodeSelection();
                     }
@@ -1710,8 +1692,8 @@ bool generic_simulation_editor::display(application&    app,
                         std::fill_n(
                           selected_links.begin(), selected_links.size(), -1);
                         ImNodes::GetSelectedLinks(selected_links.begin());
-                        changes += disconnect(
-                          app, pj_ed, current, links, selected_links);
+                        changes +=
+                          disconnect(pj_ed, current, links, selected_links);
                         selected_links.clear();
                         ImNodes::ClearLinkSelection();
                     }

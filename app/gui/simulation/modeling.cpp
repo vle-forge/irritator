@@ -613,7 +613,7 @@ bool simulation_component_editor_data::show(component_editor& ed,
                                        const auto /*vers*/) noexcept {
                     app.mod.ids.read([&](const auto& ids,
                                          const auto /*vers*/) noexcept {
-                        auto exp_pj = project::load(fs, ids, f, app.jn);
+                        auto exp_pj = project::load(fs, ids, f);
 
                         m_task_project.fulfill(
                           exp_pj.has_value() ? std::move(*exp_pj) : project{});

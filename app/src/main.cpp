@@ -196,7 +196,8 @@ class main_parameters
 {
     irt::sz memory = 1024 * 1024 * 8;
 
-    irt::journal_handler jn;
+    irt::log_history   jn;
+    irt::journal_scope scope;
 
     irt::modeling        mod;
     irt::json_dearchiver json;
@@ -215,10 +216,10 @@ public:
     {
         mod.files.write([&](auto& fs) noexcept {
             registred_path_add(fs);
-            fs.browse_registreds(jn);
+            fs.browse_registreds();
         });
 
-        if (auto ret = mod.fill_components(jn); ret.has_error()) {
+        if (auto ret = mod.fill_components(); ret.has_error()) {
             switch (ret.error().cat()) {
             case irt::category::modeling:
                 warning<ec::modeling_init_error>(ret.error().value());
@@ -241,12 +242,12 @@ public:
     void observation_initialize() noexcept
     {
         for (auto& o : pj.grid_observers) {
-            o.init(pj, mod, jn);
+            o.init(pj, mod);
             pj.file_obs.alloc(pj.grid_observers.get_id(o));
         }
 
         for (auto& o : pj.graph_observers) {
-            o.init(pj, mod, jn);
+            o.init(pj, mod);
             pj.file_obs.alloc(pj.graph_observers.get_id(o));
         }
 

@@ -970,6 +970,22 @@ public:
         return true;
     }
 
+    template<typename Fn>
+        requires std::invocable<Fn, T&>
+    bool push(Fn&& fn) noexcept
+    {
+        int head      = m_head.load(std::memory_order_relaxed);
+        int next_head = next(head);
+        if (next_head == m_tail.load(std::memory_order_acquire))
+            return false;
+
+        std::construct_at(&m_buffer[head]);
+        std::invoke(std::forward<Fn>(fn), m_buffer[head]);
+        m_head.store(next_head, std::memory_order_release);
+
+        return true;
+    }
+
     bool pop(T& value) noexcept
     {
         int tail = m_tail.load(std::memory_order_relaxed);
@@ -1076,21 +1092,14 @@ using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
  *
  * * * * * */
 
-/// Default policy: full copy, behavior identical to historical version of the 
+/// Default policy: full copy, behavior identical to historical version of the
 /// shared_buffer. Valid for any T, including those modified in place (not only
 /// growing).
 template<typename T>
-struct copy_merge_policy
-{
-    static void merge(T& dst, const T& src) noexcept
-    {
-        dst = src;
-    }
+struct copy_merge_policy {
+    static void merge(T& dst, const T& src) noexcept { dst = src; }
 
-    static void reset(T& dst) noexcept
-    {
-        dst = T{};
-    }
+    static void reset(T& dst) noexcept { dst = T{}; }
 };
 
 /** Policy for containers with monotonic growth via addition only (never
@@ -1115,11 +1124,7 @@ struct append_only_merge_policy {
                    src.end());
     }
 
-
-    static void reset(T& dst) noexcept
-    {
-        dst.clear();
-    }
+    static void reset(T& dst) noexcept { dst.clear(); }
 };
 
 /**
@@ -4497,7 +4502,7 @@ bool id_data_array<T, Identifier, A, Ts...>::reserve(
               capacity(), len, std::index_sequence_for<Ts...>()))
             return m_ids.reserve(len);
 
-    return false;
+    return true;
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>

@@ -27,7 +27,6 @@ static auto init_or_reuse_observer(project&       pj,
 }
 
 static void build_graph(graph_observer&  graph_obs,
-                        journal_handler& jn,
                         project&         pj,
                         tree_node&       graph_parent,
                         graph_component& graph_compo) noexcept
@@ -62,7 +61,7 @@ static void build_graph(graph_observer&  graph_obs,
                     graph_obs.observers[index] =
                       init_or_reuse_observer(pj, *mdl, graph_obs.timestep);
                 } else {
-                    jn.push(log_level::warning, [&](auto& t, auto& m) noexcept {
+                    log(log_level::warning, [&](auto& t, auto& m) noexcept {
                         t = "Graph observer error";
                         format(m,
                                "unique_id {} is not found",
@@ -76,9 +75,7 @@ static void build_graph(graph_observer&  graph_obs,
     }
 }
 
-void graph_observer::init(project&         pj,
-                          modeling&        mod,
-                          journal_handler& jn) noexcept
+void graph_observer::init(project& pj, modeling& mod) noexcept
 {
     observers.clear();
     values.clear();
@@ -97,7 +94,7 @@ void graph_observer::init(project&         pj,
 
                         values.resize(len, zero);
 
-                        build_graph(*this, jn, pj, *tn, *graph);
+                        build_graph(*this, pj, *tn, *graph);
                     }
                 }
             }

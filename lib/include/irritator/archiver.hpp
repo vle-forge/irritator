@@ -33,31 +33,27 @@ public:
                       std::string_view   path,
                       const component_id compo_id,
                       component&         compo,
-                      file&              io,
-                      journal_handler&   jn) noexcept;
+                      file&              io) noexcept;
 
     //! Load a project from a project json file.
     status operator()(project&                pj,
                       const file_access&      files,
                       const component_access& ids,
                       std::string_view        path,
-                      file&                   io,
-                      journal_handler&        jn) noexcept;
+                      file&                   io) noexcept;
 
     //! Load a component structure from a json file.
     status operator()(const file_access& files,
                       component_access&  ids,
                       const component_id compo_id,
                       component&         compo,
-                      std::span<char>    io,
-                      journal_handler&   jn) noexcept;
+                      std::span<char>    io) noexcept;
 
     //! Load a project from a project json file.
     status operator()(project&                pj,
                       const file_access&      files,
                       const component_access& ids,
-                      std::span<char>         io,
-                      journal_handler&        jn) noexcept;
+                      std::span<char>         io) noexcept;
 
     void destroy() noexcept;
     void clear() noexcept;
@@ -87,7 +83,6 @@ public:
                       const component_access& ids,
                       const component_id      compo_id,
                       file&                   io,
-                      journal_handler&        jn,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a component structure into a json file.
@@ -95,7 +90,6 @@ public:
                       const component_access& ids,
                       const component_id      compo_id,
                       vector<char>&           out,
-                      journal_handler&        jn,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a project from the current modeling.
@@ -103,7 +97,6 @@ public:
                       const file_access&      files,
                       const component_access& ids,
                       file&                   io,
-                      journal_handler&        jn,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a project from the current modeling.
@@ -111,7 +104,6 @@ public:
                       const file_access&      files,
                       const component_access& ids,
                       vector<char>&           buffer,
-                      journal_handler&        jn,
                       print_option print_options = print_option::off) noexcept;
 
     void destroy() noexcept;

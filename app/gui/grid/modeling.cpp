@@ -497,10 +497,10 @@ static bool show_grid(const component_access&     ids,
                                     auto ret = data.connect_input(
                                       s_id, ed.row, ed.col, id);
                                     if (!ret) {
-                                        app.jn.push(
-                                          log_level::error, [](auto& t, auto&) {
-                                              t = "Fail to connect input ";
-                                          });
+                                        log(log_level::error,
+                                            [](auto& t, auto&) {
+                                                t = "Fail to connect input ";
+                                            });
                                     }
                                     ++u;
                                 }
@@ -531,10 +531,10 @@ static bool show_grid(const component_access&     ids,
                                     auto ret = data.connect_output(
                                       id, ed.row, ed.col, s_id);
                                     if (!ret) {
-                                        app.jn.push(
-                                          log_level::error, [](auto& t, auto&) {
-                                              t = "Fail to connect output ";
-                                          });
+                                        log(log_level::error,
+                                            [](auto& t, auto&) {
+                                                t = "Fail to connect output ";
+                                            });
                                     }
                                     ++u;
                                 }
