@@ -10,24 +10,28 @@ namespace irt {
 
 static void plot(const plot_copy& p) noexcept
 {
-    if (p.linear_outputs.ssize() <= 0)
+    if (p.linear_outputs.empty())
         return;
 
     switch (p.plot_type) {
     case simulation_plot_type::plotlines:
-        ImPlot::PlotLineG(
-          p.name.c_str(),
-          ring_buffer_getter,
-          const_cast<void*>(reinterpret_cast<const void*>(&p.linear_outputs)),
-          p.linear_outputs.ssize());
+        ImPlot::PlotLine(p.name.c_str(),
+                         &p.linear_outputs[0].t,
+                         &p.linear_outputs[0].value,
+                         static_cast<int>(p.linear_outputs.size()),
+                         0,
+                         0,
+                         sizeof(resampled_sample));
         break;
 
     case simulation_plot_type::plotscatters:
-        ImPlot::PlotScatterG(
-          p.name.c_str(),
-          ring_buffer_getter,
-          const_cast<void*>(reinterpret_cast<const void*>(&p.linear_outputs)),
-          p.linear_outputs.ssize());
+        ImPlot::PlotScatter(p.name.c_str(),
+                            &p.linear_outputs[0].t,
+                            &p.linear_outputs[0].value,
+                            static_cast<int>(p.linear_outputs.size()),
+                            0,
+                            0,
+                            sizeof(resampled_sample));
         break;
 
     default:
