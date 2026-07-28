@@ -914,7 +914,7 @@ static bool show_project_observations(application&    app,
 
                 auto pos = 0;
                 for_each_data(ed.pj.grid_observers, [&](auto& grid) noexcept {
-                    app.grid_obs.show(grid, sub_obs_size);
+                    app.grid_obs.show(grid, ed.pj, sub_obs_size);
 
                     ++pos;
 
@@ -975,7 +975,7 @@ static void show_component_observations(application&    app,
         for_specified_data(sim_ed.pj.grid_observers,
                            selected.grid_observer_ids,
                            [&](auto& grid) noexcept {
-                               app.grid_obs.show(grid, sub_obs_size);
+                               app.grid_obs.show(grid, sim_ed.pj, sub_obs_size);
                                ++pos;
 
                                if (pos >= *sim_ed.tree_node_observation) {

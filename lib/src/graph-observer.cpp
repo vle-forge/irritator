@@ -110,7 +110,7 @@ void graph_observer::clear() noexcept
 
 void graph_observer::update(const project& pj) noexcept
 {
-    if (debug::check(values.size() == observers.size())) {
+    if (values.size() == observers.size()) {
         for (sz i = 0, e = observers.size(); i < e; ++i) {
             const auto  obs_id = observers[i];
             const auto* obs    = pj.sim.observers.try_to_get(obs_id);

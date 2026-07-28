@@ -138,7 +138,7 @@ void grid_observer::update(const project& pj) noexcept
     const auto obs_len    = observers.size();
     const auto values_len = values.size();
 
-    if (debug::check(len == obs_len and len == values_len)) {
+    if (len == obs_len and len == values_len) {
         for (int row = 0; row < rows; ++row) {
             for (int col = 0; col < cols; ++col) {
                 const auto  pos    = col * rows + row;

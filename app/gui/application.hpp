@@ -459,8 +459,11 @@ private:
 /// Use to display a grid_observation_system into ImGui widget. An instance of
 /// this class is available in @c application::simulation_editor::grid_obs.
 struct grid_observation_widget {
+
     /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
-    void show(grid_observer& grid, const ImVec2& size) noexcept;
+    void show(grid_observer& grid,
+              const project& pj,
+              const ImVec2&  size) noexcept;
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
@@ -1319,8 +1322,8 @@ struct project_editor {
     void start_simulation_copy_modeling(application& app) noexcept;
     void start_simulation_init(application& app) noexcept;
     void start_simulation_start(application& app) noexcept;
-    void start_simulation_observation(application& app) noexcept;
-    void stop_simulation_observation(application& app) noexcept;
+    void simulation_observation_for_imm_observers(application& app) noexcept;
+    void simulation_observation_for_all_observers(application& app) noexcept;
     void start_simulation_live_run(application& app) noexcept;
     void start_simulation_static_run(application& app) noexcept;
     void start_simulation_step_by_step(application& app) noexcept;

@@ -110,15 +110,17 @@ static void do_update(const simulation&    sim,
 {
     fmt::print(file, "{},", sim.current_time());
 
+    auto span = grid.get_values();
+
     for (int row = 0; row < grid.rows; ++row) {
         for (int col = 0; col < grid.cols; ++col) {
             const auto pos = col * grid.rows + row;
 
             if (sim.observers.try_to_get(grid.observers[pos])) {
                 if (row + 1 == grid.rows and col + 1 == grid.cols)
-                    fmt::print(file, "{:e}\n,", grid.values[pos]);
+                    fmt::print(file, "{:e}\n,", span[pos]);
                 else
-                    fmt::print(file, "{:e},", grid.values[pos]);
+                    fmt::print(file, "{:e},", span[pos]);
             } else {
                 if (row + 1 == grid.rows and col + 1 == grid.cols)
                     std::fputs("NA\n,", file);

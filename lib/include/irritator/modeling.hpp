@@ -1,5 +1,4 @@
 // Copyright (c) 2020 INRA Distributed under the Boost Software License,
-// Copyright (c) 2020 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -1503,7 +1502,15 @@ public:
     model_id     mdl_id;    /**< @c model to observe. */
 
     vector<observer_id> observers;
-    vector<real>        values;
+
+private:
+    vector<real> values;
+
+public:
+    std::span<const real> get_values() const noexcept
+    {
+        return { values.data(), values.size() };
+    }
 
     fraction timestep = { 1, 10 }; /**< Affect resampler::m_dt. */
 
@@ -1548,7 +1555,15 @@ public:
     model_id     mdl_id;    /**< @c model to observe. */
 
     vector<observer_id> observers;
-    vector<real>        values;
+
+private:
+    vector<real> values;
+
+public:
+    auto get_values() const noexcept -> std::span<const real>
+    {
+        return { values.data(), values.size() };
+    }
 
     fraction timestep = { 1, 10 }; /**< Affect resampler::m_dt. */
 

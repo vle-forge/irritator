@@ -10,19 +10,24 @@
 namespace irt {
 
 void grid_observation_widget::show(grid_observer& grid,
+                                   const project& pj,
                                    const ImVec2&  size) noexcept
 {
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
     if (ImGui::BeginChild("grid")) {
-        if (not grid.values.empty()) {
+        grid.update(pj);
+
+        auto span = grid.get_values();
+
+        if (not span.empty()) {
             ImPlot::PushColormap(grid.color_map);
             if (ImPlot::BeginPlot(grid.name.c_str(),
                                   size,
                                   ImPlotFlags_NoLegend |
                                     ImPlotFlags_NoMouseText)) {
                 ImPlot::PlotHeatmap(grid.name.c_str(),
-                                    grid.values.data(),
+                                    span.data(),
                                     grid.rows,
                                     grid.cols,
                                     grid.scale_min,

@@ -306,7 +306,9 @@ void graph_editor::draw_graph(const graph&          g,
         if (d.nodes.empty())
             return;
 
-        if (d.nodes.size() != obs.values.size())
+        const auto span = obs.get_values();
+
+        if (span.empty())
             return;
 
         for (const auto id : g.nodes) {
@@ -319,12 +321,12 @@ void graph_editor::draw_graph(const graph&          g,
             const ImVec2 p_max(origin.x + ((x + area) * zoom),
                                origin.y + ((y + area) * zoom));
 
-            debug::ensure(i < obs.values.size());
+            debug::ensure(i < span.size());
 
             const auto m = static_cast<double>(obs.scale_min);
             const auto M = static_cast<double>(obs.scale_max);
             const auto d = std::abs(m) + std::abs(M);
-            const auto o = obs.values[i] + m;
+            const auto o = span[i] + m;
             const auto t = std::clamp(o / d, 0.0, 1.0);
 
             draw_list->AddRectFilled(
@@ -754,6 +756,8 @@ auto graph_editor::show(const char*     name,
                        : show_result_type::request_to_close;
     }
 
+    obs.update(ed.pj);
+
     return app.mod.ids.read(
       [&](const auto& ids, auto) noexcept -> graph_editor::show_result_type {
           debug::ensure(ids.exists(tn.id));
@@ -913,6 +917,8 @@ void graph_editor::show(application&    app,
         ImGui::EndChild();
         return;
     }
+
+    obs.update(ed.pj);
 
     app.mod.ids.read([&](const auto& ids, auto) noexcept {
         debug::ensure(ids.exists(tn.id));
