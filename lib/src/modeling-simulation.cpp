@@ -11,20 +11,6 @@
 
 namespace irt {
 
-static bool already_exists(const simulation_component::selection_t& sel,
-                           const tree_node_id                       tn_id,
-                           const model_id mdl_id) noexcept
-{
-    const auto& tn = sel.get<tree_node_id>();
-    const auto& md = sel.get<model_id>();
-
-    for (const auto id : sel)
-        if (tn[id] == tn_id and md[id] == mdl_id)
-            return true;
-
-    return false;
-};
-
 status simulation_component::assign(project&& pj_to_move) noexcept
 {
     pj = std::move(pj_to_move);

@@ -7,14 +7,15 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
-#include <optional>
-
 namespace irt {
 
+#if 0
 constexpr static inline const char* plot_type_str[] = { "None",
                                                         "Plot line",
                                                         "Plot dot" };
+#endif
 
+#if 0
 static void show_observers_table(application& app, project_editor& ed) noexcept
 {
     for (auto& vobs : ed.pj.variable_observers) {
@@ -81,7 +82,9 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
         }
     }
 }
+#endif
 
+#if 0
 static void show_copy_table(application& app) noexcept
 {
     auto to_del = std::optional<plot_copy_id>();
@@ -126,6 +129,7 @@ static void show_copy_table(application& app) noexcept
     if (to_del.has_value())
         app.copy_obs.free(*to_del);
 }
+#endif
 
 static void write(project&                        pj,
                   std::ofstream&                  ofs,
