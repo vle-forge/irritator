@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(irritator VERSION 0.1.0.0 LANGUAGES CXX)
 
+set(CMAKE_MSVC_DEPENDENCY_FILE_FLAG TRUE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+
 include(GNUInstallDirs)
 
 option(WITH_GUI "Build the graphical user interface [default: ON]" ON)
