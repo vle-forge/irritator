@@ -1,0 +1,229 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "description": "Common Windows/MSVC base",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "VSLANG": "1033"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "cl.exe",
+        "CMAKE_CXX_COMPILER": "cl.exe",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE"
+      }
+    },
+    {
+      "name": "x64-Debug",
+      "displayName": "x64 Debug",
+      "description": "Build Debug (MSVC, Ninja)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "ON",
+        "WITH_NATIVE_ARCH": "OFF"
+      }
+    },
+    {
+      "name": "x64-Release",
+      "displayName": "x64 Release",
+      "description": "Build Release (MSVC, Ninja)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "OFF",
+        "WITH_NATIVE_ARCH": "OFF"
+      }
+    },
+    {
+      "name": "x64-RelWithDebInfo",
+      "displayName": "x64 RelWithDebInfo",
+      "description": "Release with Debug (MSVC, Ninja)",
+      "inherits": "windows-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "OFF",
+        "WITH_NATIVE_ARCH": "OFF"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "description": "Common Linux base (gcc, Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE"
+      }
+    },
+    {
+      "name": "linux-Debug",
+      "displayName": "Linux Debug",
+      "description": "Build Debug (gcc, Ninja)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "ON",
+        "WITH_NATIVE_ARCH": "ON"
+      }
+    },
+    {
+      "name": "linux-Release",
+      "displayName": "Linux Release",
+      "description": "Build Release (gcc, Ninja)",
+      "inherits": "linux-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "OFF",
+        "WITH_NATIVE_ARCH": "ON"
+      }
+    },
+    {
+      "name": "macos-base",
+      "hidden": true,
+      "description": "Common macOS base (clang, Ninja)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "installDir": "${sourceDir}/out/install/${presetName}",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "TRUE"
+      }
+    },
+    {
+      "name": "macos-Debug",
+      "displayName": "macOS Debug",
+      "description": "Build Debug (clang, Ninja)",
+      "inherits": "macos-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "ON",
+        "WITH_NATIVE_ARCH": "OFF"
+      }
+    },
+    {
+      "name": "macos-Release",
+      "displayName": "macOS Release",
+      "description": "Build Release (clang, Ninja)",
+      "inherits": "macos-base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "WITH_GUI": "ON",
+        "WITH_DEBUG": "OFF",
+        "WITH_NATIVE_ARCH": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "x64-Debug",
+      "configurePreset": "x64-Debug"
+    },
+    {
+      "name": "x64-Release",
+      "configurePreset": "x64-Release"
+    },
+    {
+      "name": "x64-RelWithDebInfo",
+      "configurePreset": "x64-RelWithDebInfo"
+    },
+    {
+      "name": "linux-Debug",
+      "configurePreset": "linux-Debug"
+    },
+    {
+      "name": "linux-Release",
+      "configurePreset": "linux-Release"
+    },
+    {
+      "name": "macos-Debug",
+      "configurePreset": "macos-Debug"
+    },
+    {
+      "name": "macos-Release",
+      "configurePreset": "macos-Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "x64-Debug",
+      "configurePreset": "x64-Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "x64-Release",
+      "configurePreset": "x64-Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-Debug",
+      "configurePreset": "linux-Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-Release",
+      "configurePreset": "linux-Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-Debug",
+      "configurePreset": "macos-Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-Release",
+      "configurePreset": "macos-Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
