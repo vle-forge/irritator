@@ -13,6 +13,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <span>
@@ -25,6 +26,12 @@
 
 namespace irt {
 
+/* * * * * *
+ *
+ * log / journal API
+ *
+ * * * * * */
+
 //! Enumeration class used everywhere in irritator to produce log data.
 enum class log_level : u8 {
     emergency,
@@ -36,6 +43,66 @@ enum class log_level : u8 {
     info,
     debug
 };
+
+struct log_record {
+    constexpr static inline auto title_length = 63;
+    constexpr static inline auto msg_length   = 254;
+
+    u64                        ts;
+    std::thread::id            tid;
+    small_string<title_length> t;
+    small_string<msg_length>   msg;
+    log_level                  level;
+};
+
+using thread_journal = static_circular_buffer<log_record, 4096>;
+
+inline thread_local thread_journal* current_journal = nullptr;
+
+/** Compute the time since epoch in milliseconds */
+u64 get_time_since_epoch() noexcept;
+
+/**
+ * @brief Add message into the @c log_history buffer.
+ * @param lvl level of log.
+ * @param t title of the log.
+ * @param msg = the content of the log.
+ */
+inline void log(log_level        lvl,
+                std::string_view t,
+                std::string_view msg = std::string_view{}) noexcept
+{
+    if (current_journal) [[likely]]
+        current_journal->push(log_record{
+          get_time_since_epoch(), std::this_thread::get_id(), t, msg, lvl });
+}
+
+/**
+ * @brief Add message into the @c log_history buffer using callback.
+ * @param lvl level of log.
+ * @param fn A function with title and message as argument
+ *
+ * @code
+ * log(log_level::debug, [pos](auto& t, auto& m) {
+ *     t = "The title";
+ *     format(m, "position is {},{}\n", pos.x, pos.y);
+ * });
+ * @endcode
+ */
+template<typename Fn, typename... Args>
+inline void log(log_level level, Fn&& fn, Args&&... args) noexcept
+{
+    if (current_journal) [[likely]] {
+        current_journal->push([&](log_record& l) noexcept {
+            l.ts    = get_time_since_epoch();
+            l.level = level;
+            l.tid   = std::this_thread::get_id();
+
+            std::invoke(
+              std::forward<Fn>(fn), l.t, l.msg, std::forward<Args>(args)...);
+        });
+    }
+}
 
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
@@ -1446,7 +1513,10 @@ private:
 
               if (not history.can_alloc(n) and
                   not history.template grow<2, 1>(n)) {
-                  debug::print("fail to allocate more observer history\n");
+                  log(log_level::debug, [&](auto& t, auto& m) {
+                      t = "Simulation observation";
+                      m = "fail to allocate more observer history";
+                  });
                   return;
               }
 

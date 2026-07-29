@@ -4,10 +4,6 @@
 
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
-#include <irritator/observation.hpp>
-#include <irritator/random.hpp>
-
-#include <fmt/ranges.h>
 
 namespace irt {
 
@@ -221,7 +217,7 @@ static status embedded_sims_alloc(simulation_wrapper& wrapper,
         const auto id  = wrapper.embedded_sims.alloc_id();
         const auto idx = get_index(id);
 
-        sims[idx]                       = source;
+        sims[idx] = source;
         sim_obs[idx].data.clear();
 
         for (const auto sel_id : source.selections) {
@@ -849,9 +845,16 @@ static auto compute_embedded_simulation_results(
 
         const auto mdl_id = sim_src.selections.get<model_id>(obj_fn_id);
 
-        for (const auto sub_id : embedded_sims)
-            if (const auto* ptr = sim_obs[sub_id].get(mdl_id))
-                fmt::println("{:5} | {}", get_index(sub_id), ptr->values);
+        for (const auto sub_id : embedded_sims) {
+            if (const auto* ptr = sim_obs[sub_id].get(mdl_id)) {
+                fmt::print("{:5}", get_index(sub_id));
+
+                for (const auto& v : ptr->values)
+                    fmt::println("{:.0f;.6g}", v);
+
+                fmt::println("");
+            }
+        }
     }
 
     fmt::println("compute embedeed selection");

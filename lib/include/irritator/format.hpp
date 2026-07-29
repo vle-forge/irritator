@@ -123,20 +123,79 @@ inline small_string<N> format_n(fmt::format_string<Args...> fmt_str,
 
 } //  irt
 
+/**
+ * @brief Format @c resampled_sample
+ *
+ * @code
+ * fmt::print("{:.0f;.6g}\n", r);   // t use .0f, value use .6g
+ * fmt::print("{:.3f}\n", r);       // no ';' -> t use .3f, value as default
+ * @endcode
+ */
 template<>
 struct fmt::formatter<::irt::resampled_sample> {
+    fmt::formatter<double> t_formatter;
+    fmt::formatter<double> value_formatter;
+
     constexpr auto parse(format_parse_context& ctx) noexcept
       -> format_parse_context::iterator
     {
-        // @todo Howto use the double representation format?
+        auto it  = ctx.begin();
+        auto end = ctx.end();
 
-        return ctx.begin();
+        auto sep = it;
+        while (sep != end && *sep != '}' && *sep != ';')
+            ++sep;
+
+        {
+            format_parse_context t_ctx(
+              fmt::string_view(it, static_cast<size_t>(sep - it)));
+            auto t_end = t_formatter.parse(t_ctx);
+
+            if (t_end != t_ctx.end()) {
+                using namespace std::literals;
+
+                log(::irt::log_level::critical,
+                    "format.hpp"sv
+                    "invalid spec for resampled-sample::t\n"sv);
+
+                return ctx.begin();
+            }
+        }
+
+        if (sep == end || *sep == '}')
+            return sep;
+
+        ++sep;
+        auto vend = sep;
+        while (vend != end && *vend != '}')
+            ++vend;
+
+        {
+            format_parse_context v_ctx(
+              fmt::string_view(sep, static_cast<size_t>(vend - sep)));
+            auto v_end = value_formatter.parse(v_ctx);
+            if (v_end != v_ctx.end()) {
+                using namespace std::literals;
+
+                log(::irt::log_level::critical,
+                    "format.hpp"sv
+                    "invalid spec for resampled-sample::value\n"sv);
+
+                return ctx.begin();
+            }
+        }
+
+        return vend;
     }
 
-    auto format(const ::irt::resampled_sample& r,
-                format_context& ctx) const noexcept -> format_context::iterator
+    constexpr auto format(const ::irt::resampled_sample& r,
+                          format_context&                ctx) const noexcept
+      -> format_context::iterator
     {
-        return format_to(ctx.out(), "{} {}", r.t, r.value);
+        auto out = t_formatter.format(r.t, ctx);
+        *out++   = ' ';
+        ctx.advance_to(out);
+        return value_formatter.format(r.value, ctx);
     }
 };
 

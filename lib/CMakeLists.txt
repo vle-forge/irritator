@@ -46,6 +46,7 @@ set(private_irritator_sources
     src/project.cpp
     src/simulation.cpp
     src/timeline.cpp
+    src/thread.cpp
     src/variable-observer.cpp)
 
 add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources} "src/simulation.cpp")
