@@ -50,7 +50,7 @@ static auto display_text(
 
 void window_logger::show() noexcept
 {
-    auto& app = container_of(this, &application::log_wnd);
+    auto&      app       = container_of(this, &application::log_wnd);
     const auto level_min = app.config.vars.loglevel.load();
 
     app.jn.collect();
@@ -70,9 +70,9 @@ void window_logger::show() noexcept
             if (auto_scroll)
                 scroll_to_bottom = true;
 
-        auto sel = ordinal(level_min);
+        auto sel = static_cast<std::size_t>(ordinal(level_min));
 
-        for (sz i = 0, e = std::size(log_level_names); i != e; ++i) {
+        for (std::size_t i = 0, e = std::size(log_level_names); i != e; ++i) {
             const auto label    = small_string<32>(log_level_names[i]);
             const auto selected = sel == i;
 
@@ -80,12 +80,11 @@ void window_logger::show() noexcept
                 sel = i;
         }
 
-        if (sel != ordinal(level_min))
+        if (sel != static_cast<std::size_t>(ordinal(level_min)))
             app.config.vars.loglevel = enum_cast<log_level>(sel);
 
         ImGui::EndPopup();
     }
-
 
     if (ImGui::Button("Options"))
         ImGui::OpenPopup("Options");
