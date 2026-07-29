@@ -11872,11 +11872,10 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
 inline status simulation::observe(model& mdl) noexcept
 {
     if (debug::check(not observers.exists(mdl.obs_id))) {
-        if (not observers.can_alloc(1))
+        if (not observers.can_alloc(1) and not observers.grow<2, 1>(1))
             return make_error(simulation_errc::observers_container_full);
 
-        auto& obs = observers.alloc(models.get_id(mdl));
-
+        auto&      obs    = observers.alloc(models.get_id(mdl));
         const auto obs_id = observers.get_id(obs);
 
         observers.get<resampler>(obs_id) =
@@ -11892,7 +11891,7 @@ inline status simulation::observe(model& mdl) noexcept
 inline status simulation::observe(model& mdl, const time dt) noexcept
 {
     if (debug::check(not observers.exists(mdl.obs_id))) {
-        if (not observers.can_alloc(1))
+        if (not observers.can_alloc(1) and not observers.grow<2, 1>(1))
             return make_error(simulation_errc::observers_container_full);
 
         auto& obs = observers.alloc(models.get_id(mdl));

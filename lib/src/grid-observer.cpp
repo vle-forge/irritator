@@ -20,8 +20,12 @@ static auto init_or_reuse_observer(project&       pj,
     if (auto* obs = pj.sim.observers.try_to_get(mdl.obs_id)) {
         obs->reset();
     } else {
-        if (pj.sim.observe(mdl, timestep.to_double()).has_error()) {
-            // @todo Handle error
+        if (const auto ret = pj.sim.observe(mdl, timestep.to_double());
+            ret.has_error()) {
+            log(log_level::error, [&](auto& t, auto& m) {
+                t = "Graph observation";
+                m = "Fail to observe a model\n";
+            });
         }
     }
 

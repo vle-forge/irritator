@@ -10,16 +10,21 @@
 
 namespace irt {
 
-static auto init_or_reuse_observer(project&       pj,
-                                   model&         mdl,
-                                   const fraction timestep) noexcept
+static auto init_or_reuse_observer(project&               pj,
+                                   model&                 mdl,
+                                   const fraction         timestep,
+                                   const std::string_view str) noexcept
   -> observer_id
 {
     if (auto* obs = pj.sim.observers.try_to_get(mdl.obs_id)) {
         obs->reset();
     } else {
-        if (pj.sim.observe(mdl, timestep.to_double()).has_error()) {
-            // @todo Handle error
+        if (const auto ret = pj.sim.observe(mdl, timestep.to_double());
+            ret.has_error()) {
+            log(log_level::error, [&](auto& t, auto& m) {
+                t = "Graph observation";
+                format(m, "Fail to observe a model {}\n", str);
+            });
         }
     }
 
@@ -58,8 +63,8 @@ static void build_graph(graph_observer&  graph_obs,
                                   graph_compo.g.nodes.size());
                     debug::ensure(index < graph_obs.observers.size());
 
-                    graph_obs.observers[index] =
-                      init_or_reuse_observer(pj, *mdl, graph_obs.timestep);
+                    graph_obs.observers[index] = init_or_reuse_observer(
+                      pj, *mdl, graph_obs.timestep, child->unique_id.sv());
                 } else {
                     log(log_level::warning, [&](auto& t, auto& m) noexcept {
                         t = "Graph observer error";
