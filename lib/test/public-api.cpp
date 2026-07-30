@@ -305,80 +305,32 @@ int main()
         expect(nk4.second == 7u);
     };
 
-    "sizeof"_test = [] {
-        fmt::print("qss1_integrator   {}\n", sizeof(irt::qss1_integrator));
-        fmt::print("qss1_multiplier   {}\n", sizeof(irt::qss1_multiplier));
-        fmt::print("qss1_cross        {}\n", sizeof(irt::qss1_cross));
-        fmt::print("qss1_power        {}\n", sizeof(irt::qss1_power));
-        fmt::print("qss1_square       {}\n", sizeof(irt::qss1_square));
-        fmt::print("qss1_sum_2        {}\n", sizeof(irt::qss1_sum_2));
-        fmt::print("qss1_sum_3        {}\n", sizeof(irt::qss1_sum_3));
-        fmt::print("qss1_sum_4        {}\n", sizeof(irt::qss1_sum_4));
-        fmt::print("qss1_wsum_2       {}\n", sizeof(irt::qss1_wsum_2));
-        fmt::print("qss1_wsum_3       {}\n", sizeof(irt::qss1_wsum_3));
-        fmt::print("qss1_wsum_4       {}\n", sizeof(irt::qss1_wsum_4));
-        fmt::print("qss1_invert       {}\n", sizeof(irt::qss1_inverse));
-        fmt::print("qss1_integer      {}\n", sizeof(irt::qss1_integer));
-        fmt::print("qss1_compare      {}\n", sizeof(irt::qss1_compare));
-        fmt::print("qss1_sin          {}\n", sizeof(irt::qss1_sin));
-        fmt::print("qss1_cos          {}\n", sizeof(irt::qss1_cos));
-        fmt::print("qss1_log          {}\n", sizeof(irt::qss1_log));
-        fmt::print("qss1_exp          {}\n", sizeof(irt::qss1_exp));
-        fmt::print("qss2_integrator   {}\n", sizeof(irt::qss2_integrator));
-        fmt::print("qss2_multiplier   {}\n", sizeof(irt::qss2_multiplier));
-        fmt::print("qss2_cross        {}\n", sizeof(irt::qss2_cross));
-        fmt::print("qss2_power        {}\n", sizeof(irt::qss2_power));
-        fmt::print("qss2_square       {}\n", sizeof(irt::qss2_square));
-        fmt::print("qss2_sum_2        {}\n", sizeof(irt::qss2_sum_2));
-        fmt::print("qss2_sum_3        {}\n", sizeof(irt::qss2_sum_3));
-        fmt::print("qss2_sum_4        {}\n", sizeof(irt::qss2_sum_4));
-        fmt::print("qss2_wsum_2       {}\n", sizeof(irt::qss2_wsum_2));
-        fmt::print("qss2_wsum_3       {}\n", sizeof(irt::qss2_wsum_3));
-        fmt::print("qss2_wsum_4       {}\n", sizeof(irt::qss2_wsum_4));
-        fmt::print("qss2_invert       {}\n", sizeof(irt::qss2_inverse));
-        fmt::print("qss2_integer      {}\n", sizeof(irt::qss2_integer));
-        fmt::print("qss2_compare      {}\n", sizeof(irt::qss2_compare));
-        fmt::print("qss2_sin          {}\n", sizeof(irt::qss2_sin));
-        fmt::print("qss2_cos          {}\n", sizeof(irt::qss2_cos));
-        fmt::print("qss2_log          {}\n", sizeof(irt::qss2_log));
-        fmt::print("qss2_exp          {}\n", sizeof(irt::qss2_exp));
-        fmt::print("qss3_integrator   {}\n", sizeof(irt::qss3_integrator));
-        fmt::print("qss3_multiplier   {}\n", sizeof(irt::qss3_multiplier));
-        fmt::print("qss3_power        {}\n", sizeof(irt::qss3_power));
-        fmt::print("qss3_square       {}\n", sizeof(irt::qss3_square));
-        fmt::print("qss3_cross        {}\n", sizeof(irt::qss3_cross));
-        fmt::print("qss3_sum_2        {}\n", sizeof(irt::qss3_sum_2));
-        fmt::print("qss3_sum_3        {}\n", sizeof(irt::qss3_sum_3));
-        fmt::print("qss3_sum_4        {}\n", sizeof(irt::qss3_sum_4));
-        fmt::print("qss3_wsum_2       {}\n", sizeof(irt::qss3_wsum_2));
-        fmt::print("qss3_wsum_3       {}\n", sizeof(irt::qss3_wsum_3));
-        fmt::print("qss3_wsum_4       {}\n", sizeof(irt::qss3_wsum_4));
-        fmt::print("qss3_invert       {}\n", sizeof(irt::qss3_inverse));
-        fmt::print("qss3_integer      {}\n", sizeof(irt::qss3_integer));
-        fmt::print("qss3_compare      {}\n", sizeof(irt::qss3_compare));
-        fmt::print("qss3_sin          {}\n", sizeof(irt::qss3_sin));
-        fmt::print("qss3_cos          {}\n", sizeof(irt::qss3_cos));
-        fmt::print("qss3_log          {}\n", sizeof(irt::qss3_log));
-        fmt::print("qss3_exp          {}\n", sizeof(irt::qss3_exp));
-        fmt::print("counter           {}\n", sizeof(irt::counter));
-        fmt::print("queue             {}\n", sizeof(irt::queue));
-        fmt::print("dynamic_queue     {}\n", sizeof(irt::dynamic_queue));
-        fmt::print("priority_queue    {}\n", sizeof(irt::priority_queue));
-        fmt::print("generator         {}\n", sizeof(irt::generator));
-        fmt::print("constant          {}\n", sizeof(irt::constant));
-        fmt::print("time_func         {}\n", sizeof(irt::time_func));
-        fmt::print("accumulator       {}\n", sizeof(irt::accumulator_2));
-        fmt::print("hsm_wrapper       {}\n", sizeof(irt::hsm_wrapper));
-        fmt::print("--------------------\n");
-        fmt::print("dynamic number:   {}\n", irt::dynamics_type_size());
-        fmt::print("max dynamic size: {}\n", irt::max_size_in_bytes());
-        fmt::print("--------------------\n");
-        fmt::print("model             {}\n", sizeof(irt::model));
-        fmt::print("message           {}\n", sizeof(irt::message));
-        fmt::print("observer          {}\n", sizeof(irt::observer));
-        fmt::print("node              {}\n", sizeof(irt::node));
-        fmt::print("parameter         {}\n", sizeof(irt::parameter));
-        fmt::print("model size:       {}\n", sizeof(irt::model));
+    "better_sizeof_dynamics"_test = [] {
+        irt::model mdl;
+
+        for (auto i = 0, e = irt::dynamics_type_size(); i != e; ++i) {
+            mdl.type        = irt::enum_cast<irt::dynamics_type>(i);
+            const auto name = irt::dynamics_type_names[i];
+            const auto size = irt::dispatch(
+              mdl, []<typename Dynamics>(Dynamics& dyn) -> std::size_t {
+                  return sizeof(dyn);
+              });
+
+            fmt::print("{:25}|{:5}\n", name, size);
+        }
+
+        fmt::print("------------------------------\n");
+        fmt::print("dynamic number:          |{:5}\n",
+                   irt::dynamics_type_size());
+        fmt::print("max dynamic size:        |{:5}\n",
+                   irt::max_size_in_bytes());
+        fmt::print("------------------------------\n");
+        fmt::print("model                    |{:5}\n", sizeof(irt::model));
+        fmt::print("message                  |{:5}\n", sizeof(irt::message));
+        fmt::print("observer                 |{:5}\n", sizeof(irt::observer));
+        fmt::print("node                     |{:5}\n", sizeof(irt::node));
+        fmt::print("parameter                |{:5}\n", sizeof(irt::parameter));
+        fmt::print("model size:              |{:5}\n", sizeof(irt::model));
     };
 
     "model_constepxr"_test = [] {
