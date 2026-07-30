@@ -7596,12 +7596,57 @@ public:
 
         void clear() noexcept;
 
-        auto operator<=>(const state_action&) const noexcept = default;
-
-        bool operator==(const state_action& other) const noexcept
+        constexpr auto operator<=>(const state_action& other) const noexcept
         {
-            return other.var1 == var1 and other.var2 == var2 and
-                   other.type == type and other.constant.i == constant.i;
+            using cmp_type = std::common_comparison_category_t<
+              decltype(var1 <=> other.var1),
+              decltype(var2 <=> other.var2),
+              decltype(type <=> other.type),
+              decltype(constant.i <=> other.constant.i),
+              decltype(constant.f <=> other.constant.f)>;
+
+            if (const auto cmp = var1 <=> other.var1; cmp != 0)
+                return cmp_type(cmp);
+
+            if (const auto cmp = var2 <=> other.var2; cmp != 0)
+                return cmp_type(cmp);
+
+            if (const auto cmp = type <=> other.type; cmp != 0)
+                return cmp_type(cmp);
+
+            if (is_using_i_constant() && other.is_using_i_constant())
+                return cmp_type(constant.i <=> other.constant.i);
+
+            if (is_using_r_constant() && other.is_using_r_constant())
+                return cmp_type(constant.f <=> other.constant.f);
+
+            return cmp_type::equivalent;
+        }
+
+        constexpr bool operator==(const state_action& other) const noexcept
+        {
+            if (var1 != other.var1 or var2 != other.var2 or type != other.type)
+                return false;
+
+            if (is_using_i_constant() and other.is_using_i_constant())
+                return constant.i == other.constant.i;
+
+            if (is_using_r_constant() and other.is_using_r_constant())
+                return constant.f == other.constant.f;
+
+            return false;
+        }
+
+        constexpr bool is_using_i_constant() const noexcept
+        {
+            return var1 == variable::var_i1 or var1 == variable::var_i2 or
+                   var2 == variable::var_i1 or var2 == variable::var_i2;
+        }
+
+        constexpr bool is_using_r_constant() const noexcept
+        {
+            return var1 == variable::var_r1 or var1 == variable::var_r2 or
+                   var2 == variable::var_r1 or var2 == variable::var_r2;
         }
     };
 
@@ -7657,12 +7702,57 @@ public:
                    execution&                                 e) const noexcept;
         void clear() noexcept;
 
-        auto operator<=>(const condition_action&) const noexcept = default;
-
-        bool operator==(const condition_action& other) const noexcept
+        constexpr auto operator<=>(const condition_action& other) const noexcept
         {
-            return other.var1 == var1 and other.var2 == var2 and
-                   other.type == type and other.constant.i == constant.i;
+            using cmp_type = std::common_comparison_category_t<
+              decltype(var1 <=> other.var1),
+              decltype(var2 <=> other.var2),
+              decltype(type <=> other.type),
+              decltype(constant.i <=> other.constant.i),
+              decltype(constant.f <=> other.constant.f)>;
+
+            if (const auto cmp = var1 <=> other.var1; cmp != 0)
+                return cmp_type(cmp);
+
+            if (const auto cmp = var2 <=> other.var2; cmp != 0)
+                return cmp_type(cmp);
+
+            if (const auto cmp = type <=> other.type; cmp != 0)
+                return cmp_type(cmp);
+
+            if (is_using_i_constant() && other.is_using_i_constant())
+                return cmp_type(constant.i <=> other.constant.i);
+
+            if (is_using_r_constant() && other.is_using_r_constant())
+                return cmp_type(constant.f <=> other.constant.f);
+
+            return cmp_type::equivalent;
+        }
+
+        constexpr bool operator==(const condition_action& other) const noexcept
+        {
+            if (var1 != other.var1 or var2 != other.var2 or type != other.type)
+                return false;
+
+            if (is_using_i_constant() and other.is_using_i_constant())
+                return constant.i == other.constant.i;
+
+            if (is_using_r_constant() and other.is_using_r_constant())
+                return constant.f == other.constant.f;
+
+            return false;
+        }
+
+        constexpr bool is_using_i_constant() const noexcept
+        {
+            return var1 == variable::var_i1 or var1 == variable::var_i2 or
+                   var2 == variable::var_i1 or var2 == variable::var_i2;
+        }
+
+        constexpr bool is_using_r_constant() const noexcept
+        {
+            return var1 == variable::var_r1 or var1 == variable::var_r2 or
+                   var2 == variable::var_r1 or var2 == variable::var_r2;
         }
     };
 
