@@ -2288,13 +2288,12 @@ private:
         auto* new_ptr = reinterpret_cast<SubT*>(ptr);
 
         if (buffer.get()) {
-            if constexpr (std::is_trivially_copy_constructible_v<SubT>) {
-                std::uninitialized_copy_n(buffer.get(), old, new_ptr);
-            } else if constexpr (std::is_trivially_move_constructible_v<SubT>) {
+            if constexpr (std::is_nothrow_move_constructible_v<SubT>) {
                 std::uninitialized_move_n(buffer.get(), old, new_ptr);
             } else {
                 std::uninitialized_copy_n(buffer.get(), old, new_ptr);
             }
+
             std::destroy_n(buffer.get(), old);
             A::deallocate(buffer.get(), sizeof(SubT) * old);
             buffer.reset(nullptr);
@@ -4497,10 +4496,14 @@ template<typename T, typename Identifier, typename A, class... Ts>
 bool id_data_array<T, Identifier, A, Ts...>::reserve(
   std::integral auto len) noexcept
 {
-    if (std::cmp_less(capacity(), len))
-        if (do_resize_buffer_views(
-              capacity(), len, std::index_sequence_for<Ts...>()))
-            return m_ids.reserve(len);
+    if (std::cmp_less(capacity(), len)) {
+        const auto old = capacity();
+
+        if (not m_ids.reserve(len))
+            return false;
+
+        return do_resize_buffer_views(old, len, std::index_sequence_for<Ts...>());
+    }
 
     return true;
 }
@@ -5280,15 +5283,20 @@ vector<T, A>& vector<T, A>::operator=(const vector& other) noexcept
 {
     if (this != &other) {
         clear();
-        if (reserve(other.m_size)) {
-            if constexpr (std::is_trivially_copyable_v<T>) {
-                std::memcpy(m_data, other.m_data, other.m_size * sizeof(T));
-            } else {
-                std::uninitialized_copy_n(other.m_data, other.m_size, m_data);
+
+        if (other.m_size > 0) {
+            if (reserve(other.m_size)) {
+                if constexpr (std::is_trivially_copyable_v<T>) {
+                    std::memcpy(m_data, other.m_data, other.m_size * sizeof(T));
+                } else {
+                    std::uninitialized_copy_n(
+                      other.m_data, other.m_size, m_data);
+                }
+                m_size = other.m_size;
             }
-            m_size = other.m_size;
         }
     }
+
     return *this;
 }
 
