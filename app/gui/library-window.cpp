@@ -578,7 +578,7 @@ void library_window::show_menu() noexcept
             for (auto i = 0; i < internal_component_count; ++i) {
                 if (ImGui::MenuItem(internal_component_names[i])) {
                     app.add_gui_task([&app, i]() noexcept {
-                        app.mod.ids.write([&app, i](auto& ids) noexcept {
+                        app.mod.ids.write([i](auto& ids) noexcept {
                             const auto compo_id = ids.alloc_generic_component();
 
                             if (is_undefined(compo_id)) {
