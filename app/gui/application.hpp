@@ -10,7 +10,6 @@
 #include <irritator/global.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
-#include <irritator/observation.hpp>
 #include <irritator/thread.hpp>
 #include <irritator/timeline.hpp>
 

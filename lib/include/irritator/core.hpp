@@ -1301,9 +1301,7 @@ public:
 
     using raw_buffer_type = circular_buffer<raw_sample, raw_buffer_size>;
 
-    observer(const model_id mdl) noexcept
-      : m_model(mdl)
-    {}
+    observer(const model_id mdl) noexcept;
 
     /// Push a raw sample. Called from the simulation task for each state
     /// change. O(1), no resampling logic here anymore.
@@ -1311,25 +1309,10 @@ public:
     /// @return buffer_status::overflow if the sample was lost (raw_buffer
     /// full and not drained in time by the copy task), near_full if the
     /// occupancy threshold was crossed, ok otherwise.
-    buffer_status observe(const raw_sample& s) noexcept
-    {
-        debug::ensure(s.t >= m_last_t and
-                      "observe() called with a date earlier than a previous "
-                      "observation -- violates DEVS causality");
-        m_last_t = s.t;
+    buffer_status observe(const raw_sample& s) noexcept;
 
-        if (not m_raw.push(s))
-            return buffer_status::overflow;
-
-        return raw_fill_status();
-    }
-
-    void reset() noexcept
-    {
-        m_raw.clear();
-        m_last_t = -std::numeric_limits<real>::infinity();
-        m_history.reset();
-    }
+    /// Reset the circular_buffer and the history.
+    void reset() noexcept;
 
     /// Retrieves the underlying model identifier.
     model_id model() const noexcept { return m_model; }
@@ -1394,22 +1377,15 @@ private:
 };
 
 /// Resampler -- owned exclusively by the copy task, ONE instance per
-/// model (e.g. std::unordered_map<model_id, resampler>). Holds all the
+/// model (model::obs_id and observers::m_model). Holds all the
 /// state that used to live in observer::observe()/commit_pending(): the
 /// pending point, the interpolation anchor, the resampling grid position,
 /// and the dedup state. Never touched by the simulation thread.
 class resampler
 {
 public:
-    resampler() noexcept
-      : m_dt(1)
-      , m_interp(interpolate_type::none)
-    {}
-
-    resampler(const real dt, const interpolate_type order) noexcept
-      : m_dt(dt)
-      , m_interp(order)
-    {}
+    resampler() noexcept;
+    resampler(const real dt, const interpolate_type order) noexcept;
 
     /// Call periodically (e.g. once per UI refresh, or once per completed
     /// global simulation step) for this model. Drains everything currently
@@ -1417,115 +1393,15 @@ public:
     /// passed it, and -- if `now` is +infinity -- finalizes the series
     /// (equivalent of the former flush(+infinity)). Publishes any newly
     /// resampled points to obs.write_history() in a single batched call.
-    void tick(observer& obs, const real now) noexcept
-    {
-        raw_sample s;
-        while (obs.raw_buffer().pop(s))
-            ingest(s);
-
-        if (m_has_pending && now > m_pending.t) {
-            commit_pending();
-            m_has_pending = false;
-        }
-
-        if (std::isinf(now))
-            finalize();
-
-        flush_batch(obs);
-    }
+    void tick(observer& obs, const real now) noexcept;
 
 private:
-    void ingest(const raw_sample& s) noexcept
-    {
-        if (m_has_pending && s.t == m_pending.t) {
-            m_pending = s;
-            return;
-        }
+    void ingest(const raw_sample& s) noexcept;
+    void commit_pending() noexcept;
+    void finalize() noexcept;
 
-        if (m_has_pending)
-            commit_pending();
-
-        m_pending     = s;
-        m_has_pending = true;
-    }
-
-    void commit_pending() noexcept
-    {
-        if (!m_has_prev) {
-            m_prev             = m_pending;
-            m_has_prev         = true;
-            m_next_sample_time = m_pending.t;
-            push_resampled(m_pending.t, m_pending.value);
-            m_next_sample_time += m_dt;
-            return;
-        }
-
-        while (m_next_sample_time <= m_pending.t) {
-            double v = m_interp.evaluate(m_prev, m_pending, m_next_sample_time);
-            push_resampled(m_next_sample_time, v);
-            m_next_sample_time += m_dt;
-        }
-
-        m_prev = m_pending;
-    }
-
-    void finalize() noexcept
-    {
-        if (m_has_pending) {
-            commit_pending();
-            m_has_pending = false;
-        }
-
-        if (!m_has_prev || std::isinf(m_next_sample_time))
-            return;
-
-        while (m_next_sample_time <= m_prev.t) {
-            double v = m_interp.extrapolate(m_prev, m_next_sample_time);
-            push_resampled(m_next_sample_time, v);
-            m_next_sample_time += m_dt;
-        }
-
-        push_resampled(m_prev.t, m_prev.value);
-        m_next_sample_time = std::numeric_limits<double>::infinity();
-    }
-
-    // Dedup: identical value since last publish -> skip (reader fills the
-    // gap). Accumulates into a local batch, NOT written directly -- see
-    // flush_batch(), called once per tick() rather than once per point.
-    void push_resampled(double t, double value) noexcept
-    {
-        if (m_has_last_pushed && value == m_last_pushed_value)
-            return;
-
-        m_has_last_pushed   = true;
-        m_last_pushed_value = value;
-        m_batch.push_back(resampled_sample{ t, value });
-    }
-
-    void flush_batch(observer& obs) noexcept
-    {
-        if (m_batch.empty())
-            return;
-
-        obs.write_history(
-          [&](auto& history) {
-              const auto n = m_batch.size();
-
-              if (not history.can_alloc(n) and
-                  not history.template grow<2, 1>(n)) {
-                  log(log_level::debug, [&](auto& t, auto& m) {
-                      t = "Simulation observation";
-                      m = "fail to allocate more observer history";
-                  });
-                  return;
-              }
-
-              history.insert(history.end(), m_batch.begin(), m_batch.end());
-          },
-          observer::write_key{});
-
-        m_batch.clear();
-    }
+    void push_resampled(double t, double value) noexcept;
+    void flush_batch(observer& obs) noexcept;
 
     vector<resampled_sample> m_batch;
     real                     m_dt;
@@ -4061,7 +3937,7 @@ struct abstract_integer {
                 to_send = value[0];
             } else if constexpr (QssLevel == 2) {
                 sigma   = std::min(compute_wake_up(upper, value[0], value[1]),
-                                 compute_wake_up(lower, value[0], value[1]));
+                                   compute_wake_up(lower, value[0], value[1]));
                 to_send = value[0] + value[1] * sigma;
             } else if constexpr (QssLevel == 3) {
                 sigma = std::min(

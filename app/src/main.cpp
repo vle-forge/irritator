@@ -7,7 +7,6 @@
 #include <irritator/error.hpp>
 #include <irritator/global.hpp>
 #include <irritator/io.hpp>
-#include <irritator/observation.hpp>
 
 #include <charconv>
 #include <filesystem>
