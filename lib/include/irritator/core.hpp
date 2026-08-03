@@ -4680,8 +4680,9 @@ struct generator {
     input_port     x[4] = {};
     output_port_id y[1] = {};
 
-    time sigma;
-    real value;
+    time sigma = time_domain<time>::infinity;
+    time ta    = one;
+    real value = zero;
 
     source_data src_data;
     source      source_ta;
@@ -4693,6 +4694,7 @@ struct generator {
 
     generator(const generator& other) noexcept
       : sigma(other.sigma)
+      , ta(other.ta)
       , value(other.value)
       , source_ta(other.source_ta)
       , source_value(other.source_value)
@@ -4714,6 +4716,11 @@ struct generator {
                   simulation_errc::generator_ta_initialization_error);
 
             sigma = source_ta.next();
+        } else {
+            if (not std::isfinite(ta) or std::signbit(ta))
+                return make_error(simulation_errc::ta_abnormal);
+
+            sigma = ta;
         }
 
         if (flags[option::value_use_source]) {
@@ -4779,6 +4786,8 @@ struct generator {
 
                 if (not std::isfinite(sigma) or std::signbit(sigma))
                     return make_error(simulation_errc::ta_abnormal);
+            } else {
+                sigma += ta;
             }
         }
 
@@ -8328,7 +8337,7 @@ struct queue {
 
     status finalize(simulation& sim) noexcept
     {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
             ar->clear();
             sim.dated_messages.free(*ar);
             fifo = undefined<dated_message_id>();
@@ -8341,7 +8350,7 @@ struct queue {
 
     status lambda(simulation& sim) noexcept
     {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
             const auto t = ar->head()->data()[0];
 
             for (const auto& elem : *ar)
@@ -12927,28 +12936,40 @@ inline status queue::transition(simulation& sim,
                                 time /*e*/,
                                 time /*r*/) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (!ar->empty() and ar->tail()->data()[0] <= t)
+    if (auto* ar = sim.dated_messages.try_to_get(fifo))
+        while (not ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
-        const auto lst = get_message(sim, x[0]);
-        if (not lst.empty()) {
-            for (const auto& msg : lst) {
-                if (!sim.dated_messages.can_alloc(1))
-                    return make_error(
-                      simulation_errc::dated_messages_container_full);
+    const auto lst = get_message(sim, x[0]);
+    if (not lst.empty()) {
+        auto* ar = sim.dated_messages.try_to_get(fifo);
 
-                ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
-            }
+        if (not ar) {
+            if (not sim.dated_messages.can_alloc(1) and
+                not sim.dated_messages.grow<2, 1>())
+                return make_error(simulation_errc::queue_fifo_error);
+
+            auto& new_ar = sim.dated_messages.alloc(32);
+            fifo         = sim.dated_messages.get_id(new_ar);
+            ar           = &new_ar;
         }
 
-        if (not lst.empty()) {
-            sigma = lst.front()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
+        for (const auto& msg : lst) {
+            const auto success =
+              ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
+
+            if (not success)
+                log(log_level::alert, [](auto& t, auto& m) {
+                    t = "simulation";
+                    m = "queue::transition: failed to push message to fifo";
+                });
         }
+    }
+
+    if (not lst.empty()) {
+        sigma = lst.front()[0] - t;
+        sigma =
+          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
     } else {
         sigma = time_domain<time>::infinity;
     }

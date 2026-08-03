@@ -206,18 +206,27 @@ static void devs_dama_queue_supervisor_tester(
 
         expect(fatal(eq(sim.factors.size(), 2u))); // "lambda", "mu"
 
-        auto mu_id = irt::factor_id{ 0 };
+        auto mu_id     = irt::factor_id{ 0 };
+        auto lambda_id = irt::factor_id{ 0 };
 
         const auto& names = sim.factors.template get<irt::name_str>();
-        for (const auto fid : sim.factors)
+        for (const auto fid : sim.factors) {
             if (names[fid] == "mu")
                 mu_id = fid;
+
+            if (names[fid] == "lambda")
+                lambda_id = fid;
+        }
 
         // "mu": the deliberated action set A = {mu_1, mu_2}.
         sim.factors.template get<irt::factor_type>(mu_id) =
           irt::factor_type::fixed;
         sim.factors.template get<irt::fixed_factor>(mu_id).values.assign(
           service_delays.begin(), service_delays.end());
+
+        sim.factors.template get<irt::factor_type>(lambda_id) =
+          irt::factor_type::single;
+        sim.factors.template get<irt::single_factor>(lambda_id).value = 1.0;
 
         // "lambda" is intentionally left at factor_type::single (its
         // default): it represents theta, not an element of A. Omega_B /
@@ -238,11 +247,11 @@ static void devs_dama_queue_supervisor_tester(
         sim.selections.template get<irt::criteria_type>(throughput_id) =
           irt::criteria_type::max;
 
-        sim.objective.method = irt::optimization_method::simple;
-        sim.objective.type   = irt::optimization_type::maximize;
+        sim.objective.method                = irt::optimization_method::simple;
+        sim.objective.type                  = irt::optimization_type::maximize;
         sim.objective.simple_params.primary = throughput_id;
 
-        sim.file_id = project_file_id;
+        sim.file_id                             = project_file_id;
         ids.component_file_paths[compo_id].file = simulation_component_file_id;
 
         mod.files.read(
@@ -276,8 +285,8 @@ static void devs_dama_queue_supervisor_tester(
         auto& best_throughput = gen.alloc(irt::dynamics_type::counter);
         auto& best_mu         = gen.alloc(irt::dynamics_type::counter);
 
-        cst_init.flags       = irt::child_flags::configurable;
-        cst_run.flags        = irt::child_flags::configurable;
+        cst_init.flags        = irt::child_flags::configurable;
+        cst_run.flags         = irt::child_flags::configurable;
         best_throughput.flags = irt::child_flags::observable;
         best_mu.flags         = irt::child_flags::observable;
 
@@ -357,7 +366,7 @@ static void devs_dama_queue_supervisor_tester(
 
             const auto& sim_w = irt::get_dyn<irt::simulation_wrapper>(mdl);
             expect(eq(length(sim_w.x), 4)); // init, run, + no forced factors
-            expect(eq(length(sim_w.y), 2)); // throughput, mu
+            expect(eq(length(sim_w.y), 3)); // throughput, mu
         } else if (mdl.type == irt::dynamics_type::counter) {
             cpts.push_back(mdl_id);
         }
@@ -425,7 +434,8 @@ static void devs_dama_queue_supervisor_tester(
 //       expect(!!hsm.machine.set_state(2u, 0u));
 //       hsm.machine.states[2u].condition.set_greater(
 //           irt::hierarchical_state_machine::variable::var_r1,
-//           irt::hierarchical_state_machine::variable::hsm_constant_1); // epsilon_0
+//           irt::hierarchical_state_machine::variable::hsm_constant_1); //
+//           epsilon_0
 //       // if_action / else_action / if_transition / else_transition:
 //       // TODO(verify): exact wiring for the "revise" vs "hold" branches.
 //

@@ -127,6 +127,7 @@ enum class simulation_errc : std::int16_t {
     hsm_top_state_error,
     hsm_next_state_error,
     queue_ta_error,
+    queue_fifo_error,
     time_func_offset_error,
     time_func_timestep_error,
     time_func_function_error,

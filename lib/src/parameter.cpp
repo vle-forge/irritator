@@ -194,7 +194,7 @@ static void model_init(const parameter& param, generator& dyn) noexcept
     if (dyn.flags[generator::option::ta_use_source]) {
         dyn.source_ta.reset(param.integers[generator_tag::source_ta]);
     } else {
-        dyn.sigma = param.reals[generator_tag::sigma];
+        dyn.ta = param.reals[generator_tag::sigma];
     }
 
     if (dyn.flags[generator::option::value_use_source]) {
@@ -211,7 +211,7 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
     if (dyn.flags[generator::option::ta_use_source])
         param.integers[generator_tag::source_ta] = from_source(dyn.source_ta);
     else
-        param.reals[generator_tag::sigma] = dyn.sigma;
+        param.reals[generator_tag::sigma] = dyn.ta;
 
     if (dyn.flags[generator::option::value_use_source])
         param.integers[generator_tag::source_value] =
@@ -402,7 +402,7 @@ static void parameter_init(parameter& /*param*/,
 {}
 
 template<size_t QssLevel>
-static void model_init(const parameter&               param,
+static void model_init(const parameter&              param,
                        abstract_quantizer<QssLevel>& dyn) noexcept
 {
     dyn.q = param.reals[quantizer_tag::step];
@@ -571,7 +571,7 @@ static void model_init(const parameter&               param,
 }
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                     param,
+static void parameter_init(parameter&                           param,
                            const abstract_saturation<QssLevel>& dyn) noexcept
 {
     param.reals[saturation_tag::lower] = dyn.lower;
@@ -579,7 +579,7 @@ static void parameter_init(parameter&                     param,
 }
 
 template<size_t QssLevel>
-static void model_init(const parameter&               param,
+static void model_init(const parameter&              param,
                        abstract_dead_zone<QssLevel>& dyn) noexcept
 {
     dyn.lower = param.reals[dead_zone_tag::lower];
@@ -587,7 +587,7 @@ static void model_init(const parameter&               param,
 }
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                     param,
+static void parameter_init(parameter&                          param,
                            const abstract_dead_zone<QssLevel>& dyn) noexcept
 {
     param.reals[dead_zone_tag::lower] = dyn.lower;
@@ -595,7 +595,7 @@ static void parameter_init(parameter&                     param,
 }
 
 template<size_t QssLevel>
-static void model_init(const parameter&                 param,
+static void model_init(const parameter&               param,
                        abstract_hysteresis<QssLevel>& dyn) noexcept
 {
     dyn.lower    = param.reals[hysteresis_tag::lower];
@@ -605,9 +605,8 @@ static void model_init(const parameter&                 param,
 }
 
 template<size_t QssLevel>
-static void parameter_init(
-  parameter&                           param,
-  const abstract_hysteresis<QssLevel>& dyn) noexcept
+static void parameter_init(parameter&                           param,
+                           const abstract_hysteresis<QssLevel>& dyn) noexcept
 {
     param.reals[hysteresis_tag::lower]    = dyn.lower;
     param.reals[hysteresis_tag::upper]    = dyn.upper;
