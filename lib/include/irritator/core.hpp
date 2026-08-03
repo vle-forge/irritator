@@ -1077,6 +1077,8 @@ struct parameter {
     parameter& set_queue(real sigma) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
+    parameter& set_generator_ta(real sigma) noexcept;
+    parameter& set_generator_value(real value) noexcept;
     parameter& set_generator_ta(const source_type   type,
                                 const source_any_id id) noexcept;
     parameter& set_generator_value(const source_type   type,
@@ -4703,9 +4705,9 @@ struct generator {
     /// @c params.reals[1].
     status initialize(simulation& sim) noexcept
     {
-        sigma = time_domain<time>::infinity;
-
         if (flags[option::ta_use_source]) {
+            sigma = time_domain<time>::infinity;
+
             if (sim.srcs.initialize_source(*this, source_ta, src_data)
                   .has_error())
                 return make_error(
@@ -4714,8 +4716,9 @@ struct generator {
             sigma = source_ta.next();
         }
 
-        value = zero;
         if (flags[option::value_use_source]) {
+            value = zero;
+
             if (sim.srcs.initialize_source(*this, source_value, src_data)
                   .has_error())
                 return make_error(

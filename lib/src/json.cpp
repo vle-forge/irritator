@@ -1233,6 +1233,14 @@ struct json_dearchiver::impl {
                                 copy_source_to_parameter(
                                   p.integers[generator_tag::source_value]);
 
+                     if ("sigma"sv == name)
+                         return read_temp_real(value) and
+                                copy_real_to(p.reals[generator_tag::sigma]);
+
+                     if ("value"sv == name)
+                         return read_temp_real(value) and
+                                copy_real_to(p.reals[generator_tag::value]);
+
                      return error("unknown element");
                  }) and
                copy_to_generator_options(ta_use_source,
@@ -6162,19 +6170,33 @@ struct json_archiver::impl {
     {
         const auto options = to_unsigned(p.integers[generator_tag::i_options]);
         const auto flags   = bitflags<generator::option>(options);
+        const auto use_ta_src  = flags[generator::option::ta_use_source];
+        const auto use_val_src = flags[generator::option::value_use_source];
 
         writer.StartObject();
 
         writer.Key("ta-is-external");
-        writer.Bool(flags[generator::option::ta_use_source]);
+        writer.Bool(use_ta_src);
         writer.Key("value-is-external");
-        writer.Bool(flags[generator::option::value_use_source]);
-        writer.Key("source-ta-id");
-        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
-          p.integers[generator_tag::source_ta])));
-        writer.Key("source-value-id");
-        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
-          p.integers[generator_tag::source_value])));
+        writer.Bool(use_val_src);
+
+        if (use_ta_src) {
+            writer.Key("source-ta-id");
+            writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+              p.integers[generator_tag::source_ta])));
+        } else {
+            writer.Key("sigma");
+            writer.Double(p.reals[generator_tag::sigma]);
+        }
+
+        if (use_val_src) {
+            writer.Key("source-value-id");
+            writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+              p.integers[generator_tag::source_value])));
+        } else {
+            writer.Key("value");
+            writer.Double(p.reals[generator_tag::value]);
+        }
 
         writer.EndObject();
     }

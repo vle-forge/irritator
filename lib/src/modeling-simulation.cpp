@@ -32,6 +32,8 @@ status simulation_component::assign(project&& pj_to_move) noexcept
             const auto& mdl      = pj.sim.models.get(mdls[idx]);
             const auto  can_edit = any_equal(mdl.type,
                                              dynamics_type::constant,
+                                             dynamics_type::queue,
+                                             dynamics_type::generator,
                                              dynamics_type::qss1_integrator,
                                              dynamics_type::qss2_integrator,
                                              dynamics_type::qss3_integrator);

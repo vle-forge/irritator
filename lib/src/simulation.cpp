@@ -193,7 +193,7 @@ static status embedded_sims_alloc(simulation_wrapper& wrapper,
                                   const simulation&   source,
                                   const sz            nb_sims) noexcept
 {
-    debug::ensure(nb_sims > 1);
+    debug::ensure(nb_sims >= 1);
     debug::ensure(wrapper.x.size() == source.factors.size() + 2);
 
     wrapper.embedded_sims.clear();
