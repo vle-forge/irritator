@@ -496,15 +496,6 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
 {
     const auto* sim_src = sim.sims.try_to_get(sim_id);
 
-    for (const auto& mdl : sim_src->models) {
-        const auto  mdl_id  = sim_src->models.get_id(mdl);
-        const auto  mdl_idx = get_index(mdl_id);
-        const auto& p       = sim_src->parameters[mdl_idx];
-
-        dlogln(
-          0, "{} {} {} {}\n", p.reals[0], p.reals[1], p.reals[2], p.reals[3]);
-    }
-
     if (not sim_src)
         return make_error(simulation_errc::simulation_wrapper_source_error);
 

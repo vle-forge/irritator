@@ -284,11 +284,13 @@ static void devs_dama_queue_supervisor_tester(
 
         auto& best_throughput = gen.alloc(irt::dynamics_type::counter);
         auto& best_mu         = gen.alloc(irt::dynamics_type::counter);
+        auto& win_mu          = gen.alloc(irt::dynamics_type::counter);
 
         cst_init.flags        = irt::child_flags::configurable;
         cst_run.flags         = irt::child_flags::configurable;
         best_throughput.flags = irt::child_flags::observable;
         best_mu.flags         = irt::child_flags::observable;
+        win_mu.flags          = irt::child_flags::observable;
 
         const auto cst_init_id = gen.children.get_id(cst_init);
         const auto cst_run_id  = gen.children.get_id(cst_run);
@@ -333,6 +335,11 @@ static void devs_dama_queue_supervisor_tester(
                     best_mu,
                     irt::connection::port{ .model = 0 });
 
+        gen.connect(sim_w,
+                    irt::connection::port{ .model = 2 },
+                    win_mu,
+                    irt::connection::port{ .model = 0 });
+
         ids.component_file_paths[compo_id].file = simulation_wrapper_file_id;
 
         mod.files.read(
@@ -356,7 +363,7 @@ static void devs_dama_queue_supervisor_tester(
     expect(pj.simulation_initialize().has_value());
 
     auto sim_w_mdl_id = irt::undefined<irt::model_id>();
-    auto cpts         = irt::small_vector<irt::model_id, 2>{};
+    auto cpts         = irt::small_vector<irt::model_id, 8>{};
 
     for (const auto& mdl : pj.sim.models) {
         const auto mdl_id = pj.sim.models.get_id(mdl);
@@ -372,6 +379,7 @@ static void devs_dama_queue_supervisor_tester(
         }
     }
 
+    expect(fatal(eq(cpts.size(), 3u)));
     expect(irt::is_defined(sim_w_mdl_id));
 
     do {
@@ -379,6 +387,9 @@ static void devs_dama_queue_supervisor_tester(
     } while (not pj.sim.current_time_expired());
 
     expect(pj.sim.finalize().has_value());
+
+    const auto result = std::array{ 1.0, 4.0, 1.0, 1.0, 1.0, 2.0 };
+    auto       i      = 0u;
 
     for (const auto mdl_id : cpts) {
         const auto& mdl = pj.sim.models.get(mdl_id);
@@ -389,10 +400,15 @@ static void devs_dama_queue_supervisor_tester(
                    cpt.event_number,
                    cpt.last_value);
 
+        expect(approx(cpt.event_number, result[i * 2u], 1e-5));
+        expect(approx(cpt.last_value, result[i * 2u + 1u], 1e-5));
+
         // TODO: replace with `expect(approx(..., ..., 1e-5))` once the
         // expected (event_number, last_value) pairs are known from a
         // first successful run -- see simulation_component_tester in
         // mod-to-sim.cpp for the exact pattern.
+
+        ++i;
     }
 }
 

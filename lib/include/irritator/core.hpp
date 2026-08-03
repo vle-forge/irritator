@@ -8351,12 +8351,18 @@ struct queue {
     status lambda(simulation& sim) noexcept
     {
         if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
-            const auto t = ar->head()->data()[0];
+            if (not ar->empty()) {
+                auto       it = ar->head();
+                auto       et = ar->end();
+                const auto t  = it->data()[0];
 
-            for (const auto& elem : *ar)
-                if (elem[0] <= t)
-                    irt_check(
-                      send_message(sim, y[0], elem[1], elem[2], elem[3]));
+                while (it != et and it->data()[0] == t) {
+                    irt_check(send_message(
+                      sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
+
+                    ++it;
+                }
+            }
         }
 
         return success();
@@ -12937,8 +12943,8 @@ inline status queue::transition(simulation& sim,
                                 time /*r*/) noexcept
 {
     if (auto* ar = sim.dated_messages.try_to_get(fifo))
-        while (not ar->empty() and ar->tail()->data()[0] <= t)
-            ar->pop_tail();
+        while (not ar->empty() and ar->head()->data()[0] <= t)
+            ar->pop_head();
 
     const auto lst = get_message(sim, x[0]);
     if (not lst.empty()) {
@@ -12956,7 +12962,7 @@ inline status queue::transition(simulation& sim,
 
         for (const auto& msg : lst) {
             const auto success =
-              ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
+              ar->push_tail({ irt::real(t + ta), msg[0], msg[1], msg[2] });
 
             if (not success)
                 log(log_level::alert, [](auto& t, auto& m) {
@@ -12966,12 +12972,12 @@ inline status queue::transition(simulation& sim,
         }
     }
 
-    if (not lst.empty()) {
-        sigma = lst.front()[0] - t;
-        sigma =
-          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
-    } else {
-        sigma = time_domain<time>::infinity;
+    sigma = time_domain<time>::infinity;
+    if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
+        if (not ar->empty()) {
+            sigma = ar->head()->data()[0] - t;
+            sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+        }
     }
 
     return success();
