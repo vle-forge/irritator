@@ -12975,8 +12975,8 @@ inline status queue::transition(simulation& sim,
     sigma = time_domain<time>::infinity;
     if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
         if (not ar->empty()) {
-            sigma = ar->head()->data()[0] - t;
-            sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+            const auto next_ta = ar->head()->data()[0] - t;
+            sigma = next_ta <= zero ? time_domain<time>::zero : next_ta;
         }
     }
 

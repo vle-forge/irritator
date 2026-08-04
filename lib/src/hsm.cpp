@@ -836,80 +836,80 @@ void hierarchical_state_machine::condition_action::set_greater(
   variable v1,
   variable v2) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, v2);
+    *this = do_affect(hsm_t::condition_type::greater, v1, v2);
 }
 
 void hierarchical_state_machine::condition_action::set_greater(variable v1,
                                                                i32 i) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, i);
+    *this = do_affect(hsm_t::condition_type::greater, v1, i);
 }
 
 void hierarchical_state_machine::condition_action::set_greater(variable v1,
                                                                float f) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, f);
+    *this = do_affect(hsm_t::condition_type::greater, v1, f);
 }
 
 void hierarchical_state_machine::condition_action::set_greater_equal(
   variable v1,
   variable v2) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, v2);
+    *this = do_affect(hsm_t::condition_type::greater_equal, v1, v2);
 }
 
 void hierarchical_state_machine::condition_action::set_greater_equal(
   variable v1,
   i32      i) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, i);
+    *this = do_affect(hsm_t::condition_type::greater_equal, v1, i);
 }
 
 void hierarchical_state_machine::condition_action::set_greater_equal(
   variable v1,
   float    f) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, f);
+    *this = do_affect(hsm_t::condition_type::greater_equal, v1, f);
 }
 
 void hierarchical_state_machine::condition_action::set_less(
   variable v1,
   variable v2) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, v2);
+    *this = do_affect(hsm_t::condition_type::less, v1, v2);
 }
 
 void hierarchical_state_machine::condition_action::set_less(variable v1,
                                                             i32      i) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, i);
+    *this = do_affect(hsm_t::condition_type::less, v1, i);
 }
 
 void hierarchical_state_machine::condition_action::set_less(variable v1,
                                                             float    f) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::equal_to, v1, f);
+    *this = do_affect(hsm_t::condition_type::less, v1, f);
 }
 
 void hierarchical_state_machine::condition_action::set_less_equal(
   variable v1,
   variable v2) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, v2);
+    *this = do_affect(hsm_t::condition_type::less_equal, v1, v2);
 }
 
 void hierarchical_state_machine::condition_action::set_less_equal(
   variable v1,
   i32      i) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, i);
+    *this = do_affect(hsm_t::condition_type::less_equal, v1, i);
 }
 
 void hierarchical_state_machine::condition_action::set_less_equal(
   variable v1,
   float    f) noexcept
 {
-    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, f);
+    *this = do_affect(hsm_t::condition_type::less_equal, v1, f);
 }
 
 void hierarchical_state_machine::condition_action::clear() noexcept

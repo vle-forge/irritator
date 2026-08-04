@@ -483,13 +483,13 @@ int main()
         devs_dama_queue_supervisor_tester(
           std::array{ 2.0 }, // mu_1: service delay 2.0 (single branch)
           1.0,               // lambda_hat: arrival period 1.0
-          20);
+          9);
     };
 
     "devs-dama-queue-supervisor-two-modes"_test = [] {
         devs_dama_queue_supervisor_tester(
           std::array{ 2.0, 0.8 }, // {mu_1, mu_2}: Normal vs Turbo delay
           1.0,
-          20);
+          9);
     };
 }

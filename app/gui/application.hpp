@@ -1329,6 +1329,7 @@ struct project_editor {
     void start_simulation_pause(application& app) noexcept;
     void start_simulation_stop(application& app) noexcept;
     void start_simulation_finish(application& app) noexcept;
+
     void start_simulation_advance(application& app) noexcept;
     void start_simulation_back(application& app) noexcept;
 
