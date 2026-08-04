@@ -1392,6 +1392,203 @@ int main()
         expect(eq(exec.messages, 1));
     };
 
+    "hsm_condition_greater_registers"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        hsm_t                h;
+        hsm_t::execution     exec;
+        irt::external_source srcs;
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        h.states[1u].enter_action.set_affect(var::var_r1, 1.0f);
+        h.states[1u].if_transition = 2u;
+
+        h.constants[0] = 0.5f;
+        expect(!!h.set_state(2u, 0u));
+        h.states[2u].condition.set_greater(var::var_r1, var::hsm_constant_0);
+        h.states[2u].if_action.set_output(var::port_0, 1.0f);
+        h.states[2u].else_action.set_output(var::port_0, 0.0f);
+        h.states[2u].if_transition   = 3u;
+        h.states[2u].else_transition = 3u;
+
+        expect(!!h.set_state(3u, 0u)); // terminal
+
+        expect(!!h.start(exec, srcs));
+        fmt::print("after start: current_state={}\n", (int)exec.current_state);
+
+        const auto p1 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+        expect(!!p1);
+
+        const auto p2 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+        expect(!!p2);
+
+        expect(eq(exec.messages, 1));
+        expect(approx((double)exec.message_values[0], 1.0, 1e-5));
+    };
+
+    "hsm_seed_and_negative_branch"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        hsm_t                h;
+        hsm_t::execution     exec;
+        irt::external_source srcs;
+
+        h.constants[0] = 0.1f;
+        h.constants[1] = 1.0f;
+        h.constants[2] = -0.1f;
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        h.states[0u].enter_action.set_affect(var::var_r1, var::hsm_constant_1);
+
+        expect(!!h.set_state(1u, 0u));
+        h.states[1u].enter_action.set_affect(var::var_r2, -5.0f);
+        h.states[1u].if_transition = 2u;
+
+        expect(!!h.set_state(2u, 0u));
+        h.states[2u].condition.set_greater(var::var_r2, var::hsm_constant_0);
+        h.states[2u].if_transition   = 3u;
+        h.states[2u].else_transition = 4u;
+
+        expect(!!h.set_state(3u, 0u));
+
+        expect(!!h.set_state(4u, 0u));
+        h.states[4u].condition.set_less(var::var_r2, var::hsm_constant_2);
+        h.states[4u].if_action.set_output(var::port_0, var::var_r2);
+        h.states[4u].else_action.set_output(var::port_0, 0.0f);
+        h.states[4u].if_transition   = 5u;
+        h.states[4u].else_transition = 5u;
+
+        expect(!!h.set_state(5u, 0u));
+        expect(!!h.start(exec, srcs));
+
+        const auto p1 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+        expect(!!p1);
+
+        const auto p2 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+        expect(!!p2);
+
+        const auto p3 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+        expect(!!p3);
+    };
+
+    "hsm_omega_b_revision_cycle"_test = [] {
+        irt::simulation sim(
+          irt::simulation_reserve_definition(),
+          irt::external_source_reserve_definition{ .constant_nb = 2 });
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+        expect(sim.srcs.constant_sources.can_alloc(2u) >> fatal);
+
+        // Three observations at t=1,2,3:
+        //   obs1 = 1.50 -> error = 1.50 - 1.00(seed) = +0.50 -> REVISE (+)
+        //   obs2 = 1.52 -> error = 1.52 - 1.50        = +0.02 -> HOLD
+        //   obs3 = 1.00 -> error = 1.00 - 1.50        = -0.50 -> REVISE (-)
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
+        cst_value.length = 3;
+        cst_value.buffer = { 1.50, 1.52, 1.00 };
+
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
+        cst_ta.length = 3;
+        cst_ta.buffer = { 1.0, 1.0, 1.0 };
+
+        auto& cnt = sim.alloc<irt::counter>();
+
+        auto& gen = sim.alloc<irt::generator>();
+        get_p(sim, gen)
+          .clear()
+          .set_generator_ta(irt::source_type::constant,
+                            sim.srcs.constant_sources.get_id(cst_ta))
+          .set_generator_value(irt::source_type::constant,
+                               sim.srcs.constant_sources.get_id(cst_value));
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm = sim.hsms.alloc();
+        using var = irt::hierarchical_state_machine::variable;
+
+        hsm.constants[0] = 0.1f;  // +epsilon_0
+        hsm.constants[1] = 1.0f;  // seed lambda_hat
+        hsm.constants[2] = -0.1f; // -epsilon_0
+
+        // State 0 (top): seed the belief on entry -- confirmed active
+        // during start().
+        expect(!!hsm.set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+        hsm.states[0u].enter_action.set_affect(var::var_r1,
+                                               var::hsm_constant_1);
+
+        // State 1: wait for the dual-wired observation (port_0 AND port_1).
+        // Corrected mask: port_0 -> bit 3, port_1 -> bit 2 => 0b1100.
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
+        hsm.states[1u].if_transition = 2u;
+
+        // State 2: error = observed(port_1) - belief(var_r1).
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_affect(var::var_r2, var::port_1);
+        hsm.states[2u].exit_action.set_minus(var::var_r2, var::var_r1);
+        hsm.states[2u].if_transition = 3u;
+
+        // State 3: positive branch, error > +epsilon_0.
+        expect(!!hsm.set_state(3u, 0u));
+        hsm.states[3u].condition.set_greater(var::var_r2, var::hsm_constant_0);
+        hsm.states[3u].if_transition   = 5u;
+        hsm.states[3u].else_transition = 4u;
+
+        // State 4: negative branch, error < -epsilon_0.
+        expect(!!hsm.set_state(4u, 0u));
+        hsm.states[4u].condition.set_less(var::var_r2, var::hsm_constant_2);
+        hsm.states[4u].if_transition   = 5u;
+        hsm.states[4u].else_transition = 1u; // hold: back to waiting
+
+        // State 5: shared revision -- emit, return to waiting.
+        expect(!!hsm.set_state(5u, 0u));
+        hsm.states[5u].enter_action.set_plus(var::var_r1, var::var_r2);
+        hsm.states[5u].exit_action.set_output(var::port_0, var::var_r1);
+        hsm.states[5u].if_transition = 1u;
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
+
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
+
+        sim.limits.set_bound(0, 4);
+
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+        int         iter = 0;
+        do {
+            st = sim.run();
+            expect(!!st);
+            fmt::print("iter={:2} hsm_state={} r1={:6.3f} r2={:6.3f} "
+                       "events={} last={:6.3f}\n",
+                       iter++,
+                       (int)hsmw.exec.current_state,
+                       hsmw.exec.r1,
+                       hsmw.exec.r2,
+                       cnt.event_number,
+                       cnt.last_value);
+        } while (not sim.current_time_expired());
+
+        fmt::print("final: events={} last={:6.3f} r1={:6.3f}\n",
+                   cnt.event_number,
+                   cnt.last_value,
+                   hsmw.exec.r1);
+
+        expect(eq(cnt.event_number, 2));
+        expect(eq(cnt.last_value, 1.0));
+        expect(eq(hsmw.exec.r1, 1.0));
+    };
+
     "hsm_simulation"_test = [] {
         irt::simulation sim(
           irt::simulation_reserve_definition(),
