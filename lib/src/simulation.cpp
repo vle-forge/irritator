@@ -267,51 +267,23 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
         const auto f_idx = get_index(f_id);
 
         auto values = vector<real>{};
-        auto value  = real{ zero };
 
         switch (types[f_idx]) {
         case factor_type::single:
-            value = zero;
-            values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
-            break;
-
         case factor_type::single_add:
-            value = zero;
-            values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
-            break;
-
         case factor_type::single_mult:
-            value = one;
             values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
             break;
 
         case factor_type::fixed:
-            value  = zero;
-            values = sim_src.factors.get<fixed_factor>(f_id).values;
-            break;
-
         case factor_type::fixed_add:
-            value  = zero;
-            values = sim_src.factors.get<fixed_factor>(f_id).values;
-            break;
-
         case factor_type::fixed_mult:
-            value  = one;
             values = sim_src.factors.get<fixed_factor>(f_id).values;
             break;
 
         case factor_type::random:
-            value  = zero;
-            values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
-            break;
-
         case factor_type::random_add:
-            value  = zero;
-            values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
-            break;
-
         case factor_type::random_mult:
-            value  = one;
             values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
             break;
 
@@ -324,7 +296,6 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
         params[i].id       = f_id;
 
         wrapper.input_parameters[i].mdl_id = models[f_idx];
-        wrapper.input_parameters[i].value  = value;
         wrapper.input_parameters[i].values = std::move(values);
 
         ++i;
@@ -363,17 +334,25 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
                 case factor_type::single:
                 case factor_type::fixed:
                 case factor_type::random:
-                    return value;
+                    return wrapper.input_parameters[i].value.has_value()
+                             ? *wrapper.input_parameters[i].value
+                             : value;
 
                 case factor_type::single_add:
                 case factor_type::fixed_add:
                 case factor_type::random_add:
-                    return wrapper.input_parameters[i].value + value;
+                    return value +
+                           (wrapper.input_parameters[i].value.has_value()
+                              ? *wrapper.input_parameters[i].value
+                              : 0.0);
 
                 case factor_type::single_mult:
                 case factor_type::fixed_mult:
                 case factor_type::random_mult:
-                    return wrapper.input_parameters[i].value * value;
+                    return value *
+                           (wrapper.input_parameters[i].value.has_value()
+                              ? *wrapper.input_parameters[i].value
+                              : 1.0);
 
                 default:
                     unreachable();
@@ -537,6 +516,7 @@ status simulation_wrapper::transition(simulation&           sim,
         if (not i_param_msg.empty()) {
             input_parameters[i].value = i_param_msg.back()[0];
             sigma                     = r;
+            state                     = run_state::input_changed;
         }
     }
 
@@ -558,6 +538,18 @@ status simulation_wrapper::transition(simulation&           sim,
 
         switch (run) {
         case run_type::complete:
+            if (state == run_state::input_changed) {
+                const auto ret =
+                  embedded_sims_copy_parameters(
+                    *this, *sim_src, embedded_sims.size())
+                    .and_then(embedded_sims_init, *this, *sim_src);
+
+                if (ret.has_error())
+                    return ret.error();
+
+                state = run_state::initialized;
+            }
+
             if (state == run_state::initialized) {
                 state   = run_state::running;
                 auto st = run_complete(*this);
