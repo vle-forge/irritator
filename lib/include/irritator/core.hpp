@@ -8337,7 +8337,7 @@ struct queue {
 
     status finalize(simulation& sim) noexcept
     {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
             ar->clear();
             sim.dated_messages.free(*ar);
             fifo = undefined<dated_message_id>();
@@ -8350,13 +8350,19 @@ struct queue {
 
     status lambda(simulation& sim) noexcept
     {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-            const auto t = ar->head()->data()[0];
+        if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
+            if (not ar->empty()) {
+                auto       it = ar->head();
+                auto       et = ar->end();
+                const auto t  = it->data()[0];
 
-            for (const auto& elem : *ar)
-                if (elem[0] <= t)
-                    irt_check(
-                      send_message(sim, y[0], elem[1], elem[2], elem[3]));
+                while (it != et and it->data()[0] == t) {
+                    irt_check(send_message(
+                      sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
+
+                    ++it;
+                }
+            }
         }
 
         return success();
@@ -12936,30 +12942,42 @@ inline status queue::transition(simulation& sim,
                                 time /*e*/,
                                 time /*r*/) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (!ar->empty() and ar->tail()->data()[0] <= t)
-            ar->pop_tail();
+    if (auto* ar = sim.dated_messages.try_to_get(fifo))
+        while (not ar->empty() and ar->head()->data()[0] <= t)
+            ar->pop_head();
 
-        const auto lst = get_message(sim, x[0]);
-        if (not lst.empty()) {
-            for (const auto& msg : lst) {
-                if (!sim.dated_messages.can_alloc(1))
-                    return make_error(
-                      simulation_errc::dated_messages_container_full);
+    const auto lst = get_message(sim, x[0]);
+    if (not lst.empty()) {
+        auto* ar = sim.dated_messages.try_to_get(fifo);
 
-                ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
-            }
+        if (not ar) {
+            if (not sim.dated_messages.can_alloc(1) and
+                not sim.dated_messages.grow<2, 1>())
+                return make_error(simulation_errc::queue_fifo_error);
+
+            auto& new_ar = sim.dated_messages.alloc(32);
+            fifo         = sim.dated_messages.get_id(new_ar);
+            ar           = &new_ar;
         }
 
-        if (not lst.empty()) {
-            sigma = lst.front()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
+        for (const auto& msg : lst) {
+            const auto success =
+              ar->push_tail({ irt::real(t + ta), msg[0], msg[1], msg[2] });
+
+            if (not success)
+                log(log_level::alert, [](auto& t, auto& m) {
+                    t = "simulation";
+                    m = "queue::transition: failed to push message to fifo";
+                });
         }
-    } else {
-        sigma = time_domain<time>::infinity;
+    }
+
+    sigma = time_domain<time>::infinity;
+    if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
+        if (not ar->empty()) {
+            const auto next_ta = ar->head()->data()[0] - t;
+            sigma = next_ta <= zero ? time_domain<time>::zero : next_ta;
+        }
     }
 
     return success();
