@@ -7898,9 +7898,9 @@ struct simulation_wrapper {
     /** Used to store a values receives from the @c x input port
      * vectors. */
     struct input_parameter {
-        model_id     mdl_id;
-        real         value;
-        vector<real> values;
+        model_id            mdl_id;
+        vector<real>        values;
+        std::optional<real> value; //!< if receives from delta_ext.
     };
 
     /** The @c run_type parameter defines the number of embedded
@@ -7930,7 +7930,13 @@ struct simulation_wrapper {
         until,    ///< Run until @c real parameter in message or infinity.
     };
 
-    enum class run_state : u8 { uninitialized, initialized, running, finish };
+    enum class run_state : u8 {
+        uninitialized,
+        initialized,
+        running,
+        finish,
+        input_changed
+    };
 
     enum i_port : u8 {
         input_init, ///< Like simulation, a message on this port

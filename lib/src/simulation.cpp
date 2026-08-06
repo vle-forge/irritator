@@ -193,7 +193,7 @@ static status embedded_sims_alloc(simulation_wrapper& wrapper,
                                   const simulation&   source,
                                   const sz            nb_sims) noexcept
 {
-    debug::ensure(nb_sims > 1);
+    debug::ensure(nb_sims >= 1);
     debug::ensure(wrapper.x.size() == source.factors.size() + 2);
 
     wrapper.embedded_sims.clear();
@@ -267,51 +267,23 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
         const auto f_idx = get_index(f_id);
 
         auto values = vector<real>{};
-        auto value  = real{ zero };
 
         switch (types[f_idx]) {
         case factor_type::single:
-            value = zero;
-            values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
-            break;
-
         case factor_type::single_add:
-            value = zero;
-            values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
-            break;
-
         case factor_type::single_mult:
-            value = one;
             values.resize(1, sim_src.factors.get<single_factor>(f_id).value);
             break;
 
         case factor_type::fixed:
-            value  = zero;
-            values = sim_src.factors.get<fixed_factor>(f_id).values;
-            break;
-
         case factor_type::fixed_add:
-            value  = zero;
-            values = sim_src.factors.get<fixed_factor>(f_id).values;
-            break;
-
         case factor_type::fixed_mult:
-            value  = one;
             values = sim_src.factors.get<fixed_factor>(f_id).values;
             break;
 
         case factor_type::random:
-            value  = zero;
-            values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
-            break;
-
         case factor_type::random_add:
-            value  = zero;
-            values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
-            break;
-
         case factor_type::random_mult:
-            value  = one;
             values = sim_src.factors.get<random_factor>(f_id).gen(wrapper.seed);
             break;
 
@@ -324,7 +296,6 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
         params[i].id       = f_id;
 
         wrapper.input_parameters[i].mdl_id = models[f_idx];
-        wrapper.input_parameters[i].value  = value;
         wrapper.input_parameters[i].values = std::move(values);
 
         ++i;
@@ -333,19 +304,16 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
     dlogln(0, "emedded_sim = {}", wrapper.embedded_sims.size());
     dlogln(0, "parameters  = {}", wrapper.input_parameters.size());
 
-    dlog(0, "subid;");
+    dlog(0, "{:^12}", "subid");
     for (sz i = 0, e = params.size(); i < e; ++i) {
         const auto factor_id = params[i].id;
         const auto name      = sim_src.factors.get<name_str>(factor_id).sv();
-
-        dlog(0, "{:8}", name);
-        if (i + 1 < e)
-            dlog(0, ";");
+        dlog(0, "{:^12}", name);
     }
     dlog(0, "\n");
 
     for (const auto id : wrapper.embedded_sims) {
-        dlog(0, "{:8};", get_index(id));
+        dlog(0, "{:^12}", get_index(id));
 
         // First, copy the multiple parameters values into embedded simulation
         // parameters.
@@ -366,17 +334,25 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
                 case factor_type::single:
                 case factor_type::fixed:
                 case factor_type::random:
-                    return value;
+                    return wrapper.input_parameters[i].value.has_value()
+                             ? *wrapper.input_parameters[i].value
+                             : value;
 
                 case factor_type::single_add:
                 case factor_type::fixed_add:
                 case factor_type::random_add:
-                    return wrapper.input_parameters[i].value + value;
+                    return value +
+                           (wrapper.input_parameters[i].value.has_value()
+                              ? *wrapper.input_parameters[i].value
+                              : 0.0);
 
                 case factor_type::single_mult:
                 case factor_type::fixed_mult:
                 case factor_type::random_mult:
-                    return wrapper.input_parameters[i].value * value;
+                    return value *
+                           (wrapper.input_parameters[i].value.has_value()
+                              ? *wrapper.input_parameters[i].value
+                              : 1.0);
 
                 default:
                     unreachable();
@@ -385,9 +361,7 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
 
             sims[id].parameters[mdl_idx].reals[0] = new_value;
 
-            dlog(0, "{:8}", new_value);
-            if (i + 1 < e)
-                dlog(0, ";");
+            dlog(0, "{:^12}", new_value);
         }
 
         dlog(0, "\n");
@@ -415,6 +389,8 @@ static status embedded_sims_copy_parameters(simulation_wrapper& wrapper,
             ++ptr;
         } while (ptr < params.size());
     }
+
+    dlog(0, "\n");
 
     return success();
 }
@@ -540,6 +516,7 @@ status simulation_wrapper::transition(simulation&           sim,
         if (not i_param_msg.empty()) {
             input_parameters[i].value = i_param_msg.back()[0];
             sigma                     = r;
+            state                     = run_state::input_changed;
         }
     }
 
@@ -561,6 +538,18 @@ status simulation_wrapper::transition(simulation&           sim,
 
         switch (run) {
         case run_type::complete:
+            if (state == run_state::input_changed) {
+                const auto ret =
+                  embedded_sims_copy_parameters(
+                    *this, *sim_src, embedded_sims.size())
+                    .and_then(embedded_sims_init, *this, *sim_src);
+
+                if (ret.has_error())
+                    return ret.error();
+
+                state = run_state::initialized;
+            }
+
             if (state == run_state::initialized) {
                 state   = run_state::running;
                 auto st = run_complete(*this);
@@ -808,12 +797,12 @@ static auto compute_embedded_simulation_results(
     const auto size              = objective_fn_size * simulation_size;
     auto       objective_fn      = vector<real>(size);
 
-    debug::ensure(objective_fn.size() > 1);
+    // debug::ensure(objective_fn.size() > 1);
 
-    if (std::cmp_not_equal(objective_fn.size(), size))
-        return make_error(
-          simulation_errc::
-            simulation_wrapper_too_many_embedded_simulation_error);
+    // if (std::cmp_not_equal(objective_fn.size(), size))
+    //     return make_error(
+    //       simulation_errc::
+    //         simulation_wrapper_too_many_embedded_simulation_error);
 
     const pos_in_objective_function pos(objective_fn_size);
 
@@ -838,41 +827,51 @@ static auto compute_embedded_simulation_results(
         }
     }
 
-    fmt::println("print full observation");
+    dlogln(0,
+           "full observation (selections in {} objective",
+           sim_src.selections.size());
+
     for (const auto obj_fn_id : sim_src.selections) {
-        fmt::println("selection for model {}",
-                     sim_src.selections.get<name_str>(obj_fn_id).sv());
+        dlogln(
+          2, "- model {}", sim_src.selections.get<name_str>(obj_fn_id).sv());
 
         const auto mdl_id = sim_src.selections.get<model_id>(obj_fn_id);
 
         for (const auto sub_id : embedded_sims) {
+            dlogln(4, "- sub-id {}", get_index(sub_id));
+            dlogln(4, "|{:^12}|{:^12}|", "time", "value");
+            dlogln(4, "|{:-^12}|{:-^12}|", "", "");
             if (const auto* ptr = sim_obs[sub_id].get(mdl_id)) {
-                fmt::print("{:5}", get_index(sub_id));
-
                 for (const auto& v : ptr->values)
-                    fmt::println("{:.0f;.6g}", v);
-
-                fmt::println("");
+                    dlogln(4, "|{:^12.5}|{:^12.5}|", v.t, v.value);
             }
+            dlogln(1, "\n");
         }
     }
 
-    fmt::println("compute embedeed selection");
-    fmt::print("subid ");
+    dlogln(0, "compute embedeed selection");
+    dlog(4, "|{:^12}|", "sub-id");
     for (const auto obj_fn_id : sim_src.selections) {
-        fmt::print("{:8}", sim_src.selections.get<name_str>(obj_fn_id).sv());
+        dlog(0, "{:^12}|", sim_src.selections.get<name_str>(obj_fn_id).sv());
     }
-    fmt::print("\n");
+    dlogln(0, "");
+    dlog(4, "|{:-^12}|", "");
+    for (const auto obj_fn_id : sim_src.selections) {
+        (void)obj_fn_id;
+        dlog(0, "{:-^12}|", "");
+    }
+
+    dlogln(0, "");
     for (const auto sub_id : embedded_sims) {
-        fmt::print("{:5} ", get_index(sub_id));
+        dlog(4, "|{:^12}|", get_index(sub_id));
 
         for (const auto obj_fn_id : sim_src.selections) {
             const auto idx = pos(sub_id, obj_fn_id);
 
-            fmt::print("{:8} ", objective_fn[idx]);
+            dlog(0, "{:^12.5}|", objective_fn[idx]);
         }
 
-        fmt::print("\n");
+        dlogln(0, "");
     }
 
     return objective_fn;
@@ -1145,6 +1144,8 @@ static auto do_epsilon_constrained_optimization(
     auto filtered    = filter(sim_wrapper, sim_src, *objective_fn_ret);
     auto best_sub_id = select(sim_src, *objective_fn_ret, filtered);
 
+    dlogln(0, "select sub-id {}", get_index(best_sub_id));
+
     return sim_wrapper.embedded_sims.exists(best_sub_id)
              ? send(sim_wrapper, sim_src, best_sub_id, *objective_fn_ret, sim)
              : success();
@@ -1195,6 +1196,8 @@ static auto do_simple_optimization(const simulation_wrapper& sim_wrapper,
             }
         }
     }
+
+    dlogln(0, "select sub-id {}", get_index(best_sub_id));
 
     return sim_wrapper.embedded_sims.exists(best_sub_id)
              ? send(sim_wrapper, sim_src, best_sub_id, objective_fn, sim)
