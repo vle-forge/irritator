@@ -8,7 +8,6 @@
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
-#include <irritator/observation.hpp>
 #include <irritator/random.hpp>
 
 #include <fmt/format.h>
