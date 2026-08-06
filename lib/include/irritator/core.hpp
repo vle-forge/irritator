@@ -1077,6 +1077,8 @@ struct parameter {
     parameter& set_queue(real sigma) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
+    parameter& set_generator_ta(real sigma) noexcept;
+    parameter& set_generator_value(real value) noexcept;
     parameter& set_generator_ta(const source_type   type,
                                 const source_any_id id) noexcept;
     parameter& set_generator_value(const source_type   type,
@@ -4802,8 +4804,9 @@ struct generator {
     input_port     x[4] = {};
     output_port_id y[1] = {};
 
-    time sigma;
-    real value;
+    time sigma = time_domain<time>::infinity;
+    time ta    = one;
+    real value = zero;
 
     source_data src_data;
     source      source_ta;
@@ -4815,6 +4818,7 @@ struct generator {
 
     generator(const generator& other) noexcept
       : sigma(other.sigma)
+      , ta(other.ta)
       , value(other.value)
       , source_ta(other.source_ta)
       , source_value(other.source_value)
@@ -4827,19 +4831,25 @@ struct generator {
     /// @c params.reals[1].
     status initialize(simulation& sim) noexcept
     {
-        sigma = time_domain<time>::infinity;
-
         if (flags[option::ta_use_source]) {
+            sigma = time_domain<time>::infinity;
+
             if (sim.srcs.initialize_source(*this, source_ta, src_data)
                   .has_error())
                 return make_error(
                   simulation_errc::generator_ta_initialization_error);
 
             sigma = source_ta.next();
+        } else {
+            if (not std::isfinite(ta) or std::signbit(ta))
+                return make_error(simulation_errc::ta_abnormal);
+
+            sigma = ta;
         }
 
-        value = zero;
         if (flags[option::value_use_source]) {
+            value = zero;
+
             if (sim.srcs.initialize_source(*this, source_value, src_data)
                   .has_error())
                 return make_error(
@@ -4900,6 +4910,8 @@ struct generator {
 
                 if (not std::isfinite(sigma) or std::signbit(sigma))
                     return make_error(simulation_errc::ta_abnormal);
+            } else {
+                sigma += ta;
             }
         }
 

@@ -305,7 +305,13 @@ struct generator_tag {
                                                    scalar };
     static constexpr const port_type y_types[] = { scalar };
 
-    enum parameter_names : u8 { i_options = 0, source_ta, source_value };
+    enum parameter_names : u8 {
+        i_options = 0,
+        source_ta,
+        source_value,
+        sigma = 0,
+        value
+    };
 };
 
 struct constant_tag {

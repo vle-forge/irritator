@@ -297,17 +297,15 @@ static bool show_parameter(generator_tag,
               "Time", srcs, p.integers[generator_tag::source_ta]))
             is_changed = true;
 
-        if (ImGui::InputReal("offset", &p.reals[0])) {
-            p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
-            is_changed = true;
-        }
-
         ImGui::SameLine();
         HelpMarker(
           "Unchecked, the generator stops to send data if the source are "
           "empty or undefined. Checked, the simulation will stop.");
 
         ImGui::PopID();
+    } else {
+        if (ImGui::InputReal("Default ta", &p.reals[generator_tag::sigma]))
+            is_changed = true;
     }
 
     if (flags[generator::option::value_use_source]) {
@@ -318,6 +316,9 @@ static bool show_parameter(generator_tag,
             is_changed = true;
 
         ImGui::PopID();
+    } else {
+        if (ImGui::InputReal("Default value", &p.reals[generator_tag::value]))
+            is_changed = true;
     }
 
     return is_changed;
