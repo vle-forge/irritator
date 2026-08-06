@@ -202,6 +202,13 @@ private:
     std::string           b;
 };
 
+template<typename Dynamics>
+inline auto get_p(irt::simulation& sim, const Dynamics& d) noexcept
+  -> irt::parameter&
+{
+    return sim.parameters[sim.get_id(d)];
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -800,5 +807,115 @@ int main()
                 // period=4.0, not the modelling-time default period=1.0.
             }
         }
+    };
+
+    "omega_b_revision_cycle"_test = [] {
+        irt::simulation sim(
+          irt::simulation_reserve_definition(),
+          irt::external_source_reserve_definition{ .constant_nb = 2 });
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+        expect(sim.srcs.constant_sources.can_alloc(2u) >> fatal);
+
+        // Three observations, driving all three logical branches of the
+        // revision chain in a single run:
+        //   t=1: obs=1.50 -> error = 1.50 - 1.00 (seed) = +0.50 -> REVISE (+)
+        //   t=2: obs=1.52 -> error = 1.52 - 1.50        = +0.02 -> HOLD
+        //   t=3: obs=1.00 -> error = 1.00 - 1.50        = -0.50 -> REVISE (-)
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
+        cst_value.length = 3;
+        cst_value.buffer = { 1.50, 1.52, 1.00 };
+
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
+        cst_ta.length = 3;
+        cst_ta.buffer = { 1.0, 1.0, 1.0 };
+
+        auto& cnt = sim.alloc<irt::counter>();
+
+        auto& gen = sim.alloc<irt::generator>();
+        get_p(sim, gen)
+          .clear()
+          .set_generator_ta(irt::source_type::constant,
+                            sim.srcs.constant_sources.get_id(cst_ta))
+          .set_generator_value(irt::source_type::constant,
+                               sim.srcs.constant_sources.get_id(cst_value));
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm = sim.hsms.alloc();
+        using var = irt::hierarchical_state_machine::variable;
+
+        hsm.constants[0] = 0.1f;  // +epsilon_0
+        hsm.constants[1] = 1.0f;  // seed lambda_hat
+        hsm.constants[2] = -0.1f; // -epsilon_0
+
+        // State 0 (top): seed the belief on entry.
+        expect(!!hsm.set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+        hsm.states[0u].enter_action.set_affect(var::var_r1,
+                                               var::hsm_constant_1);
+
+        // State 1: wait for an observation, dual-wired on port_0 (presence)
+        // and port_1 (value).
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
+        hsm.states[1u].if_transition = 2u;
+
+        // State 2: error = observed(port_1) - belief(var_r1).
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_affect(var::var_r2, var::port_1);
+        hsm.states[2u].exit_action.set_minus(var::var_r2, var::var_r1);
+        hsm.states[2u].if_transition = 3u;
+
+        // State 3: positive branch, error > +epsilon_0.
+        expect(!!hsm.set_state(3u, 0u));
+        hsm.states[3u].condition.set_greater(var::var_r2, var::hsm_constant_0);
+        hsm.states[3u].if_transition   = 5u;
+        hsm.states[3u].else_transition = 4u;
+
+        // State 4: negative branch, error < -epsilon_0.
+        expect(!!hsm.set_state(4u, 0u));
+        hsm.states[4u].condition.set_less(var::var_r2, var::hsm_constant_2);
+        hsm.states[4u].if_transition   = 5u;
+        hsm.states[4u].else_transition = 1u; // hold: back to waiting
+
+        // State 5: shared revision -- emit, return to waiting.
+        expect(!!hsm.set_state(5u, 0u));
+        hsm.states[5u].enter_action.set_plus(var::var_r1, var::var_r2);
+        hsm.states[5u].exit_action.set_output(var::port_0, var::var_r1);
+        hsm.states[5u].if_transition = 1u;
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
+
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
+
+        sim.limits.set_bound(0, 4);
+
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (not sim.current_time_expired());
+
+        fmt::print(
+          "omega_b_revision_cycle: events={} last={:.3f} belief={:.3f}\n",
+          cnt.event_number,
+          cnt.last_value,
+          hsmw.exec.r1);
+
+        // Two revisions emitted (t=1 positive, t=3 negative); the t=2
+        // observation falls under epsilon_0 and correctly holds without
+        // emitting. Belief settles back at 1.0.
+        expect(eq(cnt.event_number, static_cast<irt::i64>(2)));
+        expect(approx(static_cast<double>(cnt.last_value), 1.0, 1e-5));
+        expect(approx(static_cast<double>(hsmw.exec.r1), 1.0, 1e-5));
     };
 }

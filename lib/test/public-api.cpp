@@ -1414,9 +1414,7 @@ int main()
         h.states[2u].else_transition = 3u;
 
         expect(!!h.set_state(3u, 0u)); // terminal
-
         expect(!!h.start(exec, srcs));
-        fmt::print("after start: current_state={}\n", (int)exec.current_state);
 
         const auto p1 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
         expect(!!p1);
@@ -1565,24 +1563,25 @@ int main()
         expect(!!sim.initialize());
 
         irt::status st;
-        int         iter = 0;
+        // int         iter = 0;
+
         do {
             st = sim.run();
             expect(!!st);
-            fmt::print("iter={:2} hsm_state={} r1={:6.3f} r2={:6.3f} "
-                       "events={} last={:6.3f}\n",
-                       iter++,
-                       (int)hsmw.exec.current_state,
-                       hsmw.exec.r1,
-                       hsmw.exec.r2,
-                       cnt.event_number,
-                       cnt.last_value);
+            // fmt::print("iter={:2} hsm_state={} r1={:6.3f} r2={:6.3f} "
+            //            "events={} last={:6.3f}\n",
+            //            iter++,
+            //            (int)hsmw.exec.current_state,
+            //            hsmw.exec.r1,
+            //            hsmw.exec.r2,
+            //            cnt.event_number,
+            //            cnt.last_value);
         } while (not sim.current_time_expired());
 
-        fmt::print("final: events={} last={:6.3f} r1={:6.3f}\n",
-                   cnt.event_number,
-                   cnt.last_value,
-                   hsmw.exec.r1);
+        // fmt::print("final: events={} last={:6.3f} r1={:6.3f}\n",
+        //            cnt.event_number,
+        //            cnt.last_value,
+        //            hsmw.exec.r1);
 
         expect(eq(cnt.event_number, 2));
         expect(eq(cnt.last_value, 1.0));
@@ -1968,6 +1967,65 @@ int main()
         h.affect_action(u, e);
 
         expect(eq(e.values.to_ulong(), 0u));
+    };
+
+    "hsm_two_input_selector"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        auto run_variant = [](irt::i32 prefer_fine_flag,
+                              double   coarse_value,
+                              double   fine_value) {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            h.states[0u].enter_action.set_affect(var::var_i1, prefer_fine_flag);
+
+            expect(!!h.set_state(1u, 0u));
+            h.states[1u].condition.set(0b1100u, 0b1100u);
+            h.states[1u].if_transition = 2u;
+
+            expect(!!h.set_state(2u, 0u));
+            h.states[2u].enter_action.set_affect(var::var_r1, var::port_0);
+            h.states[2u].exit_action.set_affect(var::var_r2, var::port_1);
+            h.states[2u].if_transition = 3u;
+
+            expect(!!h.set_state(3u, 0u));
+            h.states[3u].condition.set_equal_to(var::var_i1, 1);
+            h.states[3u].if_transition   = 4u;
+            h.states[3u].else_transition = 5u;
+
+            expect(!!h.set_state(4u, 0u));
+            h.states[4u].enter_action.set_output(var::port_0, var::var_r2);
+            h.states[4u].if_transition = 6u;
+
+            expect(!!h.set_state(5u, 0u));
+            h.states[5u].enter_action.set_output(var::port_0, var::var_r1);
+            h.states[5u].if_transition = 6u;
+
+            expect(!!h.set_state(6u, 0u));
+
+            expect(!!h.start(exec, srcs));
+
+            exec.values = 0b00001100;
+
+            exec.ports[3] = coarse_value; // port_0
+            exec.ports[2] = fine_value;   // port_1
+
+            const auto p1 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+            expect(!!p1);
+
+            const auto p2 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+            expect(!!p2);
+
+            const auto p3 = h.dispatch(hsm_t::event_type::internal, exec, srcs);
+            expect(!!p3);
+        };
+
+        run_variant(0, 6.0, 11.0); // prefer coarse -> expect emitted value 6.0
+        run_variant(1, 6.0, 11.0); // prefer fine   -> expect emitted value 11.0
     };
 
     "generator_counter_simluation"_test = [] {
