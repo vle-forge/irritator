@@ -16,7 +16,6 @@ set(public_irritator_header
     include/irritator/macros.hpp
     include/irritator/modeling-helpers.hpp
     include/irritator/modeling.hpp
-    include/irritator/observation.hpp
     include/irritator/random.hpp
     include/irritator/thread.hpp
     include/irritator/timeline.hpp)
@@ -42,6 +41,7 @@ set(private_irritator_sources
     src/modeling-grid.cpp
     src/modeling-internal.cpp
     src/modeling-simulation.cpp
+    src/observer.cpp
     src/parameter.cpp
     src/project.cpp
     src/simulation.cpp

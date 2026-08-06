@@ -8,7 +8,6 @@
 #include <irritator/macros.hpp>
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
-#include <irritator/observation.hpp>
 #include <irritator/timeline.hpp>
 
 #include <optional>
