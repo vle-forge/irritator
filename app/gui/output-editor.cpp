@@ -335,6 +335,10 @@ void output_editor::display_project(const project_id pj_id) noexcept
 
     if (is_project_open) {
         struct ss {
+            ss(const tree_node* tn_) noexcept
+              : tn{ tn_ }
+            {}
+
             const tree_node* tn              = nullptr;
             bool             have_read_child = false;
             bool             is_open         = false;
@@ -342,8 +346,7 @@ void output_editor::display_project(const project_id pj_id) noexcept
 
         auto stack = small_vector<ss, max_component_stack_size>{};
 
-        stack.push_back(
-          ss{ .tn = pj->pj.tree_nodes.try_to_get(pj->pj.tn_head()) });
+        stack.emplace_back(pj->pj.tree_nodes.try_to_get(pj->pj.tn_head()));
 
         while (not stack.empty()) {
             auto       cur    = stack.back();
@@ -377,8 +380,8 @@ void output_editor::display_project(const project_id pj_id) noexcept
 
                 if (cur.is_open) {
                     if (auto* child = cur.tn->tree.get_child()) {
-                        stack.push_back(cur);
-                        stack.push_back(ss{ .tn = child });
+                        stack.emplace_back(cur);
+                        stack.emplace_back(child);
                         continue;
                     }
                 }
