@@ -99,7 +99,7 @@ static void build_grid_observer(grid_observer&  grid_obs,
     }
 }
 
-void grid_observer::init(project& pj, modeling& mod) noexcept
+void grid_observer::init(project& pj, const modeling& mod) noexcept
 {
     observers.clear();
     values.clear();

@@ -4,9 +4,9 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
-#include <irritator/error.hpp>
+#include <irritator/format.hpp>
 #include <irritator/global.hpp>
-#include <irritator/io.hpp>
+#include <irritator/modeling.hpp>
 
 #include <charconv>
 #include <filesystem>
@@ -195,8 +195,10 @@ class main_parameters
 {
     irt::sz memory = 1024 * 1024 * 8;
 
+    irt::task_manager   task_mgr;
     irt::log_history   jn;
     irt::journal_scope scope;
+    irt::config_manager config;
 
     irt::modeling        mod;
     irt::json_dearchiver json;
@@ -210,7 +212,8 @@ class main_parameters
 
 public:
     main_parameters(int ac, const char* av[])
-      : args{ av + 1, static_cast<std::size_t>(ac - 1) }
+      : task_mgr(1, 1)
+      , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
         mod.files.write([&](auto& fs) noexcept {
@@ -305,7 +308,9 @@ public:
 
     irt::expected<void> prepare_and_run() noexcept
     {
-        fmt::print("Run simulation for file {}\n", front);
+        log(irt::log_level::notice, [&](auto& t, auto&) {
+            irt::format(t, "Run simulation for file {}\n", front);
+        });
 
         const std::filesystem::path str{ front };
         load_next_token();
@@ -337,12 +342,14 @@ public:
     {
         std::error_code ec;
         if (std::filesystem::exists(path, ec) and ec == std::errc{}) {
-            auto&      dir    = fs.registred_paths.alloc();
-            const auto dir_id = fs.registred_paths.get_id(dir);
-            dir.name          = name;
-            dir.path          = path.string().c_str();
-            fs.recorded_paths.emplace_back(dir_id);
-            return 1;
+            if (std::filesystem::is_directory(path, ec) and ec == std::errc{}) {
+                auto&      dir    = fs.registred_paths.alloc();
+                const auto dir_id = fs.registred_paths.get_id(dir);
+                dir.name          = name;
+                dir.path          = path.string().c_str();
+                fs.recorded_paths.emplace_back(dir_id);
+                return 1;
+            }
         }
 
         warning<ec::bad_dir>(path.string());

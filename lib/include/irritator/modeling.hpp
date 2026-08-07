@@ -1305,8 +1305,31 @@ struct project_reserve_definition {
     constrained_value<int, 256, INT_MAX> vars;
 };
 
+enum class simulation_status : u8 {
+    not_started,
+    initializing,
+    initialized,
+    run_requiring,
+    running,
+    paused,
+    pause_forced,
+    finish_requiring,
+    finishing,
+    finished,
+    debugged,
+};
+
 class project
 {
+private:
+    simulation_status simulation_state = simulation_status::not_started;
+
+    void   save_simulation_graph(const std::string_view file_name) noexcept;
+    status simulation_init_observation(const modeling& mod) noexcept;
+    status simulation_copy(const modeling& mod) noexcept;
+    status simulation_init(const modeling& mod) noexcept;
+    void   finalize_raw_obs() noexcept;
+
 public:
     project() noexcept = default;
 
@@ -1520,7 +1543,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, modeling& mod) noexcept;
+    void init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1573,7 +1596,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, modeling& mod) noexcept;
+    void init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.

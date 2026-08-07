@@ -46,20 +46,6 @@ enum class text_file_viewer_id : u32;
 enum class task_status : u8 { not_started, started, finished };
 enum class main_task : u8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
-enum class simulation_status : u8 {
-    not_started,
-    initializing,
-    initialized,
-    run_requiring,
-    running,
-    paused,
-    pause_forced,
-    finish_requiring,
-    finishing,
-    finished,
-    debugged,
-};
-
 enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 
 /// @class request_buffer
