@@ -1319,16 +1319,113 @@ enum class simulation_status : u8 {
     debugged,
 };
 
+enum class command_type {
+    none,
+    new_model,
+    free_model,
+    copy_model,
+    new_connection,
+    free_connection,
+    new_observer,
+    free_observer,
+    send_message
+};
+
+struct command {
+    struct none_t {};
+
+    struct new_model_t {
+        tree_node_id  tn_id;
+        dynamics_type type;
+        float         x;
+        float         y;
+    };
+
+    struct free_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct copy_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct new_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct free_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct new_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct free_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct send_message_t {
+        model_id mdl_id;
+    };
+
+    union data_t {
+        none_t            none;
+        new_model_t       new_model;
+        free_model_t      free_model;
+        copy_model_t      copy_model;
+        new_connection_t  new_connection;
+        free_connection_t free_connection;
+        new_observer_t    new_observer;
+        free_observer_t   free_observer;
+        send_message_t    send_message;
+    };
+
+    command_type type = command_type::none;
+    data_t       data;
+};
+
 class project
 {
 private:
     simulation_status simulation_state = simulation_status::not_started;
+    vector<command>   commands;
 
-    void   save_simulation_graph(const std::string_view file_name) noexcept;
+    void save_simulation_graph(const std::string_view file_name) noexcept;
+
     status simulation_init_observation(const modeling& mod) noexcept;
     status simulation_copy(const modeling& mod) noexcept;
     status simulation_init(const modeling& mod) noexcept;
-    void   finalize_raw_obs() noexcept;
+    status simulation_run() noexcept;
+
+    void simulation_observation_for_imm_observers(
+      unordered_task_list& tasks) noexcept;
+    void simulation_observation_for_all_observers(
+      unordered_task_list& tasks) noexcept;
+
+    status simulation_new_model(const command::new_model_t& data) noexcept;
+    status simulation_free_model(const command::free_model_t& data) noexcept;
+
+    status simulation_new_observer(
+      const command::new_observer_t& data) noexcept;
+    status simulation_free_observer(
+      const command::free_observer_t& data) noexcept;
+    status simulation_send_message(
+      const command::send_message_t& data) noexcept;
+
+    status simulation_apply_command();
 
 public:
     project() noexcept = default;

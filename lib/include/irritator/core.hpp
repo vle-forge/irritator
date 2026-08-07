@@ -104,6 +104,50 @@ inline void log(log_level level, Fn&& fn, Args&&... args) noexcept
     }
 }
 
+/**
+ * @brief Add message into the @c log_history buffer.
+ * @param lvl level of log.
+ * @param t title of the log.
+ * @param msg = the content of the log.
+ */
+inline void log_m(log_level lvl, std::string_view msg) noexcept
+{
+    if (current_journal) [[likely]]
+        current_journal->push(log_record{ get_time_since_epoch(),
+                                          std::this_thread::get_id(),
+                                          std::string_view{},
+                                          msg,
+                                          lvl });
+}
+
+/**
+ * @brief Add message into the @c log_history buffer using callback.
+ * @param lvl level of log.
+ * @param fn A function with title and message as argument
+ *
+ * @code
+ * log(log_level::debug, [pos](auto& t, auto& m) {
+ *     t = "The title";
+ *     format(m, "position is {},{}\n", pos.x, pos.y);
+ * });
+ * @endcode
+ */
+template<typename Fn, typename... Args>
+inline void log_m(log_level level, Fn&& fn, Args&&... args) noexcept
+{
+    if (current_journal) [[likely]] {
+        current_journal->push([&](log_record& l) noexcept {
+            l.ts    = get_time_since_epoch();
+            l.level = level;
+            l.tid   = std::this_thread::get_id();
+            l.t.clear();
+
+            std::invoke(
+              std::forward<Fn>(fn), l.msg, std::forward<Args>(args)...);
+        });
+    }
+}
+
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
 //!
