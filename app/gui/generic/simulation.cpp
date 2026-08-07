@@ -420,9 +420,8 @@ static void show_dynamics_values(application& /*app*/,
         auto& mdl    = get_model(dyn);
         auto  mdl_id = sim.pj.sim.models.get_id(mdl);
 
-        sim.commands.push(
-          command{ .type = command_type::send_message,
-                   .data{ .send_message{ .mdl_id = mdl_id } } });
+        sim.pj.push(command{ .type = command_type::send_message,
+                             .data{ .send_message{ .mdl_id = mdl_id } } });
     }
 }
 
@@ -963,7 +962,7 @@ static int copy(project_editor&                                pj_ed,
 
     for (const auto index : selection) {
         if (pj_ed.pj.sim.models.try_to_get(nodes[index].mdl)) {
-            if (not pj_ed.commands.push(command{
+            if (not pj_ed.pj.push(command{
                   .type = command_type::copy_model,
                   .data{ .copy_model{ .tn_id  = current,
                                       .mdl_id = nodes[index].mdl } } })) {
@@ -986,12 +985,11 @@ static int new_model(project_editor&     pj_ed,
                      const dynamics_type type,
                      const ImVec2        click_pos) noexcept
 {
-    if (not pj_ed.commands.push(
-          command{ .type = command_type::new_model,
-                   .data{ .new_model{ .tn_id = current,
-                                      .type  = type,
-                                      .x     = click_pos.x,
-                                      .y     = click_pos.y } } })) {
+    if (not pj_ed.pj.push(command{ .type = command_type::new_model,
+                                   .data{ .new_model{ .tn_id = current,
+                                                      .type  = type,
+                                                      .x     = click_pos.x,
+                                                      .y = click_pos.y } } })) {
         log(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Internal error during model allocation";
             msg   = "Project command order list is full";
@@ -1011,7 +1009,7 @@ static int free_model(project_editor&    pj_ed,
 
     for (const auto index : selection) {
         if (auto* mdl = pj_ed.pj.sim.models.try_to_get_from_pos(index)) {
-            if (not pj_ed.commands.push(command{
+            if (not pj_ed.pj.push(command{
                   .type = command_type::free_model,
                   .data{ .free_model{
                     .tn_id  = current,
@@ -1045,7 +1043,7 @@ static int connect(project_editor&    pj_ed,
           *out.model, out.port_index, *in.model, in.port_index))
         return 0;
 
-    if (not pj_ed.commands.push(
+    if (not pj_ed.pj.push(
           command{ .type = command_type::new_connection,
                    .data{ .new_connection{
                      .tn_id      = current,
@@ -1076,7 +1074,7 @@ static int disconnect(project_editor&                                pj_ed,
         auto in  = get_in(pj_ed.pj.sim, links[link_index].in);
 
         if (out.model and in.model) {
-            if (not pj_ed.commands.push(command{
+            if (not pj_ed.pj.push(command{
                   .type = command_type::free_connection,
                   .data{ .free_connection{
                     .tn_id      = current,

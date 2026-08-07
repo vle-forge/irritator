@@ -281,6 +281,41 @@ constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
                                        offset_of(member));
 }
 
+/// @c scope_exit is a general-purpose scope guard intended to
+/// call its exit function when a scope is exited.
+template<typename F>
+class scope_exit
+{
+public:
+    explicit scope_exit(F&& callable) noexcept
+      : action(std::forward<F>(callable))
+    {}
+
+    /// calls the exit function when the scope is exited if the scope_exit is
+    /// active, then destroys the scope_exit
+    ~scope_exit() noexcept
+    {
+        if (active)
+            action();
+    }
+
+    scope_exit(const scope_exit&)            = delete;
+    scope_exit& operator=(const scope_exit&) = delete;
+
+    /// makes the scope_exit inactive
+    void release() noexcept { active = false; }
+
+private:
+    F    action;
+    bool active = true;
+};
+
+template<typename F>
+scope_exit<typename std::decay<F>::type> make_scope_exit(F&& f)
+{
+    return scope_exit<typename std::decay<F>::type>(std::forward<F>(f));
+}
+
 /**
    Build an human readable version of a number of bytes.
 
@@ -4502,7 +4537,8 @@ bool id_data_array<T, Identifier, A, Ts...>::reserve(
         if (not m_ids.reserve(len))
             return false;
 
-        return do_resize_buffer_views(old, len, std::index_sequence_for<Ts...>());
+        return do_resize_buffer_views(
+          old, len, std::index_sequence_for<Ts...>());
     }
 
     return true;

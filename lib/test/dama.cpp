@@ -441,10 +441,10 @@ int main()
         });
 
         pj.sim.limits.set_bound(0, 21);
-        expect(pj.simulation_initialize().has_value());
+        expect(pj.simulation_init(mod).has_value());
 
         do {
-            expect(pj.simulation_run_bag().has_value());
+            expect(pj.simulation_step().has_value());
         } while (not pj.sim.current_time_expired());
 
         expect(pj.sim.finalize().has_value());
@@ -785,10 +785,10 @@ int main()
         });
 
         pj.sim.limits.set_bound(0, 22);
-        expect(pj.simulation_initialize().has_value());
+        expect(pj.simulation_init(mod).has_value());
 
         do {
-            expect(pj.simulation_run_bag().has_value());
+            expect(pj.simulation_step().has_value());
         } while (not pj.sim.current_time_expired());
 
         expect(pj.sim.finalize().has_value());

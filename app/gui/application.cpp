@@ -869,7 +869,7 @@ void application::show_dock() noexcept
                 to_close = nullptr;
             }
 
-            pj->start_simulation_update_state(*this);
+            pj->update_simulation_state(*this);
             ImGui::PushID(pj);
 
             if (pj->show(*this) ==

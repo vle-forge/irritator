@@ -44,12 +44,13 @@ set(private_irritator_sources
     src/observer.cpp
     src/parameter.cpp
     src/project.cpp
+    src/project-simulation.cpp
     src/simulation.cpp
     src/timeline.cpp
     src/thread.cpp
     src/variable-observer.cpp)
 
-add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources} "src/simulation.cpp")
+add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources})
 add_library(libirritator::libirritator ALIAS libirritator)
 
 target_sources(libirritator

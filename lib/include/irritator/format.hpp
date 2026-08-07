@@ -257,4 +257,62 @@ struct fmt::formatter<::irt::human_readable_time> {
     }
 };
 
+template<>
+struct fmt::formatter<::irt::error_code> {
+
+    constexpr auto parse(format_parse_context& ctx) noexcept
+      -> format_parse_context::iterator
+    {
+        return ctx.begin();
+    }
+
+    auto format(const ::irt::error_code& ec, format_context& ctx) const noexcept
+      -> format_context::iterator
+    {
+        switch (ec.cat()) {
+
+        case irt::category::generic:
+            return format_to(ctx.out(), "generic error: {}", ec.value());
+        case irt::category::system:
+            return format_to(ctx.out(), "system error: {}", ec.value());
+        case irt::category::stream:
+            return format_to(ctx.out(), "stream error: {}", ec.value());
+        case irt::category::future:
+            return format_to(ctx.out(), "future error: {}", ec.value());
+        case irt::category::fs:
+            return format_to(ctx.out(), "fs error: {}", ec.value());
+        case irt::category::file:
+            return format_to(ctx.out(), "file error: {}", ec.value());
+        case irt::category::json:
+            return format_to(ctx.out(), "json error: {}", ec.value());
+        case irt::category::modeling:
+            return format_to(ctx.out(), "modeling error: {}", ec.value());
+        case irt::category::tree_node:
+            return format_to(ctx.out(), "tree_node error: {}", ec.value());
+        case irt::category::grid_observer:
+            return format_to(ctx.out(), "grid_observer error: {}", ec.value());
+        case irt::category::graph_observer:
+            return format_to(ctx.out(), "graph_observer error: {}", ec.value());
+        case irt::category::variable_observer:
+            return format_to(
+              ctx.out(), "variable_observer error: {}", ec.value());
+        case irt::category::file_observers:
+            return format_to(ctx.out(), "file_observers error: {}", ec.value());
+        case irt::category::project:
+            return format_to(ctx.out(), "project error: {}", ec.value());
+        case irt::category::external_source:
+            return format_to(
+              ctx.out(), "external_source error: {}", ec.value());
+        case irt::category::simulation:
+            return format_to(ctx.out(), "simulation error: {}", ec.value());
+        case irt::category::hsm:
+            return format_to(ctx.out(), "hsm error: {}", ec.value());
+        case irt::category::timeline:
+            return format_to(ctx.out(), "timeline error: {}", ec.value());
+        }
+
+        irt::unreachable();
+    }
+};
+
 #endif

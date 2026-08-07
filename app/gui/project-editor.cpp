@@ -168,7 +168,7 @@ static bool show_local_simulation_plot_observers_table(
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::BeginDisabled(ed.is_simulation_running());
+                ImGui::BeginDisabled(ed.pj.is_task_running());
                 if (ImGui::Checkbox("##enable", &enable)) {
                     if (enable) {
                         if (auto* vobs =
@@ -510,7 +510,7 @@ static bool show_simulation_table_graph_observers(application& /*app*/,
 
             bool enable = true;
             ImGui::PushItemWidth(-1.0f);
-            ImGui::BeginDisabled(ed.is_simulation_running());
+            ImGui::BeginDisabled(ed.pj.is_task_running());
             ImGui::Checkbox("##button", &enable);
             ImGui::EndDisabled();
             ImGui::PopItemWidth();
@@ -580,7 +580,7 @@ static bool show_simulation_table_variable_observers(
 
             bool enable = true;
             ImGui::PushItemWidth(-1.0f);
-            ImGui::BeginDisabled(ed.is_simulation_running());
+            ImGui::BeginDisabled(ed.pj.is_task_running());
             ImGui::Checkbox("##button", &enable);
             ImGui::EndDisabled();
             ImGui::PopItemWidth();
@@ -1006,7 +1006,7 @@ static void show_component_observations(application&    app,
                                         ImPlotAxisFlags_RangeFit);
                     ImPlot::SetupFinish();
 
-                    if (sim_ed.simulation_state !=
+                    if (sim_ed.pj.simulation_state !=
                         simulation_status::initializing)
                         show_local_variables_plot(app, sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);

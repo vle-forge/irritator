@@ -15,6 +15,7 @@
 #include <irritator/macros.hpp>
 #include <irritator/random.hpp>
 #include <irritator/thread.hpp>
+#include <irritator/timeline.hpp>
 
 #include <optional>
 
@@ -1305,8 +1306,183 @@ struct project_reserve_definition {
     constrained_value<int, 256, INT_MAX> vars;
 };
 
+enum class simulation_status : u8 {
+    not_started,
+    initializing,
+    initialized,
+    run_requiring,
+    running,
+    paused,
+    finish_requiring,
+    finishing,
+    finished,
+};
+
+enum class command_type {
+    none,
+    new_model,
+    free_model,
+    copy_model,
+    new_connection,
+    free_connection,
+    new_observer,
+    free_observer,
+    send_message
+};
+
+struct command {
+    struct none_t {};
+
+    struct new_model_t {
+        tree_node_id  tn_id;
+        dynamics_type type;
+        float         x;
+        float         y;
+    };
+
+    struct free_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct copy_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct new_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct free_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct new_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct free_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct send_message_t {
+        model_id mdl_id;
+    };
+
+    union data_t {
+        none_t            none;
+        new_model_t       new_model;
+        free_model_t      free_model;
+        copy_model_t      copy_model;
+        new_connection_t  new_connection;
+        free_connection_t free_connection;
+        new_observer_t    new_observer;
+        free_observer_t   free_observer;
+        send_message_t    send_message;
+    };
+
+    command_type type = command_type::none;
+    data_t       data;
+};
+
 class project
 {
+public:
+    static constexpr std::size_t command_buffer_size = 32;
+
+    simulation_status simulation_state = simulation_status::not_started;
+
+    /// stores simulation into @c snaps and @c current_snap. Use can use @c
+    /// advance() and @c back() function to navigate into simulation.
+    bool debug_mode = false;
+
+    /// make a link between simulation time and real time.
+    bool real_time_mode = false;
+
+    bool is_task_running() const noexcept
+    {
+        return any_equal(simulation_state,
+                         simulation_status::initializing,
+                         simulation_status::running,
+                         simulation_status::finishing);
+    }
+
+    bool push(const command& cmd) noexcept;
+    bool empty_snapshots() const noexcept;
+    bool empty_commands() const noexcept;
+
+private:
+    /// spsc queue to store simulation commands. Only for live and debug mode.
+    /// write by the main thread and read by the simulation thread.
+    circular_buffer<command, command_buffer_size> commands;
+
+    /// spsc queue to store simulations snapshot. Only for debug mode.
+    simulation_snapshot_handler snaps{ 128 };
+
+    /// position into the @c snaps queue.
+    std::optional<std::int32_t> current_snap;
+
+    void save_simulation_graph(const std::string_view file_name) noexcept;
+
+public:
+    /// Restore the simulation from the modeling project file. All changes in
+    /// the simulation are discarded.
+    status simulation_copy(const modeling& mod) noexcept;
+
+    status simulation_init_observation(const modeling& mod) noexcept;
+    status simulation_init(const modeling& mod) noexcept;
+
+    status simulation_step() noexcept;
+    void   simulation_back() noexcept;
+    void   simulation_advance() noexcept;
+    status simulation_apply_command() noexcept;
+
+    status simulation_run_for(unordered_task_list&            utl,
+                              const std::chrono::milliseconds task_duration,
+                              std::atomic_bool& force_pause) noexcept;
+
+    status simulation_complete_run(unordered_task_list& utl) noexcept;
+
+    status simulation_live_run(
+      unordered_task_list&            utl,
+      const std::chrono::milliseconds one_simulation_time_duration,
+      const std::chrono::milliseconds task_duration,
+      std::atomic_bool&               force_pause) noexcept;
+
+    status simulation_finish(unordered_task_list& utl) noexcept;
+
+    void simulation_observation_for_imm_observers(
+      unordered_task_list& tasks) noexcept;
+    void simulation_observation_for_all_observers(
+      unordered_task_list& tasks) noexcept;
+
+private:
+    status simulation_new_model(const command::new_model_t& data) noexcept;
+    status simulation_free_model(const command::free_model_t& data) noexcept;
+    status simulation_copy_model(const command::copy_model_t& data) noexcept;
+
+    status simulation_new_observer(
+      const command::new_observer_t& data) noexcept;
+    status simulation_free_observer(
+      const command::free_observer_t& data) noexcept;
+    status simulation_send_message(
+      const command::send_message_t& data) noexcept;
+    status simulation_new_connection(
+      const command::new_connection_t& data) noexcept;
+    status simulation_free_connection(
+      const command::free_connection_t& data) noexcept;
+
 public:
     project() noexcept = default;
 
@@ -1440,13 +1616,6 @@ public:
     vector<u64> seeds;
 
     /**
-     * @brief clean previous simulation cache and reinitialize the simulation.
-     * @return
-     */
-    status simulation_initialize() noexcept;
-    status simulation_run_bag() noexcept;
-
-    /**
        @brief Alloc a new variable observer and assign a name.
        @return The new instance. Be carreful, use `can_alloc()` before
        running this function to ensure allocation is possible.
@@ -1520,7 +1689,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, modeling& mod) noexcept;
+    status init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1573,7 +1742,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, modeling& mod) noexcept;
+    status init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
