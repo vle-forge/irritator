@@ -166,27 +166,6 @@ status project::simulation_init(const modeling& mod) noexcept
     return success();
 }
 
-status project::simulation_run() noexcept
-{
-    debug::ensure(simulation_state == simulation_status::running or
-                  simulation_state == simulation_status::run_requiring);
-
-    if (auto ret = sim.run(); ret.has_error()) {
-        ed.simulation_state = simulation_status::finish_requiring;
-
-        log_m(log_level::error, [&](auto& msg) noexcept {
-            format(msg,
-                   "Fail in {} with error {}",
-                   ordinal(ret.error().cat()),
-                   ret.error().value());
-        });
-
-        return ret.error();
-    }
-
-    return success();
-}
-
 status project::simulation_new_model(const command::new_model_t& data) noexcept
 {
     auto* tn = tree_nodes.try_to_get(data.tn_id);
@@ -196,12 +175,12 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
             format(m, "Fail to find tree node with ID {}", data.tn_id);
         });
 
-        return make_error(project_errc::simulation_model_allocation_error);
+        return make_error(project_errc::memory_error);
     }
 
     const auto tn_alloc =
       tn->children.can_alloc(1) or tn->children.grow<3, 2>(1);
-    const auto sim_alloc = sim.can_alloc(1) or sim.grow<3, 2>(1);
+    const auto sim_alloc = sim.can_alloc(1) or sim.grow_models<3, 2>();
 
     if (not tn_alloc or not sim_alloc) {
         log_m(log_level::error, [](auto& m) noexcept {
@@ -210,7 +189,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
                    data.tn_id,
                    tn->children.capacity());
         });
-        return make_error(project_errc::simulation_model_allocation_error);
+        return make_error(project_errc::memory_error);
     }
 
     auto& mdl = sim.alloc(data.type);
@@ -233,22 +212,22 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
 status project::simulation_free_model(
   const command::free_model_t& data) noexcept
 {
-    auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id);
+    auto* tn = tree_nodes.try_to_get(data.tn_id);
     if (not tn) [[unlikely]] {
         log_m(log_level::error, [](auto& m) noexcept {
             format(m, "Fail to find tree node with ID {}", data.tn_id);
         });
 
-        return make_error(project_errc::simulation_model_allocation_error);
+        return make_error(project_errc::memory_error);
     }
 
-    auto* mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id);
+    auto* mdl = sim.models.try_to_get(data.mdl_id);
     if (not mdl) [[unlikely]] {
         log_m(log_level::error, [](auto& m) noexcept {
             format(m, "Fail to find model with ID {}", data.mdl_id);
         });
 
-        return make_error(project_errc::simulation_model_allocation_error);
+        return make_error(project_errc::memory_error);
     }
 
     for (sz i = 0, e = tn->children.size(); i < e; ++i) {
@@ -259,7 +238,7 @@ status project::simulation_free_model(
         }
     }
 
-    pj_ed.pj.sim.deallocate(data.mdl_id);
+    sim.deallocate(data.mdl_id);
 
     return success();
 }
@@ -373,7 +352,7 @@ static int free_connection(project_editor&                   ed,
 status project::simulation_new_observer(
   const command::new_observer_t& data) noexcept
 {
-    if (auto* mdl = = sim.models.try_to_get(data.mdl_id)) {
+    if (auto* mdl = sim.models.try_to_get(data.mdl_id)) {
         if (sim.observers.exists(mdl->obs_id))
             return success();
 
@@ -409,7 +388,7 @@ status project::simulation_free_observer(
     return success();
 }
 
-status projct::simulation_send_message(
+status project::simulation_send_message(
   const command::send_message_t& data) noexcept
 {
     const auto t = irt::time_domain<time>::is_infinity(sim.current_time())
@@ -458,13 +437,13 @@ status project::simulation_apply_command() noexcept
             simulation_free_model(cmd.data.free_model);
             break;
         case command_type::copy_model:
-            copy_model(cmd.data.copy_model);
+            // copy_model(cmd.data.copy_model);
             break;
         case command_type::new_connection:
-            new_connection(*this, cmd.data.new_connection);
+            // new_connection(*this, cmd.data.new_connection);
             break;
         case command_type::free_connection:
-            free_connection(*this, cmd.data.free_connection);
+            // free_connection(*this, cmd.data.free_connection);
             break;
         case command_type::new_observer:
             simulation_new_observer(cmd.data.new_observer);
@@ -506,50 +485,51 @@ status project::simulation_apply_command() noexcept
 //     }
 // }
 
-void project_editor::start_simulation_copy_modeling(application& app) noexcept
-{
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
-                           simulation_status::not_started,
-                           simulation_status::finished);
+// void project_editor::start_simulation_copy_modeling(application& app)
+// noexcept
+// {
+//     bool state = any_equal(simulation_state,
+//                            simulation_status::initialized,
+//                            simulation_status::not_started,
+//                            simulation_status::finished);
 
-    debug::ensure(state);
+//     debug::ensure(state);
 
-    if (state) {
-        auto* modeling_head = pj.tree_nodes.try_to_get(pj.tn_head());
-        if (!modeling_head) {
-            log(log_level::error, [](auto& t, auto&) { t = "Empty model"; });
-        } else {
-            force_pause = false;
-            force_stop  = false;
+//     if (state) {
+//         auto* modeling_head = pj.tree_nodes.try_to_get(pj.tn_head());
+//         if (!modeling_head) {
+//             log(log_level::error, [](auto& t, auto&) { t = "Empty model"; });
+//         } else {
+//             force_pause = false;
+//             force_stop  = false;
 
-            pj.sim.clear();
+//             pj.sim.clear();
 
-            app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-                simulation_copy(app, *this);
-            });
+//             app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
+//                 simulation_copy(app, *this);
+//             });
 
-            start_simulation_init(app);
-        }
-    }
-}
+//             start_simulation_init(app);
+//         }
+//     }
+// }
 
 void project::simulation_observation_for_imm_observers(
-  unordered_task_list& tasks) noexcept
+  unordered_task_list& utl) noexcept
 {
     debug::ensure(simulation_state != simulation_status::finished);
 
     constexpr std::size_t capacity = 255;
-    std::size_t           obs_max  = pj.sim.immediate_observers.size();
+    std::size_t           obs_max  = sim.immediate_observers.size();
     std::size_t           current  = 0;
 
     while (obs_max > 0) {
         const auto loop = std::min(obs_max, capacity);
 
         for (std::size_t i = 0; i != loop; ++i) {
-            auto obs_id = pj.sim.immediate_observers[i + current];
+            auto obs_id = sim.immediate_observers[i + current];
 
-            tasks.add([&, obs_id]() noexcept {
+            utl.add([&, obs_id]() noexcept {
                 if (auto* obs = sim.observers.try_to_get(obs_id)) {
                     auto& res = sim.observers.get<resampler>(obs_id);
 
@@ -558,8 +538,8 @@ void project::simulation_observation_for_imm_observers(
             });
         }
 
-        task_list.submit();
-        task_list.wait_completion();
+        utl.submit();
+        utl.wait_completion();
 
         current += loop;
         if (obs_max > capacity)
@@ -569,42 +549,42 @@ void project::simulation_observation_for_imm_observers(
     }
 
     if (current > 0) {
-        task_list.submit();
-        task_list.wait_completion();
+        utl.submit();
+        utl.wait_completion();
     }
 }
 
 void project::simulation_observation_for_all_observers(
-  unordered_task_list& tasks) noexcept
+  unordered_task_list& utl) noexcept
 {
     debug::ensure(simulation_state != simulation_status::finished);
 
     constexpr std::size_t capacity = 255;
-    std::size_t           obs_max  = pj.sim.observers.ssize();
+    std::size_t           obs_max  = sim.observers.ssize();
     std::size_t           current  = 0;
 
-    auto it = pj.sim.observers.begin();
-    auto et = pj.sim.observers.end();
+    auto it = sim.observers.begin();
+    auto et = sim.observers.end();
 
     while (it != et) {
         const auto loop = std::min(obs_max, capacity);
 
         for (std::size_t i = 0; i != loop; ++i) {
-            const auto obs_id = pj.sim.observers.get_id(*it);
+            const auto obs_id = sim.observers.get_id(*it);
 
-            tasks.add([&, obs_id]() noexcept {
-                if (auto* obs = pj.sim.observers.try_to_get(obs_id)) {
-                    auto& res = pj.sim.observers.get<resampler>(obs_id);
+            utl.add([&, obs_id]() noexcept {
+                if (auto* obs = sim.observers.try_to_get(obs_id)) {
+                    auto& res = sim.observers.get<resampler>(obs_id);
 
-                    res.tick(*obs, pj.sim.current_time());
+                    res.tick(*obs, sim.current_time());
                 }
             });
 
             ++it;
         }
 
-        task_list.submit();
-        task_list.wait_completion();
+        utl.submit();
+        utl.wait_completion();
 
         current += loop;
         if (obs_max >= capacity)
@@ -614,82 +594,85 @@ void project::simulation_observation_for_all_observers(
     }
 
     if (current > 0) {
-        task_list.submit();
-        task_list.wait_completion();
+        utl.submit();
+        utl.wait_completion();
     }
 }
 
-void project_editor::start_simulation_static_run(application& app) noexcept
+status project::simulation_run_for(
+  unordered_task_list&            utl,
+  const std::chrono::milliseconds duration_limits,
+  std::atomic_bool&               stop,
+  std::atomic_bool&               pause) noexcept
 {
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        simulation_state = simulation_status::running;
-        namespace stdc   = std::chrono;
+    simulation_state = simulation_status::running;
+    namespace stdc   = std::chrono;
 
-        auto start_at = stdc::high_resolution_clock::now();
-        auto end_at   = stdc::high_resolution_clock::now();
-        auto duration = end_at - start_at;
+    auto start_at = stdc::high_resolution_clock::now();
+    auto end_at   = stdc::high_resolution_clock::now();
+    auto duration = end_at - start_at;
 
-        auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
-        auto duration_since_start = duration_cast.count();
+    auto duration_cast =
+      stdc::duration_cast<stdc::microseconds>(duration_limits);
+    auto duration_since_start = duration_cast.count();
 
-        bool stop_or_pause;
+    auto stop_or_pause = false;
 
-        do {
-            if (simulation_state != simulation_status::running)
-                return;
+    do {
+        if (simulation_state != simulation_status::running)
+            return;
 
-            if (save_simulation_raw_data !=
-                project_editor::raw_data_type::none) {
-                if (auto ret = run_raw_obs(*this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.current_time();
-                    return;
-                }
-            } else {
-                if (store_all_changes)
-                    snaps.emplace_back(pj.sim);
+        // if (save_simulation_raw_data !=
+        //     project_editor::raw_data_type::none) {
+        //     if (auto ret = run_raw_obs(*this); !ret) {
+        //         simulation_state = simulation_status::finish_requiring;
+        //         simulation_display_current = pj.sim.current_time();
+        //         return;
+        //     }
+        // } else {
+        //     if (store_all_changes)
+        //         snaps.emplace_back(pj.sim);
 
-                if (not run(*this)) {
-                    simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.current_time();
-                    return;
-                }
-            }
-
-            if (pj.sim.immediate_observers.empty())
-                simulation_observation_for_imm_observers(app);
-
-            if (pj.sim.current_time_expired()) {
-                simulation_state = simulation_status::finish_requiring;
-                simulation_display_current = pj.sim.current_time();
-                return;
-            }
-
-            end_at        = stdc::high_resolution_clock::now();
-            duration      = end_at - start_at;
-            duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
-            duration_since_start = duration_cast.count();
-            stop_or_pause        = force_pause || force_stop;
-        } while (!stop_or_pause &&
-                 duration_since_start < thread_frame_duration);
-
-        simulation_display_current = pj.sim.current_time();
-
-        if (force_pause) {
-            force_pause      = false;
-            simulation_state = simulation_status::pause_forced;
-        } else if (force_stop) {
-            force_stop       = false;
+        if (auto ret = sim.run(); ret.has_error()) {
             simulation_state = simulation_status::finish_requiring;
-        } else {
-            simulation_state = simulation_status::paused;
+
+            log_m(log_level::error, [&](auto& msg) noexcept {
+                format(msg,
+                       "Fail in {} with error {}",
+                       ordinal(ret.error().cat()),
+                       ret.error().value());
+            });
+
+            return ret.error();
         }
 
-        simulation_observation_for_all_observers(app);
-    });
+        if (not sim.immediate_observers.empty())
+            simulation_observation_for_imm_observers(utl);
+
+        if (sim.current_time_expired()) {
+            simulation_state = simulation_status::finish_requiring;
+            return success();
+        }
+
+        end_at        = stdc::high_resolution_clock::now();
+        duration      = end_at - start_at;
+        duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
+        // duration_since_start = duration_cast.count();
+        //  stop_or_pause        = force_pause || force_stop;
+    } while (!pause and !stop and duration_cast < duration_limits);
+
+    if (pause) {
+        simulation_state = simulation_status::pause_forced;
+    } else if (stop) {
+        simulation_state = simulation_status::finish_requiring;
+    } else {
+        simulation_state = simulation_status::paused;
+    }
+
+    simulation_observation_for_all_observers(utl);
 }
 
-void project_editor::start_simulation_step_by_step(application& app) noexcept
+status project::simulation_step() noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
@@ -697,125 +680,113 @@ void project_editor::start_simulation_step_by_step(application& app) noexcept
                                  simulation_status::debugged);
 
     if (state) {
-        app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-            if (pj.tree_nodes.try_to_get(pj.tn_head())) {
-                simulation_state = simulation_status::running;
+        if (tree_nodes.try_to_get(tn_head())) {
+            simulation_state = simulation_status::running;
 
-                const auto current_time = pj.sim.current_time();
+            const auto current_time = sim.current_time();
 
-                if (not run(*this)) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
-                }
+            if (auto ret = sim.run(); ret.has_error()) {
+                simulation_state = simulation_status::finish_requiring;
 
-                if (current_time != pj.sim.current_time())
-                    snaps.emplace_back(pj.sim);
+                log_m(log_level::error, [&](auto& msg) noexcept {
+                    format(msg,
+                           "Fail in {} with error {}",
+                           ordinal(ret.error().cat()),
+                           ret.error().value());
+                });
 
-                if (pj.file_obs.can_update(pj.sim.current_time()))
-                    pj.file_obs.update(pj);
-
-                if (pj.sim.current_time_expired()) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
-                }
-
-                if (force_pause) {
-                    force_pause      = false;
-                    simulation_state = simulation_status::pause_forced;
-                } else if (force_stop) {
-                    force_stop       = false;
-                    simulation_state = simulation_status::finish_requiring;
-                } else {
-                    simulation_state = simulation_status::pause_forced;
-                }
-
-                simulation_observation_for_all_observers(app);
+                return ret.error();
             }
+
+            if (current_time != sim.current_time())
+                snaps.emplace_back(sim);
+
+            if (file_obs.can_update(sim.current_time()))
+                file_obs.update(*this);
+
+            if (sim.current_time_expired()) {
+                simulation_state = simulation_status::finish_requiring;
+                return;
+            }
+
+            simulation_state = simulation_status::pause_forced;
+        }
+    }
+}
+
+status project::simulation_finish(unordered_task_list& utl) noexcept
+{
+    simulation_state = simulation_status::finishing;
+    sim.immediate_observers.clear();
+
+    // if (store_all_changes)
+    //     snaps.emplace_back(pj.sim);
+
+    if (sim.finalize().has_error()) {
+        log(log_level::error, [](auto& t, auto& m) {
+            t = "Simulation finalizing fail";
+            m = "FIXME from ret";
         });
+    } else {
+        simulation_observation_for_all_observers(utl);
+    }
+
+    // if (save_simulation_raw_data != project_editor::raw_data_type::none) {
+    //     finalize_raw_obs(*this);
+    // }
+
+    simulation_state = simulation_status::finished;
+}
+
+void project::simulation_advance() noexcept
+{
+    if (snaps.empty())
+        return;
+
+    if (current_snap >= 0) {
+        const auto* snap = snaps.ptr_from_index(current_snap);
+        if (snaps.previous(snap)) {
+            pj.sim       = *snap;
+            current_snap = snaps.index_of(snap);
+        }
     }
 }
 
-void project_editor::start_simulation_pause(application& app) noexcept
+void project::simulation_back() noexcept
 {
-    bool state = any_equal(simulation_state, simulation_status::running);
+    if (snaps.empty())
+        return;
 
-    debug::ensure(state);
-
-    if (state) {
-        app.add_simulation_task(app.pjs.get_id(*this),
-                                [&]() noexcept { force_pause = true; });
+    if (current_snap >= 0) {
+        const auto* snap = snaps.ptr_from_index(current_snap);
+        if (snaps.next(snap)) {
+            pj.sim       = *snap;
+            current_snap = snaps.index_of(snap);
+        }
     }
 }
 
-void project_editor::start_simulation_stop(application& app) noexcept
-{
-    bool state = any_equal(
-      simulation_state, simulation_status::running, simulation_status::paused);
-
-    debug::ensure(state);
-
-    if (state) {
-        app.add_simulation_task(app.pjs.get_id(*this),
-                                [&]() noexcept { force_stop = true; });
-    }
-}
-
-void project_editor::start_simulation_finish(application& app) noexcept
-{
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        simulation_state = simulation_status::finishing;
-        pj.sim.immediate_observers.clear();
-
-        if (store_all_changes)
-            snaps.emplace_back(pj.sim);
-
-        if (pj.sim.finalize().has_error()) {
-            log(log_level::error, [](auto& t, auto& m) {
-                t = "Simulation finalizing fail";
-                m = "FIXME from ret";
-            });
-        } else {
-            simulation_observation_for_all_observers(app);
-        }
-
-        if (save_simulation_raw_data != project_editor::raw_data_type::none) {
-            finalize_raw_obs(*this);
-        }
-
-        simulation_state = simulation_status::finished;
-    });
-}
-
-void project_editor::start_simulation_advance(application& app) noexcept
-{
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        if (snaps.empty())
-            return;
-
-        if (current_snap >= 0) {
-            const auto* snap = snaps.ptr_from_index(current_snap);
-            if (snaps.previous(snap)) {
-                pj.sim       = *snap;
-                current_snap = snaps.index_of(snap);
-            }
-        }
-    });
-}
-
-void project_editor::start_simulation_back(application& app) noexcept
-{
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        if (snaps.empty())
-            return;
-
-        if (current_snap >= 0) {
-            const auto* snap = snaps.ptr_from_index(current_snap);
-            if (snaps.next(snap)) {
-                pj.sim       = *snap;
-                current_snap = snaps.index_of(snap);
-            }
-        }
-    });
-}
+// project::project_full_runner::project_full_runner(
+//   project&             pj,
+//   unordered_task_list& utl) noexcept
+//   : m_pj(pj)
+//   , m_utl(utl)
+//{
+//     m_pj.simulation_state = simulation_status::not_started;
+// }
+//
+// status project::project_full_runner::run() noexcept
+//{
+//     auto mod     = irt::modeling{};
+//     auto success = true;
+//
+//     irt_check(m_pj.simulation_init(mod));
+//
+//     while (m_pj.sim.current_time_expired() == false) {
+//         irt_check(m_pj.simulation_run_bag());
+//     }
+//
+//     irt_check(m_pj.simulation_finish());
+// }
 
 } // namespace irt
