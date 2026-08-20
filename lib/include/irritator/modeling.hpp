@@ -1405,83 +1405,17 @@ private:
     vector<command>   commands;
 
     simulation_snapshot_handler snaps{ 128 };
-    std::size_t                 current_snap = 0;
+    std::optional<std::int8_t>  current_snap;
 
     void save_simulation_graph(const std::string_view file_name) noexcept;
-
-    // class project_live_runner
-    //{
-    // public:
-    //     project_live_runner(
-    //       project&                        pj,
-    //       const std::chrono::milliseconds one_unit_simulation_time,
-    //       unordered_task_list&            utl) noexcept;
-
-    //    status run() noexcept;
-
-    //    std::atomic_flag pause;
-    //    std::atomic_flag stop;
-
-    // private:
-    //     project&             m_pj;
-    //     unordered_task_list& m_utl;
-    // };
-
-    // class project_timed_runner
-    //{
-    // public:
-    //     project_timed_runner(project& pj, unordered_task_list& utl) noexcept;
-
-    //    status run_for(
-    //      const std::chrono::milliseconds simulation_duration) noexcept;
-
-    //    std::atomic_flag pause;
-    //    std::atomic_flag stop;
-
-    // private:
-    //     project&             m_pj;
-    //     unordered_task_list& m_utl;
-    // };
-
-    // class project_full_runner
-    //{
-    // public:
-    //     project_full_runner(project& pj, unordered_task_list& utl) noexcept;
-
-    //    status run() noexcept;
-
-    //    std::atomic_flag pause;
-    //    std::atomic_flag stop;
-
-    // private:
-    //     project&             m_pj;
-    //     unordered_task_list& m_utl;
-    // };
-
-    // class project_debug_runner
-    //{
-    // public:
-    //     project_debug_runner(project& pj, unordered_task_list& utl);
-
-    //    status run_step() noexcept;
-    //    status run_back() noexcept;
-    //    status run_advance() noexcept;
-
-    // private:
-    //     project&             m_pj;
-    //     unordered_task_list& m_utl;
-    // };
 
     status simulation_init_observation(const modeling& mod) noexcept;
     status simulation_copy(const modeling& mod) noexcept;
     status simulation_init(const modeling& mod) noexcept;
-
-    /**
-     * @brief Do a step of simulation
-     * @details [long description]
-     * @return [description]
-     */
     status simulation_step() noexcept;
+
+    void simulation_back() noexcept;
+    void simulation_advance() noexcept;
 
     status simulation_run_for(unordered_task_list&            utl,
                               const std::chrono::milliseconds duration,
@@ -1512,9 +1446,6 @@ private:
       const command::send_message_t& data) noexcept;
 
     status simulation_apply_command() noexcept;
-
-    void simulation_back() noexcept;
-    void simulation_advance() noexcept;
 
 public:
     project() noexcept = default;

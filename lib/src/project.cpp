@@ -271,8 +271,8 @@ struct graph_component_cache {
 // using grid_cache_type  = table<grid_component_id, grid_component_cache>;
 // using graph_cache_type = table<graph_component_id, graph_component_cache>;
 
-struct simulation_copy {
-    simulation_copy(project& pj_) noexcept
+struct project_to_simulation {
+    project_to_simulation(project& pj_) noexcept
       : pj{ pj_ }
     {}
 
@@ -386,7 +386,7 @@ public:
     table<graph_component_id, graph_component_cache> graph_caches;
 };
 
-static auto make_tree_recursive(simulation_copy&        sc,
+static auto make_tree_recursive(project_to_simulation&  sc,
                                 const component_access& ids,
                                 const file_access&      fs,
                                 tree_node&              parent,
@@ -511,11 +511,11 @@ static auto get_outcoming_connection(const component_access& ids,
     return nb;
 }
 
-static auto make_tree_hsm_leaf(const simulation_copy&  sc,
-                               const component_access& ids,
-                               const parameter&        mod_parameter,
-                               parameter&              sim_parameter,
-                               hsm_wrapper&            dyn) noexcept -> status
+static auto make_tree_hsm_leaf(const project_to_simulation& sc,
+                               const component_access&      ids,
+                               const parameter&             mod_parameter,
+                               parameter&                   sim_parameter,
+                               hsm_wrapper& dyn) noexcept -> status
 {
     const auto id_param_0 = mod_parameter.integers[hsm_wrapper_tag::id];
     const auto compo_id   = enum_cast<component_id>(id_param_0);
@@ -546,11 +546,11 @@ static auto make_tree_hsm_leaf(const simulation_copy&  sc,
     return success();
 }
 
-static auto make_tree_simulation_leaf(const simulation_copy&  sc,
-                                      const component_access& ids,
-                                      const parameter&        mod_parameter,
-                                      parameter&              sim_parameter,
-                                      simulation_wrapper&     dyn) noexcept
+static auto make_tree_simulation_leaf(const project_to_simulation& sc,
+                                      const component_access&      ids,
+                                      const parameter&    mod_parameter,
+                                      parameter&          sim_parameter,
+                                      simulation_wrapper& dyn) noexcept
   -> status
 {
     const auto id_param_0 = mod_parameter.integers[simulation_wrapper_tag::id];
@@ -588,7 +588,7 @@ static auto make_tree_simulation_leaf(const simulation_copy&  sc,
     return success();
 }
 
-static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
+static auto make_tree_constant_leaf(project_to_simulation& /*sc*/,
                                     const component_access& ids,
                                     tree_node&              parent,
                                     const parameter&        mod_parameter,
@@ -665,7 +665,7 @@ static auto make_tree_constant_leaf(simulation_copy& /*sc*/,
     return success();
 }
 
-static auto make_tree_leaf(simulation_copy&                sc,
+static auto make_tree_leaf(project_to_simulation&          sc,
                            const component_access&         ids,
                            tree_node&                      parent,
                            const generic_component&        gen,
@@ -831,7 +831,7 @@ static auto make_tree_leaf(simulation_copy&                sc,
     return new_mdl_id;
 }
 
-static status make_tree_recursive(simulation_copy&        sc,
+static status make_tree_recursive(project_to_simulation&  sc,
                                   const component_access& ids,
                                   const file_access&      fs,
                                   tree_node&              new_tree,
@@ -895,7 +895,7 @@ static status make_tree_recursive(simulation_copy&        sc,
     return success();
 }
 
-static status make_tree_recursive(simulation_copy&        sc,
+static status make_tree_recursive(project_to_simulation&  sc,
                                   const component_access& ids,
                                   const file_access&      fs,
                                   tree_node&              new_tree,
@@ -935,7 +935,7 @@ static status make_tree_recursive(simulation_copy&        sc,
     return success();
 }
 
-static status make_tree_recursive(simulation_copy&        sc,
+static status make_tree_recursive(project_to_simulation&  sc,
                                   const component_access& ids,
                                   const file_access&      fs,
                                   tree_node&              new_tree,
@@ -1061,7 +1061,7 @@ static status external_source_copy(const file_access&                fs,
     return success();
 }
 
-static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
+static status make_tree_recursive([[maybe_unused]] project_to_simulation& sc,
                                   [[maybe_unused]] const component_access&,
                                   [[maybe_unused]] const file_access&,
                                   [[maybe_unused]] tree_node&     new_tree,
@@ -1072,7 +1072,7 @@ static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
     return success();
 }
 
-static status update_external_source(simulation_copy&        sc,
+static status update_external_source(project_to_simulation&  sc,
                                      const file_access&      fs,
                                      const component_access& ids,
                                      const component_id      compo_id) noexcept
@@ -1100,7 +1100,7 @@ static status update_external_source(simulation_copy&        sc,
     return success();
 }
 
-static auto make_tree_recursive(simulation_copy&        sc,
+static auto make_tree_recursive(project_to_simulation&  sc,
                                 const component_access& ids,
                                 const file_access&      fs,
                                 tree_node&              parent,
@@ -1178,18 +1178,18 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
     return success();
 }
 
-static void get_input_models(vector<model_port>&     inputs,
-                             const simulation_copy&  sc,
-                             const component_access& ids,
-                             const tree_node&        tn,
-                             const port_id           p) noexcept;
+static void get_input_models(vector<model_port>&          inputs,
+                             const project_to_simulation& sc,
+                             const component_access&      ids,
+                             const tree_node&             tn,
+                             const port_id                p) noexcept;
 
-static void get_input_models(vector<model_port>&      inputs,
-                             const simulation_copy&   sc,
-                             const component_access&  ids,
-                             const tree_node&         tn,
-                             const generic_component& gen,
-                             const port_id            p) noexcept
+static void get_input_models(vector<model_port>&          inputs,
+                             const project_to_simulation& sc,
+                             const component_access&      ids,
+                             const tree_node&             tn,
+                             const generic_component&     gen,
+                             const port_id                p) noexcept
 {
     for (const auto& con : gen.input_connections) {
         if (con.x != p)
@@ -1211,12 +1211,12 @@ static void get_input_models(vector<model_port>&      inputs,
     }
 }
 
-static void get_input_models(vector<model_port>&     inputs,
-                             const simulation_copy&  sc,
-                             const component_access& ids,
-                             const tree_node&        tn,
-                             const graph_component&  graph,
-                             const port_id           p) noexcept
+static void get_input_models(vector<model_port>&          inputs,
+                             const project_to_simulation& sc,
+                             const component_access&      ids,
+                             const tree_node&             tn,
+                             const graph_component&       graph,
+                             const port_id                p) noexcept
 {
     for (const auto& con : graph.input_connections) {
         if (con.x != p)
@@ -1231,12 +1231,12 @@ static void get_input_models(vector<model_port>&     inputs,
     }
 }
 
-static void get_input_models(vector<model_port>&     inputs,
-                             const simulation_copy&  sc,
-                             const component_access& ids,
-                             const tree_node&        tn,
-                             const grid_component&   grid,
-                             const port_id           p) noexcept
+static void get_input_models(vector<model_port>&          inputs,
+                             const project_to_simulation& sc,
+                             const component_access&      ids,
+                             const tree_node&             tn,
+                             const grid_component&        grid,
+                             const port_id                p) noexcept
 {
     for (const auto& con : grid.input_connections) {
         if (con.x != p)
@@ -1253,7 +1253,7 @@ static void get_input_models(vector<model_port>&     inputs,
 
 static void get_input_pack_models(
   vector<model_port>&                                   inputs,
-  const simulation_copy&                                sc,
+  const project_to_simulation&                          sc,
   const component_access&                               ids,
   const tree_node&                                      tn,
   const component&                                      compo,
@@ -1278,7 +1278,7 @@ static void get_input_pack_models(
 
 static void get_input_pack_models(
   vector<model_port>&                                 inputs,
-  const simulation_copy&                              sc,
+  const project_to_simulation&                        sc,
   const component_access&                             ids,
   const tree_node&                                    tn,
   const component&                                    compo,
@@ -1302,7 +1302,7 @@ static void get_input_pack_models(
 
 static void get_input_pack_models(
   vector<model_port>&                                inputs,
-  const simulation_copy&                             sc,
+  const project_to_simulation&                       sc,
   const component_access&                            ids,
   const tree_node&                                   tn,
   const component&                                   compo,
@@ -1324,11 +1324,11 @@ static void get_input_pack_models(
     }
 }
 
-static void get_input_models(vector<model_port>&     inputs,
-                             const simulation_copy&  sc,
-                             const component_access& ids,
-                             const tree_node&        tn,
-                             const port_id           p) noexcept
+static void get_input_models(vector<model_port>&          inputs,
+                             const project_to_simulation& sc,
+                             const component_access&      ids,
+                             const tree_node&             tn,
+                             const port_id                p) noexcept
 {
     if (not ids.exists(tn.id))
         return;
@@ -1369,18 +1369,18 @@ static void get_input_models(vector<model_port>&     inputs,
     }
 }
 
-static void get_output_models(vector<model_port>&     outputs,
-                              const simulation_copy&  sc,
-                              const component_access& ids,
-                              const tree_node&        tn,
-                              const port_id           p) noexcept;
+static void get_output_models(vector<model_port>&          outputs,
+                              const project_to_simulation& sc,
+                              const component_access&      ids,
+                              const tree_node&             tn,
+                              const port_id                p) noexcept;
 
-static void get_output_models(vector<model_port>&      outputs,
-                              const simulation_copy&   sc,
-                              const component_access&  ids,
-                              const tree_node&         tn,
-                              const generic_component& gen,
-                              const port_id            p) noexcept
+static void get_output_models(vector<model_port>&          outputs,
+                              const project_to_simulation& sc,
+                              const component_access&      ids,
+                              const tree_node&             tn,
+                              const generic_component&     gen,
+                              const port_id                p) noexcept
 {
     for (const auto& con : gen.output_connections) {
         if (con.y != p)
@@ -1402,12 +1402,12 @@ static void get_output_models(vector<model_port>&      outputs,
     }
 }
 
-static void get_output_models(vector<model_port>&     outputs,
-                              const simulation_copy&  sc,
-                              const component_access& ids,
-                              const tree_node&        tn,
-                              const graph_component&  graph,
-                              const port_id           p) noexcept
+static void get_output_models(vector<model_port>&          outputs,
+                              const project_to_simulation& sc,
+                              const component_access&      ids,
+                              const tree_node&             tn,
+                              const graph_component&       graph,
+                              const port_id                p) noexcept
 {
     for (const auto& con : graph.output_connections) {
         if (con.y != p)
@@ -1422,12 +1422,12 @@ static void get_output_models(vector<model_port>&     outputs,
     }
 }
 
-static void get_output_models(vector<model_port>&     outputs,
-                              const simulation_copy&  sc,
-                              const component_access& ids,
-                              const tree_node&        tn,
-                              const grid_component&   grid,
-                              const port_id           p) noexcept
+static void get_output_models(vector<model_port>&          outputs,
+                              const project_to_simulation& sc,
+                              const component_access&      ids,
+                              const tree_node&             tn,
+                              const grid_component&        grid,
+                              const port_id                p) noexcept
 {
     for (const auto& con : grid.output_connections) {
         if (con.y != p)
@@ -1444,7 +1444,7 @@ static void get_output_models(vector<model_port>&     outputs,
 
 static void get_output_pack_models(
   vector<model_port>&                                   outputs,
-  const simulation_copy&                                sc,
+  const project_to_simulation&                          sc,
   const component_access&                               ids,
   const tree_node&                                      tn,
   const component&                                      compo,
@@ -1469,7 +1469,7 @@ static void get_output_pack_models(
 
 static void get_output_pack_models(
   vector<model_port>&                                 outputs,
-  const simulation_copy&                              sc,
+  const project_to_simulation&                        sc,
   const component_access&                             ids,
   const tree_node&                                    tn,
   const component&                                    compo,
@@ -1493,7 +1493,7 @@ static void get_output_pack_models(
 
 static void get_output_pack_models(
   vector<model_port>&                                outputs,
-  const simulation_copy&                             sc,
+  const project_to_simulation&                       sc,
   const component_access&                            ids,
   const tree_node&                                   tn,
   const component&                                   compo,
@@ -1515,11 +1515,11 @@ static void get_output_pack_models(
     }
 }
 
-static void get_output_models(vector<model_port>&     outputs,
-                              const simulation_copy&  sc,
-                              const component_access& ids,
-                              const tree_node&        tn,
-                              const port_id           p) noexcept
+static void get_output_models(vector<model_port>&          outputs,
+                              const project_to_simulation& sc,
+                              const component_access&      ids,
+                              const tree_node&             tn,
+                              const port_id                p) noexcept
 {
     if (not ids.exists(tn.id))
         return;
@@ -1568,7 +1568,7 @@ static void get_output_models(vector<model_port>&     outputs,
 static auto prepare_sum_connections(
   tree_node&                                   tree,
   const data_array<connection, connection_id>& connections,
-  simulation_copy&                             sc,
+  project_to_simulation&                       sc,
   const component_access&                      ids) -> status
 {
     sc.sum_input_connections.clear();
@@ -1720,7 +1720,7 @@ static status simulation_copy_sum_connections(
 
 template<typename Child>
 static status simulation_copy_connections(
-  simulation_copy&                             sc,
+  project_to_simulation&                       sc,
   const component_access&                      ids,
   tree_node&                                   tree,
   const data_array<Child, child_id>&           children,
@@ -1817,7 +1817,7 @@ static status simulation_copy_connections(
     return success();
 }
 
-static status simulation_copy_connections(simulation_copy&        sc,
+static status simulation_copy_connections(project_to_simulation&  sc,
                                           const component_access& ids,
                                           tree_node&              tree,
                                           const component_id      compo_id)
@@ -1867,7 +1867,7 @@ static status simulation_copy_connections(simulation_copy&        sc,
     return success();
 }
 
-static status simulation_copy_connections(simulation_copy&        sc,
+static status simulation_copy_connections(project_to_simulation&  sc,
                                           const component_access& ids,
                                           tree_node&              head) noexcept
 {
@@ -1891,7 +1891,7 @@ static status simulation_copy_connections(simulation_copy&        sc,
     return success();
 }
 
-static auto make_tree_from(simulation_copy&        sc,
+static auto make_tree_from(project_to_simulation&  sc,
                            const component_access& ids,
                            const file_access&      fs,
                            const component_id      parent) noexcept
@@ -2180,7 +2180,7 @@ public:
 };
 
 static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
-  simulation_copy&        sc,
+  project_to_simulation&  sc,
   const component_access& ids,
   const file_access& /*fs*/,
   const component_id compo_id) noexcept
@@ -2245,7 +2245,7 @@ status project::set(const component_access& ids,
     log(log_level::debug,
         [&](auto&, auto& m) { format(m, "Project memory initialization"); });
 
-    simulation_copy sc(*this);
+    project_to_simulation sc(*this);
     irt_check(sc.make_hsm_mod_to_sim(ids));
     irt_check(sc.make_sim_mod_to_sim(ids));
     irt_check(sc.make_component_cache(ids));

@@ -80,7 +80,7 @@ static void build_graph(graph_observer&  graph_obs,
     }
 }
 
-void graph_observer::init(project& pj, modeling& mod) noexcept
+void graph_observer::init(project& pj, const modeling& mod) noexcept
 {
     observers.clear();
     values.clear();

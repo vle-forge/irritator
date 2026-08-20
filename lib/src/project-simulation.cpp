@@ -171,8 +171,8 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     auto* tn = tree_nodes.try_to_get(data.tn_id);
 
     if (not tn) [[unlikely]] {
-        log_m(log_level::error, [](auto& m) noexcept {
-            format(m, "Fail to find tree node with ID {}", data.tn_id);
+        log_m(log_level::error, [&](auto& m) noexcept {
+            format(m, "Fail to find tree node with ID {}", ordinal(data.tn_id));
         });
 
         return make_error(project_errc::memory_error);
@@ -183,10 +183,10 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     const auto sim_alloc = sim.can_alloc(1) or sim.grow_models<3, 2>();
 
     if (not tn_alloc or not sim_alloc) {
-        log_m(log_level::error, [](auto& m) noexcept {
+        log_m(log_level::error, [&](auto& m) noexcept {
             format(m,
                    "Fail to allocate new model in tree node {} (capacity: {}",
-                   data.tn_id,
+                   ordinal(data.tn_id),
                    tn->children.capacity());
         });
         return make_error(project_errc::memory_error);
@@ -196,8 +196,10 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
 
     if (auto ret = sim.make_initialize(mdl, sim.current_time());
         ret.has_error()) {
-        log_m(log_level::error, [](auto& m) noexcept {
-            format(m, "Fail to initialize new model of type {}", data.type);
+        log_m(log_level::error, [&](auto& m) noexcept {
+            format(m,
+                   "Fail to initialize new model of type {}",
+                   dynamics_type_names[ordinal(data.type)]);
         });
 
         return ret.error();
@@ -214,8 +216,8 @@ status project::simulation_free_model(
 {
     auto* tn = tree_nodes.try_to_get(data.tn_id);
     if (not tn) [[unlikely]] {
-        log_m(log_level::error, [](auto& m) noexcept {
-            format(m, "Fail to find tree node with ID {}", data.tn_id);
+        log_m(log_level::error, [&](auto& m) noexcept {
+            format(m, "Fail to find tree node with ID {}", ordinal(data.tn_id));
         });
 
         return make_error(project_errc::memory_error);
@@ -223,8 +225,8 @@ status project::simulation_free_model(
 
     auto* mdl = sim.models.try_to_get(data.mdl_id);
     if (not mdl) [[unlikely]] {
-        log_m(log_level::error, [](auto& m) noexcept {
-            format(m, "Fail to find model with ID {}", data.mdl_id);
+        log_m(log_level::error, [&](auto& m) noexcept {
+            format(m, "Fail to find model with ID {}", ordinal(data.mdl_id));
         });
 
         return make_error(project_errc::memory_error);
@@ -367,7 +369,7 @@ status project::simulation_new_observer(
         }
     } else {
         log_m(log_level::error, [&](auto& msg) noexcept {
-            format(msg, "Model ID {} not found.", data.mdl_id);
+            format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
 
@@ -381,7 +383,7 @@ status project::simulation_free_observer(
         sim.unobserve(*mdl);
     } else {
         log_m(log_level::error, [&](auto& msg) noexcept {
-            format(msg, "Model ID {} not found.", data.mdl_id);
+            format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
 
@@ -408,16 +410,16 @@ status project::simulation_send_message(
             }
 
             mdl->tn = t;
-            return;
         } else {
             log_m(log_level::error, [&](auto& msg) noexcept {
-                format(
-                  msg, "Model ID {} is not a constant model.", data.mdl_id);
+                format(msg,
+                       "Model ID {} is not a constant model.",
+                       ordinal(data.mdl_id));
             });
         }
     } else {
         log_m(log_level::error, [&](auto& msg) noexcept {
-            format(msg, "Model ID {} not found.", data.mdl_id);
+            format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
 
@@ -620,7 +622,7 @@ status project::simulation_run_for(
 
     do {
         if (simulation_state != simulation_status::running)
-            return;
+            return success();
 
         // if (save_simulation_raw_data !=
         //     project_editor::raw_data_type::none) {
@@ -670,6 +672,8 @@ status project::simulation_run_for(
     }
 
     simulation_observation_for_all_observers(utl);
+
+    return success();
 }
 
 status project::simulation_step() noexcept
@@ -706,36 +710,33 @@ status project::simulation_step() noexcept
 
             if (sim.current_time_expired()) {
                 simulation_state = simulation_status::finish_requiring;
-                return;
+                return success();
             }
 
             simulation_state = simulation_status::pause_forced;
         }
     }
+
+    return success();
 }
 
 status project::simulation_finish(unordered_task_list& utl) noexcept
 {
     simulation_state = simulation_status::finishing;
-    sim.immediate_observers.clear();
 
-    // if (store_all_changes)
-    //     snaps.emplace_back(pj.sim);
+    const auto ret = sim.finalize();
 
-    if (sim.finalize().has_error()) {
+    simulation_observation_for_all_observers(utl);
+    simulation_state = simulation_status::finished;
+
+    if (ret.has_error()) {
         log(log_level::error, [](auto& t, auto& m) {
             t = "Simulation finalizing fail";
             m = "FIXME from ret";
         });
-    } else {
-        simulation_observation_for_all_observers(utl);
     }
 
-    // if (save_simulation_raw_data != project_editor::raw_data_type::none) {
-    //     finalize_raw_obs(*this);
-    // }
-
-    simulation_state = simulation_status::finished;
+    return ret;
 }
 
 void project::simulation_advance() noexcept
@@ -743,12 +744,16 @@ void project::simulation_advance() noexcept
     if (snaps.empty())
         return;
 
-    if (current_snap >= 0) {
-        const auto* snap = snaps.ptr_from_index(current_snap);
-        if (snaps.previous(snap)) {
-            pj.sim       = *snap;
-            current_snap = snaps.index_of(snap);
-        }
+    if (not current_snap.has_value() or
+        snaps.ptr_from_index(*current_snap) == nullptr) {
+        sim          = *snaps.front();
+        current_snap = snaps.index_of(snaps.front());
+    }
+
+    const auto* snap = snaps.ptr_from_index(*current_snap);
+    if (snaps.previous(snap)) {
+        sim          = *snap;
+        current_snap = snaps.index_of(snap);
     }
 }
 
@@ -757,36 +762,17 @@ void project::simulation_back() noexcept
     if (snaps.empty())
         return;
 
-    if (current_snap >= 0) {
-        const auto* snap = snaps.ptr_from_index(current_snap);
-        if (snaps.next(snap)) {
-            pj.sim       = *snap;
-            current_snap = snaps.index_of(snap);
-        }
+    if (not current_snap.has_value() or
+        snaps.ptr_from_index(*current_snap) == nullptr) {
+        sim          = *snaps.back();
+        current_snap = snaps.index_of(snaps.back());
+    }
+
+    const auto* snap = snaps.ptr_from_index(*current_snap);
+    if (snaps.next(snap)) {
+        sim          = *snap;
+        current_snap = snaps.index_of(snap);
     }
 }
-
-// project::project_full_runner::project_full_runner(
-//   project&             pj,
-//   unordered_task_list& utl) noexcept
-//   : m_pj(pj)
-//   , m_utl(utl)
-//{
-//     m_pj.simulation_state = simulation_status::not_started;
-// }
-//
-// status project::project_full_runner::run() noexcept
-//{
-//     auto mod     = irt::modeling{};
-//     auto success = true;
-//
-//     irt_check(m_pj.simulation_init(mod));
-//
-//     while (m_pj.sim.current_time_expired() == false) {
-//         irt_check(m_pj.simulation_run_bag());
-//     }
-//
-//     irt_check(m_pj.simulation_finish());
-// }
 
 } // namespace irt
