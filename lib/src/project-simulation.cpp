@@ -428,7 +428,7 @@ status project::simulation_send_message(
 
 status project::simulation_apply_command() noexcept
 {
-    for (const auto& cmd : commands) {
+    commands.for_each([&](const command& cmd) noexcept {
         switch (cmd.type) {
         case command_type::none:
             break;
@@ -457,11 +457,24 @@ status project::simulation_apply_command() noexcept
             simulation_send_message(cmd.data.send_message);
             break;
         }
-    }
+    });
 
     commands.clear();
 
     return success();
+}
+
+bool project::push(const command& cmd) noexcept
+{
+    using namespace std::literals;
+
+    if (not commands.push(cmd)) {
+        log_m(log_level::error,
+              "Fail to add command order in live simulation"sv);
+        return false;
+    }
+
+    return true;
 }
 
 // void project_editor::start_simulation_update_state(application& app) noexcept
@@ -680,8 +693,7 @@ status project::simulation_step() noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
-                                 simulation_status::pause_forced,
-                                 simulation_status::debugged);
+                                 simulation_status::pause_forced);
 
     if (state) {
         if (tree_nodes.try_to_get(tn_head())) {
@@ -741,6 +753,12 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
 
 void project::simulation_advance() noexcept
 {
+    debug::ensure(debug_mode);
+
+    debug::ensure(any_equal(simulation_state,
+                            simulation_status::initialized,
+                            simulation_status::pause_forced));
+
     if (snaps.empty())
         return;
 
@@ -759,6 +777,12 @@ void project::simulation_advance() noexcept
 
 void project::simulation_back() noexcept
 {
+    debug::ensure(debug_mode);
+
+    debug::ensure(any_equal(simulation_state,
+                            simulation_status::initialized,
+                            simulation_status::pause_forced));
+
     if (snaps.empty())
         return;
 

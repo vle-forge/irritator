@@ -1317,7 +1317,6 @@ enum class simulation_status : u8 {
     finish_requiring,
     finishing,
     finished,
-    debugged,
 };
 
 enum class command_type {
@@ -1402,10 +1401,24 @@ class project
 {
 private:
     simulation_status simulation_state = simulation_status::not_started;
-    vector<command>   commands;
+    bool              debug_mode       = false;
+    bool              live_move        = false;
 
+public:
+    static constexpr std::size_t command_buffer_size = 32;
+
+    bool push(const command& cmd) noexcept;
+
+private:
+    /// spsc queue to store simulation commands. Only for live and debug mode.
+    /// write by the main thread and read by the simulation thread.
+    circular_buffer<command, command_buffer_size> commands;
+
+    /// spsc queue to store simulations snapshot. Only for debug mode.
     simulation_snapshot_handler snaps{ 128 };
-    std::optional<std::int8_t>  current_snap;
+
+    /// position into the @c snaps queue.
+    std::optional<std::int32_t> current_snap;
 
     void save_simulation_graph(const std::string_view file_name) noexcept;
 

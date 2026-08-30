@@ -937,8 +937,7 @@ void project_editor::start_simulation_step_by_step(application& app) noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
-                                 simulation_status::pause_forced,
-                                 simulation_status::debugged);
+                                 simulation_status::pause_forced);
 
     if (state) {
         app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
