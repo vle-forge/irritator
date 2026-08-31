@@ -2594,19 +2594,6 @@ static void assign_name(const T& obs, name_str& str) noexcept
     str = "New";
 };
 
-status project::simulation_initialize() noexcept
-{
-    sim.clean();
-    sim.observers.clear();
-
-    for (auto& v_obs : variable_observers)
-        irt_check(v_obs.init(*this));
-
-    return sim.initialize();
-}
-
-status project::simulation_run_bag() noexcept { return sim.run(); }
-
 variable_observer& project::alloc_variable_observer() noexcept
 {
     debug::ensure(variable_observers.can_alloc());

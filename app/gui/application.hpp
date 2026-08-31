@@ -1224,48 +1224,28 @@ struct project_editor {
     void display_subwindows(application& app) noexcept;
     void close_subwindows(application& app) noexcept;
 
-    void start_simulation_update_state(application& app) noexcept;
-
-    void start_simulation_copy_modeling(application& app) noexcept;
-    void start_simulation_init(application& app) noexcept;
-    void start_simulation_start(application& app) noexcept;
-    void simulation_observation_for_imm_observers(application& app) noexcept;
-    void simulation_observation_for_all_observers(application& app) noexcept;
-    void start_simulation_live_run(application& app) noexcept;
-    void start_simulation_static_run(application& app) noexcept;
-    void start_simulation_step_by_step(application& app) noexcept;
-    void start_simulation_pause(application& app) noexcept;
-    void start_simulation_stop(application& app) noexcept;
-    void start_simulation_finish(application& app) noexcept;
-
-    void start_simulation_advance(application& app) noexcept;
-    void start_simulation_back(application& app) noexcept;
+    void update_simulation_state(application& app) noexcept;
+    void import_from_modeling(application& app) noexcept;
+    void init_simulation(application& app) noexcept;
+    void run_bag_simulation(application& app) noexcept;
+    void run_simulation(application& app) noexcept;
+    void pause_simulation() noexcept;
+    void finish_simulation(application& app) noexcept;
+    void advance_simulation(application& app) noexcept;
+    void back_simulation(application& app) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
 
     std::atomic_bool force_pause           = false;
-    std::atomic_bool force_stop            = false;
     bool             show_minimap          = true;
-    bool             store_all_changes     = false;
-    bool             real_time             = false;
-    bool             have_use_back_advance = false;
     bool             display_graph         = true;
-
-    bool allow_user_changes = false;
 
     enum class raw_data_type : u8 { none, graph, binary, text };
 
     raw_data_type save_simulation_raw_data = raw_data_type::none;
 
     bool is_dock_init = false;
-
-    /** Return true if a simulation is currently running.
-     *
-     * A simulation is running if and only if the simulation status is in state:
-     * running, running_required or paused.
-     */
-    bool is_simulation_running() const noexcept;
 
     // timeline tl;
 
@@ -1292,6 +1272,7 @@ struct project_editor {
       std::chrono::time_point<std::chrono::high_resolution_clock>;
 
     std::chrono::milliseconds simulation_time_duration{ 1000 };
+    std::chrono::milliseconds one_simulation_time_duration{ 1000 };
     std::chrono::milliseconds simulation_task_duration{ 10 };
 
     //! Use in live modeling to store the time-point of the start of the
@@ -1306,9 +1287,6 @@ struct project_editor {
     tree_node_id current = undefined<tree_node_id>();
 
     visualization_mode mode = visualization_mode::flat;
-
-    std::atomic<simulation_status> simulation_state =
-      simulation_status::not_started;
 
     ImPlotContext* output_context = nullptr;
 
@@ -1357,12 +1335,10 @@ struct project_editor {
 
 inline bool project_editor::can_edit() const noexcept
 {
-    if (any_equal(simulation_state,
-                  simulation_status::not_started,
-                  simulation_status::finished))
-        return true;
-
-    return allow_user_changes;
+    return any_equal(pj.simulation_state,
+                     simulation_status::initialized,
+                     simulation_status::paused,
+                     simulation_status::finished);
 }
 
 class component_editor
@@ -1853,12 +1829,12 @@ public:
      * @c project_id. Task is added at tail of the @c ring_buffer and ensure
      * linear operation.
      *
-     * @param id The identifier use to select the @a
+     * @param id A value used to select the ordered-task-list the @a
      * task_manager::ordered_task_lists.
      * @param fn The function to run.
      */
     template<typename Fn>
-    void add_simulation_task(const project_id id, Fn&& fn) noexcept;
+    void add_simulation_task(const unsigned id, Fn&& fn) noexcept;
 
     /**
      * Helpers function to add a @c gui_task into the @c ordered_task_list
@@ -1957,9 +1933,9 @@ bool show_local_observers(application&            app,
 std::filesystem::path get_imgui_filename() noexcept;
 
 template<typename Fn>
-void application::add_simulation_task(const project_id id, Fn&& fn) noexcept
+void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept
 {
-    const auto index = get_index(id) % 3;
+    const auto index = id % task_mgr.ordered_size();
 
     task_mgr.ordered(index).add(std::forward<Fn>(fn));
 }
@@ -1976,14 +1952,6 @@ void application::add_gui_task(Fn&& fn) noexcept
 inline bool project_editor::can_display_graph_editor() const noexcept
 {
     return display_graph;
-}
-
-inline bool project_editor::is_simulation_running() const noexcept
-{
-    return any_equal(simulation_state,
-                     simulation_status::paused,
-                     simulation_status::running,
-                     simulation_status::run_requiring);
 }
 
 inline tree_node_id project_editor::selected_tn() noexcept

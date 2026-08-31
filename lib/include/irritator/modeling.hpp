@@ -1313,7 +1313,6 @@ enum class simulation_status : u8 {
     run_requiring,
     running,
     paused,
-    pause_forced,
     finish_requiring,
     finishing,
     finished,
@@ -1399,15 +1398,28 @@ struct command {
 
 class project
 {
-private:
-    simulation_status simulation_state = simulation_status::not_started;
-    bool              debug_mode       = false;
-    bool              live_move        = false;
-
 public:
     static constexpr std::size_t command_buffer_size = 32;
 
+    simulation_status simulation_state = simulation_status::not_started;
+
+    /// stores simulation into @c snaps and @c current_snap. Use can use @c
+    /// advance() and @c back() function to navigate into simulation.
+    bool debug_mode = false;
+
+    /// make a link between simulation time and real time.
+    bool real_time_mode = false;
+
+    bool is_task_running() const noexcept
+    {
+        return any_equal(simulation_state,
+                         simulation_status::initializing,
+                         simulation_status::running,
+                         simulation_status::finishing);
+    }
+
     bool push(const command& cmd) noexcept;
+    bool empty_snapshot() const noexcept;
 
 private:
     /// spsc queue to store simulation commands. Only for live and debug mode.
@@ -1422,24 +1434,30 @@ private:
 
     void save_simulation_graph(const std::string_view file_name) noexcept;
 
-    status simulation_init_observation(const modeling& mod) noexcept;
+public:
+    /// Restore the simulation from the modeling project file. All changes in
+    /// the simulation are discarded.
     status simulation_copy(const modeling& mod) noexcept;
-    status simulation_init(const modeling& mod) noexcept;
-    status simulation_step() noexcept;
 
+    status simulation_init_observation(const modeling& mod) noexcept;
+    status simulation_init(const modeling& mod) noexcept;
+
+    status simulation_step() noexcept;
     void simulation_back() noexcept;
     void simulation_advance() noexcept;
+    status simulation_apply_command() noexcept;
 
     status simulation_run_for(unordered_task_list&            utl,
-                              const std::chrono::milliseconds duration,
-                              std::atomic_bool&               stop,
-                              std::atomic_bool&               pause) noexcept;
+                              const std::chrono::milliseconds task_duration,
+                              std::atomic_bool& force_pause) noexcept;
 
     status simulation_complete_run(unordered_task_list& utl) noexcept;
 
     status simulation_live_run(
       unordered_task_list&            utl,
-      const std::chrono::milliseconds duration) noexcept;
+      const std::chrono::milliseconds one_simulation_time_duration,
+      const std::chrono::milliseconds task_duration,
+      std::atomic_bool&               force_pause) noexcept;
 
     status simulation_finish(unordered_task_list& utl) noexcept;
 
@@ -1448,6 +1466,7 @@ private:
     void simulation_observation_for_all_observers(
       unordered_task_list& tasks) noexcept;
 
+private:
     status simulation_new_model(const command::new_model_t& data) noexcept;
     status simulation_free_model(const command::free_model_t& data) noexcept;
     status simulation_copy_model(const command::copy_model_t& data) noexcept;
@@ -1462,8 +1481,6 @@ private:
       const command::new_connection_t& data) noexcept;
     status simulation_free_connection(
       const command::free_connection_t& data) noexcept;
-
-    status simulation_apply_command() noexcept;
 
 public:
     project() noexcept = default;
@@ -1596,13 +1613,6 @@ public:
 
     /// Experimental frames replicas
     vector<u64> seeds;
-
-    /**
-     * @brief clean previous simulation cache and reinitialize the simulation.
-     * @return
-     */
-    status simulation_initialize() noexcept;
-    status simulation_run_bag() noexcept;
 
     /**
        @brief Alloc a new variable observer and assign a name.

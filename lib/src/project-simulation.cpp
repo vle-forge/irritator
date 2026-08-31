@@ -461,57 +461,7 @@ bool project::push(const command& cmd) noexcept
     return true;
 }
 
-// void project_editor::start_simulation_update_state(application& app) noexcept
-//{
-//     if (not commands.empty())
-//         start_simulation_commands_apply(app, app.pjs.get_id(*this));
-//
-//     if (any_equal(simulation_state,
-//                   simulation_status::paused,
-//                   simulation_status::run_requiring)) {
-//
-//         simulation_state = simulation_status::run_requiring;
-//
-//         if (real_time)
-//             start_simulation_live_run(app);
-//         else
-//             start_simulation_static_run(app);
-//     }
-//
-//     if (simulation_state == simulation_status::finish_requiring) {
-//         simulation_state = simulation_status::finishing;
-//         start_simulation_finish(app);
-//     }
-// }
-
-// void project_editor::start_simulation_copy_modeling(application& app)
-// noexcept
-// {
-//     bool state = any_equal(simulation_state,
-//                            simulation_status::initialized,
-//                            simulation_status::not_started,
-//                            simulation_status::finished);
-
-//     debug::ensure(state);
-
-//     if (state) {
-//         auto* modeling_head = pj.tree_nodes.try_to_get(pj.tn_head());
-//         if (!modeling_head) {
-//             log(log_level::error, [](auto& t, auto&) { t = "Empty model"; });
-//         } else {
-//             force_pause = false;
-//             force_stop  = false;
-
-//             pj.sim.clear();
-
-//             app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-//                 simulation_copy(app, *this);
-//             });
-
-//             start_simulation_init(app);
-//         }
-//     }
-// }
+bool project::empty_snapshot() const noexcept { return snaps.empty(); }
 
 void project::simulation_observation_for_imm_observers(
   unordered_task_list& utl) noexcept
@@ -600,8 +550,7 @@ void project::simulation_observation_for_all_observers(
 
 status project::simulation_run_for(
   unordered_task_list&            utl,
-  const std::chrono::milliseconds duration_limits,
-  std::atomic_bool&               stop,
+  const std::chrono::milliseconds task_duration,
   std::atomic_bool&               pause) noexcept
 {
     simulation_state = simulation_status::running;
@@ -611,11 +560,7 @@ status project::simulation_run_for(
     auto end_at   = stdc::high_resolution_clock::now();
     auto duration = end_at - start_at;
 
-    auto duration_cast =
-      stdc::duration_cast<stdc::microseconds>(duration_limits);
-    auto duration_since_start = duration_cast.count();
-
-    auto stop_or_pause = false;
+    auto duration_cast = stdc::duration_cast<stdc::microseconds>(task_duration);
 
     do {
         if (simulation_state != simulation_status::running)
@@ -658,15 +603,109 @@ status project::simulation_run_for(
         duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
         // duration_since_start = duration_cast.count();
         //  stop_or_pause        = force_pause || force_stop;
-    } while (!pause and !stop and duration_cast < duration_limits);
+    } while (!pause and duration_cast < task_duration);
 
-    if (pause) {
-        simulation_state = simulation_status::pause_forced;
-    } else if (stop) {
-        simulation_state = simulation_status::finish_requiring;
-    } else {
+    if (pause)
         simulation_state = simulation_status::paused;
-    }
+
+    simulation_observation_for_all_observers(utl);
+
+    return success();
+}
+
+status project::simulation_complete_run(unordered_task_list& utl) noexcept
+{
+    debug::ensure(simulation_state == simulation_status::initialized);
+
+    simulation_state = simulation_status::running;
+
+    do {
+        if (const auto r = sim.run(); r.has_error())
+            simulation_state = simulation_status::finish_requiring;
+
+        if (not sim.immediate_observers.empty())
+            simulation_observation_for_imm_observers(utl);
+
+        if (sim.current_time_expired())
+            simulation_state = simulation_status::finish_requiring;
+    } while (not sim.current_time_expired() or
+             simulation_state == simulation_status::running);
+
+    return simulation_finish(utl);
+}
+
+status project::simulation_live_run(
+  unordered_task_list&            utl,
+  const std::chrono::milliseconds one_simulation_time_duration,
+  const std::chrono::milliseconds task_duration,
+  std::atomic_bool&               force_pause) noexcept
+{
+    namespace stdc = std::chrono;
+
+    simulation_state = simulation_status::running;
+
+    const auto start_task_rt = stdc::high_resolution_clock::now();
+    const auto end_task_rt   = start_task_rt + task_duration;
+
+    do {
+        if (simulation_state != simulation_status::running)
+            return success();
+
+        if (force_pause) {
+            simulation_state = simulation_status::paused;
+            return success();
+        }
+
+        time sim_t;
+        time sim_next_t;
+
+        sim_t      = sim.current_time();
+        sim_next_t = sim.sched.tn();
+
+        if (time_domain<time>::is_infinity(sim_t)) {
+            sim_next_t = sim_t + 1.0;
+        } else {
+            if (time_domain<time>::is_infinity(sim_next_t)) {
+                sim_next_t = sim_t + 1.0;
+            }
+        }
+
+        const auto current_rt   = stdc::high_resolution_clock::now();
+        const auto diff_rt      = current_rt - start_task_rt;
+        const auto remaining_rt = task_duration - diff_rt;
+
+        // There is no real time available for this simulation task.
+        // Program the next.
+        if (remaining_rt.count() < 0) {
+            simulation_state = simulation_status::paused;
+            return success();
+        }
+
+        const auto wakeup_rt =
+          start_task_rt + (sim_next_t * one_simulation_time_duration);
+
+        // If the next wakeup exceed the simulation frame, do nothing.
+        if (wakeup_rt > end_task_rt) {
+            simulation_state = simulation_status::paused;
+            return success();
+        }
+
+        if (wakeup_rt >= start_task_rt + std::chrono::milliseconds{ 1 })
+            std::this_thread::sleep_until(wakeup_rt);
+
+        sim.current_time(sim_t);
+
+        if (const auto r = sim.run(); r.has_error())
+            simulation_state = simulation_status::finish_requiring;
+
+        if (not sim.immediate_observers.empty())
+            simulation_observation_for_imm_observers(utl);
+
+        if (sim.current_time_expired())
+            simulation_state = simulation_status::finish_requiring;
+
+    } while (not sim.current_time_expired() or
+             simulation_state == simulation_status::running);
 
     simulation_observation_for_all_observers(utl);
 
@@ -677,7 +716,7 @@ status project::simulation_step() noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
-                                 simulation_status::pause_forced);
+                                 simulation_status::paused);
 
     if (state) {
         if (tree_nodes.try_to_get(tn_head())) {
@@ -709,7 +748,7 @@ status project::simulation_step() noexcept
                 return success();
             }
 
-            simulation_state = simulation_status::pause_forced;
+            simulation_state = simulation_status::paused;
         }
     }
 
@@ -741,7 +780,7 @@ void project::simulation_advance() noexcept
 
     debug::ensure(any_equal(simulation_state,
                             simulation_status::initialized,
-                            simulation_status::pause_forced));
+                            simulation_status::paused));
 
     if (snaps.empty())
         return;
@@ -765,7 +804,7 @@ void project::simulation_back() noexcept
 
     debug::ensure(any_equal(simulation_state,
                             simulation_status::initialized,
-                            simulation_status::pause_forced));
+                            simulation_status::paused));
 
     if (snaps.empty())
         return;

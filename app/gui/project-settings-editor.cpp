@@ -223,95 +223,79 @@ static void show_simulation_action_buttons(application&    app,
     const auto button         = ImVec2{ button_x, 0.f };
     const auto small_button   = ImVec2{ small_button_x, 0.f };
 
-    const bool can_be_initialized = !any_equal(ed.simulation_state,
-                                               simulation_status::not_started,
-                                               simulation_status::finished,
-                                               simulation_status::initialized,
-                                               simulation_status::not_started);
+    const bool can_be_initialized = any_equal(ed.pj.simulation_state,
+                                              simulation_status::not_started,
+                                              simulation_status::initialized,
+                                              simulation_status::paused,
+                                              simulation_status::finished);
 
     const bool can_be_started =
-      !any_equal(ed.simulation_state, simulation_status::initialized);
+      ed.pj.simulation_state == simulation_status::initialized;
 
-    const bool can_be_paused = !any_equal(ed.simulation_state,
-                                          simulation_status::running,
-                                          simulation_status::run_requiring,
-                                          simulation_status::paused);
+    const bool can_be_paused =
+      ed.pj.simulation_state == simulation_status::running;
 
     const bool can_be_restarted =
-      !any_equal(ed.simulation_state, simulation_status::pause_forced);
+      ed.pj.simulation_state == simulation_status::paused;
 
-    const bool can_be_stopped = !any_equal(ed.simulation_state,
-                                           simulation_status::running,
-                                           simulation_status::run_requiring,
-                                           simulation_status::paused,
-                                           simulation_status::pause_forced);
-
-    ImGui::BeginDisabled(can_be_initialized);
+    ImGui::BeginDisabled(not can_be_initialized);
     if (EnhancedButton(
           app, "\ue0c8", button, "Initialize simulation models and data."))
-        ed.start_simulation_init(app);
+        ed.init_simulation(app);
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(can_be_started);
+    ImGui::BeginDisabled(not can_be_started);
     if (EnhancedButton(app, "\ue0a9", button, "Start and run the simulation"))
-        ed.start_simulation_start(app);
+        ed.run_simulation(app);
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(can_be_paused);
+    ImGui::BeginDisabled(not can_be_paused);
     if (EnhancedButton(app, "\ue09e", button, "Pause the simulation"))
-        ed.force_pause = true;
+        ed.pause_simulation();
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(can_be_restarted);
+    ImGui::BeginDisabled(not can_be_restarted);
     if (EnhancedButton(
           app, "\ue030", button, "Restart the simulation after pause")) {
-        ed.simulation_state = simulation_status::run_requiring;
+        ed.pj.simulation_state = simulation_status::run_requiring;
         ed.force_pause      = false;
-        ed.start_simulation_start(app);
     }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
-    ImGui::BeginDisabled(can_be_stopped);
-    if (EnhancedButton(
-          app,
-          "\ue0cb",
-          button,
-          "Stop the simulation (can not be restart at the same state"))
-        ed.force_stop = true;
-    ImGui::EndDisabled();
+    // ImGui::BeginDisabled(can_be_stopped);
+    // if (EnhancedButton(
+    //       app,
+    //       "\ue0cb",
+    //       button,
+    //       "Stop the simulation (can not be restart at the same state"))
+    //     ed.force_stop = true;
+    // ImGui::EndDisabled();
 
-    const bool history_mode = (ed.store_all_changes || ed.allow_user_changes) &&
-                              (can_be_started || can_be_restarted);
-
-    if (history_mode) {
+    if (ed.pj.debug_mode and can_be_restarted) {
         if (EnhancedButton(
               app, "\ue0c6", small_button, "Advance simulation step by step"))
-            ed.start_simulation_step_by_step(app);
+            ed.pj.simulation_step();
 
         ImGui::SameLine();
 
-        const auto have_snaphot = ed.store_all_changes and not ed.snaps.empty();
-
-        ImGui::BeginDisabled(not have_snaphot);
+        ImGui::BeginDisabled(ed.pj.empty_snapshot());
         if (EnhancedButton(
               app, "\ue0b3", small_button, "Rewind into simulation states"))
-            ed.start_simulation_back(app);
-        ImGui::EndDisabled();
+            ed.pj.simulation_back();
 
         ImGui::SameLine();
 
-        ImGui::BeginDisabled(not have_snaphot);
         if (EnhancedButton(
               app, "\ue05c", small_button, "Forward into simulation states"))
-            ed.start_simulation_advance(app);
+            ed.pj.simulation_advance();
         ImGui::EndDisabled();
     }
 }
@@ -447,7 +431,7 @@ static bool show_project_simulation_settings(application&    app,
         ed.pj.sim.limits.set_bound(begin, end);
     ImGui::EndDisabled();
 
-    ImGui::BeginDisabled(not ed.real_time);
+    ImGui::BeginDisabled(not ed.pj.real_time_mode);
     {
         i64 value = ed.simulation_time_duration.count();
 
