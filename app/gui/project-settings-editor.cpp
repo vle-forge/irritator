@@ -433,11 +433,12 @@ static bool show_project_simulation_settings(application&    app,
 
     ImGui::BeginDisabled(not ed.pj.real_time_mode);
     {
-        i64 value = ed.simulation_time_duration.count();
+        i64 value = ed.one_simulation_time_duration.count();
 
         if (ImGui::InputScalar("ms/u.t.", ImGuiDataType_S64, &value)) {
             if (value > 1) {
-                ed.simulation_time_duration = std::chrono::milliseconds(value);
+                ed.one_simulation_time_duration =
+                  std::chrono::milliseconds(value);
                 ++up;
             }
         }

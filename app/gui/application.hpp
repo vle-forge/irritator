@@ -1252,28 +1252,8 @@ struct project_editor {
     real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;
 
-    //! Number of microsecond to run 1 unit of simulation time. The default is
-    //! to run 1 unit of simulation per second.
-    i64 nb_microsecond_per_simulation_time = 1000000;
-
-    //! The duration of a simulation run task. The default is to run one task in
-    //! 100ms.
-    static inline constexpr i64 thread_frame_duration = 100000;
-
-    using time_point =
-      std::chrono::time_point<std::chrono::high_resolution_clock>;
-
-    std::chrono::milliseconds simulation_time_duration{ 1000 };
     std::chrono::milliseconds one_simulation_time_duration{ 1000 };
-    std::chrono::milliseconds simulation_task_duration{ 10 };
-
-    //! Use in live modeling to store the time-point of the start of the
-    //! simulation and allow to compute the next wakeup of the simulation task.
-    time_point start;
-
-    //! Use in live modeling to store the time-point of the next wakeup of the
-    //! simulation.
-    time_point wakeup;
+    std::chrono::milliseconds simulation_task_duration{ 16 };
 
     tree_node_id head    = undefined<tree_node_id>();
     tree_node_id current = undefined<tree_node_id>();
@@ -1286,8 +1266,6 @@ struct project_editor {
     using tree_node_observation_t = constrained_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 300.f;
-
-    circular_buffer<command, 256> commands;
 
     project pj;
 
