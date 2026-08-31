@@ -381,7 +381,7 @@ static void simulation_component_tester(
 
     pj.sim.limits.set_bound(0, 3);
 
-    expect(pj.simulation_initialize().has_value());
+    expect(pj.simulation_init(mod).has_value());
 
     auto sim_wrapper_id = irt::undefined<irt::model_id>();
     auto cpts           = irt::small_vector<irt::model_id, 3>{};
@@ -404,7 +404,7 @@ static void simulation_component_tester(
     expect(irt::is_defined(sim_wrapper_id));
 
     do {
-        expect(pj.simulation_run_bag().has_value());
+        expect(pj.simulation_step().has_value());
     } while (not pj.sim.current_time_expired());
 
     expect(pj.sim.finalize().has_value());

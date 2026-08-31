@@ -1237,9 +1237,9 @@ struct project_editor {
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
 
-    std::atomic_bool force_pause           = false;
-    bool             show_minimap          = true;
-    bool             display_graph         = true;
+    std::atomic_bool force_pause   = false;
+    bool             show_minimap  = true;
+    bool             display_graph = true;
 
     enum class raw_data_type : u8 { none, graph, binary, text };
 
@@ -1248,14 +1248,6 @@ struct project_editor {
     bool is_dock_init = false;
 
     // timeline tl;
-
-    /// Default stores 128 snapshots.
-    ///
-    /// @TODO Adds this parameters in global file settings.
-    simulation_snapshot_handler snaps{ 128 };
-
-    /// The index of the current selected
-    int current_snap = -1;
 
     real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;

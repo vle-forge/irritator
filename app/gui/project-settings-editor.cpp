@@ -264,7 +264,7 @@ static void show_simulation_action_buttons(application&    app,
     if (EnhancedButton(
           app, "\ue030", button, "Restart the simulation after pause")) {
         ed.pj.simulation_state = simulation_status::run_requiring;
-        ed.force_pause      = false;
+        ed.force_pause         = false;
     }
     ImGui::EndDisabled();
 
@@ -462,13 +462,11 @@ static bool show_project_simulation_settings(application&    app,
                    "value may increase CPU load.");
     }
 
-    ImGui::BeginDisabled(ed.is_simulation_running());
-    up += ImGui::Checkbox("Enable live edition", &ed.allow_user_changes);
-    if (ImGui::Checkbox("Store simulation", &ed.store_all_changes)) {
-        ++up;
-    }
-
-    up += ImGui::Checkbox("Real time", &ed.real_time);
+    ImGui::BeginDisabled(any_equal(ed.pj.simulation_state,
+                                   simulation_status::not_started,
+                                   simulation_status::initialized));
+    up += ImGui::Checkbox("Debug", &ed.pj.debug_mode);
+    up += ImGui::Checkbox("Real time", &ed.pj.real_time_mode);
     ImGui::EndDisabled();
 
     ImGui::LabelFormat("time", "{:.6f}", ed.simulation_display_current);
@@ -476,9 +474,7 @@ static bool show_project_simulation_settings(application&    app,
     HelpMarker("Display the simulation current time.");
 
     ImGui::LabelFormat(
-      "phase",
-      "{}",
-      simulation_status_names[ordinal(ed.simulation_state.load())]);
+      "phase", "{}", simulation_status_names[ordinal(ed.pj.simulation_state)]);
 
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
