@@ -1450,6 +1450,7 @@ private:
 
     status simulation_new_model(const command::new_model_t& data) noexcept;
     status simulation_free_model(const command::free_model_t& data) noexcept;
+    status simulation_copy_model(const command::copy_model_t& data) noexcept;
 
     status simulation_new_observer(
       const command::new_observer_t& data) noexcept;
@@ -1457,6 +1458,10 @@ private:
       const command::free_observer_t& data) noexcept;
     status simulation_send_message(
       const command::send_message_t& data) noexcept;
+    status simulation_new_connection(
+      const command::new_connection_t& data) noexcept;
+    status simulation_free_connection(
+      const command::free_connection_t& data) noexcept;
 
     status simulation_apply_command() noexcept;
 

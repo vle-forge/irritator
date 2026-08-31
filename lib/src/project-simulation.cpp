@@ -245,111 +245,95 @@ status project::simulation_free_model(
     return success();
 }
 
-#if 0
-static int copy_model(const command::copy_model_t& data) noexcept
+status project::simulation_copy_model(
+  const command::copy_model_t& data) noexcept
 {
-    if (auto* src_mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
-        if (not pj_ed.pj.sim.can_alloc(1)) {
-            log(log_level::error, [](auto& title, auto&) noexcept {
-                title = "Internal error: fail to allocate more models.";
-            });
+    auto* src_mdl = sim.models.try_to_get(data.mdl_id);
 
-            return 0;
-        }
+    if (not src_mdl)
+        return success();
 
-        auto& dst_mdl = pj_ed.pj.sim.clone(*src_mdl);
-
-        if (not pj_ed.pj.sim.make_initialize(dst_mdl,
-                                             pj_ed.pj.sim.current_time())) {
-            log(log_level::error, [](auto& title, auto&) noexcept {
-                title = "Internal error: fail to initialize new model.";
-            });
-
-            return 0;
-        }
-
-        dispatch(*src_mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
-            if constexpr (has_output_port<Dynamics>) {
-                for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                    auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
-
-                    pj_ed.pj.sim.for_each(
-                      dyn.y[i], [&](auto& mdl_src, int port_src) {
-                          const auto mdl_src_id = pj_ed.pj.sim.get_id(mdl_src);
-
-                          (void)pj_ed.pj.sim.connect(
-                            dst_dyn.y[i], mdl_src_id, port_src);
-                      });
-                }
-
-                // if (auto* tn =
-                // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
-                // }
-            }
+    if (not sim.can_alloc(1) and not sim.grow_models<2, 1>()) {
+        log_m(log_level::error, [](auto& m) noexcept {
+            m = "Internal error: fail to allocate more models.";
         });
 
-        return 1;
+        return make_error(project_errc::memory_error);
     }
 
-    return 0;
-}
+    auto& dst_mdl = sim.clone(*src_mdl);
 
-static int new_connection(project_editor&                  ed,
-                          const command::new_connection_t& data) noexcept
-{
-    int rebuild = false;
-
-    if (not ed.pj.sim.can_connect(1)) {
-        log(log_level::error, [](auto& title, auto&) noexcept {
-            title = "Internal error: fail to initialize new model.";
+    if (const auto r = sim.make_initialize(dst_mdl, sim.current_time());
+        r.has_error()) {
+        log_m(log_level::error, [r](auto& m) noexcept {
+            format(m,
+                   "Internal error: fail to initialize new model: {})",
+                   r.error());
         });
-    } else {
-        if (auto* src = ed.pj.sim.models.try_to_get(data.mdl_src_id)) {
-            if (auto* dst = ed.pj.sim.models.try_to_get(data.mdl_dst_id)) {
-                if (!!ed.pj.sim.connect(
-                      *src, data.port_src, *dst, data.port_dst)) {
-                    ++rebuild;
 
-                    // if (auto* tn =
-                    // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
-                    // }
+        return r.error();
+    }
 
-                } else {
-                    log(log_level::error, [](auto& title, auto&) noexcept {
-                        title = "Internal error: fail to buid new "
-                                "connection.";
-                    });
-                }
+    dispatch(*src_mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+        if constexpr (has_output_port<Dynamics>) {
+            for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
+
+                sim.for_each(dyn.y[i], [&](auto& mdl_src, int port_src) {
+                    const auto mdl_src_id = sim.get_id(mdl_src);
+
+                    (void)sim.connect(dst_dyn.y[i], mdl_src_id, port_src);
+                });
             }
         }
-    }
+    });
 
-    return rebuild;
+    return success();
 }
 
-static int free_connection(project_editor&                   ed,
-                           const command::free_connection_t& data) noexcept
+status project::simulation_new_connection(
+  const command::new_connection_t& data) noexcept
+{
+    const auto can_connect = sim.can_connect(1) or sim.grow_connections<3, 2>();
+
+    if (not can_connect) {
+        log_m(log_level::error,
+              [](auto& m) noexcept { m = "Fail to allocate new connection."; });
+
+        return make_error(project_errc::memory_error);
+    }
+
+    auto* src = sim.models.try_to_get(data.mdl_src_id);
+    auto* dst = sim.models.try_to_get(data.mdl_dst_id);
+
+    if (not(src and dst))
+        return success();
+
+    const auto r = sim.connect(*src, data.port_src, *dst, data.port_dst);
+    if (r.has_error()) {
+        log_m(log_level::error, [r](auto& m) noexcept {
+            format(m, "fail to allocate new connection ({}) ", r.error());
+        });
+
+        return r.error();
+    }
+    return success();
+}
+
+status project::simulation_free_connection(
+  const command::free_connection_t& data) noexcept
 
 {
-    if (auto* src = ed.pj.sim.models.try_to_get(data.mdl_src_id)) {
-        if (auto* dst = ed.pj.sim.models.try_to_get(data.mdl_dst_id)) {
-            ed.pj.sim.disconnect(*src, data.port_src, *dst, data.port_dst);
+    auto* src = sim.models.try_to_get(data.mdl_src_id);
+    auto* dst = sim.models.try_to_get(data.mdl_dst_id);
 
-            // if (auto* tn =
-            // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
-            // }
+    if (not(src and dst))
+        return success();
 
-            return true;
-        } else {
-            log(log_level::error, [](auto& title, auto&) noexcept {
-                title = "Internal error: fail to buid new connection.";
-            });
-        }
-    }
+    sim.disconnect(*src, data.port_src, *dst, data.port_dst);
 
-    return false;
+    return success();
 }
-#endif
 
 status project::simulation_new_observer(
   const command::new_observer_t& data) noexcept
@@ -439,13 +423,13 @@ status project::simulation_apply_command() noexcept
             simulation_free_model(cmd.data.free_model);
             break;
         case command_type::copy_model:
-            // copy_model(cmd.data.copy_model);
+            simulation_copy_model(cmd.data.copy_model);
             break;
         case command_type::new_connection:
-            // new_connection(*this, cmd.data.new_connection);
+            simulation_new_connection(cmd.data.new_connection);
             break;
         case command_type::free_connection:
-            // free_connection(*this, cmd.data.free_connection);
+            simulation_free_connection(cmd.data.free_connection);
             break;
         case command_type::new_observer:
             simulation_new_observer(cmd.data.new_observer);
