@@ -286,7 +286,7 @@ static void show_simulation_action_buttons(application&    app,
 
         ImGui::SameLine();
 
-        ImGui::BeginDisabled(ed.pj.empty_snapshot());
+        ImGui::BeginDisabled(ed.pj.empty_snapshots());
         if (EnhancedButton(
               app, "\ue0b3", small_button, "Rewind into simulation states"))
             ed.pj.simulation_back();

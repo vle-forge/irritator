@@ -203,7 +203,7 @@ void project_editor::update_simulation_state(application& app) noexcept
     const auto required_finish =
       any_equal(pj.simulation_state, simulation_status::finish_requiring);
 
-    if (pj.real_time_mode and required_run and not commands.empty()) {
+    if (pj.real_time_mode and required_run and not pj.empty_commands()) {
         const auto pj_id = app.pjs.get_id(*this);
 
         app.add_simulation_task(ordinal(pj_id), [&]() noexcept {

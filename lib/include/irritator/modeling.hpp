@@ -1419,7 +1419,8 @@ public:
     }
 
     bool push(const command& cmd) noexcept;
-    bool empty_snapshot() const noexcept;
+    bool empty_snapshots() const noexcept;
+    bool empty_commands() const noexcept;
 
 private:
     /// spsc queue to store simulation commands. Only for live and debug mode.
@@ -1443,8 +1444,8 @@ public:
     status simulation_init(const modeling& mod) noexcept;
 
     status simulation_step() noexcept;
-    void simulation_back() noexcept;
-    void simulation_advance() noexcept;
+    void   simulation_back() noexcept;
+    void   simulation_advance() noexcept;
     status simulation_apply_command() noexcept;
 
     status simulation_run_for(unordered_task_list&            utl,

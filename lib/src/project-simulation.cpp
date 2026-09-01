@@ -461,7 +461,9 @@ bool project::push(const command& cmd) noexcept
     return true;
 }
 
-bool project::empty_snapshot() const noexcept { return snaps.empty(); }
+bool project::empty_snapshots() const noexcept { return snaps.empty(); }
+
+bool project::empty_commands() const noexcept { return commands.empty(); }
 
 void project::simulation_observation_for_imm_observers(
   unordered_task_list& utl) noexcept
