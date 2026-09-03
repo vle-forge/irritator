@@ -196,8 +196,8 @@ class main_parameters
     irt::sz memory = 1024 * 1024 * 8;
 
     irt::task_manager   task_mgr;
-    irt::log_history   jn;
-    irt::journal_scope scope;
+    irt::log_history    jn;
+    irt::journal_scope  scope;
     irt::config_manager config;
 
     irt::modeling        mod;

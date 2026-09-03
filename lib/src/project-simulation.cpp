@@ -2,6 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/error.hpp"
+#include <expected>
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
@@ -45,42 +47,66 @@ status project::simulation_init_observation(const modeling& mod) noexcept
     return success();
 }
 
+template<typename F>
+class scope_exit
+{
+public:
+    explicit scope_exit(F&& callable) noexcept
+      : action(std::forward<F>(callable))
+    {}
+
+    ~scope_exit() noexcept { action(); }
+
+    scope_exit(const scope_exit&)            = delete;
+    scope_exit& operator=(const scope_exit&) = delete;
+
+private:
+    F action;
+};
+
+template<typename F>
+scope_exit<typename std::decay<F>::type> make_scope_exit(F&& f)
+{
+    return scope_exit<typename std::decay<F>::type>(std::forward<F>(f));
+}
+
 status project::simulation_copy(const modeling& mod) noexcept
 {
     simulation_state = simulation_status::initializing;
 
-    const auto ret = mod.ids.read([&](const auto& ids, auto) -> status {
-        return mod.files.read([&](const auto& fs, auto) -> status {
-            irt_check(set(ids, fs, head()));
-            irt_check(sim.srcs.prepare());
-            irt_check(sim.initialize());
-            simulation_state = simulation_status::initialized;
-            return success();
-        });
-    });
+    return mod.ids
+      .read([&](const auto& ids, auto) -> status {
+          return mod.files.read([&](const auto& fs, auto) -> status {
+              auto guard = make_scope_exit(
+                [&] { simulation_state = simulation_status::initialized; });
 
-    if (not ret.has_value()) {
-        simulation_state = simulation_status::not_started;
+              return set(ids, fs, head())
+                .and_then([&] { return sim.srcs.prepare(); })
+                .and_then([&] { return sim.initialize(); });
+          });
+      })
+      .or_else([&](const auto ec) noexcept {
+          simulation_state = simulation_status::not_started;
 
-        using namespace std::literals;
+          using namespace std::literals;
 
-        switch (ret.error().cat()) {
-        case category::project:
-            log(log_level::error, "Error in project copy"sv);
-            break;
-        case category::external_source:
-            log(log_level::error, "Error external source preparation"sv);
-            break;
-        case category::simulation:
-            log(log_level::error, "Error in simulation copy"sv);
-            break;
-        default:
-            log(log_level::error, "Unknown copy error"sv);
-            break;
-        }
-    }
+          switch (ec.cat()) {
+          case category::project:
+              log(log_level::error, "Error in project copy"sv);
+              break;
+          case category::external_source:
+              log(log_level::error, "Error external source preparation"sv);
+              break;
+          case category::simulation:
+              log(log_level::error, "Error in simulation copy"sv);
+              break;
+          default:
+              log(log_level::error, "Unknown copy error"sv);
+              break;
+          }
 
-    return success();
+          return status{ ec };
+      });
 }
 
 status project::simulation_init(const modeling& mod) noexcept
