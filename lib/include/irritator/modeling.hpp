@@ -1689,7 +1689,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, const modeling& mod) noexcept;
+    status init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.
@@ -1742,7 +1742,7 @@ public:
      * @param mod
      * @param sim
      */
-    void init(project& pj, const modeling& mod) noexcept;
+    status init(project& pj, const modeling& mod) noexcept;
 
     /**
      * @brief Clear the @c observers and @c values vectors.

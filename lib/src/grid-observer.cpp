@@ -99,35 +99,39 @@ static void build_grid_observer(grid_observer&  grid_obs,
     }
 }
 
-void grid_observer::init(project& pj, const modeling& mod) noexcept
+status grid_observer::init(project& pj, const modeling& mod) noexcept
 {
-    observers.clear();
-    values.clear();
+    return mod.ids.read([&](const auto& ids, auto) noexcept -> status {
+        auto* tn = pj.tree_nodes.try_to_get(parent_id);
 
-    if (auto* tn = pj.tree_nodes.try_to_get(parent_id)) {
-        mod.ids.read([&](const auto& ids, auto) noexcept {
-            if (ids.exists(tn->id)) {
-                if (ids.components[tn->id].type == component_type::grid) {
-                    if (auto* grid = ids.grid_components.try_to_get(
-                          ids.components[tn->id].id.grid_id)) {
+        if (not tn or not ids.exists(tn->id) or
+            ids.components[tn->id].type != component_type::grid)
+            return success();
 
-                        const auto len = grid->cells_number();
+        observers.clear();
+        values.clear();
 
-                        observers.resize(len);
-                        std::fill_n(
-                          observers.data(), len, undefined<observer_id>());
+        if (auto* grid = ids.grid_components.try_to_get(
+              ids.components[tn->id].id.grid_id)) {
 
-                        values.resize(len, zero);
+            const auto len = grid->cells_number();
 
-                        rows = grid->row();
-                        cols = grid->column();
+            debug::ensure(len);
 
-                        build_grid_observer(*this, pj, *tn, *grid);
-                    }
-                }
-            }
-        });
-    }
+            if (not observers.resize(len) or not values.resize(len))
+                return make_error(simulation_errc::observers_container_full);
+
+            std::ranges::fill(observers, undefined<observer_id>());
+            std::ranges::fill(values, zero);
+
+            rows = grid->row();
+            cols = grid->column();
+
+            build_grid_observer(*this, pj, *tn, *grid);
+        }
+
+        return success();
+    });
 }
 
 void grid_observer::clear() noexcept

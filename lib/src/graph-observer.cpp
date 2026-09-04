@@ -80,31 +80,35 @@ static void build_graph(graph_observer&  graph_obs,
     }
 }
 
-void graph_observer::init(project& pj, const modeling& mod) noexcept
+status graph_observer::init(project& pj, const modeling& mod) noexcept
 {
-    observers.clear();
-    values.clear();
+    return mod.ids.read([&](const auto& ids, auto) noexcept -> status {
+        auto* tn = pj.tree_nodes.try_to_get(parent_id);
 
-    if (auto* tn = pj.tree_nodes.try_to_get(parent_id)) {
-        mod.ids.read([&](const auto& ids, auto) noexcept {
-            if (ids.exists(tn->id)) {
-                if (ids.components[tn->id].type == component_type::graph) {
-                    if (auto* graph = ids.graph_components.try_to_get(
-                          ids.components[tn->id].id.graph_id)) {
-                        const auto len = graph->g.nodes.ssize();
+        if (not tn or not ids.exists(tn->id) or
+            ids.components[tn->id].type != component_type::graph)
+            return success();
 
-                        observers.resize(len);
-                        std::fill_n(
-                          observers.data(), len, undefined<observer_id>());
+        observers.clear();
+        values.clear();
 
-                        values.resize(len, zero);
+        if (auto* graph = ids.graph_components.try_to_get(
+              ids.components[tn->id].id.graph_id)) {
+            const auto len = graph->g.nodes.ssize();
 
-                        build_graph(*this, pj, *tn, *graph);
-                    }
-                }
-            }
-        });
-    }
+            debug::ensure(len > 0);
+
+            if (not observers.resize(len) or not values.resize(len))
+                return make_error(simulation_errc::observers_container_full);
+
+            std::ranges::fill(observers, undefined<observer_id>());
+            std::ranges::fill(values, zero);
+
+            build_graph(*this, pj, *tn, *graph);
+        }
+
+        return success();
+    });
 }
 
 void graph_observer::clear() noexcept

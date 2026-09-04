@@ -33,41 +33,21 @@ void project::save_simulation_graph(
 status project::simulation_init_observation(const modeling& mod) noexcept
 {
     for (auto& grid_obs : grid_observers)
-        grid_obs.init(*this, mod);
+        if (auto r = grid_obs.init(*this, mod); r.has_error())
+            return r.error();
 
     for (auto& graph_obs : graph_observers)
-        graph_obs.init(*this, mod);
+        if (auto r = graph_obs.init(*this, mod); r.has_error())
+            return r.error();
 
     for (auto& v_obs : variable_observers)
-        irt_check(v_obs.init(*this));
+        if (auto r = v_obs.init(*this); r.has_error())
+            return r.error();
 
     if (const auto path = get_observation_dir(mod); path.has_value())
         file_obs.initialize(*this, path->string());
 
     return success();
-}
-
-template<typename F>
-class scope_exit
-{
-public:
-    explicit scope_exit(F&& callable) noexcept
-      : action(std::forward<F>(callable))
-    {}
-
-    ~scope_exit() noexcept { action(); }
-
-    scope_exit(const scope_exit&)            = delete;
-    scope_exit& operator=(const scope_exit&) = delete;
-
-private:
-    F action;
-};
-
-template<typename F>
-scope_exit<typename std::decay<F>::type> make_scope_exit(F&& f)
-{
-    return scope_exit<typename std::decay<F>::type>(std::forward<F>(f));
 }
 
 status project::simulation_copy(const modeling& mod) noexcept
@@ -92,16 +72,24 @@ status project::simulation_copy(const modeling& mod) noexcept
 
           switch (ec.cat()) {
           case category::project:
-              log(log_level::error, "Error in project copy"sv);
+              log(log_level::error,
+                  "Error importing the project"sv,
+                  "Error in project copy"sv);
               break;
           case category::external_source:
-              log(log_level::error, "Error external source preparation"sv);
+              log(log_level::error,
+                  "Error importing the project"sv,
+                  "Error external source preparation"sv);
               break;
           case category::simulation:
-              log(log_level::error, "Error in simulation copy"sv);
+              log(log_level::error,
+                  "Error importing the project"sv,
+                  "Error in simulation copy"sv);
               break;
           default:
-              log(log_level::error, "Unknown copy error"sv);
+              log(log_level::error,
+                  "Error importing the project"sv,
+                  "Unknown copy error"sv);
               break;
           }
 
@@ -479,8 +467,9 @@ bool project::push(const command& cmd) noexcept
     using namespace std::literals;
 
     if (not commands.push(cmd)) {
-        log_m(log_level::error,
-              "Fail to add command order in live simulation"sv);
+        log(log_level::error,
+            "Simulation  live modeling error"sv,
+            "Fail to add command order in live simulation"sv);
         return false;
     }
 
