@@ -1128,45 +1128,8 @@ void application::start_load_project(const project_id pj_id) noexcept
                               format(title,
                                      "Loading project file {} error",
                                      fs.file_paths.get(pj->pj.file).path.sv());
+                              format(msg, "{}", ret.error());
                           });
-
-                        if (ret.error().cat() == category::project) {
-                            if (static_cast<project_errc>(
-                                  ret.error().value()) ==
-                                project_errc::file_access_error) {
-                                msg = "Access error.";
-                            }
-                        } else if (ret.error().cat() == category::json) {
-                            switch (
-                              static_cast<json_errc>(ret.error().value())) {
-                            case json_errc::memory_error:
-                                msg = "json de-archiving memory error: not "
-                                      "enough memory\n";
-                                break;
-
-                            case json_errc::arg_error:
-                                msg = "json de-archiving internal error\n";
-                                break;
-
-                            case json_errc::file_error:
-                                msg = "json de-archiving memory error: not "
-                                      "enough memory\n";
-                                break;
-
-                            case json_errc::invalid_project_format:
-                                format(msg,
-                                       "json de-archiving json format error "
-                                       "`{}' at offset "
-                                       "{}\n",
-                                       0,
-                                       0);
-                                break;
-
-                            default:
-                                format(msg,
-                                       "json de-archiving unknown error\n");
-                            }
-                        }
                     });
                 }
             });
@@ -1205,46 +1168,7 @@ void application::start_save_project(const project_id pj_id) noexcept
 
                         format(
                           title, "Saving project file {} error", name.sv());
-
-                        if (ret.error().cat() == category::project) {
-                            if (static_cast<project_errc>(
-                                  ret.error().value()) ==
-                                project_errc::file_access_error) {
-                                msg = "Access error.";
-                            }
-                        } else if (ret.error().cat() == category::json) {
-                            switch (
-                              static_cast<json_errc>(ret.error().value())) {
-                            case json_errc::memory_error:
-                                format(msg,
-                                       "json archiving memory error: not "
-                                       "enough memory\n");
-                                break;
-
-                            case json_errc::arg_error:
-                                format(msg, "json archiving internal error\n");
-                                break;
-
-                            case json_errc::file_error:
-                                format(msg,
-                                       "json archiving memory error: not "
-                                       "enough memory\n");
-                                break;
-
-                            case json_errc::invalid_project_format:
-                                format(msg,
-                                       "json archiving json format error "
-                                       "`{}' at offset "
-                                       "{}\n",
-                                       0,
-                                       0);
-                                break;
-
-                            default:
-                                format(msg,
-                                       "json de-archiving unknown error\n");
-                            }
-                        }
+                        format(msg, "{}", ret.error());
                     });
                 }
             });

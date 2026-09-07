@@ -228,7 +228,7 @@ inline expected<file> open_file(
 
         return file::open(p, mode);
     } catch (...) {
-        return make_error(file_errc::memory_error);
+        return make_error(std::errc::not_enough_memory);
     }
 }
 
@@ -238,14 +238,12 @@ inline expected<file> open_file(
   const file_mode    mode = file_mode(file_open_options::read)) noexcept
 {
     try {
-        if (const auto filename = make_file(fs, id); filename.has_value()) {
+        if (const auto filename = make_file(fs, id); filename.has_value())
             return file::open(*filename, mode);
-        }
-
-        return make_error(file_errc::open_error);
     } catch (...) {
-        return make_error(file_errc::memory_error);
     }
+
+    return make_error(std::errc::not_enough_memory);
 }
 
 /// Checks the type of \c component pointed by the \c tree_node \c.

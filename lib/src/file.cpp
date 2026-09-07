@@ -56,20 +56,24 @@ static auto build_wchar_from_utf8(const char8_t* u8_str) noexcept
 }
 
 static auto open_file(const wchar_t* filename, const wchar_t* mode)
-  -> std::FILE*
+  -> std::expected<std::FILE*>
 {
     std::FILE* fp = nullptr;
 
     if (::_wfopen_s(&fp, filename, mode) == 0) {
         return fp;
-    } else {
-        return nullptr;
     }
+
+    return make_error(::GetLastError(), category::generic);
 }
 #else
-static auto open_file(const char* filename, const char* mode) -> std::FILE*
+static auto open_file(const char* filename, const char* mode)
+  -> expected<std::FILE*>
 {
-    return std::fopen(filename, mode);
+    if (auto ret = std::fopen(filename, mode); ret)
+        return ret;
+
+    return make_error(errno, category::generic);
 }
 #endif
 
@@ -134,12 +138,14 @@ expected<file> file::open_tmp() noexcept
     std::FILE* tmpf = nullptr;
     if (auto err = tmpfile_s(&tmpf); err == 0 and tmpf != nullptr)
         return file{ tmpf, m };
+
+    return make_error(::GetLastError(), category::generic);
 #else
     if (auto tmpf = std::tmpfile())
         return file{ tmpf, m };
-#endif
 
-    return make_error(file_errc::open_error);
+    return make_error(errno, category::generic);
+#endif
 }
 
 template<typename File>
@@ -496,25 +502,30 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-inline expected<file> file::open(const char8_t*  filename,
-                                 const file_mode mode) noexcept
+expected<file> file::open(const char8_t*  filename,
+                          const file_mode mode) noexcept
 {
     debug::ensure(filename != nullptr);
 
     if (not filename)
-        return make_error(file_errc::empty);
+        return make_error(
+          static_cast<std::int16_t>(std::errc::invalid_argument),
+          category::generic);
 
     try {
         const auto m = ::irt::get_mode(mode);
         const auto c = ::irt::convert_path(filename);
         const auto v = ::irt::get_pointer(c);
+        auto       f = ::irt::open_file(v, m.data());
 
-        if (auto f = ::irt::open_file(v, m.data()))
-            return file{ f, mode };
+        if (f.has_value())
+            return file{ *f, mode };
         else
-            return make_error(file_errc::open_error);
+            return f.error();
     } catch (...) {
-        return make_error(file_errc::memory_error);
+        return make_error(
+          static_cast<std::int16_t>(std::errc::not_enough_memory),
+          category::generic);
     }
 }
 
@@ -524,13 +535,16 @@ expected<file> file::open(const std::filesystem::path& path,
     try {
         const auto m = ::irt::get_mode(mode);
         const auto v = path.c_str();
+        auto       f = ::irt::open_file(v, m.data());
 
-        if (auto f = ::irt::open_file(v, m.data()))
-            return file{ f, mode };
+        if (f.has_value())
+            return file{ *f, mode };
         else
-            return make_error(file_errc::open_error);
+            return f.error();
     } catch (...) {
-        return make_error(file_errc::memory_error);
+        return make_error(
+          static_cast<std::int16_t>(std::errc::not_enough_memory),
+          category::generic);
     }
 }
 
@@ -539,11 +553,15 @@ expected<memory> memory::make(const i64 length) noexcept
     debug::ensure(1 <= length and length <= INT32_MAX);
 
     if (not(1 <= length and length <= INT32_MAX))
-        return make_error(file_errc::memory_error);
+        return make_error(
+          static_cast<std::int16_t>(std::errc::invalid_argument),
+          category::generic);
 
     memory mem(length);
     if (not std::cmp_equal(mem.data.size(), length))
-        return make_error(file_errc::memory_error);
+        return make_error(
+          static_cast<std::int16_t>(std::errc::invalid_argument),
+          category::generic);
 
     return mem;
 }

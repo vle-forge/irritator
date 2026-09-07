@@ -20,7 +20,7 @@ static status try_allocate_external_source(application&    app,
 {
     if (not d.can_alloc(1)) {
         if (not d.template grow<3, 2>())
-            return make_error(external_source_errc::memory_error);
+            return make_error(simulation_errc::memory_error);
     }
 
     [[maybe_unused]] auto& src = d.alloc();
@@ -84,23 +84,13 @@ static void display_allocate_external_source(application&    app,
     if (part.has_value()) {
         auto ret = display_allocate_external_source(app, ed, *part);
         if (not ret.has_value()) {
-            switch (ret.error().cat()) {
-            case category::external_source:
-                log(log_level::error, [&](auto& title, auto&) {
+            log(log_level::error,
+                [&](auto& title, auto& msg) {
                     format(title,
                            "Fail to initialize {} source",
                            external_source_str(*part));
-                    // TODO More.
+                    format(msg, "{}", ret.error());
                 });
-                break;
-
-            default:
-                log(log_level::error, [&](auto& title, auto&) {
-                    format(title,
-                           "Fail to initialize {} source",
-                           external_source_str(*part));
-                });
-            }
         }
     }
 }

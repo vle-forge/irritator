@@ -998,7 +998,7 @@ static status external_source_copy(const file_access&                fs,
 {
     if (not external_sources_reserve_add(src, dst) or
         not vector_reserve_add(v, src.data.size()))
-        return make_error(external_source_errc::memory_error);
+        return make_error(project_errc::memory_error);
 
     const auto& src_elems =
       src.data.get<external_source_definition::source_element>();

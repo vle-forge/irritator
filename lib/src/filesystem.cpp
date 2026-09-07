@@ -60,12 +60,12 @@ static expected<std::filesystem::path> get_local_home_directory() noexcept
             if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
                 return ret;
 
-        return make_error(fs_errc::user_directory_access_fail);
+        return make_error(std::errc{ errno });
     } else {
         return std::filesystem::path{ std::string_view{ buf.data() } };
     }
 
-    return make_error(fs_errc::user_directory_access_fail);
+    return make_error(std::errc{ errno });
 }
 #elif defined(_WIN32)
 static expected<std::filesystem::path> get_local_home_directory() noexcept
@@ -84,7 +84,7 @@ static expected<std::filesystem::path> get_local_home_directory() noexcept
             if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
                 return ret;
 
-        return make_error(fs_errc::user_directory_access_fail);
+        return make_error(std::errc{ ::GetLastError() });
     }
 }
 #endif
@@ -110,10 +110,12 @@ expected<std::filesystem::path> get_home_directory() noexcept
 
         if (std::filesystem::create_directories(*ret, ec))
             return ret;
+        else
+            return make_error(std::errc::file_exists);
     } catch (...) {
     }
 
-    return make_error(fs_errc::user_directory_access_fail);
+    return make_error(std::errc::not_enough_memory);
 }
 
 #if defined(__linux__)
@@ -123,7 +125,7 @@ expected<std::filesystem::path> get_executable_directory() noexcept
     const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
     if (ssize <= 0)
-        return make_error(fs_errc::executable_access_fail);
+        return make_error(std::errc{ errno });
 
     const auto size = static_cast<size_t>(ssize);
 
@@ -136,7 +138,7 @@ expected<std::filesystem::path> get_executable_directory() noexcept
     uint32_t          size{ 0 };
 
     if (_NSGetExecutablePath(buf.data(), &size))
-        return make_error(fs_errc::executable_access_fail);
+        return make_error(std::errc::bad_address);
 
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
@@ -161,7 +163,7 @@ expected<std::filesystem::path> get_executable_directory() noexcept
         }
     }
 
-    return make_error(fs_errc::executable_access_fail);
+    return make_error(std::errc::bad_address);
 }
 #endif
 
@@ -182,7 +184,7 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
     if (std::filesystem::exists(install_path, ec))
         return install_path;
 
-    return make_error(fs_errc::executable_access_fail);
+    return make_error(std::errc{ errno });
 }
 #elif defined(_WIN32)
 std::filesystem::path build_system_component_path(
@@ -231,7 +233,7 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
             return install_path;
     }
 
-    return make_error(fs_errc::executable_access_fail);
+    return make_error(std::errc::bad_address);
 }
 #endif
 
@@ -275,7 +277,7 @@ expected<std::filesystem::path> get_default_user_component_dir() noexcept
     if (std::filesystem::create_directories(compo_path, ec))
         return compo_path;
 
-    return make_error(fs_errc::user_component_directory_access_fail);
+    return make_error(std::errc::bad_address);
 }
 #elif defined(_WIN32)
 expected<std::filesystem::path> get_default_user_component_dir() noexcept
@@ -312,7 +314,7 @@ static expected<std::filesystem::path> get_home_filename(
     } catch (...) {
     }
 
-    return make_error(fs_errc::user_directory_access_fail);
+    return make_error(std::errc::bad_address);
 }
 
 expected<std::filesystem::path> get_settings_filename() noexcept
@@ -369,7 +371,7 @@ public:
 
         if (not is_directory_and_usable(path)) {
             log(1, "Is not a directory or bad permissions\n");
-            return error_code(fs_errc::user_directory_access_fail);
+            return error_code(std::errc::not_a_directory);
         }
 
         path /= subdir_name;
@@ -378,7 +380,7 @@ public:
             log(2, "Directory not exists and not usable try to fix\n");
             if (not create_dir(path)) {
                 log(3, "Fail to create directory or change permissions\n");
-                return error_code(fs_errc::user_directory_access_fail);
+                return error_code(std::errc::not_a_directory);
             }
         }
 
@@ -386,7 +388,7 @@ public:
         log(1, "- {}\n", path.string());
         if (not is_file_and_usable(path)) {
             log(2, "Fail to read or create the file. Abort.\n");
-            return error_code(fs_errc::user_directory_access_fail);
+            return error_code(std::errc::no_such_file_or_directory);
         }
 
         log(1, "- irritator config file configured:\n", path.string());

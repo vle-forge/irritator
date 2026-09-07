@@ -74,10 +74,10 @@ status project::simulation_copy(const modeling& mod) noexcept
                   "Error importing the project"sv,
                   "Error in project copy"sv);
               break;
-          case category::external_source:
+          case category::modeling:
               log(log_level::error,
                   "Error importing the project"sv,
-                  "Error external source preparation"sv);
+                  "Error in modeling copy"sv);
               break;
           case category::simulation:
               log(log_level::error,

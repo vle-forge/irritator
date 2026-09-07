@@ -10750,14 +10750,14 @@ inline status external_source::initialize_source(Dynamics&    dyn,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->init(src, data);
 
-        return make_error(external_source_errc::binary_file_unknown);
+        return make_error(simulation_errc::external_source_binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->init(src, data);
 
-        return make_error(external_source_errc::constant_unknown);
+        return make_error(simulation_errc::external_source_constant_unknown);
     } break;
 
     case source_type::random: {
@@ -10767,7 +10767,7 @@ inline status external_source::initialize_source(Dynamics&    dyn,
             return rnd_src->init(
               sim.srcs.seed, sim.models.get_id(get_model(dyn)), src, data);
 
-        return make_error(external_source_errc::random_unknown);
+        return make_error(simulation_errc::external_source_random_unknown);
 
     } break;
 
@@ -10775,7 +10775,7 @@ inline status external_source::initialize_source(Dynamics&    dyn,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->init(src, data);
 
-        return make_error(external_source_errc::text_file_unknown);
+        return make_error(simulation_errc::external_source_text_file_unknown);
     } break;
     }
 
@@ -10791,21 +10791,21 @@ inline status external_source::restore_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->restore(src, data);
 
-        return make_error(external_source_errc::binary_file_unknown);
+        return make_error(simulation_errc::external_source_binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->restore(src, data);
 
-        return make_error(external_source_errc::constant_unknown);
+        return make_error(simulation_errc::external_source_constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->restore(src, data);
 
-        return make_error(external_source_errc::random_unknown);
+        return make_error(simulation_errc::external_source_random_unknown);
 
     } break;
 
@@ -10813,7 +10813,7 @@ inline status external_source::restore_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->restore(src, data);
 
-        return make_error(external_source_errc::text_file_unknown);
+        return make_error(simulation_errc::external_source_text_file_unknown);
     } break;
     }
 
@@ -10829,21 +10829,21 @@ inline status external_source::update_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->update(src, data);
 
-        return make_error(external_source_errc::binary_file_unknown);
+        return make_error(simulation_errc::external_source_binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->update(src, data);
 
-        return make_error(external_source_errc::constant_unknown);
+        return make_error(simulation_errc::external_source_constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->update(src, data);
 
-        return make_error(external_source_errc::random_unknown);
+        return make_error(simulation_errc::external_source_random_unknown);
 
     } break;
 
@@ -10851,7 +10851,7 @@ inline status external_source::update_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->update(src, data);
 
-        return make_error(external_source_errc::text_file_unknown);
+        return make_error(simulation_errc::external_source_text_file_unknown);
     } break;
     }
 
@@ -10867,21 +10867,21 @@ inline status external_source::finalize_source(source&      src,
               binary_file_sources.try_to_get(src.id.binary_file_id))
             return bin_src->finalize(src, data);
 
-        return make_error(external_source_errc::binary_file_unknown);
+        return make_error(simulation_errc::external_source_binary_file_unknown);
     } break;
 
     case source_type::constant: {
         if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return cst_src->finalize(src, data);
 
-        return make_error(external_source_errc::constant_unknown);
+        return make_error(simulation_errc::external_source_constant_unknown);
     } break;
 
     case source_type::random: {
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->finalize(src, data);
 
-        return make_error(external_source_errc::random_unknown);
+        return make_error(simulation_errc::external_source_random_unknown);
 
     } break;
 
@@ -10889,7 +10889,7 @@ inline status external_source::finalize_source(source&      src,
         if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return txt_src->finalize(src, data);
 
-        return make_error(external_source_errc::text_file_unknown);
+        return make_error(simulation_errc::external_source_text_file_unknown);
     } break;
     }
 

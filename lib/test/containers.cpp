@@ -116,7 +116,7 @@ struct expected_tester {
     irt::expected<int> make() noexcept
     {
         if (make_error)
-            return irt::error_code(1, irt::category::future);
+            return irt::error_code(std::errc::not_enough_memory);
 
         return 1;
     }
@@ -133,7 +133,7 @@ struct expected_tester_2 {
     irt::expected<int> make() noexcept
     {
         if (make_error)
-            return irt::error_code(1, irt::category::future);
+            return irt::error_code(std::errc::not_enough_memory);
 
         return 2;
     }
@@ -420,12 +420,12 @@ int main()
         {
             expected_tester t(true);
             auto ret = t.make().map_error([](irt::error_code /*ec*/) {
-                return irt::make_error(irt::file_errc::memory_error);
+                return irt::make_error(std::errc::not_enough_memory);
             });
 
             expect(!ret.has_value() >> fatal);
             expect(ret.error().value() ==
-                   static_cast<std::int16_t>(irt::file_errc::memory_error));
+                   static_cast<std::int16_t>(std::errc::not_enough_memory));
         }
 
         {
@@ -450,7 +450,7 @@ int main()
                 return static_cast<int>(ec.value()) * 10;
             });
 
-            expect(eq(val, 1 * 10));
+            expect(eq(val, irt::ordinal(std::errc::not_enough_memory) * 10));
         }
 
         {
@@ -463,7 +463,7 @@ int main()
                 })
                 .map([](int v) { return v * 5; })
                 .map_error([](irt::error_code /*ec*/) {
-                    return irt::make_error(irt::file_errc::empty);
+                    return irt::make_error(std::errc::not_enough_memory);
                 })
                 .or_else([](irt::error_code /*ec*/) -> irt::expected<int> {
                     return 99;
@@ -475,30 +475,32 @@ int main()
 
         {
             expected_tester t(true);
-            int val = t.make()
-                        .and_then([](int /*v*/) -> irt::expected<int> {
-                            expected_tester_2 t2(false);
-                            return t2.make();
-                        })
-                        .map_error([](irt::error_code /*ec*/) {
-                            return irt::make_error(irt::file_errc::empty);
-                        })
-                        .unwrap_or_else([](irt::error_code ec) {
-                            return static_cast<int>(ec.value()) + 100;
-                        });
+            int             val =
+              t.make()
+                .and_then([](int /*v*/) -> irt::expected<int> {
+                    expected_tester_2 t2(false);
+                    return t2.make();
+                })
+                .map_error([](irt::error_code /*ec*/) {
+                    return irt::make_error(std::errc::not_enough_memory);
+                })
+                .unwrap_or_else([](irt::error_code ec) {
+                    return static_cast<int>(ec.value()) + 100;
+                });
 
-            expect(eq(val, static_cast<int>(irt::file_errc::empty) + 100));
+            expect(
+              eq(val, static_cast<int>(std::errc::not_enough_memory) + 100));
         }
 
         {
             irt::expected<void> maybe_void =
-              irt::make_error(irt::file_errc::open_error);
+              irt::make_error(std::errc::not_enough_memory);
             bool error_handled = false;
             maybe_void.unwrap_or_else([&](irt::error_code ec) {
                 error_handled = true;
                 expect(
                   eq(ec.value(),
-                     static_cast<std::int16_t>(irt::file_errc::open_error)));
+                     static_cast<std::int16_t>(std::errc::not_enough_memory)));
             });
             expect(error_handled >> fatal);
         }

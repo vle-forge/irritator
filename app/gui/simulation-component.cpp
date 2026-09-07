@@ -44,7 +44,7 @@ static expected<file> save_simulation_raw_data(
 
         return file::open(path, mode);
     } catch (...) {
-        return make_error(fs_errc::user_directory_access_fail);
+        return make_error(simulation_errc::file_access_error);
     }
 }
 

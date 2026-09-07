@@ -1,3 +1,4 @@
+
 // Copyright (c) 2023 INRAE Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
@@ -31,57 +32,42 @@ inline error_handler* on_error_callback = nullptr;
  */
 enum class category : std::int16_t {
     generic, /**< Equivalent to std::generic_error. */
-    system,  /**< Equivalent to std::system_error. */
-    stream,  /**< Equivalent to std::stream_error. */
-    future,  /**< Equivalent to std::future_error. */
-
-    fs,
-    file,
-
-    json,
-
     modeling,
-
-    tree_node,
-    grid_observer,
-    graph_observer,
-    variable_observer,
-    file_observers,
-
     project,
-    external_source,
-
     simulation,
-    hsm,
-
-    timeline,
 };
 
-enum class timeline_errc : std::int16_t {
-    none         = 0,
-    memory_error = 1,
-    apply_change_error,
+enum class simulation_errc : std::int16_t {
+    none = 0,
 
-};
+    memory_error, /**< ENOMEM error. No more memory available. */
+    range_error,  /**< ERANGE error, A value is not within the range of allowed
+                     values. */
 
-enum class file_errc : std::int16_t {
-    none         = 0,
-    memory_error = 1, /**< Fail to allocate memory. */
-    eof_error,        /**< End of file reach too quickly. */
-    open_error,       /**< Fail to open the file with common API. */
-    empty,            /**< The file can not be empty. */
-};
+    timeline_apply_change_error,
 
-enum class fs_errc : std::int16_t {
-    none                       = 0,
+    file_access_error, /**< Build from registered, directory and file name
+                          error. */
+    file_eof_error,    /**< End of file reach too quickly. */
+    file_open_error,   /**< Fail to open the file with common API. */
+    file_empty,        /**< The file can not be empty. */
+
     user_directory_access_fail = 1,
     user_file_access_error,
     executable_access_fail,
     user_component_directory_access_fail,
-};
 
-enum class simulation_errc : std::int16_t {
-    none     = 0,
+    external_source_binary_file_unknown,
+    external_source_binary_file_access_error,
+    external_source_binary_file_size_error,
+    external_source_binary_file_eof_error,
+    external_source_constant_unknown,
+    external_source_random_unknown,
+    external_source_text_file_unknown,
+    external_source_text_file_access_error,
+    external_source_text_file_size_error,
+    external_source_text_file_eof_error,
+
     messages = 1,
     nodes,
     dated_messages,
@@ -146,50 +132,30 @@ enum class simulation_errc : std::int16_t {
     simulation_wrapper_embedded_simulation_finalization_error,
 };
 
-enum class external_source_errc : std::int16_t {
-    none         = 0,
-    memory_error = 1,
-
-    binary_file_unknown,
-    binary_file_access_error,
-    binary_file_size_error,
-    binary_file_eof_error,
-
-    constant_unknown,
-
-    random_unknown,
-
-    text_file_unknown,
-    text_file_access_error,
-    text_file_size_error,
-    text_file_eof_error,
-};
-
 enum class project_errc : std::int16_t {
-    none         = 0,
+    none = 0,
+
     memory_error = 1,
+    range_error,
 
     empty_project,
 
-    file_access_error,
+    file_access_error, /**< Build from registered, directory and file name
+                          error. */
+    file_eof_error,    /**< End of file reach too quickly. */
+    file_open_error,   /**< Fail to open the file with common API. */
+    file_empty,        /**< The file can not be empty. */
+
+    json_invalid_format, /**< The JSON file is invalid. */
+    json_invalid_component_format,
+    json_invalid_project_format,
+    json_dependency_error,
 
     import_error,
     component_cache_error,
     component_unknown,
     component_port_x_unknown,
     component_port_y_unknown,
-};
-
-enum class json_errc : std::int16_t {
-    none         = 0,
-    memory_error = 1,
-
-    invalid_format, /**< The JSON file is invalid. */
-    invalid_component_format,
-    invalid_project_format,
-    arg_error,
-    file_error,
-    dependency_error,
 };
 
 enum class modeling_errc : std::int16_t {
@@ -199,6 +165,17 @@ enum class modeling_errc : std::int16_t {
     recorded_directory_error,
     directory_error,
     file_error,
+
+    file_access_error, /**< Build from registered, directory and file name
+       error. */
+    file_eof_error,    /**< End of file reach too quickly. */
+    file_open_error,   /**< Fail to open the file with common API. */
+    file_empty,        /**< The file can not be empty. */
+
+    json_invalid_format, /**< The JSON file is invalid. */
+    json_invalid_component_format,
+    json_invalid_project_format,
+    json_dependency_error,
 
     component_type_mismatch,
     component_not_found,
@@ -260,37 +237,20 @@ private:
 public:
     constexpr error_code() noexcept = default;
 
-    // Constructeur pour enum class connu
     template<typename ErrorCodeEnum>
         requires(std::is_enum_v<ErrorCodeEnum>)
     constexpr error_code(ErrorCodeEnum e) noexcept
     {
         static_assert(std::is_same_v<ErrorCodeEnum, simulation_errc> ||
-                        std::is_same_v<ErrorCodeEnum, timeline_errc> ||
-                        std::is_same_v<ErrorCodeEnum, file_errc> ||
-                        std::is_same_v<ErrorCodeEnum, fs_errc> ||
-                        std::is_same_v<ErrorCodeEnum, json_errc> ||
                         std::is_same_v<ErrorCodeEnum, modeling_errc> ||
-                        std::is_same_v<ErrorCodeEnum, external_source_errc> ||
                         std::is_same_v<ErrorCodeEnum, project_errc>,
                       "Unsupported error enum type");
         m_ec = static_cast<std::int16_t>(e);
 
         if constexpr (std::is_same_v<ErrorCodeEnum, simulation_errc>) {
             m_cat = category::simulation;
-        } else if constexpr (std::is_same_v<ErrorCodeEnum, timeline_errc>) {
-            m_cat = category::timeline;
-        } else if constexpr (std::is_same_v<ErrorCodeEnum, file_errc>) {
-            m_cat = category::file;
-        } else if constexpr (std::is_same_v<ErrorCodeEnum, fs_errc>) {
-            m_cat = category::fs;
-        } else if constexpr (std::is_same_v<ErrorCodeEnum, json_errc>) {
-            m_cat = category::json;
         } else if constexpr (std::is_same_v<ErrorCodeEnum, modeling_errc>) {
             m_cat = category::modeling;
-        } else if constexpr (std::is_same_v<ErrorCodeEnum,
-                                            external_source_errc>) {
-            m_cat = category::external_source;
         } else if constexpr (std::is_same_v<ErrorCodeEnum, project_errc>) {
             m_cat = category::project;
         } else {
@@ -307,6 +267,13 @@ public:
       , m_cat(cat)
     {
         debug::ensure(error != 0);
+    }
+
+    constexpr error_code(std::errc error) noexcept
+      : m_ec{ static_cast<std::int16_t>(error) }
+      , m_cat{ category::generic }
+    {
+        debug::ensure(static_cast<int>(error) != 0);
     }
 
     constexpr std::int16_t value() const noexcept { return m_ec; }
@@ -336,6 +303,11 @@ inline error_code make_error(std::int16_t e, category cat) noexcept
 
     debug::ensure(e != 0);
     return error_code(e, cat);
+}
+
+inline error_code make_error(std::errc e) noexcept
+{
+    return error_code(static_cast<std::int16_t>(e), category::generic);
 }
 
 template<typename T>

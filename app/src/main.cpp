@@ -599,14 +599,6 @@ public:
 
         if (auto ret = prepare_and_run(); not ret) {
             switch (ret.error().cat()) {
-            case irt::category::json:
-                warning<ec::json_file>(front.front(),
-                                       std::string_view{ "unknown" });
-                return false;
-            case irt::category::file:;
-                warning<ec::open_file>(front.front(),
-                                       std::string_view{ "unknown" });
-                return false;
             case irt::category::modeling:
                 warning<ec::modeling_init_error>(ret.error().value());
                 return false;

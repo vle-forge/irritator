@@ -5820,7 +5820,7 @@ struct json_dearchiver::impl {
             return success();
         } else {
             compo.state = component_status::unread;
-            return error_code(json_errc::invalid_component_format);
+            return error_code(modeling_errc::json_invalid_component_format);
         }
     }
 
@@ -5834,7 +5834,7 @@ struct json_dearchiver::impl {
         if (read_project(doc.GetObject(), files, ids))
             return success();
 
-        return error_code(json_errc::invalid_project_format);
+        return error_code(modeling_errc::json_invalid_project_format);
     }
 };
 
@@ -5846,18 +5846,18 @@ static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
 
     if (not(f.is_open() and (f.get_mode()[file_open_options::read] or
                              f.get_mode()[file_open_options::extended])))
-        return error_code(file_errc::open_error);
+        return error_code(std::errc::invalid_argument);
 
     const auto len = f.length();
     if (std::cmp_less(len, 2))
-        return error_code(file_errc::empty);
+        return error_code(std::errc::invalid_argument);
 
     buffer.resize(len);
     if (std::cmp_less(buffer.size(), len))
-        return error_code(file_errc::memory_error);
+        return error_code(std::errc::not_enough_memory);
 
     if (not f.read(buffer.data(), len))
-        return error_code(file_errc::memory_error);
+        return error_code(std::errc::io_error);
 
     return success();
 }
@@ -5868,7 +5868,7 @@ static status parse_json_data(std::span<char>      buffer,
     doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
-        return error_code(json_errc::invalid_format);
+        return error_code(std::errc::executable_format_error);
 
     return success();
 }
@@ -8507,7 +8507,7 @@ status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
         buffer.resize(buffer_size);
 
         if (std::cmp_less(buffer.capacity(), buffer_size))
-            return make_error(json_errc::memory_error);
+            return make_error(std::errc::not_enough_memory);
     }
 
     return success();
@@ -8632,7 +8632,7 @@ status json_archiver::operator()(const file_access&          files,
 
     if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
                               io.get_mode()[file_open_options::extended])))
-        return make_error(file_errc::open_error);
+        return make_error(std::errc::invalid_argument);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     buffer.resize(4096);
@@ -8747,7 +8747,7 @@ status json_archiver::operator()(project&                pj,
 
     if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
                               io.get_mode()[file_open_options::extended])))
-        return make_error(file_errc::open_error);
+        return make_error(std::errc::invalid_argument);
 
     const auto head_id = pj.head();
 
