@@ -6,11 +6,12 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 
-#include <functional>
 #include <irritator/macros.hpp>
 
+#include <functional>
 #include <memory>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace irt {
@@ -52,7 +53,7 @@ enum class simulation_errc : std::int16_t {
     file_open_error,   /**< Fail to open the file with common API. */
     file_empty,        /**< The file can not be empty. */
 
-    user_directory_access_fail = 1,
+    user_directory_access_fail,
     user_file_access_error,
     executable_access_fail,
     user_component_directory_access_fail,
@@ -68,17 +69,10 @@ enum class simulation_errc : std::int16_t {
     external_source_text_file_size_error,
     external_source_text_file_eof_error,
 
-    messages = 1,
-    nodes,
-    dated_messages,
-    models,
-    hsms,
-
-    observers,
     observers_container_full,
 
-    scheduler,
-    external_sources,
+    scheduler_container_full,
+
     ta_abnormal,
 
     models_container_full,
@@ -95,25 +89,37 @@ enum class simulation_errc : std::int16_t {
 
     abstract_compare_output_value_error,
     abstract_compare_a_b_value_error,
+
     abstract_filter_threshold_condition_error,
+
     abstract_integrator_dq_error,
     abstract_integrator_x_error,
+
     abstract_multiplier_value_error,
+
     abstract_power_n_error,
+
     abstract_sum_value_error,
+
     abstract_wsum_coeff_error,
     abstract_wsum_value_error,
+
     abstract_inverse_input_error, // value[0] == 0
-    abstract_log_input_error,     // value[0] <= 0
+
+    abstract_log_input_error, // value[0] <= 0
 
     constant_value_error,
     constant_offset_error,
+
     generator_ta_initialization_error,
     generator_source_initialization_error,
+
     hsm_top_state_error,
     hsm_next_state_error,
+
     queue_ta_error,
     queue_fifo_error,
+
     time_func_offset_error,
     time_func_timestep_error,
     time_func_function_error,
@@ -135,7 +141,7 @@ enum class simulation_errc : std::int16_t {
 enum class project_errc : std::int16_t {
     none = 0,
 
-    memory_error = 1,
+    memory_error,
     range_error,
 
     empty_project,
@@ -159,8 +165,8 @@ enum class project_errc : std::int16_t {
 };
 
 enum class modeling_errc : std::int16_t {
-    none         = 0,
-    memory_error = 1,
+    none = 0,
+    memory_error,
 
     recorded_directory_error,
     directory_error,

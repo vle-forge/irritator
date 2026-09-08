@@ -56,7 +56,7 @@ static auto build_wchar_from_utf8(const char8_t* u8_str) noexcept
 }
 
 static auto open_file(const wchar_t* filename, const wchar_t* mode)
-  -> std::expected<std::FILE*>
+  -> expected<std::FILE*>
 {
     std::FILE* fp = nullptr;
 

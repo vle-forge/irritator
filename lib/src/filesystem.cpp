@@ -84,7 +84,7 @@ static expected<std::filesystem::path> get_local_home_directory() noexcept
             if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
                 return ret;
 
-        return make_error(std::errc{ ::GetLastError() });
+        return make_error(std::errc::no_such_file_or_directory);
     }
 }
 #endif
@@ -296,7 +296,7 @@ expected<std::filesystem::path> get_default_user_component_dir() noexcept
     if (std::filesystem::create_directories(compo_path, ec))
         return compo_path;
 
-    return make_error(fs_errc::user_component_directory_access_fail);
+    return make_error(std::errc::bad_address);
 }
 #endif
 
