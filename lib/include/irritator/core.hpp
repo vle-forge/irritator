@@ -1759,10 +1759,14 @@ struct output_port {
                   Args&&... args) noexcept;
 };
 
-using observation_system = id_data_array<observer,
-                                         observer_id,
-                                         allocator<new_delete_memory_resource>,
-                                         resampler>;
+using observer_name           = small_string<31>;
+using observer_history_cursor = u64;
+using observers_type = id_data_array<observer,
+                                     observer_id,
+                                     allocator<new_delete_memory_resource>,
+                                     observer_name,
+                                     observer_history_cursor,
+                                     resampler>;
 
 /// Stores a copy main data simulation.
 ///
@@ -1778,7 +1782,7 @@ struct simulation_snapshot {
     simulation_snapshot& operator=(const simulation& sim) noexcept;
 
     data_array<model, model_id>                              models;
-    observation_system                                       observers;
+    observers_type                                           observers;
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
@@ -1948,11 +1952,7 @@ public:
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<simulation, simulation_id>          sims;
 
-    id_data_array<observer,
-                  observer_id,
-                  allocator<new_delete_memory_resource>,
-                  resampler>
-      observers;
+    observers_type observers;
 
     data_array<block_node, block_node_id>                    nodes;
     data_array<output_port, output_port_id>                  output_ports;
@@ -11968,6 +11968,8 @@ inline status simulation::observe(model& mdl) noexcept
         observers.get<resampler>(obs_id) =
           resampler{ default_observation_time_step,
                      get_interpolate_type(mdl.type) };
+        observers.get<observer_history_cursor>(obs_id) = 0;
+        observers.get<observer_name>(obs_id).clear();
 
         mdl.obs_id = obs_id;
     }
@@ -11987,6 +11989,8 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
         observers.get<resampler>(obs_id) =
           resampler{ dt, get_interpolate_type(mdl.type) };
+        observers.get<observer_history_cursor>(obs_id) = 0;
+        observers.get<observer_name>(obs_id).clear();
 
         mdl.obs_id = obs_id;
     }
@@ -12007,6 +12011,8 @@ inline status simulation::observe(model&                 mdl,
         const auto obs_id = observers.get_id(obs);
 
         observers.get<resampler>(obs_id) = resampler{ dt, type };
+        observers.get<observer_history_cursor>(obs_id) = 0;
+        observers.get<observer_name>(obs_id).clear();
 
         mdl.obs_id = obs_id;
     }

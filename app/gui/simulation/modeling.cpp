@@ -573,7 +573,7 @@ bool simulation_component_editor_data::show(component_editor& ed,
 
     if (auto pj_opt = m_task_project.try_take(); pj_opt.has_value()) {
         m_sim.assign(std::move(*pj_opt));
-        m_sim.file_id = m_sim.pj.file;
+        m_sim.file_id = m_sim.pj.project_file;
         ++u;
     }
 

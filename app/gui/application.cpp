@@ -568,7 +568,7 @@ void application::try_open_project_window(const file_access& /*files*/,
 {
     const auto pj_ed_id = [this, file_id]() noexcept -> project_id {
         for (const auto& pj_ed : pjs)
-            if (pj_ed.pj.file == file_id)
+            if (pj_ed.pj.project_file == file_id)
                 return pjs.get_id(pj_ed);
 
         return undefined<project_id>();
@@ -587,7 +587,7 @@ void application::try_open_project_window(const file_access& /*files*/,
         add_gui_task([this, file_id]() {
             if (new_project_req.should_request()) {
                 auto pj  = std::make_unique<project>();
-                pj->file = file_id;
+                pj->project_file = file_id;
 
                 mod.files.read([&](const auto& fs, auto) noexcept {
                     mod.ids.read([&](const auto& ids, auto) noexcept {
@@ -627,7 +627,7 @@ void application::close_project_window(const project_id pj_id) noexcept
 void application::free_project_window(const project_id pj_id) noexcept
 {
     if (const auto* pj = pjs.try_to_get(pj_id)) {
-        const auto file_id = pj->pj.file;
+        const auto file_id = pj->pj.project_file;
 
         add_gui_task([&, file_id]() {
             mod.files.write([&](auto& fs) {
@@ -831,7 +831,7 @@ void application::show_dock() noexcept
             if (auto* pj_released = new_pj->release()) {
                 const auto opened =
                   mod.files.read([&](const auto& fs, auto) noexcept -> bool {
-                      const auto  f_id = pj_released->file;
+                      const auto  f_id = pj_released->project_file;
                       const auto* f    = fs.file_paths.try_to_get(f_id);
 
                       if (f) {
@@ -1105,7 +1105,7 @@ void application::start_load_project(const project_id pj_id) noexcept
 {
     add_gui_task([&, pj_id]() noexcept {
         auto* pj = pjs.try_to_get(pj_id);
-        if (not pj or is_undefined(pj->pj.file))
+        if (not pj or is_undefined(pj->pj.project_file))
             return;
 
         mod.files.read([&](const auto& fs, auto) noexcept {
@@ -1115,21 +1115,22 @@ void application::start_load_project(const project_id pj_id) noexcept
                         [&](auto& title, auto& /*msg*/) noexcept {
                             mod.files.read(
                               [&](const auto& fs, const auto /*vesr*/) {
-                                  format(
-                                    title,
-                                    "Loading project file {} success",
-                                    fs.file_paths.get(pj->pj.file).path.sv());
+                                  format(title,
+                                         "Loading project file {} success",
+                                         fs.file_paths.get(pj->pj.project_file)
+                                           .path.sv());
                               });
                         });
                 } else {
                     log(log_level::error, [&](auto& title, auto& msg) noexcept {
-                        mod.files.read(
-                          [&](const auto& fs, const auto /*vesr*/) {
-                              format(title,
-                                     "Loading project file {} error",
-                                     fs.file_paths.get(pj->pj.file).path.sv());
-                              format(msg, "{}", ret.error());
-                          });
+                        mod.files.read([&](const auto& fs,
+                                           const auto /*vesr*/) {
+                            format(
+                              title,
+                              "Loading project file {} error",
+                              fs.file_paths.get(pj->pj.project_file).path.sv());
+                            format(msg, "{}", ret.error());
+                        });
                     });
                 }
             });
@@ -1151,18 +1152,18 @@ void application::start_save_project(const project_id pj_id) noexcept
                         [&](auto& title, auto& /*msg*/) noexcept {
                             mod.files.read([&](const auto& fs,
                                                const auto /*vers*/) {
-                                format(
-                                  title,
-                                  "Saving project file {} success",
-                                  fs.file_paths.get(pj_ed->pj.file).path.sv());
+                                format(title,
+                                       "Saving project file {} success",
+                                       fs.file_paths.get(pj_ed->pj.project_file)
+                                         .path.sv());
                             });
                         });
                 } else {
                     log(log_level::error, [&](auto& title, auto& msg) noexcept {
                         const small_string<127> name = mod.files.read(
                           [&](const auto& fs, const auto /*vers*/) {
-                              const auto* f =
-                                fs.file_paths.try_to_get(pj_ed->pj.file);
+                              const auto* f = fs.file_paths.try_to_get(
+                                pj_ed->pj.project_file);
                               return f ? f->path.sv() : std::string_view{ "-" };
                           });
 

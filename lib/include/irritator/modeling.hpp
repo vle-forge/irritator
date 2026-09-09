@@ -1410,6 +1410,9 @@ public:
     /// make a link between simulation time and real time.
     bool real_time_mode = false;
 
+    /// write simulation results
+    bool write_observation = true;
+
     bool is_task_running() const noexcept
     {
         return any_equal(simulation_state,
@@ -1652,11 +1655,16 @@ public:
 
     /// An identifier to the @c file_path. Assign this variable before using
     /// @c load() or @c save() functions.
-    file_path_id file = file_path_id{ 0 };
+    file_path_id project_file = file_path_id{ 0 };
 
 private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
+
+    file m_json_irtb;
+    file m_bin_irtb;
+    u32  m_simulation_id  = 0;
+    u32  m_simulation_run = 0;
 };
 
 class grid_observer

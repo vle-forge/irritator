@@ -317,10 +317,10 @@ void library_window::show_notsaved_content(
     if (flags[file_type::project_file]) {
         for (const auto& pj : app.pjs) {
             const auto pj_id = app.pjs.get_id(pj);
-            const auto have_file =
-              app.mod.files.read([&](const auto& fs, const auto /*vers*/) {
-                  return fs.file_paths.try_to_get(pj.pj.file) != nullptr;
-              });
+            const auto have_file = app.mod.files.read([&](const auto& fs,
+                                                          const auto /*vers*/) {
+                return fs.file_paths.try_to_get(pj.pj.project_file) != nullptr;
+            });
 
             if (not have_file) {
                 ImGui::PushID(std::addressof(pj));

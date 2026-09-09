@@ -204,7 +204,7 @@ static void simulation_component_tester(
     mod.ids.write([&](auto& ids) {
         mod.files.write([&](auto& fs) {
             irt::project pj;
-            pj.file = project_file_id;
+            pj.project_file = project_file_id;
             pj.sim.limits.set_bound(0, 2);
 
             expect(pj.set(ids, fs, gen_compo).has_value());

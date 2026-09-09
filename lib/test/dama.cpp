@@ -289,7 +289,7 @@ int main()
         mod.ids.write([&](auto& ids) {
             mod.files.write([&](auto& fs) {
                 irt::project pj;
-                pj.file = project_file_id;
+                pj.project_file = project_file_id;
                 pj.sim.limits.set_bound(0, 20);
                 expect(pj.set(ids, fs, gen_compo).has_value());
                 expect(pj.save(fs, ids).has_value());
@@ -541,7 +541,7 @@ int main()
         mod.ids.write([&](auto& ids) {
             mod.files.write([&](auto& fs) {
                 irt::project pj;
-                pj.file = project_file_id;
+                pj.project_file = project_file_id;
                 pj.sim.limits.set_bound(0, 20);
                 expect(pj.set(ids, fs, gen_compo).has_value());
                 expect(pj.save(fs, ids).has_value());

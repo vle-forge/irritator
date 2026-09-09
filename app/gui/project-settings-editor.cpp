@@ -326,7 +326,7 @@ static bool show_project_simulation_settings(application&    app,
           file_selector::flags(file_selector::flag::show_save_button));
         if (selected.save and not ed.save_in_progress.test_and_set()) {
             const auto pj_id = app.pjs.get_id(ed);
-            ed.pj.file       = selected.file_id;
+            ed.pj.project_file = selected.file_id;
 
             app.add_gui_task([&app, pj_id]() {
                 auto& ed = app.pjs.get(pj_id);
@@ -334,17 +334,18 @@ static bool show_project_simulation_settings(application&    app,
                 app.mod.files.read([&](const auto& fs, auto) noexcept {
                     app.mod.ids.read([&](const auto& ids, auto) noexcept {
                         if (auto ret = ed.pj.save(fs, ids); ret) {
-                            log(log_level::info,
-                                [&](auto& title, auto& /*msg*/) noexcept {
-                                    app.mod.files.read(
-                                      [&](const auto& fs, const auto /*vers*/) {
-                                          format(
-                                            title,
-                                            "Saving project file {} success",
-                                            fs.file_paths.get(ed.pj.file)
-                                              .path.sv());
-                                      });
-                                });
+                            log(
+                              log_level::info,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  app.mod.files.read(
+                                    [&](const auto& fs, const auto /*vers*/) {
+                                        format(
+                                          title,
+                                          "Saving project file {} success",
+                                          fs.file_paths.get(ed.pj.project_file)
+                                            .path.sv());
+                                    });
+                              });
                         } else {
                             log(
                               log_level::error,
@@ -354,7 +355,7 @@ static bool show_project_simulation_settings(application&    app,
                                       [&](const auto& fs, const auto /*vers*/) {
                                           const auto* f =
                                             fs.file_paths.try_to_get(
-                                              ed.pj.file);
+                                              ed.pj.project_file);
                                           return f ? f->path.sv()
                                                    : std::string_view{ "-" };
                                       });

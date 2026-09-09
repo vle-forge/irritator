@@ -12,7 +12,258 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <bit>
+
 namespace irt {
+
+static_assert(std::endian::native == std::endian::little,
+              "irritator binary format assumes little-endian; "
+              "add byteswap support before targeting a big-endian platform");
+
+struct file_header {
+    u32 magic   = 0x49525442; // "IRTB"
+    u32 version = 2;
+};
+
+struct chunk_header {
+    u64      n_rows;
+    real     t_min;
+    real     t_max;
+    model_id mdl_id;
+};
+
+struct irtb_files {
+    file json_file;
+    file binary_file;
+};
+
+static std::filesystem::path open_dir_name(
+  const modeling&         mod,
+  const registred_path_id reg_id) noexcept
+{
+    return mod.files.read(
+      [&](auto& fs, auto) noexcept -> std::filesystem::path {
+          if (auto* r = fs.registred_paths.try_to_get(reg_id))
+              return std::filesystem::path(r->path.sv());
+
+          std::error_code ec;
+          return std::filesystem::current_path(ec);
+      });
+}
+
+static expected<irtb_files> open_irtb_file(
+  const std::string_view       simulation_name,
+  const std::filesystem::path& dir_path,
+  const u64                    simulation_id,
+  const u64                    simulation_n) noexcept
+{
+    debug::ensure(all_char_valid(simulation_name));
+
+    try {
+        const auto base      = std::filesystem::path{ dir_path };
+        const auto jfilename = format_n<64>("{}-{}-{:04}.manifest.jsonl",
+                                            simulation_name,
+                                            simulation_id,
+                                            simulation_n);
+        const auto bfilename = format_n<64>(
+          "{}-{}-{:04}.irb", simulation_name, simulation_id, simulation_n);
+
+        auto jfile = base / jfilename.sv();
+        auto bfile = base / bfilename.sv();
+
+        log(log_level::notice, [&](auto& t, auto& m) noexcept {
+            t = "Simulation observer logger";
+            format(m,
+                   "Using {} and {} to store observations",
+                   reinterpret_cast<const char*>(jfile.c_str()),
+                   reinterpret_cast<const char*>(bfile.c_str()));
+        });
+
+        auto j = file::open(jfile, file_mode(file_open_options::write));
+        auto b = file::open(bfile, file_mode(file_open_options::write));
+
+        if (j.has_value() and b.has_value())
+            return irtb_files{ .json_file   = std::move(*j),
+                               .binary_file = std::move(*b) };
+
+        log(log_level::notice, [&](auto& t, auto& m) noexcept {
+            t = "Simulation observer logger";
+            format(m,
+                   "Error opening file {} and {} to store observations",
+                   reinterpret_cast<const char*>(jfile.c_str()),
+                   reinterpret_cast<const char*>(bfile.c_str()));
+        });
+
+        return make_error(simulation_errc::file_open_error);
+    } catch (...) {
+        return make_error(simulation_errc::memory_error);
+    }
+}
+
+static status flush_to_irtb(const observer& obs,
+                            u64&            cursor,
+                            file&           out) noexcept
+{
+    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.get_mode()[file_open_options::write] == true);
+
+    auto ret = true;
+
+    obs.read_history(
+      [](const auto& vec,
+         const auto /*version*/,
+         const auto& obs,
+         auto&       cursor,
+         auto&       out,
+         auto&       ret) noexcept {
+          const auto len = std::size(vec);
+
+          if (debug::check(std::cmp_less(cursor, len))) {
+              const auto header = chunk_header{ .n_rows = len - cursor,
+                                                .t_min  = vec[cursor].t,
+                                                .t_max  = vec[len - 1].t,
+                                                .mdl_id = obs.model() };
+
+              const auto begin = vec.begin() + cursor;
+              const auto end   = vec.end();
+              const auto span  = std::span<const resampled_sample>(begin, end);
+
+              ret = out.write(header) and out.write(span);
+          }
+
+          cursor += vec.size();
+      },
+      obs,
+      cursor,
+      out,
+      ret);
+
+    if (not ret)
+        return make_error(simulation_errc::file_eof_error);
+
+    return success();
+}
+
+static status flush_to_irtb(const observers_type& observers,
+                            buffer_view<u64>&     cursors,
+                            file&                 out) noexcept
+{
+    for (const auto& obs : observers) {
+        const auto obs_id  = observers.get_id(obs);
+        const auto obs_idx = get_index(obs_id);
+        const auto ret     = flush_to_irtb(obs, cursors[obs_idx], out);
+
+        if (ret.has_error()) {
+            log(log_level::error,
+                [ec = ret.error()](auto& t, auto& m) noexcept {
+                    format(t, "Simulation error in observation system");
+                    format(m, "Fail to write binary data: {}", ec);
+                });
+
+            return ret.error();
+        }
+    }
+
+    return success();
+}
+
+static status init_json_irtb(const observers_type& observers,
+                             const time            current_time,
+                             file&                 out) noexcept
+{
+    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.get_mode()[file_open_options::write] == true);
+
+    const auto& names = observers.get<observer_name>();
+
+    for (const auto& obs : observers) {
+        const auto obs_id = observers.get_id(obs);
+        const auto mdl_id = obs.model();
+
+        fmt::println(
+          out.to_file(),
+          "{{\"model_id\": {}, \"name\": \"{}\", \"created_at\":{}}}",
+          ordinal(mdl_id),
+          names[obs_id].sv(),
+          current_time);
+    }
+
+    return success();
+}
+
+static status new_json_irtb(const observers_type& observers,
+                            const observer_id     obs_id,
+                            const time            current_time,
+                            file&                 out) noexcept
+{
+    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.get_mode()[file_open_options::write] == true);
+    debug::ensure(observers.exists(obs_id));
+
+    const auto& names = observers.get<observer_name>();
+
+    if (const auto* obs = observers.try_to_get(obs_id)) {
+        const auto mdl_id = obs->model();
+
+        fmt::println(
+          out.to_file(),
+          "{{\"model_id\": {}, \"name\": \"{}\", \"created_at\":{}}}",
+          ordinal(mdl_id),
+          names[obs_id].sv(),
+          current_time);
+    }
+
+    return success();
+}
+
+static status free_json_irtb(const observers_type& observers,
+                             const observer_id     obs_id,
+                             const time            current_time,
+                             file&                 out) noexcept
+{
+    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.get_mode()[file_open_options::write] == true);
+    debug::ensure(observers.exists(obs_id));
+
+    const auto& names = observers.get<observer_name>();
+
+    if (const auto* obs = observers.try_to_get(obs_id)) {
+        const auto mdl_id = obs->model();
+
+        fmt::println(
+          out.to_file(),
+          "{{\"model_id\": {}, \"name\": \"{}\", \"destroyed_at\":{}}}",
+          ordinal(mdl_id),
+          names[obs_id].sv(),
+          current_time);
+    }
+
+    return success();
+}
+
+static status finalize_json_irtb(const observers_type& observers,
+                                 const time            current_time,
+                                 file&                 out) noexcept
+{
+    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.get_mode()[file_open_options::write] == true);
+
+    const auto& names = observers.get<observer_name>();
+
+    for (const auto& obs : observers) {
+        const auto obs_id = observers.get_id(obs);
+        const auto mdl_id = obs.model();
+
+        fmt::println(
+          out.to_file(),
+          "{{\"model_id\": {}, \"name\": \"{}\", \"destroyed_at\":{}}}",
+          ordinal(mdl_id),
+          names[obs_id].sv(),
+          current_time);
+    }
+
+    return success();
+}
 
 void project::save_simulation_graph(
   const std::string_view absolute_path) noexcept
@@ -127,6 +378,23 @@ status project::simulation_init(const modeling& mod) noexcept
         return r.error();
     }
 
+    if (write_observation) {
+        const auto dir = open_dir_name(mod, observation_dir);
+        auto       files =
+          open_irtb_file(name.sv(), dir, m_simulation_id, m_simulation_run);
+
+        if (files.has_error())
+            return files.error();
+
+        m_json_irtb = std::move(files->json_file);
+        m_bin_irtb  = std::move(files->binary_file);
+
+        if (auto r =
+              init_json_irtb(sim.observers, sim.current_time(), m_json_irtb);
+            r.has_error())
+            return r.error();
+    }
+
     if (auto r = sim.srcs.prepare(); r.has_error()) {
         simulation_state = simulation_status::not_started;
         log(log_level::error,
@@ -144,36 +412,6 @@ status project::simulation_init(const modeling& mod) noexcept
     }
 
     simulation_state = simulation_status::initialized;
-
-    // if (ed.save_simulation_raw_data != project_editor::raw_data_type::none)
-    //     if (const auto path = ed.pj.get_observation_dir(app.mod);
-    //         path.has_value())
-    //         save_simulation_graph(ed.pj.sim, path->string());
-
-    // if (ed.save_simulation_raw_data != project_editor::raw_data_type::none) {
-    //     if (const auto path = ed.pj.get_observation_dir(app.mod);
-    //         path.has_value()) {
-    //         auto ret =
-    //           save_simulation_raw_data(path->string(),
-    //                                    ed.save_simulation_raw_data ==
-    //                                      project_editor::raw_data_type::binary);
-
-    //         if (ret.has_value())
-    //             ed.raw_ofs = std::move(ret.value());
-    //         else {
-    //             ed.simulation_state = simulation_status::not_started;
-
-    //             log(log_level::error, [&](auto& t, auto& m) {
-    //                 t = "Error during initialization"sv,
-    //                 format(m, "Fail to open raw data file {}",
-    //                 path->string());
-    //             });
-
-    //             ed.save_simulation_raw_data =
-    //               project_editor::raw_data_type::none;
-    //         }
-    //     }
-    // }
 
     return success();
 }
@@ -220,6 +458,19 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     tn->children.push_back(tree_node::child_node{
       .mdl = sim.get_id(mdl), .type = tree_node::child_node::type::model });
 
+    if (write_observation and is_defined(mdl.obs_id)) {
+        if (auto r = new_json_irtb(
+              sim.observers, mdl.obs_id, sim.current_time(), m_json_irtb);
+            r.has_error()) {
+            log_m(log_level::error, [&](auto& m) noexcept {
+                format(m,
+                       "Fail to write new model of type {}",
+                       dynamics_type_names[ordinal(data.type)]);
+            });
+            return r.error();
+        }
+    }
+
     return success();
 }
 
@@ -242,6 +493,19 @@ status project::simulation_free_model(
         });
 
         return make_error(project_errc::memory_error);
+    }
+
+    if (write_observation and is_defined(mdl->obs_id)) {
+        if (auto r = free_json_irtb(
+              sim.observers, mdl->obs_id, sim.current_time(), m_json_irtb);
+            r.has_error()) {
+            log_m(log_level::error, [&](auto& m) noexcept {
+                format(m,
+                       "Fail to write new model of type {}",
+                       dynamics_type_names[ordinal(mdl->type)]);
+            });
+            return r.error();
+        }
     }
 
     for (sz i = 0, e = tn->children.size(); i < e; ++i) {
@@ -300,6 +564,18 @@ status project::simulation_copy_model(
         }
     });
 
+    if (write_observation and is_defined(dst_mdl.obs_id)) {
+        if (auto r = new_json_irtb(
+              sim.observers, dst_mdl.obs_id, sim.current_time(), m_json_irtb);
+            r.has_error()) {
+            log_m(log_level::error, [&](auto& m) noexcept {
+                format(m,
+                       "Fail to write new model of type {}",
+                       dynamics_type_names[ordinal(dst_mdl.type)]);
+            });
+            return r.error();
+        }
+    }
     return success();
 }
 
@@ -784,6 +1060,21 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
             t = "Simulation finalizing fail";
             m = "FIXME from ret";
         });
+    }
+
+    if (write_observation) {
+        auto guard = make_scope_exit([&]() noexcept {
+            m_json_irtb.close();
+            m_bin_irtb.close();
+        });
+
+        return flush_to_irtb(sim.observers,
+                             sim.observers.get<observer_history_cursor>(),
+                             m_bin_irtb)
+          .and_then([&] {
+              return finalize_json_irtb(
+                sim.observers, sim.current_time(), m_json_irtb);
+          });
     }
 
     return ret;

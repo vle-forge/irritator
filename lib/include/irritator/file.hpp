@@ -129,6 +129,36 @@ public:
         return true;
     }
 
+    template<typename T>
+    bool read(T& t) noexcept
+    {
+        static_assert(std::is_standard_layout_v<T> and
+                        std::is_trivially_copyable_v<T>,
+                      "T must be trivially_copyable_v (for memcpy) and "
+                      "standard_layout_v (for other language)");
+
+        auto* ptr   = std::addressof(t);
+        auto* c_ptr = reinterpret_cast<void*>(ptr);
+        auto  size  = static_cast<i64>(sizeof(T));
+
+        return read(c_ptr, size);
+    }
+
+    template<typename T>
+    bool read(std::span<T> buffer) noexcept
+    {
+        static_assert(std::is_standard_layout_v<T> and
+                        std::is_trivially_copyable_v<T>,
+                      "T must be trivially_copyable_v (for memcpy) and "
+                      "standard_layout_v (for other language)");
+
+        auto* ptr   = buffer.data();
+        auto* c_ptr = reinterpret_cast<void*>(ptr);
+        auto  size  = buffer.size() * sizeof(T);
+
+        return read(c_ptr, static_cast<i64>(size));
+    }
+
     /** Read the entire file and returns a buffer with the read data.
      *  @return If the function fail, the @c vector<char> is empty. */
     irt::vector<char> read_entire_file() noexcept;
@@ -165,10 +195,18 @@ public:
     }
 
     template<typename T>
-        requires(std::is_arithmetic_v<T>)
-    bool write(const std::span<T> buffer) noexcept
+    bool write(const std::span<const T> buffer) noexcept
     {
-        return write(buffer.data(), static_cast<i64>(buffer.size()));
+        static_assert(std::is_standard_layout_v<T> and
+                        std::is_trivially_copyable_v<T>,
+                      "T must be trivially_copyable_v (for memcpy) and "
+                      "standard_layout_v (for other language)");
+
+        const auto* ptr   = buffer.data();
+        const auto* c_ptr = reinterpret_cast<const void*>(ptr);
+        auto        size  = buffer.size() * sizeof(T);
+
+        return write(c_ptr, static_cast<i64>(size));
     }
 
     bool write(const std::string_view buffer) noexcept
@@ -195,6 +233,21 @@ public:
     //!     0).
     //! @return false if failure, true otherwise.
     bool write(const void* buffer, i64 length) noexcept;
+
+    template<typename T>
+    bool write(const T& t) noexcept
+    {
+        static_assert(std::is_standard_layout_v<T> and
+                        std::is_trivially_copyable_v<T>,
+                      "T must be trivially_copyable_v (for memcpy) and "
+                      "standard_layout_v (for other language)");
+
+        const auto* ptr   = std::addressof(t);
+        const auto* c_ptr = reinterpret_cast<const void*>(ptr);
+        const auto  size  = static_cast<i64>(sizeof(T));
+
+        return write(c_ptr, size);
+    }
 
     std::FILE* to_file() const noexcept;
     void*      get_handle() const noexcept;

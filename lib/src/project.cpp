@@ -1979,7 +1979,7 @@ expected<project> project::load(const file_access&      fs,
 
     json_dearchiver dearc;
     project         pj{};
-    pj.file        = file_id;
+    pj.project_file = file_id;
     const auto ret = dearc(pj, fs, cs, filename->string(), *file);
 
     return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
@@ -1990,7 +1990,8 @@ status project::load(const file_access&      fs,
 {
     clear();
 
-    if (const auto filename = make_file(fs, file); filename.has_value()) {
+    if (const auto filename = make_file(fs, project_file);
+        filename.has_value()) {
         auto file = file::open(*filename, file_mode{ file_open_options::read });
 
         if (file.has_value()) {
@@ -2010,7 +2011,8 @@ status project::load(const file_access&      fs,
 status project::save(const file_access&      fs,
                      const component_access& ids) noexcept
 {
-    if (const auto filename = make_file(fs, file); filename.has_value()) {
+    if (const auto filename = make_file(fs, project_file);
+        filename.has_value()) {
         auto file =
           file::open(*filename, file_mode{ file_open_options::write });
 
