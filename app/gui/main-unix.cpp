@@ -138,6 +138,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     // only glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // 3.0+ only
 #endif
 
+#ifndef __APPLE__
+    glfwWindowHintString(GLFW_X11_CLASS_NAME, "Irritator");
+    glfwWindowHintString(GLFW_X11_INSTANCE_NAME, "irritator");
+#endif
+
     // Create window with graphics context
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(
       glfwGetPrimaryMonitor()); // Valid on GLFW 3.3+ only
