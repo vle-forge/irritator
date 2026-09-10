@@ -717,71 +717,6 @@ static void show_component_observations_actions(project_editor& sim_ed) noexcept
     }
 }
 
-static int show_simulation_table_file_observers(application& /*app*/,
-                                                project_editor& ed) noexcept
-{
-    auto is_modified = 0;
-
-    if (ImGui::BeginTable("File observers", 3)) {
-        ImGui::TableSetupColumn("type");
-        ImGui::TableSetupColumn("name");
-        ImGui::TableSetupColumn("enable");
-
-        auto& subids =
-          ed.pj.file_obs.files.template get<file_observers::id_type>();
-        auto& types = ed.pj.file_obs.files.template get<file_observers::type>();
-        auto& enables = ed.pj.file_obs.files.template get<bool>();
-
-        for (auto& fd : ed.pj.file_obs.files) {
-            const auto id  = ed.pj.file_obs.files.get_id(fd);
-            const auto idx = get_index(id);
-
-            ImGui::TableHeadersRow();
-            ImGui::TableNextColumn();
-
-            switch (types[idx]) {
-            case file_observers::type::variables:
-                ImGui::TextUnformatted("plot");
-                ImGui::TableNextColumn();
-                if (auto* sub =
-                      ed.pj.variable_observers.try_to_get(subids[idx].var))
-                    ImGui::TextUnformatted(sub->name.c_str());
-                else
-                    ImGui::TextUnformatted("-");
-                break;
-            case file_observers::type::grid:
-                ImGui::TextUnformatted("grid");
-                ImGui::TableNextColumn();
-                if (auto* sub =
-                      ed.pj.grid_observers.try_to_get(subids[idx].grid))
-                    ImGui::TextUnformatted(sub->name.c_str());
-                else
-                    ImGui::TextUnformatted("-");
-                break;
-            case file_observers::type::graph:
-                ImGui::TextUnformatted("graph");
-                ImGui::TableNextColumn();
-                if (auto* sub =
-                      ed.pj.graph_observers.try_to_get(subids[idx].graph))
-                    ImGui::TextUnformatted(sub->name.c_str());
-                else
-                    ImGui::TextUnformatted("-");
-                break;
-            }
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            if (ImGui::Checkbox("##enable", &enables[idx]))
-                ++is_modified;
-            ImGui::PopItemWidth();
-        }
-
-        ImGui::EndTable();
-    }
-
-    return is_modified;
-}
-
 static int show_all_visualisation_editor(application&    app,
                                          project_editor& ed,
                                          int             current_pos,
@@ -897,9 +832,6 @@ static bool show_project_observations(application&    app,
 
             if (not ed.pj.graph_observers.empty())
                 updated += show_simulation_table_graph_observers(app, ed);
-
-            if (not ed.pj.file_obs.files.empty())
-                updated += show_simulation_table_file_observers(app, ed);
 
             ImGui::TreePop();
         }

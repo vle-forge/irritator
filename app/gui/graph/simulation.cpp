@@ -125,7 +125,6 @@ bool show_local_observers(application&    app,
     }
 
     if (can_alloc and ImGui::Button("+##graph")) {
-        auto&      files    = ed.pj.file_obs.files;
         auto&      graph    = ed.pj.alloc_graph_observer();
         const auto graph_id = ed.pj.graph_observers.get_id(graph);
 
@@ -134,22 +133,6 @@ bool show_local_observers(application&    app,
         graph.tn_id     = undefined<tree_node_id>();
         graph.mdl_id    = undefined<model_id>();
         tn.graph_observer_ids.emplace_back(graph_id);
-
-        if (not files.can_alloc(1) or not files.grow<3, 2>(1)) {
-            log(log_level::error, [](auto& t, auto& m) {
-                t = "Grid observer creation failed";
-                m = "Not enough memory to create a grid observer.";
-            });
-
-            return false;
-        }
-
-        const auto id = files.alloc_id();
-
-        files.template get<file_observers::id_type>(id).graph = graph_id;
-        files.template get<file_observers::type>(id) =
-          file_observers::type::graph;
-        files.template get<bool>(id) = false;
 
         is_modified = true;
 

@@ -293,9 +293,6 @@ status project::simulation_init_observation(const modeling& mod) noexcept
         if (auto r = v_obs.init(*this); r.has_error())
             return r.error();
 
-    if (const auto path = get_observation_dir(mod); path.has_value())
-        file_obs.initialize(*this, path->string());
-
     return success();
 }
 
@@ -1030,9 +1027,6 @@ status project::simulation_step() noexcept
 
             if (current_time != sim.current_time())
                 snaps.emplace_back(sim);
-
-            if (file_obs.can_update(sim.current_time()))
-                file_obs.update(*this);
 
             if (sim.current_time_expired()) {
                 simulation_state = simulation_status::finish_requiring;

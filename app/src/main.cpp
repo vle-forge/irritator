@@ -243,23 +243,14 @@ public:
 
     void observation_initialize() noexcept
     {
-        for (auto& o : pj.grid_observers) {
+        for (auto& o : pj.grid_observers)
             o.init(pj, mod);
-            pj.file_obs.alloc(pj.grid_observers.get_id(o));
-        }
 
-        for (auto& o : pj.graph_observers) {
+        for (auto& o : pj.graph_observers)
             o.init(pj, mod);
-            pj.file_obs.alloc(pj.graph_observers.get_id(o));
-        }
 
         for (auto& o : pj.variable_observers)
-            if (auto ret = o.init(pj); !!ret)
-                pj.file_obs.alloc(pj.variable_observers.get_id(o));
-
-        const auto path = pj.get_observation_dir(mod);
-        if (path.has_value())
-            pj.file_obs.initialize(pj, path->string());
+            o.init(pj);
     }
 
     void observation_update() noexcept
@@ -275,9 +266,6 @@ public:
             if (auto* g = pj.graph_observers.try_to_get(g_id))
                 g->update(pj);
         }
-
-        if (pj.file_obs.can_update(pj.sim.current_time()))
-            pj.file_obs.update(pj);
     }
 
     irt::expected<void> run() noexcept
@@ -288,12 +276,10 @@ public:
 
         fmt::print("grid-observers: {}\n"
                    "graph-observers: {}\n"
-                   "plot-observers: {}\n"
-                   "file-observers: {}\n",
+                   "plot-observers: {}\n",
                    pj.grid_observers.ssize(),
                    pj.graph_observers.ssize(),
-                   pj.variable_observers.ssize(),
-                   pj.file_obs.files.ssize());
+                   pj.variable_observers.ssize());
 
         do {
             irt_check(pj.sim.run());

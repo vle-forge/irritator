@@ -39,7 +39,6 @@ enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 enum class global_observable_id : u64;
-enum class file_observer_id : u32;
 
 enum class graph_node_id : irt::u32;
 enum class graph_edge_id : irt::u32;
@@ -1103,59 +1102,6 @@ struct component_file_path {
     file_path_id file = undefined<file_path_id>();
 };
 
-/** Observers used to write observation into disk.  */
-class file_observers
-{
-public:
-    file_observers() noexcept = default;
-
-    /** Clears the id_array and all buffers. After this function @c
-     * ids.size() equals zero, the buffered files are are reseted. */
-    void clear() noexcept;
-
-    /** For each variable_observers, grid_observers and graph_observers from
-     * @c project try to initialize the @c buffered_file in @c files. */
-    void initialize(project& pj, std::string_view output_dir) noexcept;
-
-    /** Check if the @c tn is lower than @c t. */
-    bool can_update(const time t) const noexcept;
-
-    /** For each @c file_observer_id, flush data into the open files */
-    void update(const project& pj) noexcept;
-
-    /** For each @c buffered_file in @c files, close the opening file. */
-    void finalize() noexcept;
-
-    template<typename T>
-        requires(std::is_same_v<T, grid_observer_id> or
-                 std::is_same_v<T, graph_observer_id> or
-                 std::is_same_v<T, variable_observer_id>)
-    bool alloc(const T id, bool enable = true) noexcept;
-
-    union id_type {
-        variable_observer_id var;
-        grid_observer_id     grid;
-        graph_observer_id    graph;
-    };
-
-    using cursor = std::size_t;
-
-    enum class type : u8 { variables, grid, graph };
-
-    id_data_array<file,
-                  file_observer_id,
-                  allocator<new_delete_memory_resource>,
-                  id_type,
-                  type,
-                  cursor,
-                  bool>
-      files;
-
-    static_bounded_floating_point<float, 1, 10000, 1, 1> time_step = 1.f;
-
-    time tn = 0;
-};
-
 struct tree_node {
     tree_node(component_id id_, const std::string_view unique_id_) noexcept;
 
@@ -1583,8 +1529,6 @@ public:
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
-
-    file_observers file_obs;
 
     /// Linear search a @c global_parameter_id where @c tree_node_id and @c
     /// model_id equals parameters.
@@ -2139,42 +2083,6 @@ public:
 
     modeling_status state = modeling_status::unmodified;
 };
-
-template<typename T>
-    requires(std::is_same_v<T, grid_observer_id> or
-             std::is_same_v<T, graph_observer_id> or
-             std::is_same_v<T, variable_observer_id>)
-inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
-{
-    if (not files.can_alloc(1) and not files.template grow<3, 2>(1))
-        return false;
-
-    const auto& file    = files.alloc();
-    const auto  id      = files.get_id(file);
-    const auto  idx     = get_index(id);
-    auto&       subids  = files.template get<id_type>();
-    auto&       types   = files.template get<type>();
-    auto&       enables = files.template get<bool>();
-
-    enables[idx] = enable;
-
-    if constexpr (std::is_same_v<T, grid_observer_id>) {
-        subids[idx].grid = subobs_id;
-        types[idx]       = file_observers::type::grid;
-    }
-
-    if constexpr (std::is_same_v<T, graph_observer_id>) {
-        subids[idx].graph = subobs_id;
-        types[idx]        = file_observers::type::graph;
-    }
-
-    if constexpr (std::is_same_v<T, variable_observer_id>) {
-        subids[idx].var = subobs_id;
-        types[idx]      = file_observers::type::variables;
-    }
-
-    return true;
-}
 
 /* ------------------------------------------------------------------
    Child part
