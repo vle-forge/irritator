@@ -3,10 +3,13 @@ AccessModifierOffset: -4
 ColumnLimit: 80
 UseTab: Never
 IndentWidth: 4
-BinPackArguments: false
 BinPackParameters: false
 Standard: c++20
-AlignOperands: true
+AlignAfterOpenBracket: Align
+AlignOperands: Align
+BreakBeforeBinaryOperators: None
+PenaltyBreakAssignment: 10000
+BinPackArguments: true
 AlignTrailingComments: true
 AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
