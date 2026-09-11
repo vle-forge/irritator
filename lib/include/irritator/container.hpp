@@ -3393,6 +3393,12 @@ public:
     constexpr static inline std::size_t max_bits =
       std::numeric_limits<underlying_type>::digits;
 
+private:
+    constexpr explicit bitflags(std::bitset<max_bits> bits) noexcept
+      : m_bits(bits)
+    {}
+
+public:
     constexpr bitflags() noexcept = default;
     explicit constexpr bitflags(unsigned long long val) noexcept;
 
@@ -3415,7 +3421,7 @@ public:
 
     constexpr std::size_t size() const noexcept;
     constexpr std::size_t count() const noexcept;
-    std::size_t           to_unsigned() const noexcept;
+    unsigned long long    to_unsigned() const noexcept;
 
     /** Sets the bits to the result of binary AND on corresponding pairs of bits
      * of *this and other. */
@@ -3473,6 +3479,20 @@ public:
       const bitflags<EnumT>& rhs) noexcept
     {
         return lhs.m_bits ^ rhs.m_bits;
+    }
+
+    /** Returns true if lhs and rhs have exactly the same bits set. */
+    constexpr friend bool operator==(const bitflags<EnumT>& lhs,
+                                     const bitflags<EnumT>& rhs) noexcept
+    {
+        return lhs.m_bits == rhs.m_bits;
+    }
+
+    /** Returns true if lhs and rhs differ by at least one bit. */
+    constexpr friend bool operator!=(const bitflags<EnumT>& lhs,
+                                     const bitflags<EnumT>& rhs) noexcept
+    {
+        return lhs.m_bits != rhs.m_bits;
     }
 
 private:
@@ -7774,7 +7794,7 @@ constexpr std::size_t bitflags<EnumT>::count() const noexcept
 }
 
 template<typename EnumT>
-std::size_t bitflags<EnumT>::to_unsigned() const noexcept
+unsigned long long bitflags<EnumT>::to_unsigned() const noexcept
 {
     return m_bits.to_ullong();
 }
