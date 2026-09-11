@@ -203,7 +203,8 @@ void project_editor::update_simulation_state(application& app) noexcept
     const auto required_finish =
       any_equal(pj.simulation_state, simulation_status::finish_requiring);
 
-    if (pj.real_time_mode and required_run and not pj.empty_commands()) {
+    if (pj.flags[project::simulation_flag::real_time] and required_run and
+        not pj.empty_commands()) {
         const auto pj_id = app.pjs.get_id(*this);
 
         app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
@@ -298,7 +299,7 @@ void project_editor::run_simulation(application& app) noexcept
     if (can_run) {
         const auto pj_id = app.pjs.get_id(*this);
 
-        if (pj.real_time_mode) {
+        if (pj.flags[project::simulation_flag::real_time]) {
             app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
                 force_pause = false;
 
@@ -348,8 +349,8 @@ void project_editor::finish_simulation(application& app) noexcept
 
 void project_editor::advance_simulation(application& app) noexcept
 {
-    const auto can_debug =
-      pj.simulation_state == simulation_status::paused and pj.debug_mode;
+    const auto can_debug = pj.simulation_state == simulation_status::paused and
+                           pj.flags[project::simulation_flag::debug];
 
     debug::ensure(can_debug);
 
@@ -363,8 +364,8 @@ void project_editor::advance_simulation(application& app) noexcept
 
 void project_editor::back_simulation(application& app) noexcept
 {
-    const auto can_debug =
-      pj.simulation_state == simulation_status::paused and pj.debug_mode;
+    const auto can_debug = pj.simulation_state == simulation_status::paused and
+                           pj.flags[project::simulation_flag::debug];
 
     debug::ensure(can_debug);
 

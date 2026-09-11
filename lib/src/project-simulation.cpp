@@ -375,7 +375,7 @@ status project::simulation_init(const modeling& mod) noexcept
         return r.error();
     }
 
-    if (write_observation) {
+    if (flags[simulation_flag::write_irtb]) {
         const auto dir = open_dir_name(mod, observation_dir);
         auto       files =
           open_irtb_file(name.sv(), dir, m_simulation_id, m_simulation_run);
@@ -455,7 +455,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     tn->children.push_back(tree_node::child_node{
       .mdl = sim.get_id(mdl), .type = tree_node::child_node::type::model });
 
-    if (write_observation and is_defined(mdl.obs_id)) {
+    if (flags[simulation_flag::write_irtb] and is_defined(mdl.obs_id)) {
         if (auto r = new_json_irtb(
               sim.observers, mdl.obs_id, sim.current_time(), m_json_irtb);
             r.has_error()) {
@@ -492,7 +492,7 @@ status project::simulation_free_model(
         return make_error(project_errc::memory_error);
     }
 
-    if (write_observation and is_defined(mdl->obs_id)) {
+    if (flags[simulation_flag::write_irtb] and is_defined(mdl->obs_id)) {
         if (auto r = free_json_irtb(
               sim.observers, mdl->obs_id, sim.current_time(), m_json_irtb);
             r.has_error()) {
@@ -561,7 +561,7 @@ status project::simulation_copy_model(
         }
     });
 
-    if (write_observation and is_defined(dst_mdl.obs_id)) {
+    if (flags[simulation_flag::write_irtb] and is_defined(dst_mdl.obs_id)) {
         if (auto r = new_json_irtb(
               sim.observers, dst_mdl.obs_id, sim.current_time(), m_json_irtb);
             r.has_error()) {
@@ -1056,7 +1056,7 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
         });
     }
 
-    if (write_observation) {
+    if (flags[simulation_flag::write_irtb]) {
         auto guard = make_scope_exit([&]() noexcept {
             m_json_irtb.close();
             m_bin_irtb.close();
@@ -1076,7 +1076,7 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
 
 void project::simulation_advance() noexcept
 {
-    debug::ensure(debug_mode);
+    debug::ensure(flags[simulation_flag::debug]);
 
     debug::ensure(any_equal(simulation_state,
                             simulation_status::initialized,
@@ -1100,7 +1100,7 @@ void project::simulation_advance() noexcept
 
 void project::simulation_back() noexcept
 {
-    debug::ensure(debug_mode);
+    debug::ensure(flags[simulation_flag::debug]);
 
     debug::ensure(any_equal(simulation_state,
                             simulation_status::initialized,

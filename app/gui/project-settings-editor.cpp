@@ -279,7 +279,7 @@ static void show_simulation_action_buttons(application&    app,
     //     ed.force_stop = true;
     // ImGui::EndDisabled();
 
-    if (ed.pj.debug_mode and can_be_restarted) {
+    if (ed.pj.flags[project::simulation_flag::debug] and can_be_restarted) {
         if (EnhancedButton(
               app, "\ue0c6", small_button, "Advance simulation step by step"))
             ed.pj.simulation_step();
@@ -387,7 +387,7 @@ static bool show_project_simulation_settings(application&    app,
         ed.pj.sim.limits.set_bound(begin, end);
     ImGui::EndDisabled();
 
-    ImGui::BeginDisabled(not ed.pj.real_time_mode);
+    ImGui::BeginDisabled(not ed.pj.flags[project::simulation_flag::real_time]);
     {
         i64 value = ed.one_simulation_time_duration.count();
 
@@ -419,12 +419,26 @@ static bool show_project_simulation_settings(application&    app,
                    "value may increase CPU load.");
     }
 
-    ImGui::BeginDisabled(any_equal(ed.pj.simulation_state,
+    const auto started = any_equal(ed.pj.simulation_state,
                                    simulation_status::not_started,
-                                   simulation_status::initialized));
-    up += ImGui::Checkbox("Debug", &ed.pj.debug_mode);
-    up += ImGui::Checkbox("Real time", &ed.pj.real_time_mode);
+                                   simulation_status::initialized);
+
+    auto flags     = ed.pj.flags;
+    auto debug     = ed.pj.flags[project::simulation_flag::debug];
+    auto real_time = ed.pj.flags[project::simulation_flag::real_time];
+    auto write_irb = ed.pj.flags[project::simulation_flag::write_irtb];
+
+    ImGui::BeginDisabled(not started);
+    if (ImGui::Checkbox("Debug", &debug))
+        flags.set(project::simulation_flag::debug, debug);
+    if (ImGui::Checkbox("Real time", &real_time))
+        flags.set(project::simulation_flag::real_time, real_time);
+    if (ImGui::Checkbox("Write on disk", &write_irb))
+        flags.set(project::simulation_flag::write_irtb, write_irb);
     ImGui::EndDisabled();
+
+    if (flags != ed.pj.flags)
+        ed.pj.flags = flags;
 
     ImGui::LabelFormat("time", "{:.6f}", ed.simulation_display_current);
     ImGui::SameLine();

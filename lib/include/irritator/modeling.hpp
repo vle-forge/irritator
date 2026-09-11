@@ -1347,17 +1347,20 @@ class project
 public:
     static constexpr std::size_t command_buffer_size = 32;
 
+    enum class simulation_flag : u8 {
+        debug, /**< enable the debug mode (stores simulation in @c snaps. Stores
+                  simulation into @c snaps and @c current_snap. Use can use @c
+                  advance() and @c back() function to navigate into simulation.
+                */
+        real_time,  /**< real time simulation. Makes a link between simulation
+                       time and real time. */
+        write_irtb, /**< flush observation into @c irb file. */
+    };
+
+    using simulation_flags = bitflags<simulation_flag>;
+
     simulation_status simulation_state = simulation_status::not_started;
-
-    /// stores simulation into @c snaps and @c current_snap. Use can use @c
-    /// advance() and @c back() function to navigate into simulation.
-    bool debug_mode = false;
-
-    /// make a link between simulation time and real time.
-    bool real_time_mode = false;
-
-    /// write simulation results
-    bool write_observation = true;
+    simulation_flags  flags;
 
     bool is_task_running() const noexcept
     {
