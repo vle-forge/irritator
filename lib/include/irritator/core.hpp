@@ -148,6 +148,111 @@ inline void log_m(log_level level, Fn&& fn, Args&&... args) noexcept
     }
 }
 
+namespace debug {
+
+/**
+ * @brief Only in irt::debug mode, add message into the @c log_history buffer.
+ * @param lvl level of log.
+ * @param t title of the log.
+ * @param msg = the content of the log.
+ */
+irt_force_inline_attribute void log(
+  [[maybe_unused]] log_level        lvl,
+  [[maybe_unused]] std::string_view t,
+  [[maybe_unused]] std::string_view msg = std::string_view{}) noexcept
+{
+    if constexpr (::irt::debug::enable_ensure == true) {
+        if (current_journal) [[likely]]
+            current_journal->push(log_record{ get_time_since_epoch(),
+                                              std::this_thread::get_id(), t,
+                                              msg, lvl });
+    }
+}
+
+/**
+ * @brief Only in irt::debug mode, add message into the @c log_history buffer
+ * using callback.
+ * @param lvl level of log.
+ * @param fn A function with title and message as argument
+ *
+ * @code
+ * log(log_level::debug, [pos](auto& t, auto& m) {
+ *     t = "The title";
+ *     format(m, "position is {},{}\n", pos.x, pos.y);
+ * });
+ * @endcode
+ */
+template<typename Fn, typename... Args>
+irt_force_inline_attribute void log(log_level level,
+                                    Fn&&      fn,
+                                    Args&&... args) noexcept
+{
+    if constexpr (::irt::debug::enable_ensure == true) {
+        if (current_journal) [[likely]] {
+            current_journal->push([&](log_record& l) noexcept {
+                l.ts    = get_time_since_epoch();
+                l.level = level;
+                l.tid   = std::this_thread::get_id();
+
+                std::invoke(std::forward<Fn>(fn), l.t, l.msg,
+                            std::forward<Args>(args)...);
+            });
+        }
+    }
+}
+
+/**
+ * @brief Only in irt::debug mode, add message into the @c log_history buffer.
+ * @param lvl level of log.
+ * @param t title of the log.
+ * @param msg = the content of the log.
+ */
+irt_force_inline_attribute void log_m(log_level        lvl,
+                                      std::string_view msg) noexcept
+{
+    if constexpr (::irt::debug::enable_ensure == true) {
+        if (current_journal) [[likely]]
+            current_journal->push(log_record{ get_time_since_epoch(),
+                                              std::this_thread::get_id(),
+                                              std::string_view{}, msg, lvl });
+    }
+}
+
+/**
+ * @brief Only in irt::debug mode, add message into the @c log_history buffer
+ * using callback.
+ * @param lvl level of log.
+ * @param fn A function with title and message as argument
+ *
+ * @code
+ * log(log_level::debug, [pos](auto& t, auto& m) {
+ *     t = "The title";
+ *     format(m, "position is {},{}\n", pos.x, pos.y);
+ * });
+ * @endcode
+ */
+template<typename Fn, typename... Args>
+irt_force_inline_attribute void log_m(log_level level,
+                                      Fn&&      fn,
+                                      Args&&... args) noexcept
+{
+    if constexpr (::irt::debug::enable_ensure == true) {
+        if (current_journal) [[likely]] {
+            current_journal->push([&](log_record& l) noexcept {
+                l.ts    = get_time_since_epoch();
+                l.level = level;
+                l.tid   = std::this_thread::get_id();
+                l.t.clear();
+
+                std::invoke(std::forward<Fn>(fn), l.msg,
+                            std::forward<Args>(args)...);
+            });
+        }
+    }
+}
+
+} // debug mod
+
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
 //!
@@ -12364,7 +12469,10 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
                     break;
 
                 case buffer_status::overflow:
-                    debug::print("raw-buffer full");
+                    debug::log(
+                      log_level::warning,
+                      { "simulation transition: observer is overflow" });
+
                     immediate_observers.push_back(mdl.obs_id);
                     break;
 
@@ -12422,8 +12530,9 @@ status simulation::make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
                 break;
 
             case buffer_status::overflow:
-                debug::print(
-                  "raw-buffer full during observe finalize operation");
+                debug::log(log_level::warning,
+                           { "simulation finalize: oberser isoverflow" });
+
                 immediate_observers.push_back(observers.get_id(*obs));
                 break;
 
