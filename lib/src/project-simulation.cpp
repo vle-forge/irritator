@@ -107,15 +107,9 @@ static status flush_to_irtb(const observer& obs,
     debug::ensure(out.get_handle() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
 
-    auto ret = true;
-
-    obs.read_history(
-      [](const auto& vec,
-         const auto /*version*/,
-         const auto& obs,
-         auto&       cursor,
-         auto&       out,
-         auto&       ret) noexcept {
+    const auto ret = obs.read_history(
+      [](const auto& vec, const auto /*version*/, const auto& obs,
+         const auto cursor, auto& out) noexcept -> expected<std::uint64_t> {
           const auto len = std::size(vec);
 
           if (debug::check(std::cmp_less(cursor, len))) {
@@ -128,20 +122,20 @@ static status flush_to_irtb(const observer& obs,
               const auto end   = vec.end();
               const auto span  = std::span<const resampled_sample>(begin, end);
 
-              ret = out.write(header) and out.write(span);
+              if (not(out.write(header) and out.write(span)))
+                  return make_error(simulation_errc::file_eof_error);
           }
 
-          cursor += vec.size();
+          return cursor + vec.size();
       },
-      obs,
-      cursor,
-      out,
-      ret);
+      obs, cursor, out);
 
-    if (not ret)
-        return make_error(simulation_errc::file_eof_error);
+    if (ret.has_value()) {
+        cursor = *ret;
+        return success();
+    }
 
-    return success();
+    return ret.error();
 }
 
 static status flush_to_irtb(const observers_type& observers,

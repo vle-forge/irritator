@@ -1447,6 +1447,11 @@ private:
 /// model's events are.
 class observer
 {
+private:
+    using history_type = shared_buffer<
+      vector<resampled_sample>,
+      append_only_merge_policy<vector<resampled_sample>>>;
+
 public:
     static inline constexpr auto raw_buffer_size = 256;
 
@@ -1478,11 +1483,29 @@ public:
     buffer_status raw_status() const noexcept { return raw_fill_status(); }
 
     template<typename Fn, typename... Args>
-    void read_history(Fn&& fn, Args&&... args) const noexcept
+    auto read_history(Fn&& fn, Args&&... args) const noexcept
+      -> decltype(std::invoke(
+        std::forward<Fn>(fn),
+        std::declval<const typename history_type::value_type&>(),
+        std::declval<std::uint64_t>(),
+        std::forward<Args>(args)...))
     {
-        m_history.read([&](const auto& history, const auto version) {
-            fn(history, version, std::forward<Args>(args)...);
-        });
+        if constexpr (std::is_void_v<decltype(std::invoke(
+                        std::forward<Fn>(fn),
+                        std::declval<
+                          const typename history_type::value_type&>(),
+                        std::declval<std::uint64_t>(),
+                        std::forward<Args>(args)...))>) {
+            m_history.read([&](const auto& history, const auto version) {
+                std::invoke(std::forward<Fn>(fn), history, version,
+                            std::forward<Args>(args)...);
+            });
+        } else {
+            return m_history.read([&](const auto& history, const auto version) {
+                return std::invoke(std::forward<Fn>(fn), history, version,
+                                   std::forward<Args>(args)...);
+            });
+        }
     }
 
     /// Only @c resampler can call the write_history function.
@@ -1522,9 +1545,7 @@ private:
 
     circular_buffer<raw_sample, raw_buffer_size> m_raw;
 
-    shared_buffer<vector<resampled_sample>,
-                  append_only_merge_policy<vector<resampled_sample>>>
-      m_history;
+    history_type m_history;
 };
 
 /// Resampler -- owned exclusively by the copy task, ONE instance per
