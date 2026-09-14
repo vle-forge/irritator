@@ -10,10 +10,20 @@
 #include <cstdio>
 #include <cstdlib>
 
-#if defined(_MSC_VER) && !defined(__clang__)
-#define irt_force_inline_attribute [[msvc::forceinline]]
+#if defined(__GNUC__) || defined(__clang__)
+#if !defined(IRRITATOR_ENABLE_DEBUG)
+#define irt_force_inline_attribute [[gnu::always_inline]] inline
 #else
-#define irt_force_inline_attribute [[gnu::always_inline]]
+#define irt_force_inline_attribute inline
+#endif
+#elif defined(_MSC_VER)
+#if !defined(IRRITATOR_ENABLE_DEBUG)
+#define irt_force_inline_attribute __forceinline
+#else
+#define irt_force_inline_attribute inline
+#endif
+#else
+#define irt_force_inline_attribute inline
 #endif
 
 namespace irt {
