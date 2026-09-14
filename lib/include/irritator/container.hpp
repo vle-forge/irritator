@@ -1180,6 +1180,8 @@ class shared_buffer
                   "T must be copy- or move-assignable");
 
 public:
+    using value_type = T;
+
     shared_buffer() noexcept
     {
         m_active.store(0, std::memory_order_relaxed);
