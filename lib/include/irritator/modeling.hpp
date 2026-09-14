@@ -1418,6 +1418,7 @@ public:
       unordered_task_list& tasks) noexcept;
     void simulation_observation_for_all_observers(
       unordered_task_list& tasks) noexcept;
+    void simulation_finalize_observation(unordered_task_list& tasks) noexcept;
 
 private:
     status simulation_new_model(const command::new_model_t& data) noexcept;

@@ -16,10 +16,10 @@ namespace irt {
 
 void project_editor::update_simulation_state(application& app) noexcept
 {
-    const auto required_run =
-      pj.simulation_state == simulation_status::run_requiring;
-    const auto required_finish =
-      any_equal(pj.simulation_state, simulation_status::finish_requiring);
+    const auto required_run    = pj.simulation_state ==
+                                 simulation_status::run_requiring;
+    const auto required_finish = pj.simulation_state ==
+                                 simulation_status::finish_requiring;
 
     if (pj.flags[project::simulation_flag::real_time] and required_run and
         not pj.empty_commands()) {
@@ -32,7 +32,6 @@ void project_editor::update_simulation_state(application& app) noexcept
 
     if (required_run) {
         pj.simulation_state = simulation_status::run_requiring;
-
         const auto pj_id = app.pjs.get_id(*this);
 
         app.add_simulation_task(ordinal(pj_id), [&]() {
@@ -40,10 +39,9 @@ void project_editor::update_simulation_state(application& app) noexcept
                                   simulation_task_duration,
                                   force_pause);
         });
-    }
-
-    if (required_finish) {
-        const auto pj_id = app.pjs.get_id(*this);
+    } else if (required_finish) {
+        pj.simulation_state = simulation_status::finish_requiring;
+        const auto pj_id    = app.pjs.get_id(*this);
 
         app.add_simulation_task(ordinal(pj_id), [&]() {
             (void)pj.simulation_finish(app.get_unordered_task_list());

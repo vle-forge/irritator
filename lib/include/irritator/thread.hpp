@@ -134,6 +134,8 @@ class task_manager;
 class ordered_task_list
 {
 public:
+    constexpr static std::size_t task_max = 256;
+
     ordered_task_list() noexcept  = default;
     ~ordered_task_list() noexcept = default;
     ordered_task_list(ordered_task_list&& other) noexcept;
@@ -161,7 +163,7 @@ public:
     u64 tasks_completed() const noexcept { return m_tasks_completed; }
 
 private:
-    ring_buffer<task> m_queue{ 256 };
+    ring_buffer<task> m_queue{ task_max };
 
     mutable std::mutex      m_mutex;
     std::condition_variable worker_cv;   // for workers (work available)
