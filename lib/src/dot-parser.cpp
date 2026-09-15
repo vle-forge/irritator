@@ -102,6 +102,11 @@ inline static auto ichar_equals(char a, char b) noexcept -> bool
     return ascii_tolower(a) == ascii_tolower(b);
 }
 
+inline std::string_view to_sv(const vector<char>& vec) noexcept
+{
+    return std::string_view(vec.data(), vec.size());
+}
+
 /**
    Returns @c true if two strings are equal, using a case-insensitive
    comparison. The case-comparison operation is defined only for low-ASCII
@@ -386,8 +391,8 @@ public:
     const file_access&      fs;
     const component_access& ids;
 
-    irt::id_array<str_id>    strings_ids;
-    irt::vector<std::string> strings;
+    irt::id_array<str_id>     strings_ids;
+    irt::vector<vector<char>> strings;
 
     token_ring_t  tokens;
     std::istream& is;
@@ -492,11 +497,11 @@ private:
         auto&      str = strings[irt::get_index(id)];
         char       c;
         str.clear();
-        str += '-';
+        str.push_back('-');
 
         while (is.get(c)) {
             if (c == '.' or c == '-' or ('0' <= c and c <= '9')) {
-                str += c;
+                str.push_back(c);
             } else {
                 is.unget();
                 break;
@@ -518,7 +523,7 @@ private:
 
         while (is.get(c)) {
             if (c == '.' or c == '-' or ('0' <= c and c <= '9')) {
-                str += c;
+                str.push_back(c);
             } else {
                 is.unget();
                 break;
@@ -542,7 +547,7 @@ private:
             if (('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
                 (static_cast<int>(c) <= '\377') or ('0' <= c and c <= '9') or
                 (c == '_')) {
-                str += static_cast<char>(c);
+                str.push_back(static_cast<char>(c));
             } else {
                 is.unget();
                 break;
@@ -564,7 +569,7 @@ private:
 
         while (is.get(c)) {
             if (c != '\"') {
-                str += static_cast<char>(c);
+                str.push_back(static_cast<char>(c));
             } else {
                 break;
             }
@@ -748,7 +753,7 @@ private:
         fmt::print("{}\n ", title);
         for (auto it = tokens.head(), et = tokens.tail(); it != et; ++it) {
             if (it->is_string())
-                fmt::print(" `{}'", strings[irt::get_index(it->str)]);
+                fmt::print(" `{}'", to_sv(strings[irt::get_index(it->str)]));
             else
                 fmt::print(" {}",
                            element_type_string[static_cast<int>(it->type)]);
@@ -922,18 +927,21 @@ private:
             const auto left_str  = get_and_free_string(left);
             const auto right_str = get_and_free_string(right);
 
-            if (iequals(left_str, "area"sv)) {
-                g.node_areas[irt::get_index(id)] = to_float(right_str);
-            } else if (iequals(left_str, "component"sv) or
-                       iequals(left_str, "class"sv)) {
-                g.node_components[irt::get_index(id)] =
-                  search_component(right_str);
-            } else if (iequals(left_str, "label"sv)) {
-                g.node_labels[irt::get_index(id)] = g.buffer.append(right_str);
-            } else if (iequals(left_str, "pos"sv)) {
-                g.node_positions[irt::get_index(id)] = to_2_or_3_pos(right_str);
+            if (iequals(to_sv(left_str), "area"sv)) {
+                g.node_areas[irt::get_index(id)] = to_float(to_sv(right_str));
+            } else if (iequals(to_sv(left_str), "component"sv) or
+                       iequals(to_sv(left_str), "class"sv)) {
+                g.node_components[irt::get_index(id)] = search_component(
+                  to_sv(right_str));
+            } else if (iequals(to_sv(left_str), "label"sv)) {
+                g.node_labels[irt::get_index(id)] = g.buffer.append(
+                  to_sv(right_str));
+            } else if (iequals(to_sv(left_str), "pos"sv)) {
+                g.node_positions[irt::get_index(id)] = to_2_or_3_pos(
+                  to_sv(right_str));
             } else {
-                warning<msg_id::unknown_attribute>(left_str, right_str, line);
+                warning<msg_id::unknown_attribute>(to_sv(left_str),
+                                                   to_sv(right_str), line);
             }
 
             auto close_backet_or_comma = pop_token();
@@ -984,10 +992,11 @@ private:
             const auto left_str  = get_and_free_string(left);
             const auto right_str = get_and_free_string(right);
 
-            if (iequals(left_str, "penwidth"sv)) {
-                g.edges_penwidths[id] = to_float(right_str);
+            if (iequals(to_sv(left_str), "penwidth"sv)) {
+                g.edges_penwidths[id] = to_float(to_sv(right_str));
             } else {
-                warning<msg_id::unknown_attribute>(left_str, right_str, line);
+                warning<msg_id::unknown_attribute>(to_sv(left_str),
+                                                   to_sv(right_str), line);
             }
 
             auto close_backet_or_comma = pop_token();
@@ -1012,7 +1021,7 @@ private:
             return error<msg_id::missing_token>(line);
 
         const auto from_str = get_and_free_string(from);
-        const auto from_id  = find_or_add_node(from_str);
+        const auto from_id  = find_or_add_node(to_sv(from_str));
         if (from_id.has_error()) {
             ec = from_id.error();
             return error<msg_id::missing_token>(line);
@@ -1026,7 +1035,7 @@ private:
             if (next_token_is(element_type::id)) {
                 const auto port     = pop_token();
                 const auto port_str = get_and_free_string(port);
-                port_src            = add_port(port_str);
+                port_src            = add_port(to_sv(port_str));
             }
         }
 
@@ -1040,7 +1049,7 @@ private:
             return error<msg_id::missing_token>(line);
 
         const auto to_str = get_and_free_string(to);
-        const auto to_id  = find_or_add_node(to_str);
+        const auto to_id  = find_or_add_node(to_sv(to_str));
         if (to_id.has_error()) {
             ec = to_id.error();
             return error<msg_id::missing_token>(line);
@@ -1051,7 +1060,7 @@ private:
             if (next_token_is(element_type::id)) {
                 const auto port     = pop_token();
                 const auto port_str = get_and_free_string(port);
-                port_dst            = add_port(port_str);
+                port_dst            = add_port(to_sv(port_str));
             }
         }
 
@@ -1079,7 +1088,7 @@ private:
             return error<msg_id::missing_token>(line);
 
         const auto str = get_and_free_string(node_id);
-        const auto id  = find_or_add_node(str);
+        const auto id  = find_or_add_node(to_sv(str));
 
         if (id.has_error()) {
             ec = id.error();
@@ -1126,7 +1135,7 @@ private:
             return error<msg_id::missing_graph_type>(false, line);
 
         const auto s = get_and_free_string(type);
-        return parse_graph_type(s);
+        return parse_graph_type(to_sv(s));
     }
 
     bool parse_graph_type(const std::string_view type) noexcept
@@ -1158,7 +1167,7 @@ private:
 
         const auto s = get_and_free_string(strict_or_graph);
 
-        if (convert_to_element_type(s) == element_type::strict) {
+        if (convert_to_element_type(to_sv(s)) == element_type::strict) {
             g.flags.set(graph::option_flags::strict);
 
             if (not check_minimum_tokens(1))
@@ -1169,7 +1178,7 @@ private:
                 return error<msg_id::missing_token>(line);
 
         } else {
-            if (not parse_graph_type(s))
+            if (not parse_graph_type(to_sv(s)))
                 return error<msg_id::missing_token>(line);
         }
 
@@ -1178,20 +1187,22 @@ private:
 
         if (next_token_is_string()) {
             const auto m_id = pop_token();
-            g.main_id       = g.buffer.append(get_and_free_string(m_id));
+            g.main_id       = g.buffer.append(to_sv(get_and_free_string(m_id)));
         }
 
         return check_minimum_tokens(1) ? parse_stmt_list() : true;
     }
 
-    const std::string& get_and_free_string(const token t) noexcept
+    vector<char> get_and_free_string(const token t) noexcept
     {
         irt::debug::ensure(t.is_string());
 
         const auto idx = irt::get_index(t.str);
         strings_ids.free(t.str);
+        auto ret = strings[idx];
+        strings[idx].clear();
 
-        return strings[idx];
+        return ret;
     }
 
 public:

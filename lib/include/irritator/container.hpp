@@ -5556,6 +5556,7 @@ T* vector<T, A>::push_back(const T& value) noexcept
 {
     return emplace_back(value);
 }
+
 template<typename T, typename A>
 T* vector<T, A>::push_back(T&& value) noexcept
 {
