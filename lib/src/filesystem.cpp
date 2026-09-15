@@ -31,8 +31,6 @@
 #include <irritator/format.hpp>
 
 #include <filesystem>
-#include <string>
-#include <vector>
 
 #define irritator_to_string(s) to_string(s)
 #define to_string(s) #s
@@ -49,9 +47,9 @@ static expected<std::filesystem::path> get_local_home_directory() noexcept
     if (size == -1)
         size = 16384u;
 
-    std::vector<char> buf(size, '\0');
-    struct passwd     pwd;
-    struct passwd*    result = nullptr;
+    vector<char>   buf(size, '\0');
+    struct passwd  pwd;
+    struct passwd* result = nullptr;
 
     const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
     if (s || !result) {
@@ -121,8 +119,8 @@ expected<std::filesystem::path> get_home_directory() noexcept
 #if defined(__linux__)
 expected<std::filesystem::path> get_executable_directory() noexcept
 {
-    std::vector<char> buf(PATH_MAX, '\0');
-    const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
+    vector<char> buf(PATH_MAX, '\0');
+    const auto   ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
     if (ssize <= 0)
         return make_error(std::errc{ errno });
@@ -134,8 +132,8 @@ expected<std::filesystem::path> get_executable_directory() noexcept
 #elif defined(__APPLE__)
 expected<std::filesystem::path> get_executable_directory() noexcept
 {
-    std::vector<char> buf(MAXPATHLEN, '\0');
-    uint32_t          size{ 0 };
+    vector<char> buf(MAXPATHLEN, '\0');
+    uint32_t     size{ 0 };
 
     if (_NSGetExecutablePath(buf.data(), &size))
         return make_error(std::errc::bad_address);
