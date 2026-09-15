@@ -55,13 +55,23 @@ struct json_dearchiver::impl {
 
     std::string_view m_path;
 
-    i64         temp_i64    = 0;
-    u64         temp_u64    = 0;
-    double      temp_double = 0.0;
-    bool        temp_bool   = false;
-    std::string temp_string;
+    i64          temp_i64    = 0;
+    u64          temp_u64    = 0;
+    double       temp_double = 0.0;
+    bool         temp_bool   = false;
+    vector<char> temp_string;
 
-    small_vector<std::string_view, 16> stack;
+    std::string_view temp_string_sv() const noexcept
+    {
+        return std::string_view(temp_string.data(), temp_string.size());
+    }
+
+    bool string_equal_to(std::string_view other) const noexcept
+    {
+        return temp_string_sv() == other;
+    }
+
+    small_vector<small_string<255>, 16> stack;
 
     bool has_error                       = false;
     bool has_missing_dependent_component = false;
@@ -108,11 +118,9 @@ struct json_dearchiver::impl {
               sz   write     = 0;
 
               for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                  auto ret = fmt::format_to_n(data,
-                                              remaining,
-                                              "  {}: {}\n",
+                  auto ret = fmt::format_to_n(data, remaining, "  {}: {}\n",
                                               static_cast<int>(i),
-                                              stack[i]);
+                                              stack[i].sv());
                   write += ret.size;
                   msg.resize(write);
                   data = ret.out;
@@ -186,7 +194,9 @@ struct json_dearchiver::impl {
           : r(r_)
         {
             fatal::ensure(r->stack.can_alloc(1));
-            r->stack.emplace_back(id);
+
+            if (r->stack.can_alloc(1))
+                r->stack.emplace_back(id);
         }
 
         ~auto_stack() noexcept { r->stack.pop_back(); }
@@ -228,11 +238,10 @@ struct json_dearchiver::impl {
         const auto et = val.MemberEnd();
 
         while (it != et) {
-            const auto x =
-              binary_find(std::begin(names),
-                          std::end(names),
-                          std::string_view{ it->name.GetString(),
-                                            it->name.GetStringLength() });
+            const auto x = binary_find(
+              std::begin(names), std::end(names),
+              std::string_view{ it->name.GetString(),
+                                it->name.GetStringLength() });
 
             if (x == std::end(names)) {
                 warning("unknown element {}", it->name.GetString());
@@ -242,7 +251,7 @@ struct json_dearchiver::impl {
                                     it->value)) {
                     // debug_logi(stack.ssize(),
                     //            "for-member: element {} return false\n",
-                    //            std::string_view{ it->name.GetString(),
+                    //            vector<char>_view{ it->name.GetString(),
                     //                              it->name.GetStringLength()
                     //                              });
                     return false;
@@ -380,81 +389,85 @@ struct json_dearchiver::impl {
         if (!val.IsString())
             return error("missing string");
 
-        temp_string = val.GetString();
+        const auto  len = val.GetStringLength();
+        const auto* ptr = val.GetString();
+
+        temp_string.assign(ptr, ptr + len);
 
         return true;
     }
 
     bool copy_string_to(std::optional<constant::init_type>& type) noexcept
     {
-        if (temp_string == "constant"sv)
+        if (string_equal_to("constant"sv))
             type = constant::init_type::constant;
-        else if (temp_string == "incoming_component_all"sv)
+        else if (string_equal_to("incoming_component_all"sv))
             type = constant::init_type::incoming_component_all;
-        else if (temp_string == "outcoming_component_all"sv)
+        else if (string_equal_to("outcoming_component_all"sv))
             type = constant::init_type::outcoming_component_all;
-        else if (temp_string == "incoming_component_n"sv)
+        else if (string_equal_to("incoming_component_n"sv))
             type = constant::init_type::incoming_component_n;
-        else if (temp_string == "outcoming_component_n"sv)
+        else if (string_equal_to("outcoming_component_n"sv))
             type = constant::init_type::outcoming_component_n;
         else
-            return error("bad constant init type {}", temp_string);
+            return error("bad constant init type {}", temp_string_sv());
 
         return true;
     }
 
     bool copy_string_to(connection_type& type) noexcept
     {
-        if (temp_string == "internal"sv)
+        if (string_equal_to("internal"sv))
             type = connection_type::internal;
-        else if (temp_string == "output"sv)
+        else if (string_equal_to("output"sv))
             type = connection_type::output;
-        else if (temp_string == "input"sv)
+        else if (string_equal_to("input"sv))
             type = connection_type::input;
-        else if (temp_string == "input-pack"sv)
+        else if (string_equal_to("input-pack"sv))
             type = connection_type::input_pack;
-        else if (temp_string == "output-pack"sv)
+        else if (string_equal_to("output-pack"sv))
             type = connection_type::output_pack;
         else
-            return error("bad connection type {}", temp_string);
+            return error("bad connection type {}", temp_string_sv());
 
         return true;
     }
 
     bool copy_string_to(distribution_type& dst) noexcept
     {
-        if (auto dist_opt = get_distribution_type(temp_string);
+        if (auto dist_opt = get_distribution_type(temp_string_sv());
             dist_opt.has_value()) {
             dst = dist_opt.value();
             return true;
         }
 
-        return error("bad distribution type {}", temp_string);
+        return error("bad distribution type {}", temp_string_sv());
     }
 
     bool copy_string_to(dynamics_type& dst) noexcept
     {
-        if (auto opt = get_dynamics_type(temp_string); opt.has_value()) {
+        if (auto opt = get_dynamics_type(temp_string_sv()); opt.has_value()) {
             dst = opt.value();
             return true;
         }
 
-        return error("bad dynamics type {}", temp_string);
+        return error("bad dynamics type {}", temp_string_sv());
     }
 
     bool copy_string_to(child_type& dst_1, dynamics_type& dst_2) noexcept
     {
-        if (temp_string == "component"sv) {
+        if (string_equal_to("component"sv)) {
             dst_1 = child_type::component;
             return true;
         } else {
             dst_1 = child_type::model;
 
-            if (auto opt = get_dynamics_type(temp_string); opt.has_value()) {
+            if (auto opt = get_dynamics_type(temp_string_sv());
+                opt.has_value()) {
                 dst_2 = opt.value();
                 return true;
             } else {
-                return error("bad dynamics type {}", temp_string);
+                return error("bad dynamics type {}", temp_string_sv());
             }
         }
     }
@@ -471,30 +484,34 @@ struct json_dearchiver::impl {
 
     bool copy_string_to(component_type& dst) noexcept
     {
-        if (auto opt = get_component_type(temp_string); opt.has_value()) {
+        if (auto opt = get_component_type(temp_string_sv()); opt.has_value()) {
             dst = opt.value();
             return true;
         }
 
-        return error("bad component type {}", temp_string);
+        return error("bad component type {}", temp_string_sv());
     }
 
     bool copy_string_to(port_option& type) noexcept
     {
         for (auto i = 0, e = length(port_option_names); i != e; ++i) {
-            if (temp_string == port_option_names[i]) {
+            if (string_equal_to(port_option_names[i])) {
                 type = enum_cast<port_option>(i);
                 return true;
             }
         }
 
-        return error("bad input port type {}", temp_string);
+        return error("bad input port type {}", temp_string_sv());
     }
 
     template<std::size_t Length>
     bool copy_string_to(small_string<Length>& dst) noexcept
     {
-        dst.assign(temp_string);
+        if (std::cmp_less(Length, temp_string.size()))
+            return error("string label tool long {} (max: {})",
+                         temp_string_sv(), Length);
+
+        dst.assign(temp_string_sv());
 
         return true;
     }
@@ -502,7 +519,11 @@ struct json_dearchiver::impl {
     template<std::size_t Length>
     bool copy_string_to(std::optional<small_string<Length>>& dst) noexcept
     {
-        dst.emplace(temp_string);
+        if (std::cmp_less(Length, temp_string.size()))
+            return error("string label tool long {} (max: {})",
+                         temp_string_sv(), Length);
+
+        dst = temp_string_sv();
 
         return true;
     }
@@ -603,14 +624,14 @@ struct json_dearchiver::impl {
 
     bool copy_string_to(time_func::function_type& fn) noexcept
     {
-        if (temp_string == "time"sv)
+        if (string_equal_to("time"sv))
             fn = time_func::function_type::linear;
-        else if (temp_string == "square"sv)
+        else if (string_equal_to("square"sv))
             fn = time_func::function_type::square;
-        else if (temp_string == "sin"sv)
+        else if (string_equal_to("sin"sv))
             fn = time_func::function_type::sine;
         else
-            return error("bad function type: {}", temp_string);
+            return error("bad function type: {}", temp_string_sv());
 
         return true;
     }
@@ -702,7 +723,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_string_to(std::optional<std::string>& dst) noexcept
+    bool copy_string_to(std::optional<vector<char>>& dst) noexcept
     {
         dst = temp_string;
         return true;
@@ -962,8 +983,7 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss wsum 3");
 
-        static constexpr std::string_view n[] = { "coeff-0",
-                                                  "coeff-1",
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
                                                   "coeff-2" };
 
         return for_members(
@@ -987,9 +1007,8 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss wsum 4");
 
-        static constexpr std::string_view n[] = {
-            "coeff-0", "coeff-1", "coeff-2", "coeff-3"
-        };
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
+                                                  "coeff-2", "coeff-3" };
 
         return for_members(
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
@@ -1088,12 +1107,12 @@ struct json_dearchiver::impl {
     bool copy_string_to(std::optional<counter::observation_type>& type) noexcept
     {
         for (sz i = 0; i < counter::observation_type_names->size(); ++i) {
-            if (temp_string == counter::observation_type_names[i]) {
+            if (string_equal_to(counter::observation_type_names[i])) {
                 type = enum_cast<counter::observation_type>(i);
                 return true;
             }
         }
-        return error("bad counter observation type {}", temp_string);
+        return error("bad counter observation type {}", temp_string_sv());
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1133,16 +1152,16 @@ struct json_dearchiver::impl {
 
     bool copy_to_source_type(source_type& type) noexcept
     {
-        if (temp_string == "constant"sv)
+        if (string_equal_to("constant"sv))
             type = source_type::constant;
-        else if (temp_string == "binary-file"sv)
+        else if (string_equal_to("binary-file"sv))
             type = source_type::binary_file;
-        else if (temp_string == "text-file"sv)
+        else if (string_equal_to("text-file"sv))
             type = source_type::text_file;
-        else if (temp_string == "random"sv)
+        else if (string_equal_to("random"sv))
             type = source_type::random;
         else
-            return error("bad source type {}", temp_string);
+            return error("bad source type {}", temp_string_sv());
 
         return true;
     }
@@ -1258,8 +1277,8 @@ struct json_dearchiver::impl {
             return error("constant port not necessary");
 
         const auto port = type == constant::init_type::incoming_component_n
-                            ? compo.get_or_add_x(temp_string)
-                            : compo.get_or_add_y(temp_string);
+                            ? compo.get_or_add_x(temp_string_sv())
+                            : compo.get_or_add_y(temp_string_sv());
 
         p = ordinal(port);
 
@@ -1697,9 +1716,9 @@ struct json_dearchiver::impl {
           });
 
         if (ret) {
-            if (temp_string == "time"sv)
+            if (string_equal_to("time"sv))
                 p.integers[time_func_tag::i_type] = 0;
-            else if (temp_string == "square"sv)
+            else if (string_equal_to("square"sv))
                 p.integers[time_func_tag::i_type] = 1;
             else
                 p.integers[time_func_tag::i_type] = 2;
@@ -2094,10 +2113,9 @@ struct json_dearchiver::impl {
 
     bool copy_string_to_simluation_wrapper_type(i64& p) noexcept
     {
-        const auto* result =
-          binary_find(std::begin(simulation_wrapper::run_type_names),
-                      std::end(simulation_wrapper::run_type_names),
-                      std::string_view(temp_string));
+        const auto* result = binary_find(
+          std::begin(simulation_wrapper::run_type_names),
+          std::end(simulation_wrapper::run_type_names), temp_string_sv());
 
         p = result ? static_cast<i64>(std::distance(
                        std::begin(simulation_wrapper::run_type_names), result))
@@ -2114,9 +2132,8 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics simulation wrapper");
 
-        static constexpr std::string_view n[] = {
-            "factors", "run-type", "selections", "sim"
-        };
+        static constexpr std::string_view n[] = { "factors", "run-type",
+                                                  "selections", "sim" };
 
         const auto ret =
           for_members(val, n, [&](auto idx, const auto& value) noexcept {
@@ -2739,7 +2756,7 @@ struct json_dearchiver::impl {
                                         const component_id      compo_id,
                                         file_path_id& out) const noexcept
     {
-        out = get_file_from_component(ids, files, compo_id, temp_string);
+        out = get_file_from_component(ids, files, compo_id, temp_string_sv());
 
         return is_defined(out);
     }
@@ -3085,10 +3102,13 @@ struct json_dearchiver::impl {
 
         if (const auto i = value.FindMember("type"); i != value.MemberEnd()) {
             if (i->value.IsString()) {
-                temp_string = i->value.GetString();
+                const auto  len = i->value.GetStringLength();
+                const auto* ptr = i->value.GetString();
+                temp_string.assign(ptr, ptr + len);
+
                 if (not copy_string_to(type))
                     return error("Unknown random distribution type {}\n",
-                                 temp_string);
+                                 temp_string_sv());
             }
         }
 
@@ -3319,12 +3339,12 @@ struct json_dearchiver::impl {
         return error("unknown generic component child");
     }
 
-    bool get_x_port(const component_access&           ids,
-                    generic_component&                generic,
-                    const child_id                    dst_id,
-                    const std::optional<std::string>& dst_str_port,
-                    const std::optional<int>&         dst_int_port,
-                    std::optional<connection::port>&  out) noexcept
+    bool get_x_port(const component_access&                ids,
+                    generic_component&                     generic,
+                    const child_id                         dst_id,
+                    const std::optional<small_string<64>>& dst_str_port,
+                    const std::optional<int>&              dst_int_port,
+                    std::optional<connection::port>&       out) noexcept
     {
         auto_stack a(this, "component generic x port");
 
@@ -3342,7 +3362,7 @@ struct json_dearchiver::impl {
 
                 if (ids.exists(child->id.compo_id)) {
                     const auto& compo = ids.components[child->id.compo_id];
-                    auto        p_id  = compo.get_x(*dst_str_port);
+                    auto        p_id  = compo.get_x(dst_str_port->sv());
                     if (is_undefined(p_id))
                         return error("unknown input component");
                     out = std::make_optional(connection::port{ .compo = p_id });
@@ -3358,12 +3378,12 @@ struct json_dearchiver::impl {
         return error("unknown element");
     }
 
-    bool get_y_port(const component_access&           ids,
-                    generic_component&                generic,
-                    const child_id                    src_id,
-                    const std::optional<std::string>& src_str_port,
-                    const std::optional<int>&         src_int_port,
-                    std::optional<connection::port>&  out) noexcept
+    bool get_y_port(const component_access&                ids,
+                    generic_component&                     generic,
+                    const child_id                         src_id,
+                    const std::optional<small_string<64>>& src_str_port,
+                    const std::optional<int>&              src_int_port,
+                    std::optional<connection::port>&       out) noexcept
     {
         auto_stack a(this, "component generic y port");
 
@@ -3381,7 +3401,7 @@ struct json_dearchiver::impl {
 
                 if (ids.exists(child->id.compo_id)) {
                     const auto& compo = ids.components[child->id.compo_id];
-                    auto        p_id  = compo.get_y(*src_str_port);
+                    auto        p_id  = compo.get_y(src_str_port->sv());
                     if (is_undefined(p_id))
                         return error("unknown output component");
 
@@ -3398,14 +3418,14 @@ struct json_dearchiver::impl {
         return error("unknown element");
     }
 
-    bool get_x_port(component&                        compo,
-                    const std::optional<std::string>& str_port,
-                    std::optional<port_id>&           out) noexcept
+    bool get_x_port(component&                             compo,
+                    const std::optional<small_string<64>>& str_port,
+                    std::optional<port_id>&                out) noexcept
     {
         if (!str_port.has_value())
             return error("unknown input port");
 
-        auto port_id = compo.get_x(*str_port);
+        auto port_id = compo.get_x(str_port->sv());
         if (is_undefined(port_id))
             return error("missing input port in component");
 
@@ -3413,14 +3433,14 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool get_y_port(component&                        compo,
-                    const std::optional<std::string>& str_port,
-                    std::optional<port_id>&           out) noexcept
+    bool get_y_port(component&                             compo,
+                    const std::optional<small_string<64>>& str_port,
+                    std::optional<port_id>&                out) noexcept
     {
         if (!str_port.has_value())
             return error("unknown output port");
 
-        auto port_id = compo.get_y(*str_port);
+        auto port_id = compo.get_y(str_port->sv());
         if (is_undefined(port_id))
             return error("missing output port in component");
 
@@ -3436,8 +3456,8 @@ struct json_dearchiver::impl {
 
         std::optional<child_id>         src_id;
         std::optional<child_id>         dst_id;
-        std::optional<std::string>      src_str_port;
-        std::optional<std::string>      dst_str_port;
+        std::optional<small_string<64>> src_str_port;
+        std::optional<small_string<64>> dst_str_port;
         std::optional<int>              src_int_port;
         std::optional<int>              dst_int_port;
         std::optional<connection::port> src_port;
@@ -3491,11 +3511,11 @@ struct json_dearchiver::impl {
         child_id src_id = undefined<child_id>();
 
         std::optional<connection::port> src_port;
-        std::optional<std::string>      src_str_port;
+        std::optional<small_string<64>> src_str_port;
         std::optional<int>              src_int_port;
 
         std::optional<port_id>     port;
-        std::optional<std::string> str_port;
+        std::optional<small_string<64>> str_port;
 
         return for_each_member(
                  val,
@@ -3533,11 +3553,11 @@ struct json_dearchiver::impl {
         child_id dst_id = undefined<child_id>();
 
         std::optional<connection::port> dst_port;
-        std::optional<std::string>      dst_str_port;
+        std::optional<small_string<64>> dst_str_port;
         std::optional<int>              dst_int_port;
 
         std::optional<port_id>     port;
-        std::optional<std::string> str_port;
+        std::optional<small_string<64>> str_port;
 
         return for_each_member(
                  val,
@@ -3582,14 +3602,14 @@ struct json_dearchiver::impl {
 
         if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                port = compo.get_x(temp_string);
+                port = compo.get_x(temp_string_sv());
             else
                 return error("bad input pack connection port");
         }
 
         if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                child_port = ids.components[child].get_x(temp_string);
+                child_port = ids.components[child].get_x(temp_string_sv());
             else
                 return error("bad input pack connection child-port");
         }
@@ -3618,14 +3638,14 @@ struct json_dearchiver::impl {
 
         if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                port = compo.get_y(temp_string);
+                port = compo.get_y(temp_string_sv());
             else
                 return error("bad output pack connection port");
         }
 
         if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
             if (read_temp_string(it->value))
-                child_port = ids.components[child].get_y(temp_string);
+                child_port = ids.components[child].get_y(temp_string_sv());
             else
                 return error("bad output pack connection child-port");
         }
@@ -3939,8 +3959,8 @@ struct json_dearchiver::impl {
         auto_stack s(this, "component grid");
 
         std::optional<int>         row, col;
-        std::optional<std::string> id;
-        std::optional<std::string> x;
+        std::optional<small_string<64>> id;
+        std::optional<small_string<64>> x;
 
         if (not for_each_member(
               val,
@@ -3971,8 +3991,8 @@ struct json_dearchiver::impl {
 
             if (ids.exists(c_compo_id)) {
                 const auto& c      = ids.components[c_compo_id];
-                const auto  con_id = c.get_x(*id);
-                const auto  con_x  = compo.get_x(*x);
+                const auto  con_id = c.get_x(id->sv());
+                const auto  con_x  = compo.get_x(x->sv());
 
                 if (is_defined(con_id) and is_defined(con_x)) {
                     if (auto ret =
@@ -3994,8 +4014,8 @@ struct json_dearchiver::impl {
         auto_stack s(this, "component grid");
 
         std::optional<int>         row, col;
-        std::optional<std::string> id;
-        std::optional<std::string> y;
+        std::optional<small_string<64>> id;
+        std::optional<small_string<64>> y;
 
         if (not for_each_member(
               val,
@@ -4026,8 +4046,8 @@ struct json_dearchiver::impl {
 
             if (ids.exists(c_compo_id)) {
                 const auto& c      = ids.components[c_compo_id];
-                const auto  con_id = c.get_x(*id);
-                const auto  con_y  = compo.get_y(*y);
+                const auto  con_id = c.get_x(id->sv());
+                const auto  con_y  = compo.get_y(y->sv());
 
                 if (is_defined(con_id) and is_defined(con_y)) {
                     if (auto ret =
@@ -4052,13 +4072,13 @@ struct json_dearchiver::impl {
         return for_first_member(
           val, "type", [&](const auto& value) noexcept -> bool {
               return read_temp_string(value) and
-                     ((temp_string == "input" and
+                     ((string_equal_to("input") and
                        read_grid_input_connection(val, ids, compo, grid)) or
-                      (temp_string == "output" and
+                      (string_equal_to("output") and
                        read_grid_output_connection(val, ids, compo, grid)) or
-                      (temp_string == "input-pack" and
+                      (string_equal_to("input-pack") and
                        read_input_pack_connection(val, files, ids, compo)) or
-                      (temp_string == "output-pack" and
+                      (string_equal_to("output-pack") and
                        read_output_pack_connection(val, files, ids, compo)));
           });
     }
@@ -4208,9 +4228,9 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component input graph connection");
 
-        std::optional<i32>         v_opt;
-        std::optional<std::string> id_opt;
-        std::optional<std::string> x_opt;
+        std::optional<i32>              v_opt;
+        std::optional<small_string<64>> id_opt;
+        std::optional<small_string<64>> x_opt;
 
         if (not for_each_member(
               val,
@@ -4237,8 +4257,8 @@ struct json_dearchiver::impl {
             const auto c_compo_id = graph.g.node_components[id];
             if (ids.exists(c_compo_id)) {
                 const auto& c      = ids.components[c_compo_id];
-                const auto  con_id = c.get_x(*id_opt);
-                const auto  con_x  = compo.get_x(*x_opt);
+                const auto  con_id = c.get_x(id_opt->sv());
+                const auto  con_x  = compo.get_x(x_opt->sv());
 
                 if (is_defined(con_id) and is_defined(con_x)) {
                     if (auto ret = graph.connect_input(con_x, id, con_id);
@@ -4258,9 +4278,9 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component output graph connection");
 
-        std::optional<i32>         v_opt;
-        std::optional<std::string> id_opt;
-        std::optional<std::string> y_opt;
+        std::optional<i32>              v_opt;
+        std::optional<small_string<64>> id_opt;
+        std::optional<small_string<64>> y_opt;
 
         if (not for_each_member(
               val,
@@ -4287,8 +4307,8 @@ struct json_dearchiver::impl {
             const auto c_compo_id = graph.g.node_components[id];
             if (ids.exists(c_compo_id)) {
                 const auto& c      = ids.components[c_compo_id];
-                const auto  con_id = c.get_x(*id_opt);
-                const auto  con_y  = compo.get_y(*y_opt);
+                const auto  con_id = c.get_x(id_opt->sv());
+                const auto  con_y  = compo.get_y(y_opt->sv());
 
                 if (is_defined(con_id) and is_defined(con_y)) {
                     if (auto ret = graph.connect_output(con_y, id, con_id);
@@ -4312,13 +4332,13 @@ struct json_dearchiver::impl {
         return for_first_member(
           val, "type", [&](const auto& value) noexcept -> bool {
               return read_temp_string(value) and
-                     ((temp_string == "input" and
+                     ((string_equal_to("input") and
                        read_graph_input_connection(val, ids, compo, graph)) or
-                      (temp_string == "output" and
+                      (string_equal_to("output") and
                        read_graph_output_connection(val, ids, compo, graph)) or
-                      (temp_string == "input-pack" and
+                      (string_equal_to("input-pack") and
                        read_input_pack_connection(val, files, ids, compo)) or
-                      (temp_string == "output-pack" and
+                      (string_equal_to("output-pack") and
                        read_output_pack_connection(val, files, ids, compo)));
           });
     }
@@ -4635,40 +4655,40 @@ struct json_dearchiver::impl {
     bool copy_string_to_sim_objective_method(simulation_component& sim) noexcept
     {
         for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
-            if (temp_string == optimization_method_names[i]) {
+            if (string_equal_to(optimization_method_names[i])) {
                 sim.objective.method = enum_cast<optimization_method>(i);
                 return true;
             }
         }
 
         return error("bad simulation component objective method: {}",
-                     temp_string);
+                     temp_string_sv());
     }
 
     bool copy_string_to_optimization_type(optimization_type& type) noexcept
     {
         for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
-            if (temp_string == optimization_type_names[i]) {
+            if (string_equal_to(optimization_type_names[i])) {
                 type = enum_cast<optimization_type>(i);
                 return true;
             }
         }
 
         return error("bad simulation component objective type: {}",
-                     temp_string);
+                     temp_string_sv());
     }
 
     bool copy_string_to_norm_type(norm_type& type) noexcept
     {
         for (auto i = 0, e = length(norm_type_names); i != e; ++i) {
-            if (temp_string == norm_type_names[i]) {
+            if (string_equal_to(norm_type_names[i])) {
                 type = enum_cast<norm_type>(i);
                 return true;
             }
         }
 
         return error("bad simulation component objective type: {}",
-                     temp_string);
+                     temp_string_sv());
     }
 
     bool copy_array_to(vector<optimization_type>&          types,
@@ -4678,14 +4698,14 @@ struct json_dearchiver::impl {
         types.reserve(arr.Size());
 
         for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i) {
-            if (arr[i].IsString()) {
-                temp_string = arr[i].GetString();
-                optimization_type type;
-                if (not copy_string_to_optimization_type(type))
-                    return false;
+            if (not read_temp_string(arr[i]))
+                return false;
 
-                types.emplace_back(type);
-            }
+            optimization_type type;
+            if (not copy_string_to_optimization_type(type))
+                return false;
+
+            types.emplace_back(type);
         }
 
         return true;
@@ -4747,18 +4767,17 @@ struct json_dearchiver::impl {
         operations.reserve(arr.Size());
 
         for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i) {
-            if (arr[i].IsString()) {
-                temp_string = arr[i].GetString();
+            if (not read_temp_string(arr[i]))
+                return false;
 
-                if (temp_string == "equal")
-                    operations.emplace_back(operation_type::equal);
-                else if (temp_string == "not-equal")
-                    operations.emplace_back(operation_type::not_equal);
-                else if (temp_string == "greater-equal")
-                    operations.emplace_back(operation_type::greater_equal);
-                else if (temp_string == "less-equal")
-                    operations.emplace_back(operation_type::less_equal);
-            }
+            if (string_equal_to("equal"))
+                operations.emplace_back(operation_type::equal);
+            else if (string_equal_to("not-equal"))
+                operations.emplace_back(operation_type::not_equal);
+            else if (string_equal_to("greater-equal"))
+                operations.emplace_back(operation_type::greater_equal);
+            else if (string_equal_to("less-equal"))
+                operations.emplace_back(operation_type::less_equal);
         }
 
         return true;
@@ -4767,7 +4786,7 @@ struct json_dearchiver::impl {
     bool copy_string_to_selection_primary(const simulation_component& sim,
                                           selection_id& out) noexcept
     {
-        const auto sel_id = [](auto& sim, auto& name) noexcept -> selection_id {
+        const auto sel_id = [](auto& sim, auto name) noexcept -> selection_id {
             const auto& names = sim.selections.template get<name_str>();
 
             for (const auto id : sim.selections)
@@ -4775,14 +4794,14 @@ struct json_dearchiver::impl {
                     return id;
 
             return undefined<selection_id>();
-        }(sim, temp_string);
+        }(sim, temp_string_sv());
 
         if (is_defined(sel_id)) {
             out = sel_id;
         } else {
             warning(
               "simulation component objective primary selection not found: {}",
-              temp_string);
+              temp_string_sv());
         }
 
         return true;
@@ -4821,8 +4840,7 @@ struct json_dearchiver::impl {
         auto_stack a(this,
                      "component simulation epsilon constrained parameters");
 
-        static const std::string_view names[] = { "epsilons",
-                                                  "operations",
+        static const std::string_view names[] = { "epsilons", "operations",
                                                   "primary" };
 
         return is_value_object(val) and
@@ -4863,8 +4881,7 @@ struct json_dearchiver::impl {
         auto_stack a(this, "component simulation objective");
 
         static const std::string_view names[] = {
-            "epsilon-constrained-parameters",
-            "method",
+            "epsilon-constrained-parameters", "method",
             "simple-parameters"
             "type",
             "weighted-sum-parameters"
@@ -5026,12 +5043,13 @@ struct json_dearchiver::impl {
 
     bool convert_to_component(component& compo) noexcept
     {
-        if (auto type = get_component_type(temp_string); type.has_value()) {
+        if (auto type = get_component_type(temp_string_sv());
+            type.has_value()) {
             compo.type = type.value();
             return true;
         }
 
-        return error("bad component type {}", temp_string);
+        return error("bad component type {}", temp_string_sv());
     }
 
     bool read_input_port(const rapidjson::Value& val,
@@ -5194,7 +5212,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "project top component");
 
-        small_string<31>   reg_name;
+        small_string<64>   reg_name;
         directory_path_str dir_path;
         file_path_str      file_path;
         component_id       c_id = undefined<component_id>();
@@ -5538,13 +5556,13 @@ struct json_dearchiver::impl {
 
     bool copy_string_to(plot_type_options& type) noexcept
     {
-        if (temp_string == "line")
+        if (string_equal_to("line"))
             type = plot_type_options::line;
 
-        if (temp_string == "dash")
+        if (string_equal_to("dash"))
             type = plot_type_options::dash;
 
-        return error("unknown element {}", temp_string);
+        return error("unknown element {}", temp_string_sv());
     }
 
     bool read_project_plot_observation_children(
@@ -5578,7 +5596,7 @@ struct json_dearchiver::impl {
 
                   auto id = [&]() {
                       for (const auto& v : pj().variable_observers)
-                          if (v.name == temp_string)
+                          if (v.name == temp_string_sv())
                               return pj().variable_observers.get_id(v);
 
                       return undefined<variable_observer_id>();
@@ -5591,7 +5609,7 @@ struct json_dearchiver::impl {
                             "can not allocate more variable observers");
 
                       auto& new_vbos = pj().variable_observers.alloc();
-                      new_vbos.name  = temp_string;
+                      new_vbos.name  = temp_string_sv();
                       id             = pj().variable_observers.get_id(new_vbos);
                   }
 
