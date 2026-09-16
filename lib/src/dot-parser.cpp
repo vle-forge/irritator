@@ -107,18 +107,6 @@ inline std::string_view to_sv(const vector<char>& vec) noexcept
     return std::string_view(vec.data(), vec.size());
 }
 
-inline std::pair<const char*, const char*> to_c_str(
-  const vector<char>& vec) noexcept
-{
-    return std::make_pair(vec.data(), vec.data() + vec.size());
-}
-
-inline std::pair<const char*, const char*> to_c_str(
-  const std::string_view vec) noexcept
-{
-    return std::make_pair(vec.data(), vec.data() + vec.size());
-}
-
 /**
    Returns @c true if two strings are equal, using a case-insensitive
    comparison. The case-comparison operation is defined only for low-ASCII
@@ -185,9 +173,7 @@ struct token {
 
     constexpr bool is_string() const noexcept
     {
-        return irt::any_equal(type,
-                              element_type::id,
-                              element_type::integer,
+        return irt::any_equal(type, element_type::id, element_type::integer,
                               element_type::double_quote);
     }
 
@@ -266,8 +252,7 @@ private:
 
         const auto start     = warnings.size();
         const auto remaining = warnings.capacity() - start;
-        const auto ret = fmt::vformat_to_n(warnings.data() + start,
-                                           remaining,
+        const auto ret = fmt::vformat_to_n(warnings.data() + start, remaining,
                                            msg_fmt[idx],
                                            fmt::make_format_args(args...));
 
@@ -294,12 +279,11 @@ private:
           [](auto& title, auto& msg, auto& format, auto args) {
               title = "Dot parser error";
 
-              auto ret =
-                fmt::vformat_to_n(msg.data(), msg.capacity() - 1, format, args);
+              auto ret = fmt::vformat_to_n(msg.data(), msg.capacity() - 1,
+                                           format, args);
               msg.resize(ret.size);
           },
-          msg_fmt[idx],
-          fmt::make_format_args(args...));
+          msg_fmt[idx], fmt::make_format_args(args...));
 
         return false;
     }
@@ -333,25 +317,25 @@ private:
     auto to_float_str(const std::string_view sv) noexcept
       -> std::optional<std::pair<float, std::string_view>>
     {
-        auto pointers = to_c_str(sv);
+        auto* str     = sv.data();
+        auto* str_end = const_cast<char*>(sv.data()) + sv.size();
 
-        const auto flt = std::strtof(pointers.first, &pointers.second);
-        if (flt == 0.0 and pointers.second == pointers.first) {
+        const auto flt = std::strtof(str, &str_end);
+        if (flt == 0.0 and str_end == str) {
             return std::nullopt;
         } else {
-            return std::make_pair(flt,
-                                  sv.substr(pointers.second - pointers.first));
+            return std::make_pair(flt, sv.substr(str_end - str));
         }
     }
 
-    auto to_float(const string_view sv) noexcept -> float
+    auto to_float(const std::string_view sv) noexcept -> float
     {
-        auto pointers = to_c_str(sv);
+        auto* str     = sv.data();
+        auto* str_end = const_cast<char*>(sv.data()) + sv.size();
 
-        const auto ret = std::strtof(pointers.first, pointers.second);
+        const auto ret = std::strtof(str, &str_end);
         if (ret == 0.f and errno != 0) {
             warning<msg_id::parse_real>(sv);
-            ;
             return 0.f;
         }
         return ret;
@@ -381,14 +365,12 @@ private:
                         const auto third_str = s_str2.substr(
                           1u, std::string_view::npos);
 
-                        return std::array<float, 3>{ float_1,
-                                                     float_2,
+                        return std::array<float, 3>{ float_1, float_2,
                                                      to_float(third_str) };
                     }
                 }
 
-                return std::array<float, 3>{ float_1,
-                                             to_float(second_str),
+                return std::array<float, 3>{ float_1, to_float(second_str),
                                              0.f };
             } else {
                 warning<msg_id::missing_comma>(s_str);
@@ -415,8 +397,8 @@ public:
     strings_type strings;
 
     token_ring_type tokens;
-    std::istream& is;
-    irt::i64      line = 0;
+    std::istream&   is;
+    irt::i64        line = 0;
 
     graph g;
 
@@ -869,8 +851,8 @@ private:
 
             const auto second = right.find(':');
             if (second != std::string_view::npos and second < right.size()) {
-                return dot_component::make(
-                  left, right.substr(0, second), right.substr(second + 1));
+                return dot_component::make(left, right.substr(0, second),
+                                           right.substr(second + 1));
             } else {
                 return dot_component::make(left, right);
             }
@@ -1444,9 +1426,9 @@ expected<void> graph::init_scale_free_graph(double       alpha,
         bool stop  = false;
 
         while (not stop) {
-            unsigned xv = d(rng);
-            unsigned degree =
-              (xv == 0 ? 0 : unsigned(beta * std::pow(xv, -alpha)));
+            unsigned xv     = d(rng);
+            unsigned degree = (xv == 0 ? 0
+                                       : unsigned(beta * std::pow(xv, -alpha)));
 
             while (degree == 0) {
                 ++first;
@@ -1737,18 +1719,15 @@ expected<void> write_dot_stream(const file_access&      fs,
     for (const auto id : g.nodes) {
         const auto idx = get_index(id);
 
-        out = fmt::format_to(
-          out, "  {} [area={}", g.node_names[idx], g.node_areas[idx]);
+        out = fmt::format_to(out, "  {} [area={}", g.node_names[idx],
+                             g.node_areas[idx]);
 
         if (g.node_positions[idx][2] != 0.f) {
-            out = fmt::format_to(out,
-                                 ", pos=\"{},{},{}!\"",
-                                 g.node_positions[idx][0],
-                                 g.node_positions[idx][1],
-                                 g.node_positions[idx][2]);
+            out = fmt::format_to(
+              out, ", pos=\"{},{},{}!\"", g.node_positions[idx][0],
+              g.node_positions[idx][1], g.node_positions[idx][2]);
         } else {
-            out = fmt::format_to(out,
-                                 ", pos=\"{},{}!\"",
+            out = fmt::format_to(out, ", pos=\"{},{}!\"",
                                  g.node_positions[idx][0],
                                  g.node_positions[idx][1]);
         }
@@ -1762,11 +1741,8 @@ expected<void> write_dot_stream(const file_access&      fs,
             const auto  compo = build_component_string(fs, fp);
 
             if (compo.has_value()) {
-                out = fmt::format_to(out,
-                                     ", component=\"{}:{}:{}\"];\n",
-                                     compo->r,
-                                     compo->d,
-                                     compo->f);
+                out = fmt::format_to(out, ", component=\"{}:{}:{}\"];\n",
+                                     compo->r, compo->d, compo->f);
             } else {
                 out = fmt::format_to(out, "];\n");
             }
@@ -1785,11 +1761,8 @@ expected<void> write_dot_stream(const file_access&      fs,
             const auto src = get_index(g.edges_nodes[idx][0].first);
             const auto dst = get_index(g.edges_nodes[idx][1].first);
 
-            out = fmt::format_to(out,
-                                 "  {} {} {};\n",
-                                 g.node_names[src],
-                                 edge_type,
-                                 g.node_names[dst]);
+            out = fmt::format_to(out, "  {} {} {};\n", g.node_names[src],
+                                 edge_type, g.node_names[dst]);
         }
     }
 
@@ -1804,8 +1777,8 @@ expected<void> write_dot_file(const file_access&           fs,
                               const std::filesystem::path& path) noexcept
 {
     if (std::ofstream ofs(path); ofs) {
-        return write_dot_stream(
-          fs, ids, graph, std::ostream_iterator<char>(ofs));
+        return write_dot_stream(fs, ids, graph,
+                                std::ostream_iterator<char>(ofs));
     } else {
         return make_error(modeling_errc::dot_file_unreachable);
     }
@@ -1819,8 +1792,8 @@ expected<vector<char>> write_dot_buffer(const file_access&      fs,
     if (buffer.capacity() < 4096)
         return make_error(modeling_errc::dot_memory_insufficient);
 
-    if (auto ret =
-          write_dot_stream(fs, ids, graph, std::back_insert_iterator(buffer));
+    if (auto ret = write_dot_stream(fs, ids, graph,
+                                    std::back_insert_iterator(buffer));
         ret.has_value())
         return buffer;
     else
