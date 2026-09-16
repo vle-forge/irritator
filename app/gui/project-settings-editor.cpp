@@ -437,8 +437,10 @@ static bool show_project_simulation_settings(application&    app,
         flags.set(project::simulation_flag::write_irtb, write_irb);
     ImGui::EndDisabled();
 
-    if (flags != ed.pj.flags)
-        ed.pj.flags = flags;
+    if (flags != ed.pj.flags) {
+        ed.pj.flags            = flags; /* Disable start button */
+        ed.pj.simulation_state = simulation_status::not_started;
+    }
 
     ImGui::LabelFormat("time", "{:.6f}", ed.simulation_display_current);
     ImGui::SameLine();
