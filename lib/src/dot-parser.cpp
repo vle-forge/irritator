@@ -1196,10 +1196,28 @@ private:
         str_id        m_id;
 
     public:
-        string_to_delete(strings_type& strings, str_id id) noexcept
+        constexpr string_to_delete(strings_type& strings, str_id id) noexcept
           : m_strings{ strings }
           , m_id{ id }
         {}
+
+        string_to_delete(const string_to_delete&) noexcept            = delete;
+        string_to_delete& operator=(const string_to_delete&) noexcept = delete;
+
+        constexpr string_to_delete(string_to_delete&& other) noexcept
+          : m_strings(other.m_strings)
+          , m_id{ std::exchange(other.m_id, undefined<str_id>()) }
+        {}
+
+        constexpr string_to_delete& operator=(string_to_delete&& other) noexcept
+        {
+            if (this != &other) {
+                m_strings = other.m_strings;
+                m_id      = std::exchange(other.m_id, undefined<str_id>());
+            }
+
+            return *this;
+        }
 
         std::string_view to_sv() const noexcept
         {
@@ -1208,7 +1226,11 @@ private:
             return std::string_view(str.data(), str.size());
         };
 
-        ~string_to_delete() noexcept { m_strings.free(m_id); }
+        constexpr ~string_to_delete() noexcept
+        {
+            if (is_defined(m_id))
+                m_strings.free(m_id);
+        }
     };
 
     string_to_delete get_and_free_string(const token t) noexcept
