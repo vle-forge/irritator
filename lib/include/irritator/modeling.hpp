@@ -1836,16 +1836,16 @@ public:
                                    fixed_factor,
                                    random_factor>;
 
-    using selection_t =
-      id_data_array<void,
-                    selection_id,
-                    allocator<new_delete_memory_resource>,
-                    unique_id_path, //!< used in json
-                    tree_node_id,   //!< model's parent
-                    model_id,       //!< model to parametrize
-                    name_str,
-                    criteria_type //!< Observation selection function
-                    >;
+    using selection_t = id_data_array<void,
+                                      selection_id,
+                                      allocator<new_delete_memory_resource>,
+                                      unique_id_path, //!< used in json
+                                      tree_node_id,   //!< model's parent
+                                      model_id,       //!< model to parametrize
+                                      name_str,
+                                      criteria_type //!< Observation selection
+                                                    //!< function
+                                      >;
 
     factor_t           factors;
     selection_t        selections;
