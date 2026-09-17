@@ -3462,7 +3462,7 @@ public:
       const bitflags<EnumT>& lhs,
       const bitflags<EnumT>& rhs) noexcept
     {
-        return lhs.m_bits & rhs.m_bits;
+        return bitflags<EnumT>(lhs.m_bits & rhs.m_bits);
     }
 
     /** Returns a bitflags<EnumT> containing the result of binary OR on
@@ -3471,7 +3471,7 @@ public:
       const bitflags<EnumT>& lhs,
       const bitflags<EnumT>& rhs) noexcept
     {
-        return lhs.m_bits | rhs.m_bits;
+        return bitflags<EnumT>(lhs.m_bits | rhs.m_bits);
     }
 
     /** Returns a bitflags<EnumT> containing the result of binary XOR on
@@ -3480,7 +3480,7 @@ public:
       const bitflags<EnumT>& lhs,
       const bitflags<EnumT>& rhs) noexcept
     {
-        return lhs.m_bits ^ rhs.m_bits;
+        return bitflags<EnumT>(lhs.m_bits ^ rhs.m_bits);
     }
 
     /** Returns true if lhs and rhs have exactly the same bits set. */
