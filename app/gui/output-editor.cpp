@@ -631,10 +631,8 @@ void output_editor::add_project(const project_id id) noexcept
     const auto idx = get_index(id);
 
     if (idx >= m_display_selected_project.ssize())
-        if (not m_display_selected_project.grow<2, 1>(1))
-            return;
-
-    m_display_selected_project[idx] = true;
+        if (m_display_selected_project.resize(idx + 1, false))
+            m_display_selected_project[idx] = true;
 }
 
 void output_editor::remove_project(const project_id id) noexcept
