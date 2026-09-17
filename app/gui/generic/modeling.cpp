@@ -1844,12 +1844,52 @@ bool generic_component_editor_data::show_selected_nodes(
   const component_access& /*ids*/,
   component& compo) noexcept
 {
-    if (selected_nodes.empty())
-        return false;
-
     auto& app = container_of(&ed, &application::component_ed);
 
     read(app, compo);
+
+    auto selection_option = bitflags<child_flags>{};
+    auto force_selection  = false;
+
+    if (ImGui::BeginMenu("Selection")) {
+        if (ImGui::MenuItem("None"))
+            force_selection = true;
+
+        if (ImGui::MenuItem("Observables")) {
+            selection_option.set(child_flags::observable, true);
+            force_selection = true;
+        }
+
+        if (ImGui::MenuItem("Configurables")) {
+            selection_option.set(child_flags::configurable, true);
+            force_selection = true;
+        }
+
+        if (ImGui::MenuItem("Both")) {
+            selection_option = bitflags<child_flags>(child_flags::configurable,
+                                                     child_flags::observable);
+            force_selection  = true;
+        }
+        ImGui::EndMenu();
+    }
+
+    if (force_selection) {
+        ImNodes::ClearNodeSelection();
+        selected_nodes.clear();
+
+        if (selection_option.any()) {
+            for (const auto& c : m_generic.children) {
+                const auto c_id = m_generic.children.get_id(c);
+
+                if ((c.flags & selection_option).any()) {
+                    const auto imnodes_id = pack_node_child(c_id);
+
+                    selected_nodes.push_back(imnodes_id);
+                    ImNodes::SelectNode(imnodes_id);
+                }
+            }
+        }
+    }
 
     int u = 0;
     for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
