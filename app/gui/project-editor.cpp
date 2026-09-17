@@ -64,8 +64,8 @@ void project_editor::select(application& app, tree_node_id id) noexcept
                     if (compo.type == component_type::generic) {
                         if (auto* gen = ids.generic_components.try_to_get(
                               compo.id.generic_id)) {
-                            app.generic_sim.init(
-                              app, *this, *tree, compo, *gen);
+                            app.generic_sim.init(app, *this, *tree, compo,
+                                                 *gen);
                         }
                     }
                 }
@@ -193,7 +193,7 @@ static bool show_local_simulation_plot_observers_line(
             }
         }
     } else {
-        ImGui::TextUnformatted(uid.begin(), uid.end());
+        ImGui::TextUnformatted(uid.data(), uid.data() + uid.size());
     }
 
     ImGui::TableNextColumn();
@@ -266,7 +266,7 @@ static bool show_local_simulation_plot_observers_table(
 
                 debug::ensure(ed.pj.sim.models.try_to_get(mdl_id));
 
-                ImGui::PushID(i);
+                ImGui::PushID(static_cast<int>(i));
 
                 show_local_simulation_plot_observers_line(ed, ids, tn, mdl_id,
                                                           uid);
@@ -308,8 +308,8 @@ static bool show_local_simulation_settings(application&    app,
                 ImGui::TableHeadersRow();
 
                 for (const auto& elem : tn.parameters_ids.data) {
-                    const auto mdl_id =
-                      ed.pj.parameters.get<model_id>(elem.value);
+                    const auto mdl_id = ed.pj.parameters.get<model_id>(
+                      elem.value);
                     const auto& mdl = ed.pj.sim.models.get(mdl_id);
 
                     debug::ensure(ed.pj.parameters.get<name_str>(elem.value) ==
@@ -327,9 +327,7 @@ static bool show_local_simulation_settings(application&    app,
 
                     ImGui::TableNextColumn();
                     show_parameter_editor(
-                      app,
-                      ed.pj.sim.srcs,
-                      mdl.type,
+                      app, ed.pj.sim.srcs, mdl.type,
                       ed.pj.parameters.get<parameter>(elem.value));
 
                     ImGui::PopID();
@@ -355,8 +353,8 @@ static bool show_local_simulation_specific_observers(application&    app,
 
             switch (compo.type) {
             case component_type::graph:
-                if (auto* g =
-                      ids.graph_components.try_to_get(compo.id.graph_id))
+                if (auto* g = ids.graph_components.try_to_get(
+                      compo.id.graph_id))
                     return show_local_observers(app, ed, ids, tn, compo, *g);
                 break;
 
@@ -436,15 +434,14 @@ static bool show_simulation_table_grid_observers(application& /*app*/,
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            ImGui::DragFloatRange2(
-              "##scale", &grid.scale_min, &grid.scale_max, 0.01f);
+            ImGui::DragFloatRange2("##scale", &grid.scale_min, &grid.scale_max,
+                                   0.01f);
             ImGui::PopItemWidth();
             ImGui::TableNextColumn();
             if (ImPlot::ColormapButton(ImPlot::GetColormapName(grid.color_map),
-                                       ImVec2(225, 0),
-                                       grid.color_map)) {
-                grid.color_map =
-                  (grid.color_map + 1) % ImPlot::GetColormapCount();
+                                       ImVec2(225, 0), grid.color_map)) {
+                grid.color_map = (grid.color_map + 1) %
+                                 ImPlot::GetColormapCount();
             }
 
             ImGui::TableNextColumn();
@@ -654,8 +651,8 @@ static bool show_project_parameters(application&    app,
                 ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
 
                 ImGui::TableNextColumn();
-                up += show_parameter_editor(
-                  app, ed.pj.sim.srcs, mdl->type, params[id]);
+                up += show_parameter_editor(app, ed.pj.sim.srcs, mdl->type,
+                                            params[id]);
 
                 ImGui::PopID();
             }
@@ -672,20 +669,20 @@ static bool show_project_parameters(application&    app,
 static void show_component_observations_actions(project_editor& sim_ed) noexcept
 {
     if (ImGui::Button("1"))
-        sim_ed.tree_node_observation =
-          project_editor::tree_node_observation_t(1);
+        sim_ed.tree_node_observation = project_editor::tree_node_observation_t(
+          1);
     ImGui::SameLine();
     if (ImGui::Button("2"))
-        sim_ed.tree_node_observation =
-          project_editor::tree_node_observation_t(2);
+        sim_ed.tree_node_observation = project_editor::tree_node_observation_t(
+          2);
     ImGui::SameLine();
     if (ImGui::Button("3"))
-        sim_ed.tree_node_observation =
-          project_editor::tree_node_observation_t(3);
+        sim_ed.tree_node_observation = project_editor::tree_node_observation_t(
+          3);
     ImGui::SameLine();
     if (ImGui::Button("4"))
-        sim_ed.tree_node_observation =
-          project_editor::tree_node_observation_t(4);
+        sim_ed.tree_node_observation = project_editor::tree_node_observation_t(
+          4);
     ImGui::SameLine();
     ImGui::TextUnformatted("-");
     ImGui::SameLine();
@@ -783,8 +780,8 @@ static void show_subplots(application&       app,
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
         ImPlot::SetupLegend(ImPlotLocation_NorthWest);
-        ImPlot::SetupAxisLimits(
-          ImAxis_X1, ed.pj.sim.limits.begin(), ed.pj.sim.limits.end());
+        ImPlot::SetupAxisLimits(ImAxis_X1, ed.pj.sim.limits.begin(),
+                                ed.pj.sim.limits.end());
         ImPlot::SetupFinish();
 
         for (const auto id : vobs.subs) {
@@ -808,11 +805,11 @@ static void show_subplots(application&       app,
 static bool show_project_observations(application&    app,
                                       project_editor& ed) noexcept
 {
-    ImGuiContext& g = *GImGui;
-    const auto    sub_obs_size =
-      ImVec2((ImGui::GetContentRegionAvail().x - 2.f * g.Style.IndentSpacing) /
-               *ed.tree_node_observation,
-             ed.tree_node_observation_height / *ed.tree_node_observation);
+    ImGuiContext& g            = *GImGui;
+    const auto    sub_obs_size = ImVec2(
+      (ImGui::GetContentRegionAvail().x - 2.f * g.Style.IndentSpacing) /
+        *ed.tree_node_observation,
+      ed.tree_node_observation_height / *ed.tree_node_observation);
 
     auto updated = 0;
 
@@ -850,8 +847,8 @@ static bool show_project_observations(application&    app,
                     ImGui::TableNextColumn();
                 });
 
-                pos = show_all_visualisation_editor(
-                  app, ed, pos, *ed.tree_node_observation);
+                pos = show_all_visualisation_editor(app, ed, pos,
+                                                    *ed.tree_node_observation);
 
                 for (auto& vobs : ed.pj.variable_observers) {
                     ImGui::PushID(
@@ -887,9 +884,9 @@ static void show_component_observations(application&    app,
     show_local_simulation_specific_observers(app, sim_ed, selected);
     show_component_observations_actions(sim_ed);
 
-    const auto sub_obs_size =
-      ImVec2(ImGui::GetContentRegionAvail().x / *sim_ed.tree_node_observation,
-             sim_ed.tree_node_observation_height);
+    const auto sub_obs_size = ImVec2(ImGui::GetContentRegionAvail().x /
+                                       *sim_ed.tree_node_observation,
+                                     sim_ed.tree_node_observation_height);
 
     auto pos = 0;
     if (ImGui::BeginTable("##obs-table", *sim_ed.tree_node_observation)) {
@@ -897,8 +894,7 @@ static void show_component_observations(application&    app,
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
 
-        for_specified_data(sim_ed.pj.grid_observers,
-                           selected.grid_observer_ids,
+        for_specified_data(sim_ed.pj.grid_observers, selected.grid_observer_ids,
                            [&](auto& grid) noexcept {
                                app.grid_obs.show(grid, sim_ed.pj, sub_obs_size);
                                ++pos;
@@ -910,8 +906,8 @@ static void show_component_observations(application&    app,
                                ImGui::TableNextColumn();
                            });
 
-        pos = show_part_visualisation_editor(
-          app, sim_ed, selected, pos, *sim_ed.tree_node_observation);
+        pos = show_part_visualisation_editor(app, sim_ed, selected, pos,
+                                             *sim_ed.tree_node_observation);
 
         for (auto& vobs : sim_ed.pj.variable_observers) {
             const auto tn_id = sim_ed.pj.tree_nodes.get_id(selected);
@@ -926,8 +922,7 @@ static void show_component_observations(application&    app,
                     ImPlot::SetupAxisLimits(ImAxis_X1,
                                             sim_ed.pj.sim.limits.begin(),
                                             sim_ed.pj.sim.limits.end());
-                    ImPlot::SetupAxis(ImAxis_Y1,
-                                      vobs.name.c_str(),
+                    ImPlot::SetupAxis(ImAxis_Y1, vobs.name.c_str(),
                                       ImPlotAxisFlags_AutoFit |
                                         ImPlotAxisFlags_RangeFit);
                     ImPlot::SetupFinish();
@@ -959,8 +954,8 @@ static void show_component_observations(application&    app,
                       dynamics_type::simulation_wrapper))
                 continue;
 
-            const auto& sim_wrapper =
-              get_dyn<simulation_wrapper>(sim_ed.pj.sim.models.get(c.mdl));
+            const auto& sim_wrapper = get_dyn<simulation_wrapper>(
+              sim_ed.pj.sim.models.get(c.mdl));
 
             if (sim_wrapper.state != simulation_wrapper::run_state::finish)
                 continue;
@@ -968,9 +963,8 @@ static void show_component_observations(application&    app,
             if (not sim_ed.pj.sim.sims.exists(sim_wrapper.sim_id))
                 continue;
 
-            const auto& sub_obs =
-              sim_wrapper.embedded_sims
-                .get<simulation_wrapper::simulation_observation>();
+            const auto& sub_obs = sim_wrapper.embedded_sims.get<
+              simulation_wrapper::simulation_observation>();
 
             const auto& sim_src = sim_ed.pj.sim.sims.get(sim_wrapper.sim_id);
             const auto& select_names  = sim_src.selections.get<name_str>();
@@ -988,17 +982,14 @@ static void show_component_observations(application&    app,
                         for (const auto id : sim_wrapper.embedded_sims) {
                             const auto idx = get_index(id);
 
-                            if (const auto* data =
-                                  sub_obs[idx].get(select_models[select_idx])) {
+                            if (const auto* data = sub_obs[idx].get(
+                                  select_models[select_idx])) {
 
                                 ImPlot::PlotLine(
                                   format_n<64>("{}", idx).c_str(),
-                                  &data->values[0].t,
-                                  &data->values[0].value,
-                                  length(data->values),
-                                  ImPlotLineFlags_SkipNaN,
-                                  0,
-                                  sizeof(resampled_sample));
+                                  &data->values[0].t, &data->values[0].value,
+                                  length(data->values), ImPlotLineFlags_SkipNaN,
+                                  0, sizeof(resampled_sample));
                             }
                         }
 
@@ -1074,10 +1065,10 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     if (ImGui::BeginTable("##ed", 2, ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn(
-          "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
-        ImGui::TableSetupColumn(
-          "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+        ImGui::TableSetupColumn("Hierarchy", ImGuiTableColumnFlags_WidthStretch,
+                                0.2f);
+        ImGui::TableSetupColumn("Graph", ImGuiTableColumnFlags_WidthStretch,
+                                0.8f);
 
         const auto old_selected_tree_node = m_selected_tree_node;
 
@@ -1106,8 +1097,8 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                         app.mod.ids.read([&](const auto& ids, auto) noexcept {
                             const auto& c = ids.components[compo_id];
                             if (c.type == component_type::graph) {
-                                auto& graph_compo =
-                                  ids.graph_components.get(c.id.graph_id);
+                                auto& graph_compo = ids.graph_components.get(
+                                  c.id.graph_id);
                                 graph_ed.update(app, graph_compo.g);
                             }
                         });
