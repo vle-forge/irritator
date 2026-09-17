@@ -427,6 +427,7 @@ public:
                                generic_component& dst) const noexcept;
 
     bool     exists_child(const std::string_view name) const noexcept;
+    child_id find_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const child_id from_id) const noexcept;
 };
 

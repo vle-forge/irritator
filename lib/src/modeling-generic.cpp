@@ -249,6 +249,19 @@ bool generic_component::exists_child(const std::string_view str) const noexcept
     return false;
 }
 
+child_id generic_component::find_child(
+  const std::string_view name) const noexcept
+{
+    for (const auto& c : children) {
+        const auto c_id = children.get_id(c);
+
+        if (children_names[c_id].sv() == name)
+            return c_id;
+    }
+
+    return undefined<child_id>();
+}
+
 name_str generic_component::make_unique_name_id(
   const child_id from_id) const noexcept
 {
