@@ -99,9 +99,9 @@ static void update_child_component_task(
                         for (const auto id :
                              ids.graph_components.get(compo.id.graph_id)
                                .g.nodes) {
-                            const auto c_id =
-                              ids.graph_components.get(compo.id.graph_id)
-                                .g.node_components[id];
+                            const auto c_id = ids.graph_components
+                                                .get(compo.id.graph_id)
+                                                .g.node_components[id];
                             if (not push_back_if_not_find(vec, c_id))
                                 break;
                         }
@@ -153,8 +153,8 @@ static auto combobox_component_id(const component_access&     ids,
                                   port_id                     p_id) noexcept
   -> std::pair<component_id, port_id>
 {
-    const char* preview =
-      ids.exists(c_id) ? ids.components[c_id].name.c_str() : "-";
+    const char* preview = ids.exists(c_id) ? ids.components[c_id].name.c_str()
+                                           : "-";
 
     if (ImGui::BeginCombo(label, preview)) {
         if (ImGui::Selectable("-", is_undefined(c_id))) {
@@ -286,8 +286,8 @@ static auto get_cst_source(component&                     compo,
                            external_source_definition::id id) noexcept
   -> external_source_definition::constant_source&
 {
-    auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>(id);
+    auto& elems = compo.srcs.data
+                    .get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::constant);
 
     return elems.cst;
@@ -297,8 +297,8 @@ static auto get_bin_source(component&                     compo,
                            external_source_definition::id id) noexcept
   -> external_source_definition::binary_source&
 {
-    auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>(id);
+    auto& elems = compo.srcs.data
+                    .get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::binary_file);
 
     return elems.bin;
@@ -308,8 +308,8 @@ static auto get_txt_source(component&                     compo,
                            external_source_definition::id id) noexcept
   -> external_source_definition::text_source&
 {
-    auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>(id);
+    auto& elems = compo.srcs.data
+                    .get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::text_file);
 
     return elems.txt;
@@ -319,8 +319,8 @@ static auto get_rnd_source(component&                     compo,
                            external_source_definition::id id) noexcept
   -> external_source_definition::random_source&
 {
-    auto& elems =
-      compo.srcs.data.get<external_source_definition::source_element>(id);
+    auto& elems = compo.srcs.data
+                    .get<external_source_definition::source_element>(id);
     fatal::ensure(elems.type == source_type::random);
 
     return elems.rnd;
@@ -368,11 +368,11 @@ static bool display_constant_source(
             }();
 
             if (new_size) {
-                const auto columns_sz =
-                  3 < cst.data.size() ? 3 : cst.data.size();
-                const auto rows_sz =
-                  (cst.data.size() / columns_sz) +
-                  ((cst.data.size() % columns_sz) > 0 ? 1 : 0);
+                const auto columns_sz = 3 < cst.data.size() ? 3
+                                                            : cst.data.size();
+                const auto rows_sz = (cst.data.size() / columns_sz) +
+                                     ((cst.data.size() % columns_sz) > 0 ? 1
+                                                                         : 0);
 
                 const auto columns = static_cast<int>(columns_sz);
                 const auto rows    = static_cast<int>(rows_sz);
@@ -384,8 +384,7 @@ static bool display_constant_source(
                     if (ImGui::BeginTable("Values", columns)) {
                         for (int j = 0; j < columns; ++j)
                             ImGui::TableSetupColumn(
-                              "",
-                              ImGuiTableColumnFlags_WidthFixed,
+                              "", ImGuiTableColumnFlags_WidthFixed,
                               (ImGui::GetContentRegionAvail().x -
                                (2 * ImGui::GetStyle().ItemSpacing.x)) /
                                 3.f);
@@ -456,8 +455,8 @@ static bool display_binary_source(
                 if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
                     if (fs.dir_paths.try_to_get(f->parent)) {
                         const auto old = bin.file;
-                        bin.file =
-                          show_data_file_input(fs, f->parent, bin.file);
+                        bin.file       = show_data_file_input(fs, f->parent,
+                                                              bin.file);
 
                         return old != bin.file;
                     }
@@ -505,8 +504,8 @@ static bool display_text_source(
                 if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
                     if (fs.dir_paths.try_to_get(f->parent)) {
                         const auto old = txt.file;
-                        txt.file =
-                          show_data_file_input(fs, f->parent, txt.file);
+                        txt.file       = show_data_file_input(fs, f->parent,
+                                                              txt.file);
 
                         return old != txt.file;
                     }
@@ -654,10 +653,11 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
                                     generic_component& g,
                                     child_id           selected) noexcept
 {
-    const auto label =
-      std::string{ g.children.try_to_get(selected)
-                     ? g.children_names[get_index(selected)].sv()
-                     : "-" };
+    const auto label = std::string{
+        g.children.try_to_get(selected)
+          ? g.children_names[get_index(selected)].sv()
+          : "-"
+    };
 
     if (ImGui::BeginCombo("Child", label.c_str())) {
         if (ImGui::IsWindowAppearing()) {
@@ -806,8 +806,8 @@ static bool show_input_connections_new(const component_access& ids,
             }
 
             if (is_defined(con.x) and is_defined(con.id)) {
-                if (auto ret =
-                      grid.connect_input(con.x, con.row, con.col, con.id);
+                if (auto ret = grid.connect_input(con.x, con.row, con.col,
+                                                  con.id);
                     not ret) {
                     log(
                       log_level::error,
@@ -897,8 +897,8 @@ static bool show_output_connections_new(const component_access& ids,
             }
 
             if (is_defined(con.y) and is_defined(con.id)) {
-                if (auto ret =
-                      grid.connect_input(con.y, con.row, con.col, con.id);
+                if (auto ret = grid.connect_input(con.y, con.row, con.col,
+                                                  con.id);
                     not ret) {
                     log(
                       log_level::error,
@@ -1026,8 +1026,8 @@ static bool show_input_connections_new(const component_access& ids,
 
         if (is_defined(con.x) and is_defined(con.dst) and
             (is_defined(con.port.compo) or con.port.model >= 0)) {
-            if (connect_input(
-                  con.x, con.dst, con.port.compo, con.port.model, g)) {
+            if (connect_input(con.x, con.dst, con.port.compo, con.port.model,
+                              g)) {
                 con.clear();
                 ++u;
             }
@@ -1046,13 +1046,13 @@ static bool connect_input(const port_id      g_port_id,
                           generic_component& g) noexcept
 {
     const auto& child = g.children.get(selected);
-    const auto  ret =
-      (child.type == child_type::component)
-        ? g.connect_input(g_port_id,
-                          g.children.get(selected),
-                          connection::port{ .compo = p_selected })
-        : g.connect_input(
-            g_port_id, child, connection::port{ .model = pp_selected });
+    const auto  ret   = (child.type == child_type::component)
+                          ? g.connect_input(
+                              g_port_id, g.children.get(selected),
+                              connection::port{ .compo = p_selected })
+                          : g.connect_input(
+                              g_port_id, child,
+                              connection::port{ .model = pp_selected });
 
     if (not ret) {
         log(
@@ -1156,8 +1156,8 @@ static bool show_output_connections_new(const component_access& ids,
 
         if (is_defined(con.y) and is_defined(con.src) and
             (is_defined(con.port.compo) or con.port.model >= 0)) {
-            if (connect_output(
-                  con.y, con.src, con.port.compo, con.port.model, g)) {
+            if (connect_output(con.y, con.src, con.port.compo, con.port.model,
+                               g)) {
                 con.clear();
                 ++u;
             }
@@ -1179,12 +1179,11 @@ static bool connect_output(const port_id      g_port_id,
     expected<void> ret;
 
     if (child.type == child_type::component)
-        ret = g.connect_output(g_port_id,
-                               g.children.get(selected),
+        ret = g.connect_output(g_port_id, g.children.get(selected),
                                connection::port{ .compo = p_selected });
     else
-        ret = g.connect_output(
-          g_port_id, child, connection::port{ .model = pp_selected });
+        ret = g.connect_output(g_port_id, child,
+                               connection::port{ .model = pp_selected });
 
     if (not ret) {
         log(
@@ -1504,8 +1503,7 @@ static bool show_input_connections(const component_access& ids,
 
                     ImGui::TextFormat("{} connected to node {}x{} port {}\n",
                                       tab.compo.x.get<port_str>(con.x).sv(),
-                                      con.row,
-                                      con.col,
+                                      con.row, con.col,
                                       sub_compo.x.get<port_str>(con.id).sv());
                 } else
                     to_del = con_id;
@@ -1554,8 +1552,7 @@ static bool show_output_connections(const component_access& ids,
 
                     ImGui::TextFormat("{} connected to node {}x{} port {}\n",
                                       tab.compo.y.get<port_str>(con.y).sv(),
-                                      con.row,
-                                      con.col,
+                                      con.row, con.col,
                                       sub_compo.y.get<port_str>(con.id).sv());
                 } else
                     to_del = con_id;
@@ -1680,8 +1677,8 @@ static bool show_input_connections(const component_access& ids,
         break;
 
     case component_type::generic:
-        if (auto* g =
-              ids.generic_components.try_to_get(tab.compo.id.generic_id))
+        if (auto* g = ids.generic_components.try_to_get(
+              tab.compo.id.generic_id))
             return show_input_connections(ids, tab, *g);
         break;
 
@@ -1713,8 +1710,8 @@ static bool show_output_connections(const component_access& ids,
         break;
 
     case component_type::generic:
-        if (auto* g =
-              ids.generic_components.try_to_get(tab.compo.id.generic_id))
+        if (auto* g = ids.generic_components.try_to_get(
+              tab.compo.id.generic_id))
             return show_output_connections(ids, tab, *g);
         break;
 
@@ -1836,14 +1833,12 @@ static bool show_input_connection_packs(const component_access& ids,
     auto u = 0;
 
     u += show_connection_pack(
-      ids,
-      tab,
-      tab.compo.input_connection_pack,
+      ids, tab, tab.compo.input_connection_pack,
       [](auto& compo) noexcept -> auto& { return compo.x; });
 
-    auto& con = tab.input_pack_con;
-    con.parent_port =
-      combobox_port_id("input port", tab.compo.x, con.parent_port);
+    auto& con       = tab.input_pack_con;
+    con.parent_port = combobox_port_id("input port", tab.compo.x,
+                                       con.parent_port);
 
     if (is_defined(con.parent_port)) {
         tab.uniq_component_children.read([&](const auto& vec,
@@ -1881,14 +1876,12 @@ static bool show_output_connection_packs(const component_access& ids,
     auto u = 0;
 
     u += show_connection_pack(
-      ids,
-      tab,
-      tab.compo.output_connection_pack,
+      ids, tab, tab.compo.output_connection_pack,
       [](auto& compo) noexcept -> auto& { return compo.y; });
 
-    auto& con = tab.output_pack_con;
-    con.parent_port =
-      combobox_port_id("output port", tab.compo.y, con.parent_port);
+    auto& con       = tab.output_pack_con;
+    con.parent_port = combobox_port_id("output port", tab.compo.y,
+                                       con.parent_port);
 
     if (is_defined(con.parent_port)) {
         tab.uniq_component_children.read([&](const auto& vec, auto) noexcept {
@@ -1929,18 +1922,16 @@ static component_editor_result display_component_editor_subtable(
     component_editor_result action;
 
     if (ImGui::BeginTable("##ed", 2)) {
-        ImGui::TableSetupColumn(
-          "Component settings", ImGuiTableColumnFlags_WidthStretch, 0.2f);
-        ImGui::TableSetupColumn(
-          "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+        ImGui::TableSetupColumn("Component settings",
+                                ImGuiTableColumnFlags_WidthStretch, 0.2f);
+        ImGui::TableSetupColumn("Graph", ImGuiTableColumnFlags_WidthStretch,
+                                0.8f);
         ImGui::TableHeadersRow();
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
 
-        ImGui::BeginChild("ChildR",
-                          ImVec2(0, 0),
-                          ImGuiChildFlags_Borders,
+        ImGui::BeginChild("ChildR", ImVec2(0, 0), ImGuiChildFlags_Borders,
                           ImGuiWindowFlags_MenuBar);
 
         if (ImGui::BeginMenuBar()) {
@@ -1950,9 +1941,7 @@ static component_editor_result display_component_editor_subtable(
                       [&](const auto& fs,
                           auto) noexcept -> component_editor_result {
                           const auto selected = tab.file_select.combobox(
-                            app,
-                            fs,
-                            file_type::component_file,
+                            app, fs, file_type::component_file,
                             file_selector::flags(
                               file_selector::flag::show_save_button,
                               file_selector::flag::show_cancel_button));
@@ -1983,15 +1972,13 @@ static component_editor_result display_component_editor_subtable(
                     const auto width  = height;
 
                     ImGui::InputSmallStringMultiline(
-                      "##description",
-                      tab.desc,
-                      ImVec2(width, height),
+                      "##description", tab.desc, ImVec2(width, height),
                       ImGuiInputTextFlags_AllowTabInput);
 
                     const auto size = ImGui::ComputeButtonSize(2);
                     if (ImGui::Button("Save", size)) {
-                        action |=
-                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::
+                          do_store_component;
                         action |= component_editor_result_type::do_save_file;
                         ImGui::CloseCurrentPopup();
                     }
@@ -2009,36 +1996,36 @@ static component_editor_result display_component_editor_subtable(
 
             if (ImGui::BeginMenu("Sources")) {
                 if (ImGui::BeginMenu("New")) {
-                    const auto size =
-                      ImVec2(ImGui::CalcTextSize("new binary file").x +
-                               ImGui::GetStyle().FramePadding.x * 2.0f,
-                             0);
+                    const auto size = ImVec2(
+                      ImGui::CalcTextSize("new binary file").x +
+                        ImGui::GetStyle().FramePadding.x * 2.0f,
+                      0);
 
                     if (not tab.compo.srcs.data.can_alloc(1))
                         ImGui::TextUnformatted("Not Enough memor");
 
                     if (ImGui::Button("new constant", size)) {
                         tab.compo.srcs.alloc_constant_source();
-                        action |=
-                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::
+                          do_store_component;
                     }
 
                     if (ImGui::Button("new binary file", size)) {
                         tab.compo.srcs.alloc_binary_source();
-                        action |=
-                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::
+                          do_store_component;
                     }
 
                     if (ImGui::Button("new text file", size)) {
                         tab.compo.srcs.alloc_text_source();
-                        action |=
-                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::
+                          do_store_component;
                     }
 
                     if (ImGui::Button("new random", size)) {
                         tab.compo.srcs.alloc_random_source();
-                        action |=
-                          component_editor_result_type::do_store_component;
+                        action |= component_editor_result_type::
+                          do_store_component;
                     }
 
                     ImGui::EndMenu();
@@ -2060,10 +2047,11 @@ static component_editor_result display_component_editor_subtable(
                       "the "
                       "state actions.");
                 } else {
-                    const auto size =
-                      ImVec2{ ImGui::CalcTextSize("XXXXXXXXXXXX").x +
-                                ImGui::GetStyle().FramePadding.x * 2.0f,
-                              0 };
+                    const auto size = ImVec2{
+                        ImGui::CalcTextSize("XXXXXXXXXXXX").x +
+                          ImGui::GetStyle().FramePadding.x * 2.0f,
+                        0
+                    };
 
                     if (tab.compo.x.can_alloc(1) and
                         ImGui::Button("Input port", size)) {
@@ -2072,12 +2060,12 @@ static component_editor_result display_component_editor_subtable(
                             const auto id = tab.compo.x.alloc_id();
 
                             tab.compo.x.template get<port_str>(id) = "in";
-                            tab.compo.x.template get<port_option>(id) =
-                              port_option::classic;
+                            tab.compo.x.template get<port_option>(
+                              id) = port_option::classic;
                             tab.compo.x.template get<position>(id).reset();
 
-                            action |=
-                              component_editor_result_type::do_store_component;
+                            action |= component_editor_result_type::
+                              do_store_component;
                         }
                     }
 
@@ -2088,12 +2076,12 @@ static component_editor_result display_component_editor_subtable(
                             const auto id = tab.compo.y.alloc_id();
 
                             tab.compo.y.template get<port_str>(id) = "out";
-                            tab.compo.y.template get<port_option>(id) =
-                              port_option::classic;
+                            tab.compo.y.template get<port_option>(
+                              id) = port_option::classic;
                             tab.compo.y.template get<position>(id).reset();
 
-                            action |=
-                              component_editor_result_type::do_store_component;
+                            action |= component_editor_result_type::
+                              do_store_component;
                         }
                     }
 
@@ -2152,8 +2140,6 @@ static component_editor_result display_component_editor_subtable(
                                       do_store_component;
                                 ImGui::TreePop();
                             }
-
-                            ImGui::TreePop();
                         });
                     }
                 }
@@ -2242,8 +2228,8 @@ static auto display_component_editor(component_editor&      ed,
         action |= display_component_editor_subtable(app, *element, tab);
 
         if (is_defined(tab.file.file)) {
-            const auto is_valid_filename =
-              app.mod.files.read([&](const auto& fs, auto) noexcept -> bool {
+            const auto is_valid_filename = app.mod.files.read(
+              [&](const auto& fs, auto) noexcept -> bool {
                   if (const auto* f = fs.file_paths.try_to_get(tab.file.file))
                       return is_valid_irt_filename(f->path.sv());
 
@@ -2277,21 +2263,19 @@ static auto display_component_editor(component_editor&      ed,
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
                             if (auto ret = app.mod.save(ids, fs, tab->id);
                                 not ret) {
-                                log(log_level::error,
-                                    [&](auto& title, auto& msg) {
-                                        title = "Component save error";
-                                        format(msg,
-                                               "Fail to save {} (part: {} {})",
-                                               tab->compo.name.sv(),
-                                               ordinal(ret.error().cat()),
-                                               ret.error().value());
-                                    });
+                                log(log_level::error, [&](auto& title,
+                                                          auto& msg) {
+                                    title = "Component save error";
+                                    format(msg, "Fail to save {} (part: {} {})",
+                                           tab->compo.name.sv(),
+                                           ordinal(ret.error().cat()),
+                                           ret.error().value());
+                                });
                             } else {
                                 log(log_level::notice,
                                     [&](auto& title, auto& msg) {
                                         title = "Component save";
-                                        format(msg,
-                                               "Save {} success",
+                                        format(msg, "Save {} success",
                                                tab->compo.name.sv());
                                     });
                             }
@@ -2337,8 +2321,8 @@ auto component_editor::display_tab_content(tab& t) noexcept -> show_result_t
 
     switch (t.type) {
     case component_type::generic:
-        if (ret =
-              display_component_editor(*this, app.generics, t.data.generic, t);
+        if (ret = display_component_editor(*this, app.generics, t.data.generic,
+                                           t);
             ret == component_editor::show_result_t::request_to_close) {
             app.generics.free(t.data.generic);
         }
@@ -2470,12 +2454,10 @@ void component_editor::request_to_open(const component_id id) noexcept
             switch (compo.type) {
             case component_type::generic:
                 if (tabs.can_alloc(1) and app.generics.can_alloc(1)) {
-                    auto& t =
-                      tabs.alloc(id, component_type::generic, file_access);
+                    auto& t           = tabs.alloc(id, component_type::generic,
+                                                   file_access);
                     t.data.generic    = app.generics.get_id(app.generics.alloc(
-                      id,
-                      compo,
-                      compo.id.generic_id,
+                      id, compo, compo.id.generic_id,
                       ids.generic_components.get(compo.id.generic_id)));
                     m_request_to_open = id;
                 } else
@@ -2485,8 +2467,8 @@ void component_editor::request_to_open(const component_id id) noexcept
             case component_type::grid:
                 if (tabs.can_alloc(1) and app.grids.can_alloc(1)) {
                     auto& t = tabs.alloc(id, component_type::grid, file_access);
-                    t.data.grid =
-                      app.grids.get_id(app.grids.alloc(id, compo.id.grid_id));
+                    t.data.grid = app.grids.get_id(
+                      app.grids.alloc(id, compo.id.grid_id));
                     m_request_to_open = id;
                 } else
                     log(log_level::error, log_not_enough_memory);
@@ -2494,8 +2476,8 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::graph:
                 if (tabs.can_alloc(1) and app.graphs.can_alloc(1)) {
-                    auto& t =
-                      tabs.alloc(id, component_type::graph, file_access);
+                    auto& t      = tabs.alloc(id, component_type::graph,
+                                              file_access);
                     t.data.graph = app.graphs.get_id(
                       app.graphs.alloc(id, compo.id.graph_id));
                     m_request_to_open = id;
@@ -2507,8 +2489,7 @@ void component_editor::request_to_open(const component_id id) noexcept
                 if (tabs.can_alloc(1) and app.hsms.can_alloc(1)) {
                     auto& t = tabs.alloc(id, component_type::hsm, file_access);
                     t.data.hsm = app.hsms.get_id(
-                      app.hsms.alloc(id,
-                                     compo.id.hsm_id,
+                      app.hsms.alloc(id, compo.id.hsm_id,
                                      ids.hsm_components.get(compo.id.hsm_id)));
                     m_request_to_open = id;
                 } else
@@ -2517,11 +2498,10 @@ void component_editor::request_to_open(const component_id id) noexcept
 
             case component_type::simulation:
                 if (tabs.can_alloc(1) and app.sims.can_alloc(1)) {
-                    auto& t =
-                      tabs.alloc(id, component_type::simulation, file_access);
+                    auto& t    = tabs.alloc(id, component_type::simulation,
+                                            file_access);
                     t.data.sim = app.sims.get_id(
-                      app.sims.alloc(id,
-                                     compo.id.sim_id,
+                      app.sims.alloc(id, compo.id.sim_id,
                                      ids.sim_components.get(compo.id.sim_id)));
                     m_request_to_open = id;
                 } else
