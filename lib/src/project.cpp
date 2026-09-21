@@ -1022,8 +1022,7 @@ static status external_source_copy(const file_access&                fs,
         case source_type::binary_file: {
             auto& n_src = src_elems[id].bin;
 
-            const auto p =
-              fs.get_fs_path(n_src.file).value_or(std::filesystem::path{});
+            const auto p = fs.get_fs_path(n_src.file).value_or(path{});
 
             auto& n_res   = dst.binary_file_sources.alloc(p);
             n_res.name    = src_names[id];
@@ -1036,8 +1035,7 @@ static status external_source_copy(const file_access&                fs,
         case source_type::text_file: {
             auto& n_src = src_elems[id].txt;
 
-            const auto p =
-              fs.get_fs_path(n_src.file).value_or(std::filesystem::path{});
+            const auto p = fs.get_fs_path(n_src.file).value_or(path{});
 
             auto& n_res   = dst.text_file_sources.alloc(p);
             n_res.name    = src_names[id];
@@ -1980,7 +1978,7 @@ expected<project> project::load(const file_access&      fs,
     json_dearchiver dearc;
     project         pj{};
     pj.project_file = file_id;
-    const auto ret = dearc(pj, fs, cs, filename->string(), *file);
+    const auto ret  = dearc(pj, fs, cs, filename->sv(), *file);
 
     return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
 }
@@ -1995,12 +1993,8 @@ status project::load(const file_access&      fs,
         auto file = file::open(*filename, file_mode{ file_open_options::read });
 
         if (file.has_value()) {
-            const auto u8str = filename->u8string();
-            const auto view  = std::string_view(
-              reinterpret_cast<const char*>(u8str.data()), u8str.size());
-
             json_dearchiver dearc;
-            return dearc(*this, fs, ids, view, *file);
+            return dearc(*this, fs, ids, filename->sv(), *file);
         } else
             return file.error();
     }
@@ -2031,14 +2025,13 @@ status project::save(const file_access&      fs,
     return make_error(project_errc::file_access_error);
 }
 
-std::optional<std::filesystem::path> project::get_observation_dir(
+std::optional<path> project::get_observation_dir(
   const irt::modeling& mod) const noexcept
 {
     return mod.files.read(
-      [&](const auto& fs,
-          const auto /*vers*/) -> std::optional<std::filesystem::path> {
+      [&](const auto& fs, const auto /*vers*/) -> std::optional<path> {
           if (const auto* dir = fs.registred_paths.try_to_get(observation_dir))
-              return std::filesystem::path{ dir->path.sv() };
+              return dir->path.sv();
 
           return std::nullopt;
       });

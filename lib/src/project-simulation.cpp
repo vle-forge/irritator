@@ -37,46 +37,48 @@ struct irtb_files {
     file binary_file;
 };
 
-static std::filesystem::path open_dir_name(
-  const modeling&         mod,
-  const registred_path_id reg_id) noexcept
+static path open_dir_name(const modeling&         mod,
+                          const registred_path_id reg_id) noexcept
 {
-    return mod.files.read(
-      [&](auto& fs, auto) noexcept -> std::filesystem::path {
-          if (auto* r = fs.registred_paths.try_to_get(reg_id))
-              return std::filesystem::path(r->path.sv());
+    return mod.files.read([&](auto& fs, auto) noexcept -> path {
+        if (auto* r = fs.registred_paths.try_to_get(reg_id))
+            return r->path;
 
-          std::error_code ec;
-          return std::filesystem::current_path(ec);
-      });
+        auto        ec       = std::error_code{};
+        auto        std_path = std::filesystem::current_path(ec);
+        const auto  u8       = std_path.u8string();
+        const auto* ptr      = reinterpret_cast<const char*>(u8.data());
+        const auto  len      = u8.size();
+
+        return path{ std::string_view(ptr, len) };
+    });
 }
 
 static expected<irtb_files> open_irtb_file(
-  const std::string_view       simulation_name,
-  const std::filesystem::path& dir_path,
-  const u64                    simulation_id,
-  const u64                    simulation_n) noexcept
+  const std::string_view simulation_name,
+  const path&            dir_path,
+  const u64              simulation_id,
+  const u64              simulation_n) noexcept
 {
     debug::ensure(all_char_valid(simulation_name));
 
     try {
-        const auto base      = std::filesystem::path{ dir_path };
-        const auto jfilename = format_n<64>("{}-{}-{:04}.manifest.jsonl",
-                                            simulation_name,
-                                            simulation_id,
-                                            simulation_n);
-        const auto bfilename = format_n<64>(
-          "{}-{}-{:04}.irb", simulation_name, simulation_id, simulation_n);
+        const auto jfilename = format_n<256>("{}-{}-{:04}.manifest.jsonl",
+                                             simulation_name, simulation_id,
+                                             simulation_n);
+        const auto bfilename = format_n<256>("{}-{}-{:04}.irb", simulation_name,
+                                             simulation_id, simulation_n);
 
-        auto jfile = base / jfilename.sv();
-        auto bfile = base / bfilename.sv();
+        auto jfile = path{ dir_path };
+        auto bfile = path{ dir_path };
+
+        jfile /= jfilename.sv();
+        bfile /= bfilename.sv();
 
         log(log_level::notice, [&](auto& t, auto& m) noexcept {
             t = "Simulation observer logger";
-            format(m,
-                   "Using {} and {} to store observations",
-                   reinterpret_cast<const char*>(jfile.c_str()),
-                   reinterpret_cast<const char*>(bfile.c_str()));
+            format(m, "Using {} and {} to store observations", jfile.sv(),
+                   bfile.sv());
         });
 
         auto j = file::open(jfile, file_mode(file_open_options::write));
@@ -88,10 +90,8 @@ static expected<irtb_files> open_irtb_file(
 
         log(log_level::notice, [&](auto& t, auto& m) noexcept {
             t = "Simulation observer logger";
-            format(m,
-                   "Error opening file {} and {} to store observations",
-                   reinterpret_cast<const char*>(jfile.c_str()),
-                   reinterpret_cast<const char*>(bfile.c_str()));
+            format(m, "Error opening file {} and {} to store observations",
+                   jfile.sv(), bfile.sv());
         });
 
         return make_error(simulation_errc::file_open_error);
@@ -177,9 +177,7 @@ static status init_json_irtb(const observers_type& observers,
         fmt::println(
           out.to_file(),
           "{{\"model_id\": {}, \"name\": \"{}\", \"created_at\":{}}}",
-          ordinal(mdl_id),
-          names[obs_id].sv(),
-          current_time);
+          ordinal(mdl_id), names[obs_id].sv(), current_time);
     }
 
     return success();
@@ -202,9 +200,7 @@ static status new_json_irtb(const observers_type& observers,
         fmt::println(
           out.to_file(),
           "{{\"model_id\": {}, \"name\": \"{}\", \"created_at\":{}}}",
-          ordinal(mdl_id),
-          names[obs_id].sv(),
-          current_time);
+          ordinal(mdl_id), names[obs_id].sv(), current_time);
     }
 
     return success();
@@ -227,9 +223,7 @@ static status free_json_irtb(const observers_type& observers,
         fmt::println(
           out.to_file(),
           "{{\"model_id\": {}, \"name\": \"{}\", \"destroyed_at\":{}}}",
-          ordinal(mdl_id),
-          names[obs_id].sv(),
-          current_time);
+          ordinal(mdl_id), names[obs_id].sv(), current_time);
     }
 
     return success();
@@ -251,9 +245,7 @@ static status finalize_json_irtb(const observers_type& observers,
         fmt::println(
           out.to_file(),
           "{{\"model_id\": {}, \"name\": \"{}\", \"destroyed_at\":{}}}",
-          ordinal(mdl_id),
-          names[obs_id].sv(),
-          current_time);
+          ordinal(mdl_id), names[obs_id].sv(), current_time);
     }
 
     return success();
@@ -263,10 +255,10 @@ void project::save_simulation_graph(
   const std::string_view absolute_path) noexcept
 {
     try {
-        std::filesystem::path path(absolute_path);
-        path /= "simulation-graph.dot";
+        auto p = path{ absolute_path };
+        p /= "simulation-graph.dot";
 
-        auto f = file::open(path, file_mode{ file_open_options::write });
+        auto f = file::open(p, file_mode{ file_open_options::write });
         if (f.has_value())
             write_dot_graph_simulation(f->to_file(), sim);
     } catch (...) {
@@ -312,23 +304,19 @@ status project::simulation_copy(const modeling& mod) noexcept
 
           switch (ec.cat()) {
           case category::project:
-              log(log_level::error,
-                  "Error importing the project"sv,
+              log(log_level::error, "Error importing the project"sv,
                   "Error in project copy"sv);
               break;
           case category::modeling:
-              log(log_level::error,
-                  "Error importing the project"sv,
+              log(log_level::error, "Error importing the project"sv,
                   "Error in modeling copy"sv);
               break;
           case category::simulation:
-              log(log_level::error,
-                  "Error importing the project"sv,
+              log(log_level::error, "Error importing the project"sv,
                   "Error in simulation copy"sv);
               break;
           default:
-              log(log_level::error,
-                  "Error importing the project"sv,
+              log(log_level::error, "Error importing the project"sv,
                   "Unknown copy error"sv);
               break;
           }
@@ -341,8 +329,7 @@ status project::simulation_init(const modeling& mod) noexcept
 {
     using namespace std::literals;
 
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
+    bool state = any_equal(simulation_state, simulation_status::initialized,
                            simulation_status::not_started,
                            simulation_status::finished);
 
@@ -352,8 +339,7 @@ status project::simulation_init(const modeling& mod) noexcept
 
     if (not tree_nodes.exists(tn_head())) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error,
-            "Error during initialization"sv,
+        log(log_level::error, "Error during initialization"sv,
             "The component is empty"sv);
         return make_error(project_errc::empty_project);
     }
@@ -363,16 +349,15 @@ status project::simulation_init(const modeling& mod) noexcept
 
     if (auto r = simulation_init_observation(mod); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error,
-            "Error during initialization"sv,
+        log(log_level::error, "Error during initialization"sv,
             "Observation system failed"sv);
         return r.error();
     }
 
     if (flags[simulation_flag::write_irtb]) {
-        const auto dir = open_dir_name(mod, observation_dir);
-        auto       files =
-          open_irtb_file(name.sv(), dir, m_simulation_id, m_simulation_run);
+        const auto dir   = open_dir_name(mod, observation_dir);
+        auto       files = open_irtb_file(name.sv(), dir, m_simulation_id,
+                                          m_simulation_run);
 
         if (files.has_error())
             return files.error();
@@ -380,24 +365,22 @@ status project::simulation_init(const modeling& mod) noexcept
         m_json_irtb = std::move(files->json_file);
         m_bin_irtb  = std::move(files->binary_file);
 
-        if (auto r =
-              init_json_irtb(sim.observers, sim.current_time(), m_json_irtb);
+        if (auto r = init_json_irtb(sim.observers, sim.current_time(),
+                                    m_json_irtb);
             r.has_error())
             return r.error();
     }
 
     if (auto r = sim.srcs.prepare(); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error,
-            "Error during initialization"sv,
+        log(log_level::error, "Error during initialization"sv,
             "External source system failed"sv);
         return r.error();
     }
 
     if (auto r = sim.initialize(); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error,
-            "Error during initialization"sv,
+        log(log_level::error, "Error during initialization"sv,
             "Simulation system failed"sv);
         return r.error();
     }
@@ -419,16 +402,15 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
         return make_error(project_errc::memory_error);
     }
 
-    const auto tn_alloc =
-      tn->children.can_alloc(1) or tn->children.grow<3, 2>(1);
+    const auto tn_alloc  = tn->children.can_alloc(1) or
+                           tn->children.grow<3, 2>(1);
     const auto sim_alloc = sim.can_alloc(1) or sim.grow_models<3, 2>();
 
     if (not tn_alloc or not sim_alloc) {
         log_m(log_level::error, [&](auto& m) noexcept {
             format(m,
                    "Fail to allocate new model in tree node {} (capacity: {}",
-                   ordinal(data.tn_id),
-                   tn->children.capacity());
+                   ordinal(data.tn_id), tn->children.capacity());
         });
         return make_error(project_errc::memory_error);
     }
@@ -438,8 +420,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     if (auto ret = sim.make_initialize(mdl, sim.current_time());
         ret.has_error()) {
         log_m(log_level::error, [&](auto& m) noexcept {
-            format(m,
-                   "Fail to initialize new model of type {}",
+            format(m, "Fail to initialize new model of type {}",
                    dynamics_type_names[ordinal(data.type)]);
         });
 
@@ -450,12 +431,11 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
       .mdl = sim.get_id(mdl), .type = tree_node::child_node::type::model });
 
     if (flags[simulation_flag::write_irtb] and is_defined(mdl.obs_id)) {
-        if (auto r = new_json_irtb(
-              sim.observers, mdl.obs_id, sim.current_time(), m_json_irtb);
+        if (auto r = new_json_irtb(sim.observers, mdl.obs_id,
+                                   sim.current_time(), m_json_irtb);
             r.has_error()) {
             log_m(log_level::error, [&](auto& m) noexcept {
-                format(m,
-                       "Fail to write new model of type {}",
+                format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(data.type)]);
             });
             return r.error();
@@ -487,12 +467,11 @@ status project::simulation_free_model(
     }
 
     if (flags[simulation_flag::write_irtb] and is_defined(mdl->obs_id)) {
-        if (auto r = free_json_irtb(
-              sim.observers, mdl->obs_id, sim.current_time(), m_json_irtb);
+        if (auto r = free_json_irtb(sim.observers, mdl->obs_id,
+                                    sim.current_time(), m_json_irtb);
             r.has_error()) {
             log_m(log_level::error, [&](auto& m) noexcept {
-                format(m,
-                       "Fail to write new model of type {}",
+                format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(mdl->type)]);
             });
             return r.error();
@@ -533,8 +512,7 @@ status project::simulation_copy_model(
     if (const auto r = sim.make_initialize(dst_mdl, sim.current_time());
         r.has_error()) {
         log_m(log_level::error, [r](auto& m) noexcept {
-            format(m,
-                   "Internal error: fail to initialize new model: {})",
+            format(m, "Internal error: fail to initialize new model: {})",
                    r.error());
         });
 
@@ -556,12 +534,11 @@ status project::simulation_copy_model(
     });
 
     if (flags[simulation_flag::write_irtb] and is_defined(dst_mdl.obs_id)) {
-        if (auto r = new_json_irtb(
-              sim.observers, dst_mdl.obs_id, sim.current_time(), m_json_irtb);
+        if (auto r = new_json_irtb(sim.observers, dst_mdl.obs_id,
+                                   sim.current_time(), m_json_irtb);
             r.has_error()) {
             log_m(log_level::error, [&](auto& m) noexcept {
-                format(m,
-                       "Fail to write new model of type {}",
+                format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(dst_mdl.type)]);
             });
             return r.error();
@@ -625,8 +602,7 @@ status project::simulation_new_observer(
             sim.observe(*mdl);
         } else {
             log_m(log_level::error, [&](auto& m) noexcept {
-                format(m,
-                       "Failed to allocate observer. (capacity:{})",
+                format(m, "Failed to allocate observer. (capacity:{})",
                        sim.observers.capacity());
             });
         }
@@ -675,8 +651,7 @@ status project::simulation_send_message(
             mdl->tn = t;
         } else {
             log_m(log_level::error, [&](auto& msg) noexcept {
-                format(msg,
-                       "Model ID {} is not a constant model.",
+                format(msg, "Model ID {} is not a constant model.",
                        ordinal(data.mdl_id));
             });
         }
@@ -732,8 +707,7 @@ bool project::push(const command& cmd) noexcept
     using namespace std::literals;
 
     if (not commands.push(cmd)) {
-        log(log_level::error,
-            "Simulation  live modeling error"sv,
+        log(log_level::error, "Simulation  live modeling error"sv,
             "Fail to add command order in live simulation"sv);
         return false;
     }
@@ -883,9 +857,9 @@ status project::simulation_run_for(
 
     namespace stdc = std::chrono;
 
-    auto start_at = stdc::high_resolution_clock::now();
-    auto end_at   = stdc::high_resolution_clock::now();
-    auto duration = end_at - start_at;
+    auto start_at      = stdc::high_resolution_clock::now();
+    auto end_at        = stdc::high_resolution_clock::now();
+    auto duration      = end_at - start_at;
     auto duration_cast = stdc::duration_cast<stdc::microseconds>(task_duration);
 
     do {
@@ -893,10 +867,8 @@ status project::simulation_run_for(
             simulation_state = simulation_status::finish_requiring;
 
             log_m(log_level::error, [&](auto& msg) noexcept {
-                format(msg,
-                       "Fail in {} with error {}",
-                       ordinal(ret.error().cat()),
-                       ret.error().value());
+                format(msg, "Fail in {} with error {}",
+                       ordinal(ret.error().cat()), ret.error().value());
             });
 
             return ret.error();
@@ -991,8 +963,8 @@ status project::simulation_live_run(
             return success();
         }
 
-        const auto wakeup_rt =
-          start_task_rt + (sim_next_t * one_simulation_time_duration);
+        const auto wakeup_rt = start_task_rt +
+                               (sim_next_t * one_simulation_time_duration);
 
         // If the next wakeup exceed the simulation frame, do nothing.
         if (wakeup_rt > end_task_rt) {
@@ -1038,10 +1010,8 @@ status project::simulation_step() noexcept
                 simulation_state = simulation_status::finish_requiring;
 
                 log_m(log_level::error, [&](auto& msg) noexcept {
-                    format(msg,
-                           "Fail in {} with error {}",
-                           ordinal(ret.error().cat()),
-                           ret.error().value());
+                    format(msg, "Fail in {} with error {}",
+                           ordinal(ret.error().cat()), ret.error().value());
                 });
 
                 return ret.error();
@@ -1088,8 +1058,8 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
                              sim.observers.get<observer_history_cursor>(),
                              m_bin_irtb)
           .and_then([&] {
-              return finalize_json_irtb(
-                sim.observers, sim.current_time(), m_json_irtb);
+              return finalize_json_irtb(sim.observers, sim.current_time(),
+                                        m_json_irtb);
           });
     }
 
@@ -1100,8 +1070,7 @@ void project::simulation_advance() noexcept
 {
     debug::ensure(flags[simulation_flag::debug]);
 
-    debug::ensure(any_equal(simulation_state,
-                            simulation_status::initialized,
+    debug::ensure(any_equal(simulation_state, simulation_status::initialized,
                             simulation_status::paused));
 
     if (snaps.empty())
@@ -1124,8 +1093,7 @@ void project::simulation_back() noexcept
 {
     debug::ensure(flags[simulation_flag::debug]);
 
-    debug::ensure(any_equal(simulation_state,
-                            simulation_status::initialized,
+    debug::ensure(any_equal(simulation_state, simulation_status::initialized,
                             simulation_status::paused));
 
     if (snaps.empty())

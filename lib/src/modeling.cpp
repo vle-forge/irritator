@@ -331,9 +331,9 @@ int file_access::browse_registreds() noexcept
     return file_paths.ssize() - old;
 }
 
-static auto load_component(const file_access&           files,
-                           component_access&            ids,
-                           const std::filesystem::path& filename,
+static auto load_component(const file_access& files,
+                           component_access&  ids,
+                           const path&        filename,
                            const component_id compo_id) noexcept -> status
 {
     if (not ids.exists(compo_id))
@@ -347,26 +347,23 @@ static auto load_component(const file_access&           files,
         if (f.has_value()) {
             json_dearchiver j;
 
-            if (not j(files, ids, filename.string(), compo_id, compo, *f)) {
+            if (not j(files, ids, filename.sv(), compo_id, compo, *f)) {
                 return error_code(modeling_errc::component_load_error);
             }
 
             compo.state = component_status::unmodified;
 
-            std::filesystem::path descfilename = filename;
-            descfilename.replace_extension(".desc");
-            auto ec = std::error_code{};
+            auto desc_filename = filename;
+            desc_filename.replace_extension(file_type::txt_file);
 
-            if (std::filesystem::exists(descfilename, ec) and not ec) {
-                auto d = file::open(descfilename,
-                                    file_mode{ file_open_options::read });
+            auto d = file::open(desc_filename,
+                                file_mode{ file_open_options::read });
 
-                if (d.has_value()) {
-                    auto& desc = ids.component_descriptions[compo_id];
-                    auto  view = std::span<char>(desc.data(), desc.capacity());
-                    auto  fileview = d->read_entire_file(view);
-                    desc.resize(fileview.size());
-                }
+            if (d.has_value()) {
+                auto& desc     = ids.component_descriptions[compo_id];
+                auto  view     = std::span<char>(desc.data(), desc.capacity());
+                auto  fileview = d->read_entire_file(view);
+                desc.resize(fileview.size());
             }
         } else {
             compo.state = component_status::unreadable;
@@ -529,8 +526,10 @@ void file_access::remove(const file_path_id id) noexcept
         if (auto* d = dir_paths.try_to_get(f->parent)) {
             if (auto* r = registred_paths.try_to_get(d->parent)) {
                 if (const auto opt = make_file(*r, *d, *f); opt.has_value()) {
-                    std::error_code ec;
-                    std::filesystem::remove(*opt, ec);
+                    const auto std_path = opt->to_std_path();
+                    auto       ec       = std::error_code{};
+
+                    std::filesystem::remove(std_path, ec);
 
                     file_paths.free(*f);
 
@@ -926,14 +925,13 @@ void file_access::free(const registred_path_id reg_dir) noexcept
     registred_paths.free(reg_dir);
 }
 
-expected<std::filesystem::path> file_access::get_fs_path(
-  const file_path_id id) const noexcept
+expected<path> file_access::get_fs_path(const file_path_id id) const noexcept
 {
     try {
         if (auto* file = file_paths.try_to_get(id)) {
             if (auto* dir = dir_paths.try_to_get(file->parent)) {
                 if (auto* reg = registred_paths.try_to_get(dir->parent)) {
-                    std::filesystem::path p{ reg->path.sv() };
+                    path p{ reg->path.sv() };
                     p /= dir->path.sv();
                     p /= file->path.sv();
                     return p;
@@ -948,13 +946,12 @@ expected<std::filesystem::path> file_access::get_fs_path(
     }
 }
 
-expected<std::filesystem::path> file_access::get_fs_path(
-  const dir_path_id id) const noexcept
+expected<path> file_access::get_fs_path(const dir_path_id id) const noexcept
 {
     try {
         if (auto* dir = dir_paths.try_to_get(id)) {
             if (auto* reg = registred_paths.try_to_get(dir->parent)) {
-                std::filesystem::path p{ reg->path.sv() };
+                path p{ reg->path.sv() };
                 p /= dir->path.sv();
                 return p;
             }
@@ -966,12 +963,12 @@ expected<std::filesystem::path> file_access::get_fs_path(
     }
 }
 
-expected<std::filesystem::path> file_access::get_fs_path(
+expected<path> file_access::get_fs_path(
   const registred_path_id id) const noexcept
 {
     try {
         if (auto* reg = registred_paths.try_to_get(id)) {
-            return std::filesystem::path{ reg->path.sv() };
+            return path{ reg->path.sv() };
         }
         return make_error(modeling_errc::recorded_directory_error);
     } catch (...) {

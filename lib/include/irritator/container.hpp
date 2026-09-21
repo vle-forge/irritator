@@ -3029,9 +3029,12 @@ public:
 
     constexpr void push_back(const char c) noexcept;
     constexpr void assign(const std::string_view str) noexcept;
+    constexpr void append(const std::string_view str) noexcept;
     constexpr void clear() noexcept;
     constexpr void resize(std::integral auto size) noexcept;
+
     constexpr bool empty() const noexcept;
+    constexpr bool can_append(const std::string_view str) const noexcept;
 
     constexpr size_type  size() const noexcept;
     constexpr index_type ssize() const noexcept;
@@ -3051,6 +3054,9 @@ public:
     constexpr iterator       end() noexcept;
     constexpr const_iterator begin() const noexcept;
     constexpr const_iterator end() const noexcept;
+
+    constexpr char front() const noexcept;
+    constexpr char back() const noexcept;
 
     constexpr auto operator<=>(const small_string& rhs) const noexcept;
     constexpr auto operator<=>(std::string_view rhs) const noexcept;
@@ -6292,6 +6298,13 @@ inline constexpr auto small_string<length>::size() const noexcept -> size_type
 }
 
 template<std::size_t length>
+inline constexpr bool small_string<length>::can_append(
+  const std::string_view str) const noexcept
+{
+    return std::cmp_less_equal(str.size(), capacity() - ssize());
+}
+
+template<std::size_t length>
 inline constexpr auto small_string<length>::ssize() const noexcept -> index_type
 {
     return m_size;
@@ -6322,6 +6335,25 @@ inline constexpr void small_string<length>::assign(
                : static_cast<size_type>(length - 1);
 
     std::copy_n(str.data(), m_size, &m_buffer[0]);
+    m_buffer[m_size] = '\0';
+}
+
+template<std::size_t length>
+inline constexpr void small_string<length>::append(
+  const std::string_view str) noexcept
+{
+    const index_type remaining = capacity() - ssize();
+    if (remaining <= 0)
+        return;
+
+    const std::size_t to_copy = std::cmp_less(
+                                  str.size(),
+                                  static_cast<std::size_t>(remaining))
+                                  ? str.size()
+                                  : static_cast<std::size_t>(remaining);
+
+    std::copy_n(str.data(), to_copy, m_buffer + m_size);
+    m_size           = static_cast<size_type>(m_size + to_copy);
     m_buffer[m_size] = '\0';
 }
 
@@ -6406,7 +6438,25 @@ template<std::size_t length>
 inline constexpr typename small_string<length>::const_iterator
 small_string<length>::end() const noexcept
 {
+
     return m_buffer + m_size;
+}
+
+template<std::size_t length>
+constexpr char small_string<length>::front() const noexcept
+{
+    debug::ensure(not empty());
+
+    return m_buffer[0];
+}
+
+template<std::size_t length>
+constexpr char small_string<length>::back() const noexcept
+{
+    debug::ensure(not empty());
+    debug::ensure(std::cmp_greater(size(), 1));
+
+    return m_buffer[size() - 1];
 }
 
 template<std::size_t length>

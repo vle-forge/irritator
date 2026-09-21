@@ -1322,11 +1322,13 @@ expected<graph> parse_dot_buffer(const file_access&      fs,
     return sb.parse();
 }
 
-expected<graph> parse_dot_file(const file_access&           fs,
-                               const component_access&      ids,
-                               const std::filesystem::path& p) noexcept
+expected<graph> parse_dot_file(const file_access&      fs,
+                               const component_access& ids,
+                               const path&             p) noexcept
 {
-    if (std::ifstream ifs{ p }; ifs) {
+    const auto std_path = p.to_std_path();
+
+    if (std::ifstream ifs{ std_path }; ifs) {
         input_stream_buffer sb{ fs, ids, ifs };
         return sb.parse();
     }
@@ -1793,12 +1795,14 @@ expected<void> write_dot_stream(const file_access&      fs,
     return expected<void>();
 }
 
-expected<void> write_dot_file(const file_access&           fs,
-                              const component_access&      ids,
-                              const graph&                 graph,
-                              const std::filesystem::path& path) noexcept
+expected<void> write_dot_file(const file_access&      fs,
+                              const component_access& ids,
+                              const graph&            graph,
+                              const path&             path) noexcept
 {
-    if (std::ofstream ofs(path); ofs) {
+    const auto std_path = path.to_std_path();
+
+    if (std::ofstream ofs(std_path); ofs) {
         return write_dot_stream(fs, ids, graph,
                                 std::ostream_iterator<char>(ofs));
     } else {

@@ -167,8 +167,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Enable Docking
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Viewport
     const auto init_filename       = irt::get_imgui_filename();
-    const auto init_filename_u8str = init_filename.u8string();
-    io.IniFilename = reinterpret_cast<const char*>(init_filename_u8str.c_str());
+    io.IniFilename = init_filename.c_str();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();

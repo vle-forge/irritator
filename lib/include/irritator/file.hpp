@@ -37,7 +37,7 @@ public:
        @brief Try to open a file.
 
        @example
-       const auto char8_t* filename = u8"data.bin";
+       const auto filename = path("data.bin");
        auto file =  file::open(filename, file::mode::read);
        if (file) {
          int x, y, z;
@@ -48,26 +48,8 @@ public:
        @param  filename File name in utf-8.
        @return @c file if success @c error_code otherwise.
      */
-    static expected<file> open(const char8_t*  filename,
+    static expected<file> open(const path&     filename,
                                const file_mode mode) noexcept;
-
-    /**
-       @brief Try to open a file.
-
-       @example
-       auto path = std::filesystem::u8path(filename);
-       auto file =  file::open(path, file::mode::read);
-       if (file) {
-         int x, y, z;
-         return file->read(x) && file->read(y) && file->read(z);
-       }
-       @endexample
-
-       @param  filename File name in utf-8.
-       @return @c file if success @c error_code otherwise.
-     */
-    static expected<file> open(const std::filesystem::path& path,
-                               const file_mode              mode) noexcept;
 
     /**
        Try to create a temporary @a file. This function neither returns a

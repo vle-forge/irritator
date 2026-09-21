@@ -47,38 +47,53 @@ static void do_build_default(variables& v) noexcept
         paths.recs.grow<2, 1>(16);
 
         if (auto sys = get_system_component_dir(); sys.has_value()) {
-            std::error_code ec;
-            if (std::filesystem::exists(*sys, ec)) {
-                const auto id = paths.recs.alloc_id();
+            auto       ec       = std::error_code{};
+            const auto std_path = sys->to_std_path();
 
-                paths.recs.template get<recorded_paths::long_path_str>(id) =
-                  (const char*)sys->u8string().c_str();
-                paths.recs.template get<recorded_paths::name_str>(id) =
-                  "system";
+            if (std::filesystem::exists(std_path, ec)) {
+                const auto  id  = paths.recs.alloc_id();
+                const auto  u8  = std_path.u8string();
+                const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
+                const auto  len = u8.size();
+
+                paths.recs.template get<recorded_paths::long_path_str>(
+                  id) = std::string_view(ptr, len);
+                paths.recs.template get<recorded_paths::name_str>(
+                  id)                           = "system";
                 paths.recs.template get<i8>(id) = 20;
             }
         }
 
         if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
-            std::error_code ec;
-            if (std::filesystem::exists(*sys, ec)) {
-                const auto id = paths.recs.alloc_id();
+            auto       ec       = std::error_code{};
+            const auto std_path = sys->to_std_path();
 
-                paths.recs.template get<recorded_paths::long_path_str>(id) =
-                  (const char*)sys->u8string().c_str();
-                paths.recs.template get<recorded_paths::name_str>(id) =
-                  "p-system";
+            if (std::filesystem::exists(std_path, ec)) {
+                const auto  id  = paths.recs.alloc_id();
+                const auto  u8  = std_path.u8string();
+                const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
+                const auto  len = u8.size();
+
+                paths.recs.template get<recorded_paths::long_path_str>(
+                  id) = std::string_view(ptr, len);
+                paths.recs.template get<recorded_paths::name_str>(
+                  id)                           = "p-system";
                 paths.recs.template get<i8>(id) = 10;
             }
         }
 
         if (auto sys = get_default_user_component_dir(); sys.has_value()) {
-            std::error_code ec;
-            if (std::filesystem::exists(*sys, ec)) {
-                const auto id = paths.recs.alloc_id();
+            auto       ec       = std::error_code{};
+            const auto std_path = sys->to_std_path();
 
-                paths.recs.template get<recorded_paths::long_path_str>(id) =
-                  (const char*)sys->u8string().c_str();
+            if (std::filesystem::exists(std_path, ec)) {
+                const auto  id  = paths.recs.alloc_id();
+                const auto  u8  = std_path.u8string();
+                const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
+                const auto  len = u8.size();
+
+                paths.recs.template get<recorded_paths::long_path_str>(
+                  id) = std::string_view(ptr, len);
                 paths.recs.template get<recorded_paths::name_str>(id) = "user";
                 paths.recs.template get<i8>(id)                       = 0;
             }
@@ -95,8 +110,8 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
 
     vars.rec_paths.read([&](const recorded_paths& conf,
                             const auto /*vers*/) noexcept {
-        const auto& paths =
-          conf.recs.template get<recorded_paths::long_path_str>();
+        const auto& paths = conf.recs
+                              .template get<recorded_paths::long_path_str>();
         const auto& names = conf.recs.template get<recorded_paths::name_str>();
         const auto& priorities = conf.recs.template get<i8>();
 
@@ -104,19 +119,15 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
             if (paths[id].empty() or names[id].empty())
                 continue;
 
-            fmt::print(file,
-                       "{} {} {}\n",
-                       names[id].sv(),
-                       static_cast<int>(priorities[id]),
-                       paths[id].sv());
+            fmt::print(file, "{} {} {}\n", names[id].sv(),
+                       static_cast<int>(priorities[id]), paths[id].sv());
         }
     });
 
     fmt::print(file, "[options]\n");
-    fmt::print(
-      file, "log-level={}\n", log_level_names[ordinal(vars.loglevel.load())]);
-    fmt::print(file,
-               "text-file-viewer-max-file-size={}\n",
+    fmt::print(file, "log-level={}\n",
+               log_level_names[ordinal(vars.loglevel.load())]);
+    fmt::print(file, "text-file-viewer-max-file-size={}\n",
                vars.text_file_viewer_max_file_size.load());
 
     fmt::print(file, "[themes]\n");
@@ -138,15 +149,17 @@ static std::error_code do_save(std::FILE* file, const variables& vars) noexcept
     return do_write(vars, file);
 }
 
-static std::error_code do_save(const std::filesystem::path& filename,
-                               const variables&             vars) noexcept
+static std::error_code do_save(const path&      filename,
+                               const variables& vars) noexcept
 {
-    auto file = file::open(filename, file_mode(file_open_options::write));
-    if (file.has_error()) [[unlikely]]
+    const auto std_path = filename.to_std_path();
+    auto       file     = filename.open_std_file("w");
+
+    if (not file.get())
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_save(file->to_file(), vars);
+    return do_save(file.get(), vars);
 }
 
 enum : u8 { section_colors, section_options, section_paths, section_COUNT };
@@ -183,8 +196,8 @@ static bool do_read_section(variables& /*vars*/,
 std::optional<i64> do_read_integer(const std::string_view value) noexcept
 {
     i64 i = 0;
-    if (const auto ec =
-          std::from_chars(value.data(), value.data() + value.size(), i);
+    if (const auto ec = std::from_chars(value.data(),
+                                        value.data() + value.size(), i);
         ec.ec == std::errc{}) {
         return i;
     } else {
@@ -278,7 +291,8 @@ static bool do_read_elem(variables&             vars,
 {
     return vars.rec_paths.write([&](recorded_paths& rec_paths) noexcept {
         if (current_section.test(section_paths)) {
-            if (not(rec_paths.recs.can_alloc(1) or rec_paths.recs.grow<3, 2>(1)))
+            if (not(rec_paths.recs.can_alloc(1) or
+                    rec_paths.recs.grow<3, 2>(1)))
                 return false;
 
             const auto id  = rec_paths.recs.alloc_id();
@@ -310,8 +324,7 @@ static bool do_read_elem(variables&             vars,
             paths[idx]      = path;
             priorities[idx] = static_cast<int>(
               std::clamp(do_read_integer(priority).value_or(10),
-                         i64{ INT8_MIN },
-                         i64{ INT8_MAX }));
+                         i64{ INT8_MIN }, i64{ INT8_MAX }));
 
             if (names[idx].empty() or paths[idx].empty()) {
                 rec_paths.recs.free(id);
@@ -360,9 +373,8 @@ static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
 {
     std::bitset<3> s;
 
-    for (auto pos = buffer.find_first_of(";#[=\n");
-         pos != std::string_view::npos;
-         pos = buffer.find_first_of(";#[=\n")) {
+    for (auto pos                           = buffer.find_first_of(";#[=\n");
+         pos != std::string_view::npos; pos = buffer.find_first_of(";#[=\n")) {
 
         if (buffer[pos] == '#' or buffer[pos] == ';') { // A comment
             if (not in_range(buffer, pos + 1u))
@@ -391,9 +403,7 @@ static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
 
             auto new_line = buffer.find('\n', pos + 1u);
             if (not do_read_affect(
-                  v,
-                  s,
-                  buffer.substr(0, pos),
+                  v, s, buffer.substr(0, pos),
                   buffer.substr(pos + 1u, new_line - pos - 1u)))
                 return std::make_error_code(std::errc::argument_out_of_domain);
             if (not in_range(buffer, new_line + 1u))
@@ -437,15 +447,14 @@ static std::error_code do_load(std::FILE* file, variables& vars) noexcept
     return do_parse(vars, std::string_view{ buffer.data(), buffer.size() });
 }
 
-static std::error_code do_load(const std::filesystem::path& filename,
-                               variables&                   vars) noexcept
+static std::error_code do_load(const path& filename, variables& vars) noexcept
 {
-    auto file = file::open(filename, file_mode{ file_open_options::read });
-    if (file.has_error()) [[unlikely]]
+    auto file = filename.open_std_file("r");
+    if (not file.get())
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    return do_load(file->to_file(), vars);
+    return do_load(file.get(), vars);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -510,9 +519,8 @@ unsigned journal_handler::capacity() const noexcept
 {
     auto capacity = 0u;
 
-    m_logs.read([](const auto& buffer,
-                   const auto /*version*/,
-                   auto& capacity) { capacity = buffer.ring.capacity(); },
+    m_logs.read([](const auto& buffer, const auto /*version*/,
+                   auto&       capacity) { capacity = buffer.ring.capacity(); },
                 capacity);
 
     return capacity;
@@ -522,9 +530,8 @@ unsigned journal_handler::size() const noexcept
 {
     auto len = 0u;
 
-    m_logs.read([](const auto& buffer,
-                   const auto /*version*/,
-                   auto& size) { size = buffer.ring.size(); },
+    m_logs.read([](const auto& buffer, const auto /*version*/,
+                   auto&       size) { size = buffer.ring.size(); },
                 len);
 
     return len;
@@ -534,9 +541,8 @@ int journal_handler::ssize() const noexcept
 {
     auto len = 0;
 
-    m_logs.read([](const auto& buffer,
-                   const auto /*version*/,
-                   auto& size) { size = buffer.ring.ssize(); },
+    m_logs.read([](const auto& buffer, const auto /*version*/,
+                   auto&       size) { size = buffer.ring.ssize(); },
                 len);
 
     return len;
@@ -579,15 +585,14 @@ void journal_handler::cleanup_expired(const u64 duration) noexcept
 
 config_manager::config_manager() noexcept { do_build_default(vars); }
 
-config_manager::config_manager(const std::string& config_path) noexcept
+config_manager::config_manager(const path& config_path) noexcept
   : m_path{ config_path }
 {
     do_build_default(vars);
 
     if (do_load(config_path, vars)) {
         if (not save()) {
-            std::fprintf(stderr,
-                         "Fail to store configuration in %s\n",
+            std::fprintf(stderr, "Fail to store configuration in %s\n",
                          config_path.c_str());
         }
     }
