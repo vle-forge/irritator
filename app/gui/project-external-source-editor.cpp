@@ -778,7 +778,12 @@ void project_external_source_editor::show(application&    app,
                     ImGui::OpenPopup(title);
                     if (app.f_dialog.show_load_file(title, filters)) {
                         if (app.f_dialog.state == file_dialog::status::ok) {
-                            ptr->file_path = app.f_dialog.result;
+                            const auto u8str = app.f_dialog.result.u8string();
+                            const auto sv    = std::string_view(
+                              reinterpret_cast<const char*>(u8str.data()),
+                              u8str.size());
+
+                            ptr->file_path = sv;
 
                             app.start_init_source(app.pjs.get_id(pj),
                                                   sel.id_sel,
@@ -798,7 +803,11 @@ void project_external_source_editor::show(application&    app,
                     ImGui::OpenPopup(title);
                     if (app.f_dialog.show_load_file(title, filters)) {
                         if (app.f_dialog.state == file_dialog::status::ok) {
-                            ptr->file_path = app.f_dialog.result;
+                            const auto u8str = app.f_dialog.result.u8string();
+                            const auto sv    = std::string_view(
+                              reinterpret_cast<const char*>(u8str.data()),
+                              u8str.size());
+                            ptr->file_path = sv;
 
                             app.start_init_source(app.pjs.get_id(pj),
                                                   sel.id_sel,

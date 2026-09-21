@@ -462,6 +462,157 @@ constexpr bool almost_equal(Real a, Real b, Real relative_epsilon) noexcept
 }
 
 /*****************************************************************************
+ * Bounded, allocation-free file path, stored as UTF-8. Built on top of
+ * small_string<N> so operator/= can never throw bad_alloc.
+ * Only the final conversion to std::filesystem::path (to_std_path) still can,
+ * at a single, easily identifiable call site rather than scattered across
+ * every place that manipulates a path.
+ ****************************************************************************/
+
+constexpr inline bool all_char_valid(const std::string_view v) noexcept
+{
+    for (auto c : v)
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return false;
+
+    return true;
+}
+
+enum class file_type : u8 {
+    undefined_file = 0,
+    component_file,    // .irt
+    dot_file,          // .dot
+    txt_file,          // .desc
+    data_file,         // .csv
+    project_file,      // .pirt
+    irb_file,          // .irb
+    irt_manifest_file, // .manifest.json
+};
+
+constexpr static inline std::string_view file_type_names[] = {
+    "", ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.json"
+};
+
+/// Capacity: 1024 is generous on Linux/macOS/Android (typical PATH_MAX).
+/// Windows is historically capped at MAX_PATH=260 by the OS itself unless
+/// long paths are explicitly enabled -- independent of this value; adjust
+/// it to the actual depth of your component tree.
+class path : public small_string<1024>
+{
+public:
+    using small_string<1024>::small_string;
+ 
+    /// Appends a directory component. An invalid name or a capacity
+    /// overflow is reported via debug::ensure rather than silently
+    /// building a corrupted path.
+    path& operator/=(std::string_view directory) noexcept
+    {
+        debug::ensure(all_char_valid(directory));
+
+        if (!empty() && back() != '/')
+            push_back('/');
+
+        debug::ensure(can_append(directory));
+        append(directory);
+
+        return *this;
+    }
+
+    /// @return file_type whose suffix matches the end of this path, or
+    /// file_type::undefined_file if none does.
+    file_type has_extension() const noexcept
+    {
+        const auto str = sv();
+
+        auto best        = file_type::undefined_file;
+        auto best_length = sz{ 0 };
+
+        for (std::size_t i = 1; i < std::size(file_type_names); ++i) {
+            const auto ext = file_type_names[i];
+            if (ext.size() > best_length && str.ends_with(ext)) {
+                best        = static_cast<file_type>(i);
+                best_length = ext.size();
+            }
+        }
+
+        return best;
+    }
+
+    /// Strips whatever extension is currently present (if any, as detected
+    /// by has_extension()) and appends the one for `type`. `type` must not
+    /// be undefined_file -- there is no string to append for it.
+    void replace_extension(const file_type type) noexcept
+    {
+        debug::ensure(type != file_type::undefined_file);
+
+        if (const auto current = has_extension();
+            current != file_type::undefined_file) {
+            const auto
+              old_ext = file_type_names[static_cast<std::size_t>(current)];
+            resize(size() - old_ext.size());
+        }
+
+        const auto new_ext = file_type_names[static_cast<std::size_t>(type)];
+        debug::ensure(std::cmp_less_equal(size() + new_ext.size(), capacity()));
+        append(new_ext);
+    }
+
+    std::string_view filename() const noexcept
+    {
+        const std::string_view str = sv();
+        const auto             pos = str.find_last_of('/');
+
+        return pos == std::string_view::npos ? str : str.substr(pos + 1);
+    }
+ 
+    std::string_view extension() const noexcept
+    {
+        const auto fn = filename();
+        const auto pos = fn.find_last_of('.');
+        return pos == std::string_view::npos ? std::string_view{}
+                                              : fn.substr(pos);
+    }
+ 
+    path parent_directory() const noexcept
+    {
+        const std::string_view str = sv();
+        const auto             pos = str.find_last_of('/');
+
+        path ret;
+        if (pos != std::string_view::npos)
+            ret.append(str.substr(0, pos));
+        return ret;
+    }
+ 
+    /// Goes through char8_t/u8string (guaranteed UTF-8 in C++20, on every
+    /// platform) rather than the std::string_view constructor, which on
+    /// Windows interprets the narrow string according to the system code
+    /// page, not necessarily as UTF-8.
+    std::filesystem::path to_std_path() const noexcept
+    {
+        debug::ensure(not empty());
+
+        return std::filesystem::path(
+          reinterpret_cast<const char8_t*>(data()),
+          reinterpret_cast<const char8_t*>(data() + size()));
+    }
+
+    struct std_file_deleter {
+        void operator()(FILE* file) const
+        {
+            if (file)
+                std::fclose(file);
+        }
+    };
+
+    std::ifstream open_std_ifstream() const noexcept;
+    std::ofstream open_std_ofstream() const noexcept;
+    std::unique_ptr<std::FILE, std_file_deleter> open_std_file(
+      const char* mode) const noexcept;
+};
+
+/*****************************************************************************
  *
  * Definition of Time
  *
@@ -757,13 +908,13 @@ public:
     u32                max_clients = 1; // number of source max (must be >= 1).
     u64                max_reals   = 0; // number of real in the file.
 
-    std::filesystem::path file_path;
+    path                  file_path;
     std::ifstream         ifs;
     u32                   next_client = 0;
     u64                   next_offset = 0;
 
     binary_file_source() noexcept = default;
-    explicit binary_file_source(const std::filesystem::path& p) noexcept;
+    explicit binary_file_source(const path& p) noexcept;
 
     binary_file_source(const binary_file_source& other) noexcept;
     binary_file_source(binary_file_source&& other) noexcept = delete;
@@ -796,11 +947,11 @@ public:
     chunk_type buffer;
     u64        offset = 0u;
 
-    std::filesystem::path file_path;
+    path                  file_path;
     std::ifstream         ifs;
 
     text_file_source() noexcept = default;
-    explicit text_file_source(const std::filesystem::path& p) noexcept;
+    explicit text_file_source(const path& p) noexcept;
 
     text_file_source(const text_file_source& other) noexcept;
     text_file_source(text_file_source&& other) noexcept = delete;

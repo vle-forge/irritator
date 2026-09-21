@@ -37,11 +37,24 @@
 
 namespace irt {
 
+#if defined(_WIN32)
+constexpr static inline auto irritator_name = "irritator-" irritator_to_string(
+  VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+#else
+constexpr static inline auto irritator_name = ".irritator-" irritator_to_string(
+  VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+#endif
+
+constexpr std::string_view get_irritator_name() noexcept
+{
+    return irritator_name;
+}
+
 #if defined(__linux__) || defined(__APPLE__)
-static expected<std::filesystem::path> get_local_home_directory() noexcept
+static expected<path> get_local_home_directory() noexcept
 {
     if (auto* home = std::getenv("HOME"); home)
-        return std::filesystem::path{ home };
+        return { home };
 
     auto size = sysconf(_SC_GETPW_R_SIZE_MAX);
     if (size == -1)
@@ -54,60 +67,74 @@ static expected<std::filesystem::path> get_local_home_directory() noexcept
     const auto s = getpwuid_r(getpid(), &pwd, buf.data(), size, &result);
     if (s || !result) {
         std::error_code ec;
-        if (auto ret = std::filesystem::current_path(ec); !ec)
-            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
-                return ret;
+        if (auto ret = std::filesystem::current_path(ec); !ec) {
+            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists) {
+                const auto u8 = ret.u8string();
+
+                return path{ reinterpret_cast<const char*>(u8.c_str()) };
+            }
+        }
 
         return make_error(std::errc{ errno });
     } else {
-        return std::filesystem::path{ std::string_view{ buf.data() } };
+        return path{ buf.data() };
     }
 
     return make_error(std::errc{ errno });
 }
 #elif defined(_WIN32)
-static expected<std::filesystem::path> get_local_home_directory() noexcept
+static expected<path> get_local_home_directory() noexcept
 {
-    PWSTR path{ nullptr };
+    PWSTR p{ nullptr };
 
-    if (SUCCEEDED(::SHGetKnownFolderPath(
-                    FOLDERID_LocalAppData, 0, nullptr, &path) >= 0)) {
+    if (SUCCEEDED(
+          ::SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, nullptr, &p) >= 0)) {
         std::filesystem::path ret;
-        ret = path;
-        ::CoTaskMemFree(path);
-        return ret;
+        ret = p;
+        ::CoTaskMemFree(p);
+        const auto u8  = ret.u8string();
+        const auto ptr = reinterpret_cast<const char*>(u8.c_str());
+        const auto len = u8.size();
+        return path{ std::string_view(ptr, len) };
     } else {
         std::error_code ec;
-        if (auto ret = std::filesystem::current_path(ec); !ec)
-            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
-                return ret;
+        if (auto ret = std::filesystem::current_path(ec); !ec) {
+            if (auto exists = std::filesystem::exists(ret, ec); !ec && exists) {
+                const auto u8  = ret.u8string();
+                const auto ptr = reinterpret_cast<const char*>(u8.c_str());
+                const auto len = u8.size();
+                return path{ std::string_view(ptr, len) };
+            }
+        }
 
         return make_error(std::errc::no_such_file_or_directory);
     }
 }
 #endif
 
-expected<std::filesystem::path> get_home_directory() noexcept
+expected<path> get_home_directory() noexcept
 {
     try {
-        auto ret = get_local_home_directory();
+        const auto local_home = get_local_home_directory();
 
-        if (!ret)
-            return ret.error();
+        if (not local_home)
+            return local_home.error();
 
-#if defined(_WIN32)
-        *ret /= "irritator-" irritator_to_string(
-          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-#else
-        *ret /= ".irritator-" irritator_to_string(
-          VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-#endif
+        auto p = *local_home;
+
+        if (not p.can_append(get_irritator_name()))
+            return make_error(std::errc::not_enough_memory);
+
+        p /= get_irritator_name();
+
+        const auto std_path = p.to_std_path();
+
         std::error_code ec;
-        if (std::filesystem::is_directory(*ret, ec))
-            return ret;
+        if (std::filesystem::is_directory(std_path, ec))
+            return p;
 
-        if (std::filesystem::create_directories(*ret, ec))
-            return ret;
+        if (std::filesystem::create_directories(std_path, ec))
+            return p;
         else
             return make_error(std::errc::file_exists);
     } catch (...) {
@@ -117,7 +144,7 @@ expected<std::filesystem::path> get_home_directory() noexcept
 }
 
 #if defined(__linux__)
-expected<std::filesystem::path> get_executable_directory() noexcept
+expected<path> get_executable_directory() noexcept
 {
     vector<char> buf(PATH_MAX, '\0');
     const auto   ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
@@ -127,10 +154,10 @@ expected<std::filesystem::path> get_executable_directory() noexcept
 
     const auto size = static_cast<size_t>(ssize);
 
-    return std::filesystem::path{ std::string_view{ buf.data(), size } };
+    return path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(__APPLE__)
-expected<std::filesystem::path> get_executable_directory() noexcept
+expected<path> get_executable_directory() noexcept
 {
     vector<char> buf(MAXPATHLEN, '\0');
     uint32_t     size{ 0 };
@@ -138,10 +165,10 @@ expected<std::filesystem::path> get_executable_directory() noexcept
     if (_NSGetExecutablePath(buf.data(), &size))
         return make_error(std::errc::bad_address);
 
-    return std::filesystem::path{ std::string_view{ buf.data(), size } };
+    return path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(_WIN32)
-expected<std::filesystem::path> get_executable_directory() noexcept
+expected<path> get_executable_directory() noexcept
 {
     std::wstring filepath;
     DWORD        len   = MAX_PATH;
@@ -157,7 +184,12 @@ expected<std::filesystem::path> get_executable_directory() noexcept
             filepath.resize(len);
         } else {
             filepath.resize(static_cast<std::size_t>(size));
-            return std::filesystem::path{ filepath };
+            auto  std_path = std::filesystem::path(filepath);
+            auto  u8       = std_path.u8string();
+            auto* ptr      = reinterpret_cast<const char*>(u8.c_str());
+            auto  len      = u8.size();
+
+            return path{ std::string_view(ptr, len) };
         }
     }
 
@@ -166,45 +198,44 @@ expected<std::filesystem::path> get_executable_directory() noexcept
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-expected<std::filesystem::path> get_system_component_dir() noexcept
+expected<path> get_system_component_dir() noexcept
 {
     auto exe = get_executable_directory();
     if (!exe)
         return exe.error();
 
-    auto install_path = exe.value().parent_path();
+    auto install_path = exe.value().parent_directory();
     install_path /= "share";
-    install_path /= "irritator-" irritator_to_string(
-      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+    install_path /= get_irritator_name();
     install_path /= "components";
 
+    const auto std_path = install_path.to_std_path();
+
     std::error_code ec;
-    if (std::filesystem::exists(install_path, ec))
+    if (std::filesystem::exists(std_path, ec))
         return install_path;
 
     return make_error(std::errc{ errno });
 }
 #elif defined(_WIN32)
-std::filesystem::path build_system_component_path(
-  const std::filesystem::path& path) noexcept
+path build_system_component_path(const path& path) noexcept
 {
     auto component_path(path);
 
     component_path /= "share";
-    component_path /= "irritator-" irritator_to_string(
-      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+    component_path /= get_irritator_name();
     component_path /= "components";
 
     return component_path;
 }
 
-expected<std::filesystem::path> get_system_component_dir() noexcept
+expected<path> get_system_component_dir() noexcept
 {
     auto exe = get_executable_directory();
     if (!exe)
         return exe.error();
 
-    auto gui_path = exe.value().parent_path();
+    auto gui_path = exe.value().parent_directory();
 
     std::error_code ec;
 
@@ -212,9 +243,10 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
         // First, we try to search the system component directory into directory
         // where the executable is running.
 
-        const auto first = build_system_component_path(gui_path);
+        const auto first    = build_system_component_path(gui_path);
+        const auto std_path = first.to_std_path();
 
-        if (auto exists = std::filesystem::exists(first, ec); !ec && exists)
+        if (auto exists = std::filesystem::exists(std_path, ec); !ec && exists)
             return first;
     }
 
@@ -222,12 +254,12 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
         // If the system component directory is not found into the executable
         // directory, we try to search it into grandparent directory.
 
-        const auto app_path     = gui_path.parent_path();
-        const auto install_path = app_path.parent_path();
+        const auto app_path     = gui_path.parent_directory();
+        const auto install_path = app_path.parent_directory();
         const auto second       = build_system_component_path(install_path);
+        const auto std_path     = second.to_std_path();
 
-        if (auto exists = std::filesystem::exists(install_path, ec);
-            !ec && exists)
+        if (auto exists = std::filesystem::exists(std_path, ec); !ec && exists)
             return install_path;
     }
 
@@ -236,49 +268,59 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
 #endif
 
 #if defined(IRT_DATAROOTDIR)
-expected<std::filesystem::path> get_system_prefix_component_dir() noexcept
+expected<path> get_system_prefix_component_dir() noexcept
 {
-    std::filesystem::path path(IRT_DATAROOTDIR);
-
-    path /= "irritator-" irritator_to_string(
+    auto       ret         = path{ IRT_DATAROOTDIR };
+    const auto irt_dirname = "irritator-" irritator_to_string(
       VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-    path /= "components";
+    const auto compo_dirname = "components";
 
+    if (not ret.can_append(irt_dirname))
+        return make_error(fs_errc::executable_access_fail);
+
+    ret /= irt_dirname;
+
+    if (not ret.can_append(compo_dirname.sv()))
+        return make_error(fs_errc::executable_access_fail);
+
+    ret /= "components";
+
+    const auto      std_path = ret.to_std_path();
     std::error_code ec;
-    if (std::filesystem::exists(path, ec))
-        return path;
 
-    return make_error(fs_errc::executable_access_fail);
+    if (not std::filesystem::exists(std_path, ec))
+        return make_error(fs_errc::executable_access_fail);
+
+    return ret;
 }
 #else
-expected<std::filesystem::path> get_system_prefix_component_dir() noexcept
-{
-    return std::filesystem::path();
-}
+expected<path> get_system_prefix_component_dir() noexcept { return path{}; }
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-expected<std::filesystem::path> get_default_user_component_dir() noexcept
+expected<path> get_default_user_component_dir() noexcept
 {
     auto home_path = get_home_directory();
 
-    if (!home_path)
+    if (not home_path)
         return home_path.error();
 
     auto compo_path = home_path.value();
     compo_path /= "components";
 
+    const auto      std_path = compo_path.to_std_path();
     std::error_code ec;
-    if (std::filesystem::exists(compo_path, ec))
+
+    if (std::filesystem::exists(std_path, ec))
         return compo_path;
 
-    if (std::filesystem::create_directories(compo_path, ec))
+    if (std::filesystem::create_directories(std_path, ec))
         return compo_path;
 
     return make_error(std::errc::bad_address);
 }
 #elif defined(_WIN32)
-expected<std::filesystem::path> get_default_user_component_dir() noexcept
+expected<path> get_default_user_component_dir() noexcept
 {
     auto home_path = get_home_directory();
     if (!home_path)
@@ -287,19 +329,20 @@ expected<std::filesystem::path> get_default_user_component_dir() noexcept
     auto compo_path = home_path.value();
     compo_path /= "components";
 
+    const auto      std_path = compo_path.to_std_path();
     std::error_code ec;
-    if (std::filesystem::exists(compo_path, ec))
+
+    if (std::filesystem::exists(std_path, ec))
         return compo_path;
 
-    if (std::filesystem::create_directories(compo_path, ec))
+    if (std::filesystem::create_directories(std_path, ec))
         return compo_path;
 
     return make_error(std::errc::bad_address);
 }
 #endif
 
-static expected<std::filesystem::path> get_home_filename(
-  const char* filename) noexcept
+static expected<path> get_home_filename(const char* filename) noexcept
 {
     try {
         auto ret = get_home_directory();
@@ -315,7 +358,7 @@ static expected<std::filesystem::path> get_home_filename(
     return make_error(std::errc::bad_address);
 }
 
-expected<std::filesystem::path> get_settings_filename() noexcept
+expected<path> get_settings_filename() noexcept
 {
     return get_home_filename("settings.ini");
 }
@@ -339,58 +382,50 @@ public:
       : m_log{ use_log }
     {
 #if defined(VERSION_TWEAK) and (0 - VERSION_TWEAK - 1) != 1
-        log(0,
-            "irritator-{}.{}.{}-{}\n",
-            VERSION_MAJOR,
-            VERSION_MINOR,
-            VERSION_PATCH,
-            VERSION_TWEAK);
+        log(0, "irritator-{}.{}.{}-{}\n", VERSION_MAJOR, VERSION_MINOR,
+            VERSION_PATCH, VERSION_TWEAK);
 
 #else
-        log(0,
-            "irritator-{}.{}.{}\n",
-            VERSION_MAJOR,
-            VERSION_MINOR,
+        log(0, "irritator-{}.{}.{}\n", VERSION_MAJOR, VERSION_MINOR,
             VERSION_PATCH);
 #endif
     }
 
-    expected<std::filesystem::path> operator()(
-      std::string_view dir_name,
-      std::string_view subdir_name,
-      std::string_view file_name) noexcept
+    expected<path> operator()(std::string_view dir_name,
+                              std::string_view subdir_name,
+                              std::string_view file_name) noexcept
     {
         debug::ensure(not dir_name.empty());
         debug::ensure(not subdir_name.empty());
         debug::ensure(not file_name.empty());
 
-        auto path = std::filesystem::path(dir_name);
-        log(0, "- check directory: {}\n", path.string());
+        auto ret = path(dir_name);
+        log(0, "- check directory: {}\n", ret.sv());
 
-        if (not is_directory_and_usable(path)) {
+        if (not is_directory_and_usable(ret.to_std_path())) {
             log(1, "Is not a directory or bad permissions\n");
             return error_code(std::errc::not_a_directory);
         }
 
-        path /= subdir_name;
-        log(1, "- {}\n", path.string());
-        if (not is_directory_and_usable(path)) {
+        ret /= subdir_name;
+        log(1, "- {}\n", ret.sv());
+        if (not is_directory_and_usable(ret.to_std_path())) {
             log(2, "Directory not exists and not usable try to fix\n");
-            if (not create_dir(path)) {
+            if (not create_dir(ret.to_std_path())) {
                 log(3, "Fail to create directory or change permissions\n");
                 return error_code(std::errc::not_a_directory);
             }
         }
 
-        path /= file_name;
-        log(1, "- {}\n", path.string());
-        if (not is_file_and_usable(path)) {
+        ret /= file_name;
+        log(1, "- {}\n", ret.sv());
+        if (not is_file_and_usable(ret.to_std_path())) {
             log(2, "Fail to read or create the file. Abort.\n");
             return error_code(std::errc::no_such_file_or_directory);
         }
 
-        log(1, "- irritator config file configured:\n", path.string());
-        return path;
+        log(1, "- irritator config file configured:\n", ret.sv());
+        return ret;
     }
 
 private:
@@ -401,8 +436,7 @@ private:
         std::filesystem::permissions(path,
                                      std::filesystem::perms::owner_read |
                                        std::filesystem::perms::owner_write,
-                                     std::filesystem::perm_options::add,
-                                     ec);
+                                     std::filesystem::perm_options::add, ec);
 
         return not ec.value();
     }
@@ -412,17 +446,15 @@ private:
     {
         std::error_code ec;
 
-        std::filesystem::permissions(path,
-                                     std::filesystem::perms::owner_all,
-                                     std::filesystem::perm_options::add,
-                                     ec);
+        std::filesystem::permissions(path, std::filesystem::perms::owner_all,
+                                     std::filesystem::perm_options::add, ec);
 
         return ec.value();
     }
 
     bool is_directory_and_usable(const std::filesystem::path& path) noexcept
     {
-        std::error_code ec;
+        auto ec = std::error_code{};
 
         auto status = std::filesystem::status(path, ec);
         if (ec)
@@ -479,7 +511,7 @@ private:
     }
 };
 
-std::string get_config_home(bool log) noexcept
+path get_config_home(bool log) noexcept
 {
 #if defined(__linux__) || defined(__APPLE__) || defined(__unix__)
     config_home_manager m(log);
@@ -489,7 +521,7 @@ std::string get_config_home(bool log) noexcept
 
     if (auto* xdg = getenv("XDG_CONFIG_HOME"); xdg)
         if (auto ret = m(xdg, home_dir.sv(), "config.ini"); ret.has_value())
-            return ret.value().string();
+            return ret.value();
 
     if (auto* home = getenv("HOME"); home) {
         auto p = std::filesystem::path(home);
@@ -498,41 +530,45 @@ std::string get_config_home(bool log) noexcept
         format(home_dir, "irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
         if (auto ret = m(p.c_str(), home_dir.sv(), "config.ini");
             ret.has_value())
-            return ret.value().string();
+            return ret.value().sv();
 
         format(home_dir, ".irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
 
         if (auto ret = m(home, home_dir.sv(), "config.ini"); ret.has_value())
-            return ret.value().string();
+            return ret.value().sv();
     }
 
     std::error_code ec;
     if (auto path = std::filesystem::current_path(ec); ec)
         if (auto ret = m(path.string(), home_dir.sv(), "config.ini");
             ret.has_value())
-            return ret.value().string();
+            return ret.value().sv();
 
     if (auto ret = m(".", home_dir.sv(), "config.ini"); ret.has_value())
-        return ret.value().string();
+        return ret.value().sv();
 
     return "config.ini";
 #elif defined(_WIN32)
     if (auto ret = get_home_directory(); ret) {
         auto path(std::move(*ret));
         path /= "config.ini";
-        return path.string();
+        return path.sv();
     }
 
     return "config.ini";
 #endif
 }
 
-std::filesystem::path get_imgui_filename() noexcept
+path get_imgui_filename() noexcept
 {
     if (auto path_opt = get_home_filename("imgui.ini"); path_opt.has_value())
         return *path_opt;
 
-    return std::filesystem::current_path();
+    log(log_level::critical,
+        std::string_view{ "init.: fail to get imgui.ini file" },
+        std::string_view{});
+
+    return path{};
 }
 
 }

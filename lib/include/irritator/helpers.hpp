@@ -1377,16 +1377,6 @@ auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
     return nullptr;
 }
 
-constexpr inline bool all_char_valid(const std::string_view v) noexcept
-{
-    for (auto c : v)
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
-            return false;
-
-    return true;
-}
-
 constexpr inline bool is_valid_irt_filename(const std::string_view v) noexcept
 {
     return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&

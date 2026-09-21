@@ -5,10 +5,8 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_GLOBAL_HPP
 #define ORG_VLEPROJECT_IRRITATOR_GLOBAL_HPP
 
-#include <irritator/container.hpp>
-#include <irritator/error.hpp>
+#include <irritator/core.hpp>
 
-#include <filesystem>
 #include <span>
 
 namespace irt {
@@ -125,11 +123,8 @@ public:
     void flush(Function&& fn, Args&&... args) noexcept
     {
         m_logs.write([&](auto& buffer) {
-            std::invoke(std::forward<Function>(fn),
-                        buffer.ring,
-                        buffer.ids,
-                        buffer.titles,
-                        buffer.descriptions,
+            std::invoke(std::forward<Function>(fn), buffer.ring, buffer.ids,
+                        buffer.titles, buffer.descriptions,
                         std::forward<Args>(args)...);
             buffer.ring.clear();
             buffer.ids.clear();
@@ -154,19 +149,14 @@ public:
                         std::declval<vector<descr>&>(),
                         std::forward<Args>(args)...))>) {
             m_logs.read([&](const auto& buffer, const auto /*version*/) {
-                std::invoke(std::forward<Function>(fn),
-                            buffer.ring,
-                            buffer.ids,
-                            buffer.titles,
-                            buffer.descriptions,
+                std::invoke(std::forward<Function>(fn), buffer.ring, buffer.ids,
+                            buffer.titles, buffer.descriptions,
                             std::forward<Args>(args)...);
             });
         } else {
             return m_logs.read([&](const auto& buffer, const auto /*version*/) {
-                return std::invoke(std::forward<Function>(fn),
-                                   buffer.ring,
-                                   buffer.ids,
-                                   buffer.titles,
+                return std::invoke(std::forward<Function>(fn), buffer.ring,
+                                   buffer.ids, buffer.titles,
                                    buffer.descriptions,
                                    std::forward<Args>(args)...);
             });
@@ -183,15 +173,13 @@ public:
                 buffer.ring.pop_tail();
             }
 
-            const auto id =
-              buffer.ids.alloc(get_tick_count_in_milliseconds(), level);
+            const auto id = buffer.ids.alloc(get_tick_count_in_milliseconds(),
+                                             level);
             buffer.titles[id].clear();
             buffer.descriptions[id].clear();
 
-            std::invoke(std::forward<Function>(fn),
-                        buffer.titles[id],
-                        buffer.descriptions[id],
-                        std::forward<Args>(args)...);
+            std::invoke(std::forward<Function>(fn), buffer.titles[id],
+                        buffer.descriptions[id], std::forward<Args>(args)...);
 
             buffer.ring.push_head(id);
         });
@@ -231,7 +219,7 @@ public:
     /** Build a @a variables object from the file @a config_path. If it
        fail, the default object from static data is build. Priority is given
        to @a config_path data. */
-    explicit config_manager(const std::string& config_path) noexcept;
+    explicit config_manager(const path& config_path) noexcept;
 
     config_manager(config_manager&&) noexcept            = delete;
     config_manager& operator=(config_manager&&) noexcept = delete;
@@ -247,7 +235,7 @@ private:
      * std::string into small_string or vector<char> with cold memory
      * allocator.
      */
-    const std::string m_path;
+    const path m_path;
 };
 
 /** Retrieves the path of the file @a "irritator.ini" from the directoy @a
@@ -257,7 +245,7 @@ private:
  * current directory.
  *  - Win32: Use the local application data directory.
  */
-std::string get_config_home(bool log = false) noexcept;
+path get_config_home(bool log = false) noexcept;
 
 /** Retrives the home directory of the current user:
  * - unix/linux : Get the user home directory from the @a $HOME environment
@@ -266,15 +254,15 @@ std::string get_config_home(bool log = false) noexcept;
  * - win32: Use the @a SHGetKnownFolderPath to retrieves the path of the
  * user directory otherwise use the current directory.
  */
-expected<std::filesystem::path> get_home_directory() noexcept;
+expected<path> get_home_directory() noexcept;
 
 /** Retrieves the path of the application binary (the gui, the CLI or unit
  * test) running this code if it exists. */
-expected<std::filesystem::path> get_executable_directory() noexcept;
+expected<path> get_executable_directory() noexcept;
 
 /** Retrieves the path `get_executable_directory/irritator-0.1/components`
  * if it exists. */
-expected<std::filesystem::path> get_system_component_dir() noexcept;
+expected<path> get_system_component_dir() noexcept;
 
 /** Retrieves the path
  * `CMAKE_INSTALL_FULL_DATAROOTDIR/irritator-0.1/components` if it exists.
@@ -283,13 +271,13 @@ expected<std::filesystem::path> get_system_component_dir() noexcept;
  * directory but, we can use also the executable path to determine the
  * install directory.
  */
-expected<std::filesystem::path> get_system_prefix_component_dir() noexcept;
+expected<path> get_system_prefix_component_dir() noexcept;
 
 /** Retrieves the path `$HOME/irritator-0.1/components` if it exists. */
-expected<std::filesystem::path> get_default_user_component_dir() noexcept;
+expected<path> get_default_user_component_dir() noexcept;
 
 /** Retrieves the path `$HOME/irritator-0.1/settings.ini` if it exists. */
-expected<std::filesystem::path> get_settings_filename() noexcept;
+expected<path> get_settings_filename() noexcept;
 
 } // namespace irt
 

@@ -800,7 +800,7 @@ void save_dot_file(application&       app,
                 if (ret.has_error()) {
                     log(log_level::error, [&](auto& t, auto& m) {
                         t = "Graph component editor";
-                        format(m, "Fail to write file {}\n", file->string());
+                        format(m, "Fail to write file {}\n", file->sv());
                     });
                 }
             });

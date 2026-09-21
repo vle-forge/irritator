@@ -45,7 +45,7 @@ enum class graph_edge_id : irt::u32;
 
 using port_str           = small_string<7>;
 using description_str    = small_string<1022>;
-using registred_path_str = small_string<256 * 16 - 2>;
+using registred_path_str = path;
 using directory_path_str = small_string<64 - 1>;
 using file_path_str      = small_string<64 - 1>;
 using color              = std::array<float, 4>;
@@ -66,19 +66,6 @@ using unique_id_path = small_vector<name_str, max_component_stack_size>;
 struct relative_id_path {
     tree_node_id   tn;
     unique_id_path ids;
-};
-
-constexpr static std::string_view file_type_names[] = { ".undefined", ".irt",
-                                                        ".dot",       ".txt",
-                                                        ".data",      ".pirt" };
-
-enum class file_type : u8 {
-    undefined_file,
-    component_file,
-    dot_file,
-    txt_file,
-    data_file,
-    project_file,
 };
 
 enum class fs_flag : u8 {
@@ -112,8 +99,8 @@ enum class internal_component : u8 {
     qss3_van_der_pol,
 };
 
-constexpr int internal_component_count =
-  ordinal(internal_component::qss3_van_der_pol) + 1;
+constexpr int
+  internal_component_count = ordinal(internal_component::qss3_van_der_pol) + 1;
 
 enum class component_type : u8 {
     none,      ///< The component does not reference any container.
@@ -226,10 +213,10 @@ struct connection {
 class hsm_component
 {
 public:
-    static constexpr auto max_size =
-      hierarchical_state_machine::max_number_of_state;
-    static constexpr auto invalid =
-      hierarchical_state_machine::invalid_state_id;
+    static constexpr auto
+      max_size = hierarchical_state_machine::max_number_of_state;
+    static constexpr auto
+      invalid = hierarchical_state_machine::invalid_state_id;
 
     /**
       Clear the @c machine state, reinit constants, and reset the positions.
@@ -253,8 +240,8 @@ inline void hsm_component::clear() noexcept
     machine.clear();
     (void)machine.set_state(0); // @TODO Is it really necessary?
 
-    std::fill_n(
-      positions.begin(), positions.size(), position{ .x = 0.f, .y = 0.f });
+    std::fill_n(positions.begin(), positions.size(),
+                position{ .x = 0.f, .y = 0.f });
 
     for (auto& str : names)
         str.clear();
@@ -564,8 +551,8 @@ public:
         port_id x   = undefined<port_id>(); //! The port_id in this component.
         i32     row = -1;                   //! The row in children vector.
         i32     col = -1;                   //! The col in children vector.
-        port_id id =
-          undefined<port_id>(); //! The port_id of the @c children[idx].
+        port_id
+          id = undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     struct output_connection {
@@ -589,8 +576,8 @@ public:
         port_id y   = undefined<port_id>(); //! The port_id in this component.
         i32     row = -1;                   //! The row in children vector.
         i32     col = -1;                   //! The col in children vector.
-        port_id id =
-          undefined<port_id>(); //! The port_id of the @c children[idx].
+        port_id
+          id = undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     //! @brief Check if the input connection already exits.
@@ -731,11 +718,11 @@ public:
      */
     bool exists_edge(graph_node_id src, graph_node_id dst) const noexcept
     {
-        return std::any_of(
-          edges.begin(), edges.end(), [&](const auto id) noexcept -> bool {
-              return edges_nodes[id][0].first == src and
-                     edges_nodes[id][1].first == dst;
-          });
+        return std::any_of(edges.begin(), edges.end(),
+                           [&](const auto id) noexcept -> bool {
+                               return edges_nodes[id][0].first == src and
+                                      edges_nodes[id][1].first == dst;
+                           });
     }
 
     /**
@@ -791,8 +778,8 @@ public:
 
         port_id x = undefined<port_id>();     //! The port_id in this component.
         graph_node_id v = graph_node_id{ 0 }; //! The index in children vector.
-        port_id       id =
-          undefined<port_id>(); //! The port_id of the @c children[idx].
+        port_id
+          id = undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     struct output_connection {
@@ -812,10 +799,11 @@ public:
         }
 
         port_id y = undefined<port_id>(); //! The port_id in this component.
-        graph_node_id v =
-          graph_node_id{ 0 }; //! The graph_node_id in children vector.
-        port_id id =
-          undefined<port_id>(); //! The port_id of the @c children[idx].
+        graph_node_id v = graph_node_id{
+            0
+        }; //! The graph_node_id in children vector.
+        port_id
+          id = undefined<port_id>(); //! The port_id of the @c children[idx].
     };
 
     enum class connection_type : u8 {
@@ -1365,8 +1353,7 @@ public:
 
     bool is_task_running() const noexcept
     {
-        return any_equal(simulation_state,
-                         simulation_status::initializing,
+        return any_equal(simulation_state, simulation_status::initializing,
                          simulation_status::running,
                          simulation_status::finishing);
     }
@@ -1595,7 +1582,7 @@ public:
      * @param mod The modeling object to get the observation directory.
      * @return A string_view to the observation directory.
      */
-    std::optional<std::filesystem::path> get_observation_dir(
+    std::optional<path> get_observation_dir(
       const irt::modeling& mod) const noexcept;
 
     registred_path_id observation_dir; /**< The output directory used by all
@@ -2029,12 +2016,9 @@ struct file_access {
     void free(const dir_path_id dir) noexcept;
     void free(const registred_path_id dir) noexcept;
 
-    expected<std::filesystem::path> get_fs_path(
-      const file_path_id id) const noexcept;
-    expected<std::filesystem::path> get_fs_path(
-      const dir_path_id id) const noexcept;
-    expected<std::filesystem::path> get_fs_path(
-      const registred_path_id id) const noexcept;
+    expected<path> get_fs_path(const file_path_id id) const noexcept;
+    expected<path> get_fs_path(const dir_path_id id) const noexcept;
+    expected<path> get_fs_path(const registred_path_id id) const noexcept;
 
     struct full_file_access_result {
         registred_path_id reg_id  = undefined<registred_path_id>();
@@ -2192,8 +2176,8 @@ inline void project::for_each_children(tree_node& tn,
         auto cur = stack.back();
         stack.pop_back();
 
-        std::invoke(
-          std::forward<Function>(f), *child, std::forward<Args>(args)...);
+        std::invoke(std::forward<Function>(f), *child,
+                    std::forward<Args>(args)...);
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);

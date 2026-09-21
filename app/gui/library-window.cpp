@@ -111,16 +111,16 @@ static void show_component_popup_menu(application&            app,
                         app.mod.files.write([&](auto& fs) noexcept {
                             const auto file = make_file(fs, filep);
                             if (file.has_value()) {
-                                std::error_code ec;
+                                auto ec       = std::error_code{};
+                                auto std_path = file->to_std_path();
 
-                                if (std::filesystem::exists(*file, ec)) {
-                                    std::filesystem::remove(*file, ec);
+                                if (std::filesystem::exists(std_path, ec)) {
+                                    std::filesystem::remove(std_path, ec);
                                     log(log_level::notice,
                                         [&](auto& title, auto& msg) noexcept {
                                             title = "Remove component file";
-                                            format(msg,
-                                                   "File `{}' removed",
-                                                   file->string());
+                                            format(msg, "File `{}' removed",
+                                                   file->sv());
                                         });
                                 }
                             }
@@ -202,8 +202,7 @@ void library_window::show_file_component(const file_access&      fs,
 
     auto im = ids.component_colors[id];
 
-    if (ImGui::ColorEdit4("Color selection",
-                          im.data(),
+    if (ImGui::ColorEdit4("Color selection", im.data(),
                           ImGuiColorEditFlags_NoInputs |
                             ImGuiColorEditFlags_NoLabel)) {
         if (ids.exists(id)) {
@@ -285,8 +284,7 @@ void library_window::show_notsaved_content(
                 const auto selected = app.component_ed.is_component_open(id);
 
                 ImGui::PushID(reinterpret_cast<const void*>(&compo));
-                if (ImGui::ColorEdit4("Color selection",
-                                      color.data(),
+                if (ImGui::ColorEdit4("Color selection", color.data(),
                                       ImGuiColorEditFlags_NoInputs |
                                         ImGuiColorEditFlags_NoLabel)) {
                     app.add_gui_task([&app, id, color]() noexcept {
@@ -299,8 +297,7 @@ void library_window::show_notsaved_content(
                 }
 
                 ImGui::SameLine(50.f);
-                if (ImGui::Selectable(compo.name.c_str(),
-                                      selected,
+                if (ImGui::Selectable(compo.name.c_str(), selected,
                                       ImGuiSelectableFlags_AllowDoubleClick)) {
                     if (ImGui::IsMouseDoubleClicked(0))
                         app.try_set_component_as_project(fs, ids, id);
@@ -316,7 +313,7 @@ void library_window::show_notsaved_content(
 
     if (flags[file_type::project_file]) {
         for (const auto& pj : app.pjs) {
-            const auto pj_id = app.pjs.get_id(pj);
+            const auto pj_id     = app.pjs.get_id(pj);
             const auto have_file = app.mod.files.read([&](const auto& fs,
                                                           const auto /*vers*/) {
                 return fs.file_paths.try_to_get(pj.pj.project_file) != nullptr;
@@ -373,26 +370,9 @@ void library_window::show_dirpath_content(
 
             ImGui::PushID(file);
 
-            switch (file->type) {
-            case file_type::data_file:
-                break;
-
-            case file_type::dot_file:
-                break;
-
-            case file_type::component_file:
-                break;
-
-            case file_type::txt_file:
-                break;
-
-            case file_type::undefined_file:
-                break;
-
-            case file_type::project_file:
+            if (file->type == file_type::project_file) {
                 if (flags[file_type::project_file])
                     show_file_project(fs, ids, *file, file_id);
-                break;
             }
 
             ImGui::PopID();
@@ -413,8 +393,7 @@ void library_window::show_repertories_content(
             continue;
 
         const auto label = format_n<32>(
-          "{}##{}",
-          reg_dir->name.empty() ? "unknown" : reg_dir->name.c_str(),
+          "{}##{}", reg_dir->name.empty() ? "unknown" : reg_dir->name.c_str(),
           ordinal(id));
 
         ImGui::PushID(reg_dir);
@@ -439,8 +418,8 @@ static auto is_component_used_in_components(const component_access& ids,
 
         switch (c.type) {
         case component_type::generic:
-            if (const auto* g =
-                  ids.generic_components.try_to_get(c.id.generic_id)) {
+            if (const auto* g = ids.generic_components.try_to_get(
+                  c.id.generic_id)) {
                 if (std::ranges::any_of(
                       g->children, [id](const auto& ch) noexcept -> bool {
                           return ch.type == child_type::component and
@@ -460,8 +439,8 @@ static auto is_component_used_in_components(const component_access& ids,
             break;
 
         case component_type::graph:
-            if (const auto* g =
-                  ids.graph_components.try_to_get(c.id.graph_id)) {
+            if (const auto* g = ids.graph_components.try_to_get(
+                  c.id.graph_id)) {
                 for (const auto i : g->g.nodes) {
                     if (g->g.node_components[i] == id)
                         return true;
@@ -639,8 +618,8 @@ void library_window::show_file_treeview(
 
 void library_window::show() noexcept
 {
-    if (!ImGui::Begin(
-          library_window::name, &is_open, ImGuiWindowFlags_MenuBar)) {
+    if (!ImGui::Begin(library_window::name, &is_open,
+                      ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
     }

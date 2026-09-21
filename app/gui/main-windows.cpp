@@ -312,8 +312,7 @@ int main(int, char**)
     // io.ConfigViewportsNoTaskBarIcon = true;
 
     const auto init_filename       = irt::get_imgui_filename();
-    const auto init_filename_u8str = init_filename.u8string();
-    io.IniFilename = reinterpret_cast<const char*>(init_filename_u8str.c_str());
+    io.IniFilename = init_filename.c_str();
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();

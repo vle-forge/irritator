@@ -59,11 +59,8 @@ static void show_version() noexcept
 #define VERSION_TWEAK = "tweak version undefined"
 #endif
 
-    fmt::print("irritator-cli {}.{}.{}-{}\n\n",
-               VERSION_MAJOR,
-               VERSION_MINOR,
-               VERSION_PATCH,
-               VERSION_TWEAK);
+    fmt::print("irritator-cli {}.{}.{}-{}\n\n", VERSION_MAJOR, VERSION_MINOR,
+               VERSION_PATCH, VERSION_TWEAK);
 }
 
 struct report_parameter {
@@ -112,8 +109,8 @@ static constexpr void warning(Args&&... args) noexcept
 
     irt::debug::ensure(sizeof...(args) == report_parameters[idx].arg);
 
-    fmt::vprint(
-      stderr, report_parameters[idx].str, fmt::make_format_args(args...));
+    fmt::vprint(stderr, report_parameters[idx].str,
+                fmt::make_format_args(args...));
 }
 
 template<ec Index, typename Ret, typename... Args>
@@ -123,10 +120,8 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
 
     irt::debug::ensure(sizeof...(args) == report_parameters[idx].arg);
 
-    fmt::vprint(stderr,
-                fg(fmt::terminal_color::red),
-                report_parameters[idx].str,
-                fmt::make_format_args(args...));
+    fmt::vprint(stderr, fg(fmt::terminal_color::red),
+                report_parameters[idx].str, fmt::make_format_args(args...));
 
     return ret;
 }
@@ -156,9 +151,7 @@ static constexpr const option* get_from_short(
     const auto end   = std::end(options);
 
     const auto i = irt::binary_find(
-      begin,
-      end,
-      short_name,
+      begin, end, short_name,
       [](const auto& l, const auto& r) noexcept -> bool {
           if constexpr (std::is_same_v<std::decay_t<decltype(l)>,
                                        std::string_view>)
@@ -177,9 +170,7 @@ static constexpr const option* get_from_long(
     const auto end   = std::end(options);
 
     const auto i = irt::binary_find(
-      begin,
-      end,
-      short_name,
+      begin, end, short_name,
       [](const auto& l, const auto& r) noexcept -> bool {
           if constexpr (std::is_same_v<std::decay_t<decltype(l)>,
                                        std::string_view>)
@@ -277,8 +268,7 @@ public:
         fmt::print("grid-observers: {}\n"
                    "graph-observers: {}\n"
                    "plot-observers: {}\n",
-                   pj.grid_observers.ssize(),
-                   pj.graph_observers.ssize(),
+                   pj.grid_observers.ssize(), pj.graph_observers.ssize(),
                    pj.variable_observers.ssize());
 
         do {
@@ -322,23 +312,26 @@ public:
      * the directory exists in the filesystem.
      * @return 1 if the function succeded, 0 otherwise.
      */
-    int registred_path_add(const std::filesystem::path& path,
-                           const std::string_view       name,
-                           irt::file_access&            fs) noexcept
+    int registred_path_add(const irt::path&       path,
+                           const std::string_view name,
+                           irt::file_access&      fs) noexcept
     {
-        std::error_code ec;
-        if (std::filesystem::exists(path, ec) and ec == std::errc{}) {
-            if (std::filesystem::is_directory(path, ec) and ec == std::errc{}) {
+        const auto std_path = path.to_std_path();
+        auto       ec       = std::error_code{};
+
+        if (std::filesystem::exists(std_path, ec) and ec == std::errc{}) {
+            if (std::filesystem::is_directory(std_path, ec) and
+                ec == std::errc{}) {
                 auto&      dir    = fs.registred_paths.alloc();
                 const auto dir_id = fs.registred_paths.get_id(dir);
                 dir.name          = name;
-                dir.path          = path.string().c_str();
+                dir.path          = path.sv();
                 fs.recorded_paths.emplace_back(dir_id);
                 return 1;
             }
         }
 
-        warning<ec::bad_dir>(path.string());
+        warning<ec::bad_dir>(path.sv());
         return 0;
     }
 
@@ -400,8 +393,8 @@ public:
 
     bool parse_integer() noexcept
     {
-        if (const auto ec =
-              std::from_chars(front.data(), front.data() + front.size(), u);
+        if (const auto ec = std::from_chars(front.data(),
+                                            front.data() + front.size(), u);
             ec.ec == std::errc{}) {
             front = front.substr(ec.ptr - front.data());
         } else {
@@ -414,8 +407,8 @@ public:
     /** Parse a real from @c front and if it empty, front args. */
     bool parse_real() noexcept
     {
-        if (const auto ec =
-              std::from_chars(front.data(), front.data() + front.size(), r);
+        if (const auto ec = std::from_chars(front.data(),
+                                            front.data() + front.size(), r);
             ec.ec == std::errc{}) {
             front = front.substr(ec.ptr - front.data());
         } else {

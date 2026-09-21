@@ -133,7 +133,7 @@ status constant_source::finalize(source& src, source_data&) noexcept
     return success();
 }
 
-binary_file_source::binary_file_source(const std::filesystem::path& p) noexcept
+binary_file_source::binary_file_source(const path& p) noexcept
   : file_path(p)
 {}
 
@@ -188,7 +188,9 @@ status binary_file_source::init() noexcept
     try {
         std::error_code ec;
 
-        auto size = std::filesystem::file_size(file_path, ec);
+        const auto std_path = file_path.to_std_path();
+
+        auto size = std::filesystem::file_size(std_path, ec);
         if (!ec)
             return make_error(
               simulation_errc::external_source_binary_file_access_error);
@@ -204,14 +206,14 @@ status binary_file_source::init() noexcept
               simulation_errc::external_source_binary_file_size_error);
 
         max_reals = static_cast<u64>(number);
+        ifs       = std::ifstream{ std_path };
+
     } catch (const std::exception& /*e*/) {
         return make_error(
           simulation_errc::external_source_binary_file_access_error);
     }
 
-    ifs.open(file_path);
-
-    if (!ifs)
+    if (not ifs)
         return make_error(
           simulation_errc::external_source_binary_file_access_error);
 
@@ -312,7 +314,7 @@ status binary_file_source::finalize(source& src, source_data&) noexcept
     return success();
 }
 
-text_file_source::text_file_source(const std::filesystem::path& p) noexcept
+text_file_source::text_file_source(const path& p) noexcept
   : file_path(p)
 {}
 
@@ -336,7 +338,9 @@ status text_file_source::init() noexcept
     if (ifs.is_open())
         ifs.close();
 
-    ifs.open(file_path);
+    const auto std_path = file_path.to_std_path();
+
+    ifs.open(std_path);
     if (!ifs)
         return make_error(
           simulation_errc::external_source_text_file_access_error);

@@ -93,8 +93,8 @@ public:
     bool should_request() noexcept
     {
         state expected = state::idle;
-        return m_state.compare_exchange_strong(
-          expected, state::pending, std::memory_order_acq_rel);
+        return m_state.compare_exchange_strong(expected, state::pending,
+                                               std::memory_order_acq_rel);
     }
 
     /// Delivers the result from the worker thread.
@@ -195,8 +195,8 @@ public:
     bool should_request() noexcept
     {
         state expected = state::idle;
-        return m_state.compare_exchange_strong(
-          expected, state::pending, std::memory_order_acq_rel);
+        return m_state.compare_exchange_strong(expected, state::pending,
+                                               std::memory_order_acq_rel);
     }
 
     void fulfill(T data) noexcept
@@ -487,10 +487,10 @@ public:
     constexpr static inline flags empty_option = flags{};
 
     struct combo_box_result {
-        file_path_id file_id =
-          undefined<file_path_id>(); //!< The file selected by the user. If
-                                     //!< undefined, the user select nothing or
-                                     //!< cancel.
+        file_path_id
+          file_id = undefined<file_path_id>(); //!< The file selected by the
+                                               //!< user. If undefined, the user
+                                               //!< select nothing or cancel.
         int close = false; //<! @c true if user click on save or close.
         int save  = false; //<! @c true if user click on save.
     };
@@ -865,8 +865,8 @@ class hsm_component_editor_data
 public:
     constexpr static inline const char* name = "HSM Editor";
 
-    constexpr static inline auto max_number_of_state =
-      hierarchical_state_machine::max_number_of_state;
+    constexpr static inline auto
+      max_number_of_state = hierarchical_state_machine::max_number_of_state;
 
     hsm_component_editor_data(const component_id     id,
                               const hsm_component_id hid,
@@ -1060,9 +1060,9 @@ private:
     bool show_minimap          = true;
     bool can_edit_parameters   = true;
 
-    bool enable_show =
-      true; /**< @c false, the display of nodes and links are disabled. Mainly
-               use during @c rebuild or @c init. */
+    bool enable_show = true;  /**< @c false, the display of nodes and links are
+                                 disabled. Mainly  use during @c rebuild or @c
+                                 init. */
     bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
                                  progress. No other rebuild can occured. */
 
@@ -1305,10 +1305,8 @@ struct project_editor {
 
 inline bool project_editor::can_edit() const noexcept
 {
-    return any_equal(pj.simulation_state,
-                     simulation_status::initialized,
-                     simulation_status::paused,
-                     simulation_status::finished);
+    return any_equal(pj.simulation_state, simulation_status::initialized,
+                     simulation_status::paused, simulation_status::finished);
 }
 
 class component_editor
@@ -1900,7 +1898,7 @@ bool show_local_observers(application&            app,
 
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
-std::filesystem::path get_imgui_filename() noexcept;
+path get_imgui_filename() noexcept;
 
 template<typename Fn>
 void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept

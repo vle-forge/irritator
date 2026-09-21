@@ -1328,7 +1328,7 @@ void text_file_viewer::update(application&       app,
                 title = "Text file viewer error";
                 format(msg,
                        "Fail to open file {} (part: {} {})",
-                       filename->string(),
+                       filename->sv(),
                        ordinal(file.error().cat()),
                        file.error().value());
             });
@@ -1343,7 +1343,7 @@ void text_file_viewer::update(application&       app,
                 title = "Text file viewer error";
                 format(msg,
                        "File {} is too big to be loaded ({} bytes)",
-                       filename->string(),
+                       filename->sv(),
                        file->length());
             });
             return;

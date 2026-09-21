@@ -124,24 +124,30 @@ constexpr bool is_valid_filename(
 static_assert(is_valid_filename("file.irt"));
 static_assert(is_valid_filename("file.pirt", file_type::project_file));
 
-inline std::optional<std::filesystem::path> make_file(
-  const registred_path& r,
-  const dir_path&       d,
-  const file_path&      f) noexcept
+inline std::optional<path> make_file(const registred_path& r,
+                                     const dir_path&       d,
+                                     const file_path&      f) noexcept
 {
-    try {
-        std::filesystem::path ret(r.path.sv());
-        ret /= d.path.sv();
-        ret /= f.path.sv();
-        return ret;
-    } catch (...) {
+    debug::ensure(not r.path.empty());
+    debug::ensure(not d.path.empty());
+    debug::ensure(not f.path.empty());
+
+    auto ret = path{ r.path.sv() };
+    if (not ret.can_append(d.path.sv()))
         return std::nullopt;
-    }
+
+    ret /= d.path.sv();
+    if (not ret.can_append(f.path.sv()))
+        return std::nullopt;
+
+    ret /= f.path.sv();
+
+    return ret;
 }
 
 struct component_filenames {
-    std::filesystem::path component;
-    std::filesystem::path description;
+    path component;
+    path description;
 };
 
 inline auto make_component_files(const file_access&      fs,
@@ -155,13 +161,13 @@ inline auto make_component_files(const file_access&      fs,
         if (const auto* dir = fs.dir_paths.try_to_get(fp->parent)) {
             if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
                 try {
-                    std::filesystem::path base(reg->path.sv());
+                    path base(reg->path.sv());
                     base /= dir->path.sv();
                     base /= fp->path.sv();
-                    base.replace_extension(".irt");
+                    base.replace_extension(file_type::component_file);
 
-                    std::filesystem::path desc(base);
-                    desc.replace_extension(".desc");
+                    path desc(base);
+                    desc.replace_extension(file_type::txt_file);
 
                     return component_filenames{ .component   = base,
                                                 .description = desc };
@@ -174,14 +180,13 @@ inline auto make_component_files(const file_access&      fs,
     return std::nullopt;
 }
 
-inline std::optional<std::filesystem::path> make_file(
-  const file_access&         fs,
-  const component_file_path& c) noexcept
+inline std::optional<path> make_file(const file_access&         fs,
+                                     const component_file_path& c) noexcept
 {
     if (const auto* fp = fs.file_paths.try_to_get(c.file)) {
         if (const auto* dir = fs.dir_paths.try_to_get(fp->parent)) {
             if (const auto* reg = fs.registred_paths.try_to_get(dir->parent)) {
-                std::filesystem::path file(reg->path.sv());
+                path file(reg->path.sv());
                 file /= dir->path.sv();
                 file /= fp->path.sv();
                 return file;
@@ -192,9 +197,8 @@ inline std::optional<std::filesystem::path> make_file(
     return std::nullopt;
 }
 
-inline std::optional<std::filesystem::path> make_file(
-  const file_access& fs,
-  const file_path&   f) noexcept
+inline std::optional<path> make_file(const file_access& fs,
+                                     const file_path&   f) noexcept
 {
     if (auto* dir = fs.dir_paths.try_to_get(f.parent))
         if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
@@ -203,9 +207,8 @@ inline std::optional<std::filesystem::path> make_file(
     return std::nullopt;
 }
 
-inline std::optional<std::filesystem::path> make_file(
-  const file_access& fs,
-  const file_path_id f) noexcept
+inline std::optional<path> make_file(const file_access& fs,
+                                     const file_path_id f) noexcept
 {
     if (auto* file = fs.file_paths.try_to_get(f))
         if (auto* dir = fs.dir_paths.try_to_get(file->parent))
@@ -221,15 +224,10 @@ inline expected<file> open_file(
   const file_path&      file_p,
   const file_mode       mode = file_mode(file_open_options::read)) noexcept
 {
-    try {
-        std::filesystem::path p = reg_p.path.u8sv();
-        p /= dir_p.path.u8sv();
-        p /= file_p.path.u8sv();
+    if (auto path = make_file(reg_p, dir_p, file_p); path.has_value())
+        return file::open(*path, mode);
 
-        return file::open(p, mode);
-    } catch (...) {
-        return make_error(std::errc::not_enough_memory);
-    }
+    return make_error(std::errc::not_enough_memory);
 }
 
 inline expected<file> open_file(
@@ -237,11 +235,8 @@ inline expected<file> open_file(
   const file_path_id id,
   const file_mode    mode = file_mode(file_open_options::read)) noexcept
 {
-    try {
-        if (const auto filename = make_file(fs, id); filename.has_value())
-            return file::open(*filename, mode);
-    } catch (...) {
-    }
+    if (const auto filename = make_file(fs, id); filename.has_value())
+        return file::open(*filename, mode);
 
     return make_error(std::errc::not_enough_memory);
 }
