@@ -59,9 +59,8 @@ public:
      */
     static expected<file> open_tmp() noexcept;
 
-    file() noexcept = default;
-
-    ~file() noexcept;
+    file() noexcept  = default;
+    ~file() noexcept = default;
 
     /** The file can be copied but the file descriptor remains closes.
      *  @param other Unused parameter. */
@@ -231,14 +230,19 @@ public:
         return write(c_ptr, size);
     }
 
+    /// Get access to the underlying std::FILE handler (can be nullptr).
     std::FILE* to_file() const noexcept;
-    void*      get_handle() const noexcept;
+
+    /// Get the mode 
     file_mode  get_mode() const noexcept;
 
 private:
-    file(void* handle, const file_mode mode) noexcept;
+    file(std_file&& f, file_mode m) noexcept
+      : file_handle(std::move(f))
+      , mode(m)
+    {}
 
-    void*     file_handle = nullptr;
+    std_file  file_handle;
     file_mode mode;
 };
 

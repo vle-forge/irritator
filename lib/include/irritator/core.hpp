@@ -98,8 +98,8 @@ inline void log(log_level level, Fn&& fn, Args&&... args) noexcept
             l.level = level;
             l.tid   = std::this_thread::get_id();
 
-            std::invoke(
-              std::forward<Fn>(fn), l.t, l.msg, std::forward<Args>(args)...);
+            std::invoke(std::forward<Fn>(fn), l.t, l.msg,
+                        std::forward<Args>(args)...);
         });
     }
 }
@@ -115,9 +115,7 @@ inline void log_m(log_level lvl, std::string_view msg) noexcept
     if (current_journal) [[likely]]
         current_journal->push(log_record{ get_time_since_epoch(),
                                           std::this_thread::get_id(),
-                                          std::string_view{},
-                                          msg,
-                                          lvl });
+                                          std::string_view{}, msg, lvl });
 }
 
 /**
@@ -142,8 +140,8 @@ inline void log_m(log_level level, Fn&& fn, Args&&... args) noexcept
             l.tid   = std::this_thread::get_id();
             l.t.clear();
 
-            std::invoke(
-              std::forward<Fn>(fn), l.msg, std::forward<Args>(args)...);
+            std::invoke(std::forward<Fn>(fn), l.msg,
+                        std::forward<Args>(args)...);
         });
     }
 }
@@ -469,6 +467,16 @@ constexpr bool almost_equal(Real a, Real b, Real relative_epsilon) noexcept
  * every place that manipulates a path.
  ****************************************************************************/
 
+struct std_file_deleter {
+    void operator()(FILE* file) const
+    {
+        if (file)
+            std::fclose(file);
+    }
+};
+
+using std_file = std::unique_ptr<std::FILE, std_file_deleter>;
+
 constexpr inline bool all_char_valid(const std::string_view v) noexcept
 {
     for (auto c : v)
@@ -502,7 +510,7 @@ class path : public small_string<1024>
 {
 public:
     using small_string<1024>::small_string;
- 
+
     /// Appends a directory component. An invalid name or a capacity
     /// overflow is reported via debug::ensure rather than silently
     /// building a corrupted path.
@@ -565,15 +573,15 @@ public:
 
         return pos == std::string_view::npos ? str : str.substr(pos + 1);
     }
- 
+
     std::string_view extension() const noexcept
     {
-        const auto fn = filename();
+        const auto fn  = filename();
         const auto pos = fn.find_last_of('.');
         return pos == std::string_view::npos ? std::string_view{}
-                                              : fn.substr(pos);
+                                             : fn.substr(pos);
     }
- 
+
     path parent_directory() const noexcept
     {
         const std::string_view str = sv();
@@ -584,7 +592,7 @@ public:
             ret.append(str.substr(0, pos));
         return ret;
     }
- 
+
     /// Goes through char8_t/u8string (guaranteed UTF-8 in C++20, on every
     /// platform) rather than the std::string_view constructor, which on
     /// Windows interprets the narrow string according to the system code
@@ -598,18 +606,9 @@ public:
           reinterpret_cast<const char8_t*>(data() + size() - 1));
     }
 
-    struct std_file_deleter {
-        void operator()(FILE* file) const
-        {
-            if (file)
-                std::fclose(file);
-        }
-    };
-
     std::ifstream open_std_ifstream() const noexcept;
     std::ofstream open_std_ofstream() const noexcept;
-    std::unique_ptr<std::FILE, std_file_deleter> open_std_file(
-      const char* mode) const noexcept;
+    std_file      open_std_file(const char* mode) const noexcept;
 };
 
 /*****************************************************************************
@@ -631,10 +630,10 @@ template<>
 struct time_domain<time> {
     using time_type = time;
 
-    static constexpr const real infinity =
-      std::numeric_limits<real>::infinity();
-    static constexpr const real negative_infinity =
-      -std::numeric_limits<real>::infinity();
+    static constexpr const real
+      infinity = std::numeric_limits<real>::infinity();
+    static constexpr const real
+      negative_infinity              = -std::numeric_limits<real>::infinity();
     static constexpr const real zero = 0;
 
     static bool is_infinity(time t) noexcept
@@ -908,10 +907,10 @@ public:
     u32                max_clients = 1; // number of source max (must be >= 1).
     u64                max_reals   = 0; // number of real in the file.
 
-    path                  file_path;
-    std::ifstream         ifs;
-    u32                   next_client = 0;
-    u64                   next_offset = 0;
+    path          file_path;
+    std::ifstream ifs;
+    u32           next_client = 0;
+    u64           next_offset = 0;
 
     binary_file_source() noexcept = default;
     explicit binary_file_source(const path& p) noexcept;
@@ -947,8 +946,8 @@ public:
     chunk_type buffer;
     u64        offset = 0u;
 
-    path                  file_path;
-    std::ifstream         ifs;
+    path          file_path;
+    std::ifstream ifs;
 
     text_file_source() noexcept = default;
     explicit text_file_source(const path& p) noexcept;
@@ -2089,10 +2088,9 @@ enum class factor_type : u8 {
                  //!< value.
 };
 
-static constexpr const std::string_view criteria_type_names[] = { "min-last",
-                                                                  "max-last",
-                                                                  "min",
-                                                                  "max" };
+static constexpr const std::string_view criteria_type_names[] = {
+    "min-last", "max-last", "min", "max"
+};
 
 static constexpr const std::string_view factor_type_names[] = {
     "single",     "fixed",       "random",     "single-add", "fixed-add",
@@ -2207,14 +2205,14 @@ using simulation_factor = id_data_array<void,
                                         fixed_factor,
                                         random_factor>;
 
-using simulation_selection =
-  id_data_array<void,
-                selection_id,
-                allocator<new_delete_memory_resource>,
-                model_id, //!< model to parametrize
-                name_str,
-                criteria_type //!< observation trajectory selection function
-                >;
+using simulation_selection = id_data_array<
+  void,
+  selection_id,
+  allocator<new_delete_memory_resource>,
+  model_id, //!< model to parametrize
+  name_str,
+  criteria_type //!< observation trajectory selection function
+  >;
 
 class simulation
 {
@@ -2395,9 +2393,7 @@ public:
     {
         for (const auto& elem : port.connections)
             if (auto* mdl = models.try_to_get(elem.model))
-                std::invoke(std::forward<Function>(fn),
-                            *mdl,
-                            elem.port_index,
+                std::invoke(std::forward<Function>(fn), *mdl, elem.port_index,
                             std::forward<Args>(args)...);
 
         block_node* prev = nullptr;
@@ -2406,10 +2402,8 @@ public:
 
             for (auto it = block->nodes.begin(); it != block->nodes.end();) {
                 if (auto* mdl = models.try_to_get(it->model)) {
-                    std::invoke(std::forward<Function>(fn),
-                                *mdl,
-                                it->port_index,
-                                std::forward<Args>(args)...);
+                    std::invoke(std::forward<Function>(fn), *mdl,
+                                it->port_index, std::forward<Args>(args)...);
                     ++it;
                 } else {
                     block->nodes.swap_pop_back(it);
@@ -2444,8 +2438,8 @@ public:
                   Args&&... args) noexcept
     {
         if (auto* y = output_ports.try_to_get(port))
-            for_each(
-              *y, std::forward<Function>(fn), std::forward<Args>(args)...);
+            for_each(*y, std::forward<Function>(fn),
+                     std::forward<Args>(args)...);
     }
 
     template<typename Function, typename... Args>
@@ -2456,17 +2450,14 @@ public:
         if (auto* y = output_ports.try_to_get(port)) {
             for (const auto& elem : y->connections)
                 if (auto* mdl = models.try_to_get(elem.model))
-                    std::invoke(std::forward<Function>(fn),
-                                *mdl,
-                                elem.port_index,
-                                std::forward<Args>(args)...);
+                    std::invoke(std::forward<Function>(fn), *mdl,
+                                elem.port_index, std::forward<Args>(args)...);
 
             for (const auto* block = nodes.try_to_get(y->next); block;
                  block             = nodes.try_to_get(block->next))
                 for (const auto& elem : block->nodes)
                     if (auto* mdl = models.try_to_get(elem.model))
-                        std::invoke(std::forward<Function>(fn),
-                                    *mdl,
+                        std::invoke(std::forward<Function>(fn), *mdl,
                                     elem.port_index,
                                     std::forward<Args>(args)...);
         }
@@ -2557,10 +2548,13 @@ concept has_lambda_function = requires(T t, simulation& sim) {
 };
 
 template<typename T>
-concept has_transition_function =
-  requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
-  };
+concept has_transition_function = requires(T           t,
+                                           simulation& sim,
+                                           time        s,
+                                           time        e,
+                                           time        r) {
+    { t.transition(sim, s, e, r) } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
@@ -2609,11 +2603,9 @@ constexpr raw_sample qss_observation(real X,
                                      time e) noexcept
 {
     return {
-        t,
-        X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
-        u + mu * e + pu * e * e,
-        mu + two * pu * e /*,
-        pu */
+        t, X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
+        u + mu * e + pu * e * e, mu + two * pu * e /*,
+                                 pu */
     };
 }
 
@@ -2847,8 +2839,8 @@ struct abstract_integrator<1> {
 
     status lambda(simulation& sim) noexcept
     {
-        return send_message(
-          sim, y[0], is_zero(u) ? q : q + dQ * u / std::abs(u));
+        return send_message(sim, y[0],
+                            is_zero(u) ? q : q + dQ * u / std::abs(u));
     }
 
     raw_sample observation(time t, time e) const noexcept
@@ -3014,8 +3006,8 @@ struct abstract_integrator<2> {
 
     status lambda(simulation& sim) noexcept
     {
-        return send_message(
-          sim, y[0], X + u * sigma + mu * sigma * sigma / two, u + mu * sigma);
+        return send_message(sim, y[0], X + u * sigma + mu * sigma * sigma / two,
+                            u + mu * sigma);
     }
 
     raw_sample observation(time t, time e) const noexcept
@@ -3349,12 +3341,10 @@ struct abstract_integrator<3> {
         const auto sigma_2 = sigma * sigma;
         const auto sigma_3 = sigma_2 * sigma;
 
-        return send_message(sim,
-                            y[0],
-                            X + u * sigma + (mu * sigma_2) / two +
-                              (pu * sigma_3) / three,
-                            u + mu * sigma + pu * sigma_2,
-                            mu / two + pu * sigma);
+        return send_message(
+          sim, y[0],
+          X + u * sigma + (mu * sigma_2) / two + (pu * sigma_3) / three,
+          u + mu * sigma + pu * sigma_2, mu / two + pu * sigma);
     }
 
     raw_sample observation(time t, time e) const noexcept
@@ -3404,15 +3394,11 @@ struct abstract_power {
             return send_message(sim, y[0], std::pow(value[0], n));
 
         if constexpr (QssLevel == 2)
-            return send_message(sim,
-                                y[0],
-                                std::pow(value[0], n),
+            return send_message(sim, y[0], std::pow(value[0], n),
                                 n * std::pow(value[0], n - 1) * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                std::pow(value[0], n),
+            return send_message(sim, y[0], std::pow(value[0], n),
                                 n * std::pow(value[0], n - 1) * value[1],
                                 n * (n - 1) * std::pow(value[0], n - 2) *
                                     (value[1] * value[1]) / two +
@@ -3453,11 +3439,11 @@ struct abstract_power {
         }
 
         if constexpr (QssLevel == 3) {
-            auto X = std::pow(value[0], n);
-            auto u = n * std::pow(value[0], n - 1) * value[1];
-            auto mu =
-              n * (n - 1) * std::pow(value[0], n - 2) * (value[1] * value[1]) +
-              two * n * std::pow(value[0], n - 1) * value[2];
+            auto X  = std::pow(value[0], n);
+            auto u  = n * std::pow(value[0], n - 1) * value[1];
+            auto mu = n * (n - 1) * std::pow(value[0], n - 2) *
+                        (value[1] * value[1]) +
+                      two * n * std::pow(value[0], n - 1) * value[2];
             auto pu = three * n * (n - 1) * std::pow(value[0], n - 2) *
                         value[1] * value[2] +
                       n * (n - 1) * (n - 2) * std::pow(value[0], n - 3) *
@@ -3504,16 +3490,13 @@ struct abstract_square {
             return send_message(sim, y[0], value[0] * value[0]);
 
         if constexpr (QssLevel == 2)
-            return send_message(
-              sim, y[0], value[0] * value[0], two * value[0] * value[1]);
+            return send_message(sim, y[0], value[0] * value[0],
+                                two * value[0] * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                value[0] * value[0],
-                                two * value[0] * value[1],
-                                (two * value[0] * value[2]) +
-                                  (value[1] * value[1]));
+            return send_message(
+              sim, y[0], value[0] * value[0], two * value[0] * value[1],
+              (two * value[0] * value[2]) + (value[1] * value[1]));
 
         return success();
     }
@@ -3541,16 +3524,13 @@ struct abstract_square {
             return { t, value[0] * value[0] };
 
         if constexpr (QssLevel == 2)
-            return qss_observation(
-              value[0] * value[0], two * value[0] * value[1], t, e);
+            return qss_observation(value[0] * value[0],
+                                   two * value[0] * value[1], t, e);
 
         if constexpr (QssLevel == 3)
-            return qss_observation(value[0] * value[0],
-                                   two * value[0] * value[1],
-                                   (two * value[0] * value[2]) +
-                                     (value[1] * value[1]),
-                                   t,
-                                   e);
+            return qss_observation(
+              value[0] * value[0], two * value[0] * value[1],
+              (two * value[0] * value[2]) + (value[1] * value[1]), t, e);
     }
 };
 
@@ -3665,8 +3645,10 @@ struct abstract_sum {
                 if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
-                    values[i + PortNumber] +=
-                      2 * values[i + PortNumber + PortNumber] * e;
+                    values[i + PortNumber] += 2 *
+                                              values[i + PortNumber +
+                                                     PortNumber] *
+                                              e;
                 } else {
                     const auto& msg        = get_qss_message<QssLevel>(lst);
                     values[i]              = msg[0];
@@ -3794,8 +3776,8 @@ struct abstract_wsum {
             for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
-                derivative +=
-                  input_coeffs[i] * values[i + PortNumber + PortNumber];
+                derivative += input_coeffs[i] *
+                              values[i + PortNumber + PortNumber];
             }
 
             return send_message(sim, y[0], value, slope, derivative);
@@ -3842,8 +3824,10 @@ struct abstract_wsum {
                 if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
-                    values[i + PortNumber] +=
-                      2 * values[i + PortNumber + PortNumber] * e;
+                    values[i + PortNumber] += 2 *
+                                              values[i + PortNumber +
+                                                     PortNumber] *
+                                              e;
                 } else {
                     const auto& msg        = get_qss_message<QssLevel>(lst);
                     values[i]              = msg[0];
@@ -3890,8 +3874,8 @@ struct abstract_wsum {
             for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
-                derivative +=
-                  input_coeffs[i] * values[i + PortNumber + PortNumber];
+                derivative += input_coeffs[i] *
+                              values[i + PortNumber + PortNumber];
             }
 
             return qss_observation(value, slope, derivative, t, e);
@@ -3962,16 +3946,13 @@ struct abstract_inverse {
         }
 
         if constexpr (QssLevel == 2) {
-            return send_message(
-              sim, y[0], one / value[0], -value[1] / (value[0] * value[0]));
+            return send_message(sim, y[0], one / value[0],
+                                -value[1] / (value[0] * value[0]));
         }
 
         if constexpr (QssLevel == 3) {
             return send_message(
-              sim,
-              y[0],
-              one / value[0],
-              -value[1] / (value[0] * value[0]),
+              sim, y[0], one / value[0], -value[1] / (value[0] * value[0]),
               -(value[2] / (value[0] * value[0])) +
                 ((value[1] * value[1]) / (value[0] * value[0] * value[0])));
         }
@@ -3982,27 +3963,23 @@ struct abstract_inverse {
     raw_sample observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
-            return { t,
-                     is_zero(value[0]) ? std::numeric_limits<real>::infinity()
-                                       : one / value[0] };
+            return { t, is_zero(value[0])
+                          ? std::numeric_limits<real>::infinity()
+                          : one / value[0] };
         }
 
         if constexpr (QssLevel == 2) {
             return is_zero(value[0])
-                     ? raw_sample{ t,
-                                   std::numeric_limits<real>::infinity(),
+                     ? raw_sample{ t, std::numeric_limits<real>::infinity(),
                                    std::numeric_limits<real>::infinity(),
                                    std::numeric_limits<real>::infinity() }
                      : qss_observation(one / value[0],
-                                       -value[1] / (value[0] * value[0]),
-                                       t,
-                                       e);
+                                       -value[1] / (value[0] * value[0]), t, e);
         }
 
         if constexpr (QssLevel == 3) {
             return is_zero(value[0])
-                     ? raw_sample{ t,
-                                   std::numeric_limits<real>::infinity(),
+                     ? raw_sample{ t, std::numeric_limits<real>::infinity(),
                                    std::numeric_limits<real>::infinity(),
                                    std::numeric_limits<real>::infinity() }
                      : qss_observation(one / value[0],
@@ -4010,8 +3987,7 @@ struct abstract_inverse {
                                        -(value[2] / (value[0] * value[0])) +
                                          ((two * value[1] * value[1]) /
                                           (value[0] * value[0] * value[0])),
-                                       t,
-                                       e);
+                                       t, e);
         }
     }
 };
@@ -4055,18 +4031,14 @@ struct abstract_multiplier {
         }
 
         if constexpr (QssLevel == 2) {
-            return send_message(sim,
-                                y[0],
-                                values[0] * values[1],
+            return send_message(sim, y[0], values[0] * values[1],
                                 values[2 + 0] * values[1] +
                                   values[2 + 1] * values[0]);
         }
 
         if constexpr (QssLevel == 3) {
             return send_message(
-              sim,
-              y[0],
-              values[0] * values[1],
+              sim, y[0], values[0] * values[1],
               values[2 + 0] * values[1] + values[2 + 1] * values[0],
               values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
                 values[2 + 2 + 0] * values[1]);
@@ -4140,11 +4112,9 @@ struct abstract_multiplier {
         }
 
         if constexpr (QssLevel == 2) {
-            return qss_observation(values[0] * values[1],
-                                   values[2 + 0] * values[1] +
-                                     values[2 + 1] * values[0],
-                                   t,
-                                   e);
+            return qss_observation(
+              values[0] * values[1],
+              values[2 + 0] * values[1] + values[2 + 1] * values[0], t, e);
         }
 
         if constexpr (QssLevel == 3) {
@@ -4154,8 +4124,7 @@ struct abstract_multiplier {
                                    values[0] * values[2 + 2 + 1] +
                                      two * values[2 + 0] * values[2 + 1] +
                                      values[2 + 2 + 0] * values[1],
-                                   t,
-                                   e);
+                                   t, e);
         }
     }
 };
@@ -4266,8 +4235,8 @@ struct abstract_integer {
                 sigma = std::min(
                   compute_wake_up(upper, value[0], value[1], value[2]),
                   compute_wake_up(lower, value[0], value[1], value[2]));
-                to_send =
-                  value[0] + value[1] * sigma + value[2] * sigma * sigma;
+                to_send = value[0] + value[1] * sigma +
+                          value[2] * sigma * sigma;
             }
         }
 
@@ -4340,10 +4309,10 @@ struct abstract_compare {
     time compute_next_cross() const noexcept
     {
         if constexpr (QssLevel == 2) {
-            const auto y = a[1] - b[1];
-            const auto x = a[0] - b[0];
-            const auto s1 =
-              not is_zero(y) ? -x / y : time_domain<time>::infinity;
+            const auto y  = a[1] - b[1];
+            const auto x  = a[0] - b[0];
+            const auto s1 = not is_zero(y) ? -x / y
+                                           : time_domain<time>::infinity;
 
             return s1 > 0 ? s1 : time_domain<time>::infinity;
         }
@@ -4492,8 +4461,8 @@ struct abstract_gain {
             return send_message(sim, y[0], k * value[0], k * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim, y[0], k * value[0], k * value[1], k * value[2]);
+            return send_message(sim, y[0], k * value[0], k * value[1],
+                                k * value[2]);
 
         return success();
     }
@@ -4577,17 +4546,14 @@ struct abstract_log {
             return send_message(sim, y[0], std::log(value[0]));
 
         if constexpr (QssLevel == 2)
-            return send_message(
-              sim, y[0], std::log(value[0]), value[1] / value[0]);
+            return send_message(sim, y[0], std::log(value[0]),
+                                value[1] / value[0]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                std::log(value[0]),
-                                value[1] / value[0],
-                                -(value[1] * value[1]) /
-                                    (two * value[0] * value[0]) +
-                                  value[2] / value[0]);
+            return send_message(
+              sim, y[0], std::log(value[0]), value[1] / value[0],
+              -(value[1] * value[1]) / (two * value[0] * value[0]) +
+                value[2] / value[0]);
 
         return success();
     }
@@ -4627,9 +4593,10 @@ struct abstract_log {
             const auto u  = value[1] / value[0];
             const auto mu = -(value[1] * value[1]) / (value[0] * value[0]) +
                             two * value[2] / value[0];
-            const auto pu =
-              -three * value[1] * value[2] / (value[0] * value[0]) +
-              value[1] * value[1] * value[1] / (value[0] * value[0] * value[0]);
+            const auto pu = -three * value[1] * value[2] /
+                              (value[0] * value[0]) +
+                            value[1] * value[1] * value[1] /
+                              (value[0] * value[0] * value[0]);
 
             return qss_observation(X, u, mu, pu, t, e);
         }
@@ -4672,16 +4639,13 @@ struct abstract_exp {
             return send_message(sim, y[0], std::exp(value[0]));
 
         if constexpr (QssLevel == 2)
-            return send_message(
-              sim, y[0], std::exp(value[0]), std::exp(value[0]) * value[1]);
+            return send_message(sim, y[0], std::exp(value[0]),
+                                std::exp(value[0]) * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                std::exp(value[0]),
-                                std::exp(value[0]) * value[1],
-                                std::exp(value[0]) *
-                                  (value[1] * value[1] / two + value[2]));
+            return send_message(
+              sim, y[0], std::exp(value[0]), std::exp(value[0]) * value[1],
+              std::exp(value[0]) * (value[1] * value[1] / two + value[2]));
 
         return success();
     }
@@ -4717,13 +4681,13 @@ struct abstract_exp {
         }
 
         if constexpr (QssLevel == 3) {
-            const auto X = std::exp(value[0]);
-            const auto u = std::exp(value[0]) * value[1];
-            const auto mu =
-              std::exp(value[0]) * (value[1] * value[1] + two * value[2]);
-            const auto pu =
-              std::exp(value[0]) * (three * value[1] * value[2] +
-                                    value[1] * value[1] * value[1] / two);
+            const auto X  = std::exp(value[0]);
+            const auto u  = std::exp(value[0]) * value[1];
+            const auto mu = std::exp(value[0]) *
+                            (value[1] * value[1] + two * value[2]);
+            const auto pu = std::exp(value[0]) *
+                            (three * value[1] * value[2] +
+                             value[1] * value[1] * value[1] / two);
 
             return qss_observation(X, u, mu, pu, t, e);
         }
@@ -4766,17 +4730,14 @@ struct abstract_sin {
             return send_message(sim, y[0], std::sin(value[0]));
 
         if constexpr (QssLevel == 2)
-            return send_message(
-              sim, y[0], std::sin(value[0]), std::cos(value[0]) * value[1]);
+            return send_message(sim, y[0], std::sin(value[0]),
+                                std::cos(value[0]) * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                std::sin(value[0]),
-                                std::cos(value[0]) * value[1],
-                                -std::sin(value[0]) * value[1] * value[1] /
-                                    two +
-                                  std::cos(value[0]) * value[2]);
+            return send_message(
+              sim, y[0], std::sin(value[0]), std::cos(value[0]) * value[1],
+              -std::sin(value[0]) * value[1] * value[1] / two +
+                std::cos(value[0]) * value[2]);
 
         return success();
     }
@@ -4816,9 +4777,9 @@ struct abstract_sin {
             const auto u  = std::cos(value[0]) * value[1];
             const auto mu = -std::sin(value[0]) * value[1] * value[1] +
                             two * std::cos(value[0]) * value[2];
-            const auto pu =
-              -three * std::sin(value[0]) * value[1] * value[2] -
-              std::cos(value[0]) * value[1] * value[1] * value[1] / two;
+            const auto pu = -three * std::sin(value[0]) * value[1] * value[2] -
+                            std::cos(value[0]) * value[1] * value[1] *
+                              value[1] / two;
 
             return qss_observation(X, u, mu, pu, t, e);
         }
@@ -4861,17 +4822,14 @@ struct abstract_cos {
             return send_message(sim, y[0], std::cos(value[0]));
 
         if constexpr (QssLevel == 2)
-            return send_message(
-              sim, y[0], std::cos(value[0]), -std::sin(value[0]) * value[1]);
+            return send_message(sim, y[0], std::cos(value[0]),
+                                -std::sin(value[0]) * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(sim,
-                                y[0],
-                                std::cos(value[0]),
-                                -std::sin(value[0]) * value[1],
-                                -std::cos(value[0]) * value[1] * value[1] /
-                                    two -
-                                  std::sin(value[0]) * value[2]);
+            return send_message(
+              sim, y[0], std::cos(value[0]), -std::sin(value[0]) * value[1],
+              -std::cos(value[0]) * value[1] * value[1] / two -
+                std::sin(value[0]) * value[2]);
 
         return success();
     }
@@ -4911,9 +4869,9 @@ struct abstract_cos {
             const auto u  = -std::sin(value[0]) * value[1];
             const auto mu = -std::cos(value[0]) * value[1] * value[1] -
                             two * std::sin(value[0]) * value[2];
-            const auto pu =
-              -three * std::cos(value[0]) * value[1] * value[2] +
-              std::sin(value[0]) * value[1] * value[1] * value[1] / two;
+            const auto pu = -three * std::cos(value[0]) * value[1] * value[2] +
+                            std::sin(value[0]) * value[1] * value[1] *
+                              value[1] / two;
 
             return qss_observation(X, u, mu, pu, t, e);
         }
@@ -4936,9 +4894,7 @@ struct counter {
     };
 
     constexpr static inline std::string_view observation_type_names[] = {
-        "event-number",
-        "last-value",
-        "sum-values"
+        "event-number", "last-value", "sum-values"
     };
 
     i64              event_number = 0;
@@ -4985,11 +4941,10 @@ struct counter {
 
     raw_sample observation(time t, time /*e*/) const noexcept
     {
-        return { t,
-                 type == observation_type::event_number
-                   ? static_cast<real>(event_number)
-                 : type == observation_type::last_value ? last_value
-                                                        : sum_values };
+        return { t, type == observation_type::event_number
+                      ? static_cast<real>(event_number)
+                    : type == observation_type::last_value ? last_value
+                                                           : sum_values };
     }
 };
 
@@ -5086,8 +5041,8 @@ struct generator {
             if (flags[option::value_use_source] and
                 not update_source_by_input_port) {
                 if (source_value.is_empty()) {
-                    if (const auto ret =
-                          sim.srcs.update_source(source_value, src_data);
+                    if (const auto ret = sim.srcs.update_source(source_value,
+                                                                src_data);
                         ret.has_error())
                         return ret.error();
                 }
@@ -5097,8 +5052,8 @@ struct generator {
 
             if (flags[option::ta_use_source]) {
                 if (source_ta.is_empty()) {
-                    if (const auto ret =
-                          sim.srcs.update_source(source_ta, src_data);
+                    if (const auto ret = sim.srcs.update_source(source_ta,
+                                                                src_data);
                         ret.has_error())
                         return ret.error();
                 }
@@ -5388,8 +5343,8 @@ struct abstract_min_max_hold {
                     if constexpr (QssLevel == 2)
                         sigma = compute_wake_up(extremum, value[0], value[1]);
                     if constexpr (QssLevel == 3)
-                        sigma = compute_wake_up(
-                          extremum, value[0], value[1], value[2]);
+                        sigma = compute_wake_up(extremum, value[0], value[1],
+                                                value[2]);
                 }
             }
             return success();
@@ -5517,11 +5472,10 @@ struct abstract_filter {
                   compute_wake_up(upper_threshold, value[0], value[1]),
                   compute_wake_up(lower_threshold, value[0], value[1]));
             if constexpr (QssLevel == 3)
-                sigma =
-                  std::min(compute_wake_up(
-                             upper_threshold, value[0], value[1], value[2]),
-                           compute_wake_up(
-                             lower_threshold, value[0], value[1], value[2]));
+                sigma = std::min(compute_wake_up(upper_threshold, value[0],
+                                                 value[1], value[2]),
+                                 compute_wake_up(lower_threshold, value[0],
+                                                 value[1], value[2]));
         }
 
         return success();
@@ -6010,8 +5964,8 @@ struct abstract_threshold_crossing {
             return success();
         }
 
-        const auto new_side =
-          (value[0] >= threshold) ? side_type::above : side_type::below;
+        const auto new_side = (value[0] >= threshold) ? side_type::above
+                                                      : side_type::below;
 
         if (side != side_type::unknown and new_side != side) {
             edge  = (new_side == side_type::above) ? one : -one;
@@ -6198,10 +6152,7 @@ struct abstract_sqrt {
             return send_message(sim, y[0], s, fp * value[1]);
         if constexpr (QssLevel == 3) {
             const real fpp = -one / (four * value[0] * s); // f''(v0)
-            return send_message(sim,
-                                y[0],
-                                s,
-                                fp * value[1],
+            return send_message(sim, y[0], s, fp * value[1],
                                 fpp * value[1] * value[1] / two +
                                   fp * value[2]);
         }
@@ -6264,10 +6215,7 @@ struct abstract_atan {
             return send_message(sim, y[0], a, fp * value[1]);
         if constexpr (QssLevel == 3) {
             const real fpp = -two * value[0] / (d * d); // f''(v0)
-            return send_message(sim,
-                                y[0],
-                                a,
-                                fp * value[1],
+            return send_message(sim, y[0], a, fp * value[1],
                                 fpp * value[1] * value[1] / two +
                                   fp * value[2]);
         }
@@ -6328,10 +6276,7 @@ struct abstract_tan {
             return send_message(sim, y[0], T, fp * value[1]);
         if constexpr (QssLevel == 3) {
             const real fpp = two * T * fp; // f''(v0) = 2 tan (1 + tan^2)
-            return send_message(sim,
-                                y[0],
-                                T,
-                                fp * value[1],
+            return send_message(sim, y[0], T, fp * value[1],
                                 fpp * value[1] * value[1] / two +
                                   fp * value[2]);
         }
@@ -6392,10 +6337,7 @@ struct abstract_tanh {
             return send_message(sim, y[0], th, fp * value[1]);
         if constexpr (QssLevel == 3) {
             const real fpp = -two * th * fp; // f''(v0) = -2 tanh (1 - tanh^2)
-            return send_message(sim,
-                                y[0],
-                                th,
-                                fp * value[1],
+            return send_message(sim, y[0], th, fp * value[1],
                                 fpp * value[1] * value[1] / two +
                                   fp * value[2]);
         }
@@ -6456,10 +6398,7 @@ struct abstract_sigmoid {
             return send_message(sim, y[0], s, fp * value[1]);
         if constexpr (QssLevel == 3) {
             const real fpp = fp * (one - two * s); // f'' = s(1-s)(1-2s)
-            return send_message(sim,
-                                y[0],
-                                s,
-                                fp * value[1],
+            return send_message(sim, y[0], s, fp * value[1],
                                 fpp * value[1] * value[1] / two +
                                   fp * value[2]);
         }
@@ -6577,9 +6516,8 @@ struct abstract_division {
 
     raw_sample observation(time t, time /*e*/) const noexcept
     {
-        return { t,
-                 is_zero(values[1]) ? std::numeric_limits<real>::infinity()
-                                    : values[0] / values[1] };
+        return { t, is_zero(values[1]) ? std::numeric_limits<real>::infinity()
+                                       : values[0] / values[1] };
     }
 };
 
@@ -6687,8 +6625,8 @@ struct abstract_atan2 {
             const real c2  = x1 * x1 / (x0 * x0 * x0) - x2 / (x0 * x0);
             const real u2  = y0 * c2 + y1 * c1 + y2 * c0;
             const real gpp = -two * u0 / (d * d); // g''(u0)
-            return send_message(
-              sim, y[0], ang, gp * u1, gpp * u1 * u1 / two + gp * u2);
+            return send_message(sim, y[0], ang, gp * u1,
+                                gpp * u1 * u1 / two + gp * u2);
         }
         return success();
     }
@@ -6946,8 +6884,8 @@ struct abstract_dead_zone {
         if constexpr (QssLevel == 2)
             return send_message(sim, y[0], value[0] - shift, value[1]);
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim, y[0], value[0] - shift, value[1], value[2]);
+            return send_message(sim, y[0], value[0] - shift, value[1],
+                                value[2]);
         return success();
     }
 
@@ -7048,8 +6986,8 @@ struct abstract_abs {
         if constexpr (QssLevel == 2)
             return send_message(sim, y[0], s * value[0], s * value[1]);
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim, y[0], s * value[0], s * value[1], s * value[2]);
+            return send_message(sim, y[0], s * value[0], s * value[1],
+                                s * value[2]);
         return success();
     }
 
@@ -7299,11 +7237,10 @@ struct abstract_min_max {
         if constexpr (QssLevel == 1)
             return time_domain<time>::infinity;
         else if constexpr (QssLevel == 2)
-            return compute_wake_up(
-              zero, values[0] - values[1], values[2 + 0] - values[2 + 1]);
+            return compute_wake_up(zero, values[0] - values[1],
+                                   values[2 + 0] - values[2 + 1]);
         else
-            return compute_wake_up(zero,
-                                   values[0] - values[1],
+            return compute_wake_up(zero, values[0] - values[1],
                                    values[2 + 0] - values[2 + 1],
                                    values[2 + 2 + 0] - values[2 + 2 + 1]);
     }
@@ -7373,8 +7310,8 @@ struct abstract_min_max {
         if constexpr (QssLevel == 2)
             return send_message(sim, y[0], values[i], values[2 + i]);
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim, y[0], values[i], values[2 + i], values[2 + 2 + i]);
+            return send_message(sim, y[0], values[i], values[2 + i],
+                                values[2 + 2 + i]);
         return success();
     }
 
@@ -7478,8 +7415,8 @@ struct abstract_wrap {
         if constexpr (QssLevel == 2)
             return send_message(sim, y[0], value[0] - shift, value[1]);
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim, y[0], value[0] - shift, value[1], value[2]);
+            return send_message(sim, y[0], value[0] - shift, value[1],
+                                value[2]);
         return success();
     }
 
@@ -7624,8 +7561,8 @@ struct logical_invert {
                 value_changed = true;
         }
 
-        sigma =
-          value_changed ? time_domain<time>::zero : time_domain<time>::infinity;
+        sigma = value_changed ? time_domain<time>::zero
+                              : time_domain<time>::infinity;
         return success();
     }
 
@@ -7808,8 +7745,7 @@ public:
         constexpr auto operator<=>(const state_action& other) const noexcept
         {
             using cmp_type = std::common_comparison_category_t<
-              decltype(var1 <=> other.var1),
-              decltype(var2 <=> other.var2),
+              decltype(var1 <=> other.var1), decltype(var2 <=> other.var2),
               decltype(type <=> other.type),
               decltype(constant.i <=> other.constant.i),
               decltype(constant.f <=> other.constant.f)>;
@@ -7914,8 +7850,7 @@ public:
         constexpr auto operator<=>(const condition_action& other) const noexcept
         {
             using cmp_type = std::common_comparison_category_t<
-              decltype(var1 <=> other.var1),
-              decltype(var2 <=> other.var2),
+              decltype(var1 <=> other.var1), decltype(var2 <=> other.var2),
               decltype(type <=> other.type),
               decltype(constant.i <=> other.constant.i),
               decltype(constant.f <=> other.constant.f)>;
@@ -8209,12 +8144,12 @@ struct simulation_wrapper {
 
     enum class sub_id : u32;
 
-    using embedded_simulation_type =
-      id_data_array<void,
-                    sub_id,
-                    allocator<new_delete_memory_resource>,
-                    simulation,
-                    simulation_observation>;
+    using embedded_simulation_type = id_data_array<
+      void,
+      sub_id,
+      allocator<new_delete_memory_resource>,
+      simulation,
+      simulation_observation>;
 
     /** Used to store a values receives from the @c x input port
      * vectors. */
@@ -8441,8 +8376,8 @@ struct abstract_cross {
                 sigma = compute_wake_up(threshold, value[0], value[1]);
 
             if constexpr (QssLevel == 3)
-                sigma =
-                  compute_wake_up(threshold, value[0], value[1], value[2]);
+                sigma = compute_wake_up(threshold, value[0], value[1],
+                                        value[2]);
         }
 
         return success();
@@ -8533,8 +8468,8 @@ struct abstract_flipflop {
                 return send_message(sim, y[port_out], value[0], value[1]);
 
             if constexpr (QssLevel == 3)
-                return send_message(
-                  sim, y[port_out], value[0], value[1], value[2]);
+                return send_message(sim, y[port_out], value[0], value[1],
+                                    value[2]);
         }
 
         return success();
@@ -8684,8 +8619,8 @@ struct queue {
                 const auto t  = it->data()[0];
 
                 while (it != et and it->data()[0] == t) {
-                    irt_check(send_message(
-                      sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
+                    irt_check(send_message(sim, y[0], it->data()[1],
+                                           it->data()[2], it->data()[3]));
 
                     ++it;
                 }
@@ -8746,8 +8681,8 @@ struct dynamic_queue {
             const auto t   = it->data()[0];
 
             for (; it != end && it->data()[0] <= t; ++it)
-                irt_check(send_message(
-                  sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
+                irt_check(send_message(sim, y[0], it->data()[1], it->data()[2],
+                                       it->data()[3]));
         }
 
         return success();
@@ -8812,8 +8747,8 @@ public:
             const auto t   = it->data()[0];
 
             for (; it != end && it->data()[0] <= t; ++it)
-                irt_check(send_message(
-                  sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
+                irt_check(send_message(sim, y[0], it->data()[1], it->data()[2],
+                                       it->data()[3]));
         }
 
         return success();
@@ -8830,280 +8765,203 @@ constexpr sz max(sz a, Args&&... args)
 
 constexpr sz max_size_in_bytes() noexcept
 {
-    return max(sizeof(qss1_integrator),
-               sizeof(qss1_multiplier),
-               sizeof(qss1_cross),
-               sizeof(qss1_max_hold),
-               sizeof(qss1_min_hold),
-               sizeof(qss1_flipflop),
-               sizeof(qss1_filter),
-               sizeof(qss1_power),
-               sizeof(qss1_square),
-               sizeof(qss1_sum_2),
-               sizeof(qss1_sum_3),
-               sizeof(qss1_sum_4),
-               sizeof(qss1_wsum_2),
-               sizeof(qss1_wsum_3),
-               sizeof(qss1_wsum_4),
-               sizeof(qss1_inverse),
-               sizeof(qss1_integer),
-               sizeof(qss1_compare),
-               sizeof(qss1_gain),
-               sizeof(qss1_sin),
-               sizeof(qss1_cos),
-               sizeof(qss1_log),
-               sizeof(qss1_exp),
-               sizeof(qss2_integrator),
-               sizeof(qss2_multiplier),
-               sizeof(qss2_cross),
-               sizeof(qss2_max_hold),
-               sizeof(qss2_min_hold),
-               sizeof(qss2_flipflop),
-               sizeof(qss2_filter),
-               sizeof(qss2_power),
-               sizeof(qss2_square),
-               sizeof(qss2_sum_2),
-               sizeof(qss2_sum_3),
-               sizeof(qss2_sum_4),
-               sizeof(qss2_wsum_2),
-               sizeof(qss2_wsum_3),
-               sizeof(qss2_wsum_4),
-               sizeof(qss2_inverse),
-               sizeof(qss2_integer),
-               sizeof(qss2_compare),
-               sizeof(qss2_gain),
-               sizeof(qss2_sin),
-               sizeof(qss2_cos),
-               sizeof(qss2_log),
-               sizeof(qss2_exp),
-               sizeof(qss3_integrator),
-               sizeof(qss3_multiplier),
-               sizeof(qss3_cross),
-               sizeof(qss3_max_hold),
-               sizeof(qss3_min_hold),
-               sizeof(qss3_flipflop),
-               sizeof(qss3_filter),
-               sizeof(qss3_power),
-               sizeof(qss3_square),
-               sizeof(qss3_sum_2),
-               sizeof(qss3_sum_3),
-               sizeof(qss3_sum_4),
-               sizeof(qss3_wsum_2),
-               sizeof(qss3_wsum_3),
-               sizeof(qss3_wsum_4),
-               sizeof(qss3_inverse),
-               sizeof(qss3_integer),
-               sizeof(qss3_compare),
-               sizeof(qss3_gain),
-               sizeof(qss3_sin),
-               sizeof(qss3_cos),
-               sizeof(qss3_log),
-               sizeof(qss3_exp),
-               sizeof(counter),
-               sizeof(queue),
-               sizeof(dynamic_queue),
-               sizeof(priority_queue),
-               sizeof(generator),
-               sizeof(constant),
-               sizeof(time_func),
-               sizeof(accumulator_2),
-               sizeof(logical_and_2),
-               sizeof(logical_and_3),
-               sizeof(logical_or_2),
-               sizeof(logical_or_3),
-               sizeof(logical_invert),
-               sizeof(hsm_wrapper),
-               sizeof(simulation_wrapper),
-               sizeof(qss1_sample_hold),
-               sizeof(qss2_sample_hold),
-               sizeof(qss3_sample_hold),
-               sizeof(zero_order_hold),
-               sizeof(qss1_quantizer),
-               sizeof(qss2_quantizer),
-               sizeof(qss3_quantizer),
-               sizeof(qss1_integrate_and_fire),
-               sizeof(qss2_integrate_and_fire),
-               sizeof(qss3_integrate_and_fire),
-               sizeof(qss1_threshold_crossing),
-               sizeof(qss2_threshold_crossing),
-               sizeof(qss3_threshold_crossing),
-               sizeof(qss1_pwm),
-               sizeof(qss2_pwm),
-               sizeof(qss3_pwm),
-               sizeof(qss1_sqrt),
-               sizeof(qss2_sqrt),
-               sizeof(qss3_sqrt),
-               sizeof(qss1_atan),
-               sizeof(qss2_atan),
-               sizeof(qss3_atan),
-               sizeof(qss1_tan),
-               sizeof(qss2_tan),
-               sizeof(qss3_tan),
-               sizeof(qss1_tanh),
-               sizeof(qss2_tanh),
-               sizeof(qss3_tanh),
-               sizeof(qss1_sigmoid),
-               sizeof(qss2_sigmoid),
-               sizeof(qss3_sigmoid),
-               sizeof(qss1_division),
-               sizeof(qss2_division),
-               sizeof(qss3_division),
-               sizeof(qss1_atan2),
-               sizeof(qss2_atan2),
-               sizeof(qss3_atan2),
-               sizeof(qss1_saturation),
-               sizeof(qss2_saturation),
-               sizeof(qss3_saturation),
-               sizeof(qss1_dead_zone),
-               sizeof(qss2_dead_zone),
-               sizeof(qss3_dead_zone),
-               sizeof(qss1_abs),
-               sizeof(qss2_abs),
-               sizeof(qss3_abs),
-               sizeof(qss1_sign),
-               sizeof(qss2_sign),
-               sizeof(qss3_sign),
-               sizeof(qss1_hysteresis),
-               sizeof(qss2_hysteresis),
-               sizeof(qss3_hysteresis),
-               sizeof(qss1_minimum),
-               sizeof(qss2_minimum),
-               sizeof(qss3_minimum),
-               sizeof(qss1_maximum),
-               sizeof(qss2_maximum),
-               sizeof(qss3_maximum),
-               sizeof(qss1_wrap),
-               sizeof(qss2_wrap),
-               sizeof(qss3_wrap));
+    return max(
+      sizeof(qss1_integrator), sizeof(qss1_multiplier), sizeof(qss1_cross),
+      sizeof(qss1_max_hold), sizeof(qss1_min_hold), sizeof(qss1_flipflop),
+      sizeof(qss1_filter), sizeof(qss1_power), sizeof(qss1_square),
+      sizeof(qss1_sum_2), sizeof(qss1_sum_3), sizeof(qss1_sum_4),
+      sizeof(qss1_wsum_2), sizeof(qss1_wsum_3), sizeof(qss1_wsum_4),
+      sizeof(qss1_inverse), sizeof(qss1_integer), sizeof(qss1_compare),
+      sizeof(qss1_gain), sizeof(qss1_sin), sizeof(qss1_cos), sizeof(qss1_log),
+      sizeof(qss1_exp), sizeof(qss2_integrator), sizeof(qss2_multiplier),
+      sizeof(qss2_cross), sizeof(qss2_max_hold), sizeof(qss2_min_hold),
+      sizeof(qss2_flipflop), sizeof(qss2_filter), sizeof(qss2_power),
+      sizeof(qss2_square), sizeof(qss2_sum_2), sizeof(qss2_sum_3),
+      sizeof(qss2_sum_4), sizeof(qss2_wsum_2), sizeof(qss2_wsum_3),
+      sizeof(qss2_wsum_4), sizeof(qss2_inverse), sizeof(qss2_integer),
+      sizeof(qss2_compare), sizeof(qss2_gain), sizeof(qss2_sin),
+      sizeof(qss2_cos), sizeof(qss2_log), sizeof(qss2_exp),
+      sizeof(qss3_integrator), sizeof(qss3_multiplier), sizeof(qss3_cross),
+      sizeof(qss3_max_hold), sizeof(qss3_min_hold), sizeof(qss3_flipflop),
+      sizeof(qss3_filter), sizeof(qss3_power), sizeof(qss3_square),
+      sizeof(qss3_sum_2), sizeof(qss3_sum_3), sizeof(qss3_sum_4),
+      sizeof(qss3_wsum_2), sizeof(qss3_wsum_3), sizeof(qss3_wsum_4),
+      sizeof(qss3_inverse), sizeof(qss3_integer), sizeof(qss3_compare),
+      sizeof(qss3_gain), sizeof(qss3_sin), sizeof(qss3_cos), sizeof(qss3_log),
+      sizeof(qss3_exp), sizeof(counter), sizeof(queue), sizeof(dynamic_queue),
+      sizeof(priority_queue), sizeof(generator), sizeof(constant),
+      sizeof(time_func), sizeof(accumulator_2), sizeof(logical_and_2),
+      sizeof(logical_and_3), sizeof(logical_or_2), sizeof(logical_or_3),
+      sizeof(logical_invert), sizeof(hsm_wrapper), sizeof(simulation_wrapper),
+      sizeof(qss1_sample_hold), sizeof(qss2_sample_hold),
+      sizeof(qss3_sample_hold), sizeof(zero_order_hold), sizeof(qss1_quantizer),
+      sizeof(qss2_quantizer), sizeof(qss3_quantizer),
+      sizeof(qss1_integrate_and_fire), sizeof(qss2_integrate_and_fire),
+      sizeof(qss3_integrate_and_fire), sizeof(qss1_threshold_crossing),
+      sizeof(qss2_threshold_crossing), sizeof(qss3_threshold_crossing),
+      sizeof(qss1_pwm), sizeof(qss2_pwm), sizeof(qss3_pwm), sizeof(qss1_sqrt),
+      sizeof(qss2_sqrt), sizeof(qss3_sqrt), sizeof(qss1_atan),
+      sizeof(qss2_atan), sizeof(qss3_atan), sizeof(qss1_tan), sizeof(qss2_tan),
+      sizeof(qss3_tan), sizeof(qss1_tanh), sizeof(qss2_tanh), sizeof(qss3_tanh),
+      sizeof(qss1_sigmoid), sizeof(qss2_sigmoid), sizeof(qss3_sigmoid),
+      sizeof(qss1_division), sizeof(qss2_division), sizeof(qss3_division),
+      sizeof(qss1_atan2), sizeof(qss2_atan2), sizeof(qss3_atan2),
+      sizeof(qss1_saturation), sizeof(qss2_saturation), sizeof(qss3_saturation),
+      sizeof(qss1_dead_zone), sizeof(qss2_dead_zone), sizeof(qss3_dead_zone),
+      sizeof(qss1_abs), sizeof(qss2_abs), sizeof(qss3_abs), sizeof(qss1_sign),
+      sizeof(qss2_sign), sizeof(qss3_sign), sizeof(qss1_hysteresis),
+      sizeof(qss2_hysteresis), sizeof(qss3_hysteresis), sizeof(qss1_minimum),
+      sizeof(qss2_minimum), sizeof(qss3_minimum), sizeof(qss1_maximum),
+      sizeof(qss2_maximum), sizeof(qss3_maximum), sizeof(qss1_wrap),
+      sizeof(qss2_wrap), sizeof(qss3_wrap));
 }
 
 template<typename Dynamics>
-concept dynamics =
-  std::is_same_v<Dynamics, qss1_integrator> or
-  std::is_same_v<Dynamics, qss1_multiplier> or
-  std::is_same_v<Dynamics, qss1_cross> or
-  std::is_same_v<Dynamics, qss1_max_hold> or
-  std::is_same_v<Dynamics, qss1_min_hold> or
-  std::is_same_v<Dynamics, qss1_flipflop> or
-  std::is_same_v<Dynamics, qss1_filter> or
-  std::is_same_v<Dynamics, qss1_power> or
-  std::is_same_v<Dynamics, qss1_square> or
-  std::is_same_v<Dynamics, qss1_sum_2> or
-  std::is_same_v<Dynamics, qss1_sum_3> or
-  std::is_same_v<Dynamics, qss1_sum_4> or
-  std::is_same_v<Dynamics, qss1_wsum_2> or
-  std::is_same_v<Dynamics, qss1_wsum_3> or
-  std::is_same_v<Dynamics, qss1_wsum_4> or
-  std::is_same_v<Dynamics, qss1_inverse> or
-  std::is_same_v<Dynamics, qss1_integer> or
-  std::is_same_v<Dynamics, qss1_compare> or
-  std::is_same_v<Dynamics, qss1_gain> or std::is_same_v<Dynamics, qss1_sin> or
-  std::is_same_v<Dynamics, qss1_cos> or std::is_same_v<Dynamics, qss1_log> or
-  std::is_same_v<Dynamics, qss1_exp> or
-  std::is_same_v<Dynamics, qss2_integrator> or
-  std::is_same_v<Dynamics, qss2_multiplier> or
-  std::is_same_v<Dynamics, qss2_cross> or
-  std::is_same_v<Dynamics, qss2_max_hold> or
-  std::is_same_v<Dynamics, qss2_min_hold> or
-  std::is_same_v<Dynamics, qss2_flipflop> or
-  std::is_same_v<Dynamics, qss2_filter> or
-  std::is_same_v<Dynamics, qss2_power> or
-  std::is_same_v<Dynamics, qss2_square> or
-  std::is_same_v<Dynamics, qss2_sum_2> or
-  std::is_same_v<Dynamics, qss2_sum_3> or
-  std::is_same_v<Dynamics, qss2_sum_4> or
-  std::is_same_v<Dynamics, qss2_wsum_2> or
-  std::is_same_v<Dynamics, qss2_wsum_3> or
-  std::is_same_v<Dynamics, qss2_wsum_4> or
-  std::is_same_v<Dynamics, qss2_inverse> or
-  std::is_same_v<Dynamics, qss2_integer> or
-  std::is_same_v<Dynamics, qss2_compare> or
-  std::is_same_v<Dynamics, qss2_gain> or std::is_same_v<Dynamics, qss2_sin> or
-  std::is_same_v<Dynamics, qss2_cos> or std::is_same_v<Dynamics, qss2_log> or
-  std::is_same_v<Dynamics, qss2_exp> or
-  std::is_same_v<Dynamics, qss3_integrator> or
-  std::is_same_v<Dynamics, qss3_multiplier> or
-  std::is_same_v<Dynamics, qss3_cross> or
-  std::is_same_v<Dynamics, qss3_max_hold> or
-  std::is_same_v<Dynamics, qss3_min_hold> or
-  std::is_same_v<Dynamics, qss3_flipflop> or
-  std::is_same_v<Dynamics, qss3_filter> or
-  std::is_same_v<Dynamics, qss3_power> or
-  std::is_same_v<Dynamics, qss3_square> or
-  std::is_same_v<Dynamics, qss3_sum_2> or
-  std::is_same_v<Dynamics, qss3_sum_3> or
-  std::is_same_v<Dynamics, qss3_sum_4> or
-  std::is_same_v<Dynamics, qss3_wsum_2> or
-  std::is_same_v<Dynamics, qss3_wsum_3> or
-  std::is_same_v<Dynamics, qss3_wsum_4> or
-  std::is_same_v<Dynamics, qss3_inverse> or
-  std::is_same_v<Dynamics, qss3_integer> or
-  std::is_same_v<Dynamics, qss3_compare> or
-  std::is_same_v<Dynamics, qss3_gain> or std::is_same_v<Dynamics, qss3_sin> or
-  std::is_same_v<Dynamics, qss3_cos> or std::is_same_v<Dynamics, qss3_log> or
-  std::is_same_v<Dynamics, qss3_exp> or std::is_same_v<Dynamics, counter> or
-  std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
-  std::is_same_v<Dynamics, priority_queue> or
-  std::is_same_v<Dynamics, generator> or std::is_same_v<Dynamics, constant> or
-  std::is_same_v<Dynamics, accumulator_2> or
-  std::is_same_v<Dynamics, time_func> or
-  std::is_same_v<Dynamics, logical_and_2> or
-  std::is_same_v<Dynamics, logical_and_3> or
-  std::is_same_v<Dynamics, logical_or_2> or
-  std::is_same_v<Dynamics, logical_or_3> or
-  std::is_same_v<Dynamics, logical_invert> or
-  std::is_same_v<Dynamics, hsm_wrapper> or
-  std::is_same_v<Dynamics, simulation_wrapper> or
-  std::is_same_v<Dynamics, qss1_sample_hold> or
-  std::is_same_v<Dynamics, qss2_sample_hold> or
-  std::is_same_v<Dynamics, qss3_sample_hold> or
-  std::is_same_v<Dynamics, zero_order_hold> or
-  std::is_same_v<Dynamics, qss1_quantizer> or
-  std::is_same_v<Dynamics, qss2_quantizer> or
-  std::is_same_v<Dynamics, qss3_quantizer> or
-  std::is_same_v<Dynamics, qss1_integrate_and_fire> or
-  std::is_same_v<Dynamics, qss2_integrate_and_fire> or
-  std::is_same_v<Dynamics, qss3_integrate_and_fire> or
-  std::is_same_v<Dynamics, qss1_threshold_crossing> or
-  std::is_same_v<Dynamics, qss2_threshold_crossing> or
-  std::is_same_v<Dynamics, qss3_threshold_crossing> or
-  std::is_same_v<Dynamics, qss1_pwm> or std::is_same_v<Dynamics, qss2_pwm> or
-  std::is_same_v<Dynamics, qss3_pwm> or std::is_same_v<Dynamics, qss1_sqrt> or
-  std::is_same_v<Dynamics, qss2_sqrt> or std::is_same_v<Dynamics, qss3_sqrt> or
-  std::is_same_v<Dynamics, qss1_atan> or std::is_same_v<Dynamics, qss2_atan> or
-  std::is_same_v<Dynamics, qss3_atan> or std::is_same_v<Dynamics, qss1_tan> or
-  std::is_same_v<Dynamics, qss2_tan> or std::is_same_v<Dynamics, qss3_tan> or
-  std::is_same_v<Dynamics, qss1_tanh> or std::is_same_v<Dynamics, qss2_tanh> or
-  std::is_same_v<Dynamics, qss3_tanh> or
-  std::is_same_v<Dynamics, qss1_sigmoid> or
-  std::is_same_v<Dynamics, qss2_sigmoid> or
-  std::is_same_v<Dynamics, qss3_sigmoid> or
-  std::is_same_v<Dynamics, qss1_division> or
-  std::is_same_v<Dynamics, qss2_division> or
-  std::is_same_v<Dynamics, qss3_division> or
-  std::is_same_v<Dynamics, qss1_atan2> or
-  std::is_same_v<Dynamics, qss2_atan2> or
-  std::is_same_v<Dynamics, qss3_atan2> or
-  std::is_same_v<Dynamics, qss1_saturation> or
-  std::is_same_v<Dynamics, qss2_saturation> or
-  std::is_same_v<Dynamics, qss3_saturation> or
-  std::is_same_v<Dynamics, qss1_dead_zone> or
-  std::is_same_v<Dynamics, qss2_dead_zone> or
-  std::is_same_v<Dynamics, qss3_dead_zone> or
-  std::is_same_v<Dynamics, qss1_abs> or std::is_same_v<Dynamics, qss2_abs> or
-  std::is_same_v<Dynamics, qss3_abs> or std::is_same_v<Dynamics, qss1_sign> or
-  std::is_same_v<Dynamics, qss2_sign> or std::is_same_v<Dynamics, qss3_sign> or
-  std::is_same_v<Dynamics, qss1_hysteresis> or
-  std::is_same_v<Dynamics, qss2_hysteresis> or
-  std::is_same_v<Dynamics, qss3_hysteresis> or
-  std::is_same_v<Dynamics, qss1_minimum> or
-  std::is_same_v<Dynamics, qss2_minimum> or
-  std::is_same_v<Dynamics, qss3_minimum> or
-  std::is_same_v<Dynamics, qss1_maximum> or
-  std::is_same_v<Dynamics, qss2_maximum> or
-  std::is_same_v<Dynamics, qss3_maximum> or
-  std::is_same_v<Dynamics, qss1_wrap> or std::is_same_v<Dynamics, qss2_wrap> or
-  std::is_same_v<Dynamics, qss3_wrap>;
+concept dynamics = std::is_same_v<Dynamics, qss1_integrator> or
+                   std::is_same_v<Dynamics, qss1_multiplier> or
+                   std::is_same_v<Dynamics, qss1_cross> or
+                   std::is_same_v<Dynamics, qss1_max_hold> or
+                   std::is_same_v<Dynamics, qss1_min_hold> or
+                   std::is_same_v<Dynamics, qss1_flipflop> or
+                   std::is_same_v<Dynamics, qss1_filter> or
+                   std::is_same_v<Dynamics, qss1_power> or
+                   std::is_same_v<Dynamics, qss1_square> or
+                   std::is_same_v<Dynamics, qss1_sum_2> or
+                   std::is_same_v<Dynamics, qss1_sum_3> or
+                   std::is_same_v<Dynamics, qss1_sum_4> or
+                   std::is_same_v<Dynamics, qss1_wsum_2> or
+                   std::is_same_v<Dynamics, qss1_wsum_3> or
+                   std::is_same_v<Dynamics, qss1_wsum_4> or
+                   std::is_same_v<Dynamics, qss1_inverse> or
+                   std::is_same_v<Dynamics, qss1_integer> or
+                   std::is_same_v<Dynamics, qss1_compare> or
+                   std::is_same_v<Dynamics, qss1_gain> or
+                   std::is_same_v<Dynamics, qss1_sin> or
+                   std::is_same_v<Dynamics, qss1_cos> or
+                   std::is_same_v<Dynamics, qss1_log> or
+                   std::is_same_v<Dynamics, qss1_exp> or
+                   std::is_same_v<Dynamics, qss2_integrator> or
+                   std::is_same_v<Dynamics, qss2_multiplier> or
+                   std::is_same_v<Dynamics, qss2_cross> or
+                   std::is_same_v<Dynamics, qss2_max_hold> or
+                   std::is_same_v<Dynamics, qss2_min_hold> or
+                   std::is_same_v<Dynamics, qss2_flipflop> or
+                   std::is_same_v<Dynamics, qss2_filter> or
+                   std::is_same_v<Dynamics, qss2_power> or
+                   std::is_same_v<Dynamics, qss2_square> or
+                   std::is_same_v<Dynamics, qss2_sum_2> or
+                   std::is_same_v<Dynamics, qss2_sum_3> or
+                   std::is_same_v<Dynamics, qss2_sum_4> or
+                   std::is_same_v<Dynamics, qss2_wsum_2> or
+                   std::is_same_v<Dynamics, qss2_wsum_3> or
+                   std::is_same_v<Dynamics, qss2_wsum_4> or
+                   std::is_same_v<Dynamics, qss2_inverse> or
+                   std::is_same_v<Dynamics, qss2_integer> or
+                   std::is_same_v<Dynamics, qss2_compare> or
+                   std::is_same_v<Dynamics, qss2_gain> or
+                   std::is_same_v<Dynamics, qss2_sin> or
+                   std::is_same_v<Dynamics, qss2_cos> or
+                   std::is_same_v<Dynamics, qss2_log> or
+                   std::is_same_v<Dynamics, qss2_exp> or
+                   std::is_same_v<Dynamics, qss3_integrator> or
+                   std::is_same_v<Dynamics, qss3_multiplier> or
+                   std::is_same_v<Dynamics, qss3_cross> or
+                   std::is_same_v<Dynamics, qss3_max_hold> or
+                   std::is_same_v<Dynamics, qss3_min_hold> or
+                   std::is_same_v<Dynamics, qss3_flipflop> or
+                   std::is_same_v<Dynamics, qss3_filter> or
+                   std::is_same_v<Dynamics, qss3_power> or
+                   std::is_same_v<Dynamics, qss3_square> or
+                   std::is_same_v<Dynamics, qss3_sum_2> or
+                   std::is_same_v<Dynamics, qss3_sum_3> or
+                   std::is_same_v<Dynamics, qss3_sum_4> or
+                   std::is_same_v<Dynamics, qss3_wsum_2> or
+                   std::is_same_v<Dynamics, qss3_wsum_3> or
+                   std::is_same_v<Dynamics, qss3_wsum_4> or
+                   std::is_same_v<Dynamics, qss3_inverse> or
+                   std::is_same_v<Dynamics, qss3_integer> or
+                   std::is_same_v<Dynamics, qss3_compare> or
+                   std::is_same_v<Dynamics, qss3_gain> or
+                   std::is_same_v<Dynamics, qss3_sin> or
+                   std::is_same_v<Dynamics, qss3_cos> or
+                   std::is_same_v<Dynamics, qss3_log> or
+                   std::is_same_v<Dynamics, qss3_exp> or
+                   std::is_same_v<Dynamics, counter> or
+                   std::is_same_v<Dynamics, queue> or
+                   std::is_same_v<Dynamics, dynamic_queue> or
+                   std::is_same_v<Dynamics, priority_queue> or
+                   std::is_same_v<Dynamics, generator> or
+                   std::is_same_v<Dynamics, constant> or
+                   std::is_same_v<Dynamics, accumulator_2> or
+                   std::is_same_v<Dynamics, time_func> or
+                   std::is_same_v<Dynamics, logical_and_2> or
+                   std::is_same_v<Dynamics, logical_and_3> or
+                   std::is_same_v<Dynamics, logical_or_2> or
+                   std::is_same_v<Dynamics, logical_or_3> or
+                   std::is_same_v<Dynamics, logical_invert> or
+                   std::is_same_v<Dynamics, hsm_wrapper> or
+                   std::is_same_v<Dynamics, simulation_wrapper> or
+                   std::is_same_v<Dynamics, qss1_sample_hold> or
+                   std::is_same_v<Dynamics, qss2_sample_hold> or
+                   std::is_same_v<Dynamics, qss3_sample_hold> or
+                   std::is_same_v<Dynamics, zero_order_hold> or
+                   std::is_same_v<Dynamics, qss1_quantizer> or
+                   std::is_same_v<Dynamics, qss2_quantizer> or
+                   std::is_same_v<Dynamics, qss3_quantizer> or
+                   std::is_same_v<Dynamics, qss1_integrate_and_fire> or
+                   std::is_same_v<Dynamics, qss2_integrate_and_fire> or
+                   std::is_same_v<Dynamics, qss3_integrate_and_fire> or
+                   std::is_same_v<Dynamics, qss1_threshold_crossing> or
+                   std::is_same_v<Dynamics, qss2_threshold_crossing> or
+                   std::is_same_v<Dynamics, qss3_threshold_crossing> or
+                   std::is_same_v<Dynamics, qss1_pwm> or
+                   std::is_same_v<Dynamics, qss2_pwm> or
+                   std::is_same_v<Dynamics, qss3_pwm> or
+                   std::is_same_v<Dynamics, qss1_sqrt> or
+                   std::is_same_v<Dynamics, qss2_sqrt> or
+                   std::is_same_v<Dynamics, qss3_sqrt> or
+                   std::is_same_v<Dynamics, qss1_atan> or
+                   std::is_same_v<Dynamics, qss2_atan> or
+                   std::is_same_v<Dynamics, qss3_atan> or
+                   std::is_same_v<Dynamics, qss1_tan> or
+                   std::is_same_v<Dynamics, qss2_tan> or
+                   std::is_same_v<Dynamics, qss3_tan> or
+                   std::is_same_v<Dynamics, qss1_tanh> or
+                   std::is_same_v<Dynamics, qss2_tanh> or
+                   std::is_same_v<Dynamics, qss3_tanh> or
+                   std::is_same_v<Dynamics, qss1_sigmoid> or
+                   std::is_same_v<Dynamics, qss2_sigmoid> or
+                   std::is_same_v<Dynamics, qss3_sigmoid> or
+                   std::is_same_v<Dynamics, qss1_division> or
+                   std::is_same_v<Dynamics, qss2_division> or
+                   std::is_same_v<Dynamics, qss3_division> or
+                   std::is_same_v<Dynamics, qss1_atan2> or
+                   std::is_same_v<Dynamics, qss2_atan2> or
+                   std::is_same_v<Dynamics, qss3_atan2> or
+                   std::is_same_v<Dynamics, qss1_saturation> or
+                   std::is_same_v<Dynamics, qss2_saturation> or
+                   std::is_same_v<Dynamics, qss3_saturation> or
+                   std::is_same_v<Dynamics, qss1_dead_zone> or
+                   std::is_same_v<Dynamics, qss2_dead_zone> or
+                   std::is_same_v<Dynamics, qss3_dead_zone> or
+                   std::is_same_v<Dynamics, qss1_abs> or
+                   std::is_same_v<Dynamics, qss2_abs> or
+                   std::is_same_v<Dynamics, qss3_abs> or
+                   std::is_same_v<Dynamics, qss1_sign> or
+                   std::is_same_v<Dynamics, qss2_sign> or
+                   std::is_same_v<Dynamics, qss3_sign> or
+                   std::is_same_v<Dynamics, qss1_hysteresis> or
+                   std::is_same_v<Dynamics, qss2_hysteresis> or
+                   std::is_same_v<Dynamics, qss3_hysteresis> or
+                   std::is_same_v<Dynamics, qss1_minimum> or
+                   std::is_same_v<Dynamics, qss2_minimum> or
+                   std::is_same_v<Dynamics, qss3_minimum> or
+                   std::is_same_v<Dynamics, qss1_maximum> or
+                   std::is_same_v<Dynamics, qss2_maximum> or
+                   std::is_same_v<Dynamics, qss3_maximum> or
+                   std::is_same_v<Dynamics, qss1_wrap> or
+                   std::is_same_v<Dynamics, qss2_wrap> or
+                   std::is_same_v<Dynamics, qss3_wrap>;
 
 struct model {
     model() noexcept = default;
@@ -10819,10 +10677,8 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
     case dynamics_type::qss3_inverse:
-        if (any_equal(mdl_dst,
-                      dynamics_type::logical_and_2,
-                      dynamics_type::logical_and_3,
-                      dynamics_type::logical_or_2,
+        if (any_equal(mdl_dst, dynamics_type::logical_and_2,
+                      dynamics_type::logical_and_3, dynamics_type::logical_or_2,
                       dynamics_type::logical_or_3,
                       dynamics_type::logical_invert))
             return false;
@@ -10928,21 +10784,16 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_cross:
     case dynamics_type::qss1_cross:
         if (o_port_index == 2) {
-            return any_equal(mdl_dst,
-                             dynamics_type::counter,
-                             dynamics_type::hsm_wrapper,
-                             dynamics_type::logical_and_2,
-                             dynamics_type::logical_and_3,
-                             dynamics_type::logical_or_2,
-                             dynamics_type::logical_or_3,
-                             dynamics_type::logical_invert);
+            return any_equal(
+              mdl_dst, dynamics_type::counter, dynamics_type::hsm_wrapper,
+              dynamics_type::logical_and_2, dynamics_type::logical_and_3,
+              dynamics_type::logical_or_2, dynamics_type::logical_or_3,
+              dynamics_type::logical_invert);
         } else {
-            return !any_equal(mdl_dst,
-                              dynamics_type::logical_and_2,
-                              dynamics_type::logical_and_3,
-                              dynamics_type::logical_or_2,
-                              dynamics_type::logical_or_3,
-                              dynamics_type::logical_invert);
+            return !any_equal(
+              mdl_dst, dynamics_type::logical_and_2,
+              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
+              dynamics_type::logical_or_3, dynamics_type::logical_invert);
         }
         return true;
 
@@ -10950,20 +10801,15 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_filter:
     case dynamics_type::qss1_filter:
         if (any_equal(o_port_index, 1, 2)) {
-            return any_equal(mdl_dst,
-                             dynamics_type::counter,
-                             dynamics_type::logical_and_2,
-                             dynamics_type::logical_and_3,
-                             dynamics_type::logical_or_2,
-                             dynamics_type::logical_or_3,
-                             dynamics_type::logical_invert);
+            return any_equal(
+              mdl_dst, dynamics_type::counter, dynamics_type::logical_and_2,
+              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
+              dynamics_type::logical_or_3, dynamics_type::logical_invert);
         } else {
-            return !any_equal(mdl_dst,
-                              dynamics_type::logical_and_2,
-                              dynamics_type::logical_and_3,
-                              dynamics_type::logical_or_2,
-                              dynamics_type::logical_or_3,
-                              dynamics_type::logical_invert);
+            return !any_equal(
+              mdl_dst, dynamics_type::logical_and_2,
+              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
+              dynamics_type::logical_or_3, dynamics_type::logical_invert);
         }
         return true;
 
@@ -10972,13 +10818,10 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::logical_or_2:
     case dynamics_type::logical_or_3:
     case dynamics_type::logical_invert:
-        if (any_equal(mdl_dst,
-                      dynamics_type::counter,
-                      dynamics_type::logical_and_2,
-                      dynamics_type::logical_and_3,
-                      dynamics_type::logical_or_2,
-                      dynamics_type::logical_or_3,
-                      dynamics_type::logical_invert))
+        if (any_equal(
+              mdl_dst, dynamics_type::counter, dynamics_type::logical_and_2,
+              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
+              dynamics_type::logical_or_3, dynamics_type::logical_invert))
             return true;
     }
 
@@ -11023,8 +10866,8 @@ inline status external_source::initialize_source(Dynamics&    dyn,
 
     switch (src.type) {
     case source_type::binary_file: {
-        if (auto* bin_src =
-              binary_file_sources.try_to_get(src.id.binary_file_id))
+        if (auto* bin_src = binary_file_sources.try_to_get(
+              src.id.binary_file_id))
             return bin_src->init(src, data);
 
         return make_error(simulation_errc::external_source_binary_file_unknown);
@@ -11041,8 +10884,8 @@ inline status external_source::initialize_source(Dynamics&    dyn,
         const auto& sim = container_of(this, &simulation::srcs);
 
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
-            return rnd_src->init(
-              sim.srcs.seed, sim.models.get_id(get_model(dyn)), src, data);
+            return rnd_src->init(sim.srcs.seed,
+                                 sim.models.get_id(get_model(dyn)), src, data);
 
         return make_error(simulation_errc::external_source_random_unknown);
 
@@ -11064,8 +10907,8 @@ inline status external_source::restore_source(source&      src,
 {
     switch (src.type) {
     case source_type::binary_file: {
-        if (auto* bin_src =
-              binary_file_sources.try_to_get(src.id.binary_file_id))
+        if (auto* bin_src = binary_file_sources.try_to_get(
+              src.id.binary_file_id))
             return bin_src->restore(src, data);
 
         return make_error(simulation_errc::external_source_binary_file_unknown);
@@ -11102,8 +10945,8 @@ inline status external_source::update_source(source&      src,
 {
     switch (src.type) {
     case source_type::binary_file: {
-        if (auto* bin_src =
-              binary_file_sources.try_to_get(src.id.binary_file_id))
+        if (auto* bin_src = binary_file_sources.try_to_get(
+              src.id.binary_file_id))
             return bin_src->update(src, data);
 
         return make_error(simulation_errc::external_source_binary_file_unknown);
@@ -11140,8 +10983,8 @@ inline status external_source::finalize_source(source&      src,
 {
     switch (src.type) {
     case source_type::binary_file: {
-        if (auto* bin_src =
-              binary_file_sources.try_to_get(src.id.binary_file_id))
+        if (auto* bin_src = binary_file_sources.try_to_get(
+              src.id.binary_file_id))
             return bin_src->finalize(src, data);
 
         return make_error(simulation_errc::external_source_binary_file_unknown);
@@ -11223,16 +11066,14 @@ inline auto get_qss_message(std::span<const message> msgs) noexcept
 
     if constexpr (QssLevel == 1)
         return *std::max_element(
-          msgs.begin(),
-          msgs.end(),
+          msgs.begin(), msgs.end(),
           [](const auto& a, const auto& b) noexcept -> bool {
               return a[0] < b[0];
           });
 
     if constexpr (QssLevel == 2)
         return *std::max_element(
-          msgs.begin(),
-          msgs.end(),
+          msgs.begin(), msgs.end(),
           [](const auto& a, const auto& b) noexcept -> bool {
               if (a[0] < b[0])
                   return true;
@@ -11245,8 +11086,7 @@ inline auto get_qss_message(std::span<const message> msgs) noexcept
 
     if constexpr (QssLevel == 3)
         return *std::max_element(
-          msgs.begin(),
-          msgs.end(),
+          msgs.begin(), msgs.end(),
           [](const auto& a, const auto& b) noexcept -> bool {
               if (a[0] < b[0])
                   return true;
@@ -11405,8 +11245,8 @@ constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
     if (std::cmp_less_equal(new_capacity, max_size))
         return false;
 
-    auto* new_data =
-      reinterpret_cast<node*>(A::allocate(sizeof(node) * new_capacity));
+    auto* new_data = reinterpret_cast<node*>(
+      A::allocate(sizeof(node) * new_capacity));
     if (not new_data)
         return false;
 
@@ -11987,9 +11827,10 @@ bool simulation::grow_models() noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb = models.capacity() * Num / Denum;
-    const auto req =
-      std::cmp_equal(nb, models.capacity()) ? models.capacity() + 8 : nb;
+    const auto nb  = models.capacity() * Num / Denum;
+    const auto req = std::cmp_equal(nb, models.capacity())
+                       ? models.capacity() + 8
+                       : nb;
 
     return models.reserve(req) and immediate_models.resize(req) and
            parameters.resize(req) and observers.reserve(req) and
@@ -12011,9 +11852,9 @@ bool simulation::grow_connections() noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb = nodes.capacity() * Num / Denum;
-    const auto req =
-      std::cmp_equal(nb, nodes.capacity()) ? nodes.capacity() + 8 : nb;
+    const auto nb  = nodes.capacity() * Num / Denum;
+    const auto req = std::cmp_equal(nb, nodes.capacity()) ? nodes.capacity() + 8
+                                                          : nb;
 
     return nodes.reserve(req) and output_ports.reserve(req);
 }
@@ -12242,9 +12083,9 @@ inline status simulation::observe(model& mdl) noexcept
         auto&      obs    = observers.alloc(models.get_id(mdl));
         const auto obs_id = observers.get_id(obs);
 
-        observers.get<resampler>(obs_id) =
-          resampler{ default_observation_time_step,
-                     get_interpolate_type(mdl.type) };
+        observers.get<resampler>(obs_id) = resampler{
+            default_observation_time_step, get_interpolate_type(mdl.type)
+        };
         observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
@@ -12264,8 +12105,8 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
         const auto obs_id = observers.get_id(obs);
 
-        observers.get<resampler>(obs_id) =
-          resampler{ dt, get_interpolate_type(mdl.type) };
+        observers.get<resampler>(
+          obs_id) = resampler{ dt, get_interpolate_type(mdl.type) };
         observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
@@ -12287,7 +12128,7 @@ inline status simulation::observe(model&                 mdl,
 
         const auto obs_id = observers.get_id(obs);
 
-        observers.get<resampler>(obs_id) = resampler{ dt, type };
+        observers.get<resampler>(obs_id)               = resampler{ dt, type };
         observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
@@ -12543,8 +12384,8 @@ inline void simulation::disconnect(model& src,
                             nodes.free(*block);
                             block = prev;
                         } else {
-                            if (auto* next_block =
-                                  nodes.try_to_get(block->next)) {
+                            if (auto* next_block = nodes.try_to_get(
+                                  block->next)) {
                                 block->nodes = next_block->nodes;
                                 block->next  = next_block->next;
                                 nodes.free(*next_block);
@@ -12774,17 +12615,14 @@ inline status simulation::run() noexcept
     for (const auto y_id : active_output_ports) {
         if (auto* y = output_ports.try_to_get(y_id)) {
             y->for_each(
-              models,
-              nodes,
-              [](model&     mdl,
-                 const auto port_index,
-                 auto&      global_messages_number) noexcept {
+              models, nodes,
+              [](model& mdl, const auto port_index,
+                 auto& global_messages_number) noexcept {
                   dispatch(
                     mdl,
                     []<typename Dynamics>(
-                      Dynamics&  dyn,
-                      const auto port_index,
-                      auto&      global_messages_number) noexcept {
+                      Dynamics& dyn, const auto port_index,
+                      auto& global_messages_number) noexcept {
                         if constexpr (has_input_port<Dynamics>) {
                             dyn.x[port_index].capacity += 1u;
                             dyn.x[port_index].position = 0u;
@@ -12793,8 +12631,7 @@ inline status simulation::run() noexcept
                             global_messages_number += 1;
                         }
                     },
-                    port_index,
-                    global_messages_number);
+                    port_index, global_messages_number);
               },
               global_messages_number);
         }
@@ -12810,15 +12647,9 @@ inline status simulation::run() noexcept
     for (const auto y_id : active_output_ports) {
         if (auto* y = output_ports.try_to_get(y_id)) {
             y->for_each(
-              models,
-              nodes,
-              [](auto&       mdl,
-                 const auto  port_index,
-                 auto&       sched,
-                 const auto  t,
-                 const auto& msg,
-                 auto&       message_buffer,
-                 auto&       global_position) {
+              models, nodes,
+              [](auto& mdl, const auto port_index, auto& sched, const auto t,
+                 const auto& msg, auto& message_buffer, auto& global_position) {
                   dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                       if constexpr (has_input_port<Dynamics>) {
                           auto& x = dyn.x[port_index];
@@ -12836,11 +12667,7 @@ inline status simulation::run() noexcept
                       }
                   });
               },
-              sched,
-              t.load(),
-              y->msg,
-              message_buffer,
-              global_position);
+              sched, t.load(), y->msg, message_buffer, global_position);
         }
     }
 
@@ -12930,8 +12757,8 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
         if ((*machine)->flags[hierarchical_state_machine::option::use_source]) {
-            irt_check(sim.srcs.initialize_source(
-              *this, exec.source_value, exec.src_data));
+            irt_check(sim.srcs.initialize_source(*this, exec.source_value,
+                                                 exec.src_data));
         }
 
         irt_check((*machine)->start(exec, sim.srcs));
@@ -12992,16 +12819,14 @@ inline status hsm_wrapper::transition(simulation& sim,
                 exec.timer = r;
                 if (r == 0.0) {
                     irt_check((*machine)->dispatch(
-                      hierarchical_state_machine::event_type::wake_up,
-                      exec,
+                      hierarchical_state_machine::event_type::wake_up, exec,
                       sim.srcs));
                 } else {
                     debug::ensure(exec.values.any());
 
                     irt_check((*machine)->dispatch(
                       hierarchical_state_machine::event_type::input_changed,
-                      exec,
-                      sim.srcs));
+                      exec, sim.srcs));
                 }
                 break;
 
@@ -13009,15 +12834,13 @@ inline status hsm_wrapper::transition(simulation& sim,
                 if (exec.values.any()) {
                     irt_check((*machine)->dispatch(
                       hierarchical_state_machine::event_type::input_changed,
-                      exec,
-                      sim.srcs));
+                      exec, sim.srcs));
                 }
                 break;
 
             default:
                 irt_check((*machine)->dispatch(
-                  hierarchical_state_machine::event_type::internal,
-                  exec,
+                  hierarchical_state_machine::event_type::internal, exec,
                   sim.srcs));
                 break;
             }
@@ -13025,9 +12848,10 @@ inline status hsm_wrapper::transition(simulation& sim,
             debug::ensure(exec.current_state !=
                           hierarchical_state_machine::invalid_state_id);
 
-            wait_timer =
-              (*machine)->states[exec.current_state].condition.type ==
-              hierarchical_state_machine::condition_type::sigma;
+            wait_timer = (*machine)
+                           ->states[exec.current_state]
+                           .condition.type ==
+                         hierarchical_state_machine::condition_type::sigma;
 
             wait_msg = (*machine)->states[exec.current_state].condition.type ==
                        hierarchical_state_machine::condition_type::port;
@@ -13195,8 +13019,8 @@ inline bool is_ports_compatible(const model& mdl_src,
     if (&mdl_src == &mdl_dst)
         return false;
 
-    return is_ports_compatible(
-      mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
+    return is_ports_compatible(mdl_src.type, o_port_index, mdl_dst.type,
+                               i_port_index);
 }
 
 // inline expected<message_id> get_input_port(model& src, int port_src)
@@ -13298,8 +13122,8 @@ inline status queue::transition(simulation& sim,
         }
 
         for (const auto& msg : lst) {
-            const auto success =
-              ar->push_tail({ irt::real(t + ta), msg[0], msg[1], msg[2] });
+            const auto success = ar->push_tail(
+              { irt::real(t + ta), msg[0], msg[1], msg[2] });
 
             if (not success)
                 log(log_level::alert, [](auto& t, auto& m) {
@@ -13396,8 +13220,8 @@ inline status priority_queue::transition(simulation& sim,
 
                 real value = source_ta.next();
 
-                if (auto ret =
-                      try_to_insert(sim, static_cast<real>(value) + t, msg);
+                if (auto ret = try_to_insert(sim, static_cast<real>(value) + t,
+                                             msg);
                     !ret)
                     return make_error(
                       simulation_errc::dated_messages_container_full);

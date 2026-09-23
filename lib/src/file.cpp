@@ -4,13 +4,13 @@
 
 #include <irritator/error.hpp>
 #include <irritator/file.hpp>
+#include <irritator/format.hpp>
 #include <irritator/macros.hpp>
-
-#include <bit>
 
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
+#include <string_view>
 #include <utility>
 
 #if defined(_WIN32)
@@ -51,8 +51,7 @@ std::ofstream path::open_std_ofstream() const noexcept
     return std::ofstream(std_path);
 }
 
-std::unique_ptr<std::FILE, path::std_file_deleter> path::open_std_file(
-  const char* mode) const noexcept
+std_file path::open_std_file(const char* mode) const noexcept
 {
     debug::ensure(not empty());
 
@@ -61,14 +60,13 @@ std::unique_ptr<std::FILE, path::std_file_deleter> path::open_std_file(
         const auto std_path = to_std_path();
         wchar_t    wmode[8]{};
         std::mbstowcs(wmode, mode, std::size(wmode) - 1);
-        return std::unique_ptr<std::FILE, path::std_file_deleter>(
-          _wfopen(std_path.c_str(), wmode));
+
+        return std_file(_wfopen(std_path.c_str(), wmode));
     } catch (...) {
-        return std::unique_ptr<std::FILE, path::std_file_deleter>();
+        return std_file();
     }
 #else
-    return std::unique_ptr<std::FILE, path::std_file_deleter>(
-      std::fopen(c_str(), mode));
+    return std_file(std::fopen(c_str(), mode));
 #endif
 }
 
@@ -78,10 +76,11 @@ std::unique_ptr<std::FILE, path::std_file_deleter> path::open_std_file(
  *
  * * * * * * * * * * */
 
-constexpr char char_file_open_options[] = "rwa+bx";
 
 static constexpr auto get_mode(const file_mode c) noexcept -> small_string<8>
 {
+    constexpr char char_file_open_options[] = "rwa+bx";
+
     auto vec = small_string<8>{};
 
     const int option_pos = c[file_open_options::read]    ? 0
@@ -107,13 +106,14 @@ expected<file> file::open_tmp() noexcept
 
 #if defined(_WIN32)
     std::FILE* tmpf = nullptr;
-    if (auto err = tmpfile_s(&tmpf); err == 0 and tmpf != nullptr)
-        return file{ tmpf, m };
+    if (auto err = tmpfile_s(&tmpf); err == 0 and tmpf != nullptr) {
+        return file{ std::move(std_file(tmpf)), m };
+    }
 
-    return make_error(::GetLastError(), category::generic);
+    return make_error(static_cast<i16>(::GetLastError()), category::generic);
 #else
     if (auto tmpf = std::tmpfile())
-        return file{ tmpf, m };
+        return file{ std_file(tmpf), m };
 
     return make_error(errno, category::generic);
 #endif
@@ -134,18 +134,7 @@ bool write_to_file(File& f, const i8 value) noexcept
 template<typename File>
 bool read_from_file(File& f, i16& value) noexcept
 {
-    if (not(f.read(&value, 2)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap16(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_ushort(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 2);
 }
 
 irt::vector<char> file::read_entire_file() noexcept
@@ -223,80 +212,31 @@ std::span<char> file::read_entire_file(std::span<char> buffer) noexcept
 template<typename File>
 bool write_to_file(File& f, const i16 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap16(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ushort(value);
-#endif
-        return f.write(&temp, 2);
-    } else {
-        return f.write(&value, 2);
-    }
+    return f.write(&value, 2);
 }
 
 template<typename File>
 bool read_from_file(File& f, i32& value) noexcept
 {
-    if (not(f.read(&value, 4)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_ulong(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 4);
 }
 
 template<typename File>
 bool write_to_file(File& f, const i32 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ulong(value);
-#endif
-        return f.write(&temp, 4);
-    } else {
-        return f.write(&value, 4);
-    }
+    return f.write(&value, 4);
 }
 
 template<typename File>
 bool read_from_file(File& f, i64& value) noexcept
 {
-    if (not(f.read(&value, 8)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_uint64(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 8);
 }
 
 template<typename File>
 bool write_to_file(File& f, const i64 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_uint64(value);
-#endif
-        return f.write(&temp, 8);
-    } else {
-        return f.write(&value, 8);
-    }
+    return f.write(&value, 8);
 }
 
 template<typename File>
@@ -314,161 +254,62 @@ bool write_to_file(File& f, const u8 value) noexcept
 template<typename File>
 bool read_from_file(File& f, u16& value) noexcept
 {
-    if (not f.read(&value, 2))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap16(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_ushort(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 2);
 }
 
 template<typename File>
 bool write_to_file(File& f, const u16 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap16(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ushort(value);
-#endif
-        return f.write(&temp, 2);
-    } else {
-        return f.write(&value, 2);
-    }
+    return f.write(&value, 2);
 }
 
 template<typename File>
 bool read_from_file(File& f, u32& value) noexcept
 {
-    if (not f.read(&value, 4))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_ulong(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 4);
 }
 
 template<typename File>
 bool write_to_file(File& f, const u32 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ulong(value);
-#endif
-        return f.write(&temp, 4);
-    } else {
-        return f.write(&value, 4);
-    }
+    return f.write(&value, 4);
 }
 
 template<typename File>
 bool read_from_file(File& f, u64& value) noexcept
 {
-    if (not(f.read(&value, 8)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_uint64(value);
-#endif
-    }
-
-    return true;
+    return f.read(&value, 8);
 }
 
 template<typename File>
 bool write_to_file(File& f, const u64 value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_uint64(value);
-#endif
-        return f.write(&temp, 8);
-    } else {
-        return f.write(&value, 8);
-    }
+
+    return f.write(&value, 8);
 }
 
 template<typename File>
 bool read_from_file(File& f, float& value) noexcept
 {
-    if (not(f.read(reinterpret_cast<void*>(&value), 4)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_ulong(value);
-#endif
-    }
-
-    return true;
+    return f.read(reinterpret_cast<void*>(&value), 4);
 }
 
 template<typename File>
 bool write_to_file(File& f, const float value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap32(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_ulong(value);
-#endif
-        return f.write(&temp, 4);
-    } else {
-        return f.write(&value, 4);
-    }
+    return f.write(&value, 4);
 }
 
 template<typename File>
 bool read_from_file(File& f, double& value) noexcept
 {
-    if (not(f.read(reinterpret_cast<void*>(&value), 8)))
-        return false;
-
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        value = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        value = _byteswap_uint64(value);
-#endif
-    }
-
-    return true;
+    return f.read(reinterpret_cast<void*>(&value), 8);
 }
 
 template<typename File>
 bool write_to_file(File& f, const double value) noexcept
 {
-    if constexpr (std::endian::native == std::endian::big) {
-#if defined(__GNUC__) || defined(__clang__)
-        auto temp = __builtin_bswap64(value);
-#elif defined(_MSC_VER)
-        auto temp = _byteswap_uint64(value);
-#endif
-        return f.write(&temp, 8);
-    } else {
-        return f.write(&value, 8);
-    }
+    return f.write(&value, 8);
 }
 
 expected<file> file::open(const path& filename, const file_mode mode) noexcept
@@ -486,7 +327,7 @@ expected<file> file::open(const path& filename, const file_mode mode) noexcept
     if (not f.get())
         return make_error(modeling_errc::file_error);
 
-    return file{ f.get(), mode };
+    return file{ std::move(f), mode };
 }
 
 expected<memory> memory::make(const i64 length) noexcept
@@ -507,11 +348,6 @@ expected<memory> memory::make(const i64 length) noexcept
     return mem;
 }
 
-file::file(void* handle, const file_mode m) noexcept
-  : file_handle(handle)
-  , mode(m)
-{}
-
 file::file(file&& other) noexcept
   : file_handle(std::exchange(other.file_handle, nullptr))
   , mode(other.mode)
@@ -521,30 +357,24 @@ file& file::operator=(file&& other) noexcept
 {
     if (this != &other) {
         if (file_handle)
-            std::fclose(to_file());
+            file_handle.reset();
 
-        file_handle = std::exchange(other.file_handle, nullptr);
-        mode        = other.mode;
+        file_handle = std::move(other.file_handle);
+        other.file_handle.reset();
+        mode = other.mode;
     }
 
     return *this;
 }
 
-file::~file() noexcept
-{
-    if (file_handle)
-        std::fclose(to_file());
-}
-
 void file::close() noexcept
 {
     if (file_handle) {
-        std::fclose(to_file());
-        file_handle = nullptr;
+        file_handle.reset();
     }
 }
 
-bool file::is_open() const noexcept { return file_handle != nullptr; }
+bool file::is_open() const noexcept { return file_handle.get() != nullptr; }
 bool file::is_eof() const noexcept { return std::feof(to_file()); }
 
 i64 file::length() const noexcept
@@ -597,7 +427,7 @@ bool file::read(bool& value) noexcept
 {
     u8 integer_value{};
 
-    if (read_from_file(*this, integer_value)) {
+    if (read(integer_value)) {
         value = integer_value != 0u;
         return true;
     }
@@ -687,14 +517,26 @@ bool file::read(void* buffer, i64 length) noexcept
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
-    if (not file_handle or not buffer or length <= 0)
+    if (not file_handle or not buffer or length <= 0) {
+        using namespace std::string_view_literals;
+
+        debug::log(log_level::critical, "file read error"sv, "bad arguments"sv);
         return false;
+    }
 
     const auto len  = static_cast<size_t>(length);
     const auto read = std::fread(buffer, len, 1, to_file());
 
-    if (read != 1)
+    if (read != 1) {
+        debug::log(log_level::critical, [&](auto& t, auto& m) {
+            using namespace std::string_view_literals;
+
+            t = "file read error"sv;
+            format(m, "read error (length {} bytes", len);
+        });
+
         return false;
+    }
 
     return true;
 }
@@ -705,24 +547,32 @@ bool file::write(const void* buffer, i64 length) noexcept
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
-    if (not file_handle or not buffer or length <= 0)
+    if (not file_handle or not buffer or length <= 0) {
+        using namespace std::string_view_literals;
+
+        debug::log(log_level::critical, "file write error"sv,
+                   "bad arguments"sv);
         return false;
+    }
 
     const auto len     = static_cast<size_t>(length);
     const auto written = std::fwrite(buffer, len, 1, to_file());
 
-    if (written != 1)
+    if (written != 1) {
+        debug::log(log_level::critical, [&](auto& t, auto& m) {
+            using namespace std::string_view_literals;
+
+            t = "file write error"sv;
+            format(m, "read error (length {} bytes", len);
+        });
+
         return false;
+    }
 
     return true;
 }
 
-void* file::get_handle() const noexcept { return file_handle; }
-
-std::FILE* file::to_file() const noexcept
-{
-    return reinterpret_cast<std::FILE*>(file_handle);
-}
+std::FILE* file::to_file() const noexcept { return file_handle.get(); }
 
 file_mode file::get_mode() const noexcept { return mode; }
 

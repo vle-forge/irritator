@@ -104,7 +104,7 @@ static status flush_to_irtb(const observer& obs,
                             u64&            cursor,
                             file&           out) noexcept
 {
-    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.to_file() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
 
     const auto ret = obs.read_history(
@@ -165,7 +165,7 @@ static status init_json_irtb(const observers_type& observers,
                              const time            current_time,
                              file&                 out) noexcept
 {
-    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.to_file() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
 
     const auto& names = observers.get<observer_name>();
@@ -188,7 +188,7 @@ static status new_json_irtb(const observers_type& observers,
                             const time            current_time,
                             file&                 out) noexcept
 {
-    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.to_file() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
     debug::ensure(observers.exists(obs_id));
 
@@ -211,7 +211,7 @@ static status free_json_irtb(const observers_type& observers,
                              const time            current_time,
                              file&                 out) noexcept
 {
-    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.to_file() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
     debug::ensure(observers.exists(obs_id));
 
@@ -233,7 +233,7 @@ static status finalize_json_irtb(const observers_type& observers,
                                  const time            current_time,
                                  file&                 out) noexcept
 {
-    debug::ensure(out.get_handle() != nullptr);
+    debug::ensure(out.to_file() != nullptr);
     debug::ensure(out.get_mode()[file_open_options::write] == true);
 
     const auto& names = observers.get<observer_name>();
