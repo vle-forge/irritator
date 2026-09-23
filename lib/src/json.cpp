@@ -86,10 +86,8 @@ struct json_dearchiver::impl {
 
         const auto start     = warnings.size();
         const auto remaining = warnings.capacity() - start;
-        const auto ret = fmt::vformat_to_n(warnings.data() + start,
-                                           remaining,
-                                           fmt,
-                                           fmt::make_format_args(args...));
+        const auto ret = fmt::vformat_to_n(warnings.data() + start, remaining,
+                                           fmt, fmt::make_format_args(args...));
 
         warnings.resize(start + ret.size);
 
@@ -105,12 +103,8 @@ struct json_dearchiver::impl {
     {
         log(
           log_level::error,
-          [](auto& title,
-             auto& msg,
-             auto  path,
-             auto& stack,
-             auto& fmt,
-             auto  args) {
+          [](auto& title, auto& msg, auto path, auto& stack, auto& fmt,
+             auto args) {
               format(title, "json error {}", path);
 
               auto data      = msg.data();
@@ -130,10 +124,7 @@ struct json_dearchiver::impl {
               auto ret = fmt::vformat_to_n(data, remaining, fmt, args);
               msg.resize(write + ret.size);
           },
-          m_path,
-          std::as_const(stack),
-          fmt,
-          fmt::make_format_args(args...));
+          m_path, std::as_const(stack), fmt, fmt::make_format_args(args...));
 
         has_error = true;
 
@@ -216,9 +207,7 @@ struct json_dearchiver::impl {
         for (; i != e; ++i) {
             // debug_logi(stack.ssize(), "for-array: {}/{}\n", i, e);
 
-            if (!std::invoke(std::forward<Function>(f),
-                             i,
-                             array.GetArray()[i],
+            if (!std::invoke(std::forward<Function>(f), i, array.GetArray()[i],
                              std::forward<Args>(args)...))
                 return false;
         }
@@ -276,10 +265,8 @@ struct json_dearchiver::impl {
              ++it) {
             // debug_logi(stack.ssize(), "for-member: {}\n",
             // it->name.GetString());
-            if (!std::invoke(std::forward<Function>(f),
-                             it->name.GetString(),
-                             it->value,
-                             std::forward<Args>(args)...))
+            if (!std::invoke(std::forward<Function>(f), it->name.GetString(),
+                             it->value, std::forward<Args>(args)...))
                 return false;
         }
 
@@ -297,8 +284,7 @@ struct json_dearchiver::impl {
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
             if (name == it->name.GetString())
-                return std::invoke(std::forward<Function>(f),
-                                   it->value,
+                return std::invoke(std::forward<Function>(f), it->value,
                                    std::forward<Args>(args)...);
 
         return error("json object member {} not found", name);
@@ -806,8 +792,8 @@ struct json_dearchiver::impl {
     bool is_double_greater_than(double excluded_min) noexcept
     {
         if (temp_double <= excluded_min)
-            return error(
-              "bad real greater than {} > {}", temp_double, excluded_min);
+            return error("bad real greater than {} > {}", temp_double,
+                         excluded_min);
 
         return true;
     }
@@ -815,8 +801,8 @@ struct json_dearchiver::impl {
     bool is_double_greater_equal_than(double included_min) noexcept
     {
         if (temp_double < included_min)
-            return error(
-              "bad real greater or equal {} >= {}", temp_double, included_min);
+            return error("bad real greater or equal {} >= {}", temp_double,
+                         included_min);
 
         return true;
     }
@@ -824,8 +810,8 @@ struct json_dearchiver::impl {
     bool is_i64_less_than(int excluded_max) noexcept
     {
         if (temp_i64 >= excluded_max)
-            return error(
-              "bad integer less than {} < {}", temp_i64, excluded_max);
+            return error("bad integer less than {} < {}", temp_i64,
+                         excluded_max);
 
         return true;
     }
@@ -833,8 +819,8 @@ struct json_dearchiver::impl {
     bool is_i64_greater_equal_than(int included_min) noexcept
     {
         if (temp_i64 < included_min)
-            return error(
-              "bad integer greater or equal {} >= {}", temp_i64, included_min);
+            return error("bad integer greater or equal {} >= {}", temp_i64,
+                         included_min);
 
         return true;
     }
@@ -874,8 +860,8 @@ struct json_dearchiver::impl {
         if (std::cmp_less(val.GetArray().Size(), i))
             return true;
 
-        return error(
-          "too many elements in array ({} vs {})", i, val.GetArray().Size());
+        return error("too many elements in array ({} vs {})", i,
+                     val.GetArray().Size());
     }
 
     bool is_value_object(const rapidjson::Value& val) noexcept
@@ -1262,8 +1248,7 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_generator_options(ta_use_source,
-                                         value_use_source,
+               copy_to_generator_options(ta_use_source, value_use_source,
                                          p.integers[generator_tag::i_options]);
     }
 
@@ -2049,8 +2034,8 @@ struct json_dearchiver::impl {
         const auto  file_id = files.find_file(reg, dir, file);
         const auto* f       = files.file_paths.try_to_get(file_id);
         if (not f)
-            return error(
-              "unknown component file in {} / {} / {}", reg, dir, file);
+            return error("unknown component file in {} / {} / {}", reg, dir,
+                         file);
 
         const auto compo_id = [&]() -> component_id {
             for (const auto id : ids)
@@ -2066,8 +2051,8 @@ struct json_dearchiver::impl {
         const auto& c = ids.components[compo_id];
         if (c.state != component_status::unmodified) {
             has_missing_dependent_component = true;
-            return error(
-              "need to read the component in {} / {} / {}", reg, dir, file);
+            return error("need to read the component in {} / {} / {}", reg, dir,
+                         file);
         }
 
         c_id = compo_id;
@@ -2103,11 +2088,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               try_modeling_copy_component_id(files,
-                                              ids,
-                                              reg_name.sv(),
-                                              dir_path.sv(),
-                                              file_path.sv(),
+               try_modeling_copy_component_id(files, ids, reg_name.sv(),
+                                              dir_path.sv(), file_path.sv(),
                                               c_id);
     }
 
@@ -2135,8 +2117,8 @@ struct json_dearchiver::impl {
         static constexpr std::string_view n[] = { "factors", "run-type",
                                                   "selections", "sim" };
 
-        const auto ret =
-          for_members(val, n, [&](auto idx, const auto& value) noexcept {
+        const auto ret = for_members(
+          val, n, [&](auto idx, const auto& value) noexcept {
               switch (idx) {
               case 0:
                   return read_temp_i64(value) &&
@@ -2156,8 +2138,8 @@ struct json_dearchiver::impl {
               case 3: {
                   auto c = undefined<component_id>();
                   if (try_read_child_hsm_sim_component(value, files, ids, c)) {
-                      p.integers[simulation_wrapper_tag::id] =
-                        static_cast<i64>(c);
+                      p.integers[simulation_wrapper_tag::id] = static_cast<i64>(
+                        c);
                       warning("Simulation component not found");
                       return true;
                   }
@@ -2364,13 +2346,12 @@ struct json_dearchiver::impl {
                 c.id.mdl_type,
                 [&]<typename Tag>(const Tag tag) noexcept -> bool {
                     if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
-                        return read_modeling_dynamics(
-                          value, files, ids, tag, param);
+                        return read_modeling_dynamics(value, files, ids, tag,
+                                                      param);
                     } else if constexpr (std::is_same_v<
-                                           Tag,
-                                           simulation_wrapper_tag>) {
-                        return read_modeling_dynamics(
-                          value, files, ids, tag, param);
+                                           Tag, simulation_wrapper_tag>) {
+                        return read_modeling_dynamics(value, files, ids, tag,
+                                                      param);
                     } else if constexpr (std::is_same_v<Tag, constant_tag>) {
                         return read_modeling_dynamics(value, compo, tag, param);
                     } else {
@@ -2434,11 +2415,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               try_modeling_copy_component_id(files,
-                                              ids,
-                                              reg_name.sv(),
-                                              dir_path.sv(),
-                                              file_path.sv(),
+               try_modeling_copy_component_id(files, ids, reg_name.sv(),
+                                              dir_path.sv(), file_path.sv(),
                                               c_id);
     }
 
@@ -2515,14 +2493,13 @@ struct json_dearchiver::impl {
 
         dynamics_type type = dynamics_type::constant;
 
-        return for_first_member(val,
-                                "type"sv,
+        return for_first_member(val, "type"sv,
                                 [&](const auto& value) noexcept -> bool {
                                     return read_temp_string(value) &&
                                            copy_string_to(c.type, type);
                                 }) &&
-               dispatch_child_component_or_model(
-                 val, files, ids, compo, generic, type, c);
+               dispatch_child_component_or_model(val, files, ids, compo,
+                                                 generic, type, c);
     }
 
     bool read_children_array(const rapidjson::Value& val,
@@ -2540,11 +2517,11 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& new_child =
-                       generic.children.alloc(undefined<component_id>());
+                     auto& new_child = generic.children.alloc(
+                       undefined<component_id>());
                      auto new_child_id = generic.children.get_id(new_child);
-                     return read_child(
-                              value, generic, new_child, new_child_id) &&
+                     return read_child(value, generic, new_child,
+                                       new_child_id) &&
                             read_child_component_or_model(
                               value, files, ids, compo, generic, new_child);
                  });
@@ -2620,8 +2597,7 @@ struct json_dearchiver::impl {
             return true;
 
         return error(
-          "can not allocate more data in constant source 0 <= {} < {}",
-          i,
+          "can not allocate more data in constant source 0 <= {} < {}", i,
           external_source_chunk_size);
     }
 
@@ -2826,9 +2802,7 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids,
-                                  files,
-                                  compo_id,
+                                  ids, files, compo_id,
                                   compo.srcs.data
                                     .get<external_source_definition::
                                            source_element>(id)
@@ -2867,9 +2841,7 @@ struct json_dearchiver::impl {
                      if ("path"sv == name)
                          return read_temp_string(value) &&
                                 search_file_from_dir_component(
-                                  ids,
-                                  files,
-                                  compo_id,
+                                  ids, files, compo_id,
                                   compo.srcs.data
                                     .get<external_source_definition::
                                            source_element>(id)
@@ -3072,11 +3044,10 @@ struct json_dearchiver::impl {
                                 copy_string_to(s_name);
 
                      if ("type"sv == name) {
-                         auto& rnd =
-                           compo.srcs.data
-                             .get<external_source_definition::source_element>(
-                               id)
-                             .rnd;
+                         auto& rnd = compo.srcs.data
+                                       .get<external_source_definition::
+                                              source_element>(id)
+                                       .rnd;
 
                          return read_temp_string(value) &&
                                 copy_string_to(rnd.type) &&
@@ -3491,11 +3462,11 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                optional_has_value(src_id) &&
-               get_y_port(
-                 ids, gen, *src_id, src_str_port, src_int_port, src_port) &&
+               get_y_port(ids, gen, *src_id, src_str_port, src_int_port,
+                          src_port) &&
                optional_has_value(dst_id) &&
-               get_x_port(
-                 ids, gen, *dst_id, dst_str_port, dst_int_port, dst_port) &&
+               get_x_port(ids, gen, *dst_id, dst_str_port, dst_int_port,
+                          dst_port) &&
                optional_has_value(src_port) && optional_has_value(dst_port) &&
                gen.connections.can_alloc() &&
                modeling_connect(gen, *src_id, *src_port, *dst_id, *dst_port);
@@ -3514,7 +3485,7 @@ struct json_dearchiver::impl {
         std::optional<small_string<64>> src_str_port;
         std::optional<int>              src_int_port;
 
-        std::optional<port_id>     port;
+        std::optional<port_id>          port;
         std::optional<small_string<64>> str_port;
 
         return for_each_member(
@@ -3536,8 +3507,8 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                get_y_port(compo, str_port, port) &&
-               get_y_port(
-                 ids, gen, src_id, src_str_port, src_int_port, src_port) &&
+               get_y_port(ids, gen, src_id, src_str_port, src_int_port,
+                          src_port) &&
                gen.connections.can_alloc() && optional_has_value(src_port) &&
                optional_has_value(port) &&
                modeling_connect_output(gen, src_id, *src_port, *port);
@@ -3556,7 +3527,7 @@ struct json_dearchiver::impl {
         std::optional<small_string<64>> dst_str_port;
         std::optional<int>              dst_int_port;
 
-        std::optional<port_id>     port;
+        std::optional<port_id>          port;
         std::optional<small_string<64>> str_port;
 
         return for_each_member(
@@ -3579,8 +3550,8 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                get_x_port(compo, str_port, port) &&
-               get_x_port(
-                 ids, gen, dst_id, dst_str_port, dst_int_port, dst_port) &&
+               get_x_port(ids, gen, dst_id, dst_str_port, dst_int_port,
+                          dst_port) &&
                gen.connections.can_alloc() && optional_has_value(dst_port) &&
                optional_has_value(port) &&
                modeling_connect_input(gen, *port, dst_id, *dst_port);
@@ -3831,12 +3802,12 @@ struct json_dearchiver::impl {
 
         if (read) {
             const auto r_id = files.find_registred_path_by_name(reg_path.sv());
-            const auto dir_id =
-              is_defined(r_id)
-                ? files.find_directory_in_registry(r_id, dir_path.sv())
-                : files.find_directory(dir_path.sv());
-            const auto file_id =
-              files.find_file_in_directory(dir_id, file_path.sv());
+            const auto dir_id  = is_defined(r_id)
+                                   ? files.find_directory_in_registry(
+                                       r_id, dir_path.sv())
+                                   : files.find_directory(dir_path.sv());
+            const auto file_id = files.find_file_in_directory(dir_id,
+                                                              file_path.sv());
 
             if (not files.dir_paths.try_to_get(dir_id))
                 warning("graph-component: fail to found directory {}",
@@ -3930,10 +3901,8 @@ struct json_dearchiver::impl {
                 return true;
 
             for (const auto id : compo.g.nodes) {
-                if (not(read_child_component(it->value.GetArray()[i],
-                                             files,
-                                             ids,
-                                             compo.g.node_components[id])))
+                if (not(read_child_component(it->value.GetArray()[i], files,
+                                             ids, compo.g.node_components[id])))
                     return false;
 
                 i++;
@@ -3958,7 +3927,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component grid");
 
-        std::optional<int>         row, col;
+        std::optional<int>              row, col;
         std::optional<small_string<64>> id;
         std::optional<small_string<64>> x;
 
@@ -3995,8 +3964,8 @@ struct json_dearchiver::impl {
                 const auto  con_x  = compo.get_x(x->sv());
 
                 if (is_defined(con_id) and is_defined(con_x)) {
-                    if (auto ret =
-                          grid.connect_input(con_x, *row, *col, con_id);
+                    if (auto ret = grid.connect_input(con_x, *row, *col,
+                                                      con_id);
                         !!ret)
                         return true;
                 }
@@ -4013,7 +3982,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component grid");
 
-        std::optional<int>         row, col;
+        std::optional<int>              row, col;
         std::optional<small_string<64>> id;
         std::optional<small_string<64>> y;
 
@@ -4050,8 +4019,8 @@ struct json_dearchiver::impl {
                 const auto  con_y  = compo.get_y(y->sv());
 
                 if (is_defined(con_id) and is_defined(con_y)) {
-                    if (auto ret =
-                          grid.connect_output(con_y, *row, *col, con_id);
+                    if (auto ret = grid.connect_output(con_y, *row, *col,
+                                                       con_id);
                         !!ret)
                         return true;
                 }
@@ -4096,8 +4065,8 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      return is_value_object(value) and
-                            read_grid_connection(
-                              value, files, ids, compo, grid);
+                            read_grid_connection(value, files, ids, compo,
+                                                 grid);
                  });
     }
 
@@ -4160,8 +4129,8 @@ struct json_dearchiver::impl {
                          return read_grid_children(value, files, ids, grid);
 
                      if ("connections"sv == name)
-                         return read_grid_connections(
-                           value, files, ids, compo, grid);
+                         return read_grid_connections(value, files, ids, compo,
+                                                      grid);
 
                      return true;
                  }) &&
@@ -4195,11 +4164,9 @@ struct json_dearchiver::impl {
             return false;
 
         case graph_component::graph_type::scale_free: {
-            auto ret = graph.g.init_scale_free_graph(graph.scale.alpha,
-                                                     graph.scale.beta,
-                                                     graph.scale.id,
-                                                     graph.scale.nodes,
-                                                     graph.rng);
+            auto ret = graph.g.init_scale_free_graph(
+              graph.scale.alpha, graph.scale.beta, graph.scale.id,
+              graph.scale.nodes, graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
 
@@ -4207,11 +4174,9 @@ struct json_dearchiver::impl {
         }
 
         case graph_component::graph_type::small_world:
-            auto ret = graph.g.init_small_world_graph(graph.small.probability,
-                                                      graph.small.k,
-                                                      graph.small.id,
-                                                      graph.small.nodes,
-                                                      graph.rng);
+            auto ret = graph.g.init_small_world_graph(
+              graph.small.probability, graph.small.k, graph.small.id,
+              graph.small.nodes, graph.rng);
             if (ret.has_value())
                 graph.assign_grid_position();
 
@@ -4356,8 +4321,8 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      return is_value_object(value) and
-                            read_graph_connection(
-                              value, files, ids, compo, graph);
+                            read_graph_connection(value, files, ids, compo,
+                                                  graph);
                  });
     }
 
@@ -4384,8 +4349,8 @@ struct json_dearchiver::impl {
                          read_graph_children(val, files, ids, graph);
 
               if ("connections"sv == name)
-                  return read_graph_connections(
-                    value, files, ids, compo, graph);
+                  return read_graph_connections(value, files, ids, compo,
+                                                graph);
 
               return true;
           });
@@ -4409,8 +4374,8 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("states"sv == name)
-                  return read_hsm_states(
-                    value, hsm.machine.states, hsm.names, hsm.positions);
+                  return read_hsm_states(value, hsm.machine.states, hsm.names,
+                                         hsm.positions);
 
               if ("top"sv == name)
                   return read_temp_u64(value) &&
@@ -4476,8 +4441,7 @@ struct json_dearchiver::impl {
                 has_missing_dependent_component = true;
                 log(log_level::info, [&](auto& t, auto& m) {
                     format(t, "simulation-component loader: {}", file);
-                    format(m,
-                           "Fail to load project ({}, {})",
+                    format(m, "Fail to load project ({}, {})",
                            ordinal(pj_opt.error().cat()),
                            pj_opt.error().value());
                     return false;
@@ -4504,8 +4468,8 @@ struct json_dearchiver::impl {
 
                 for (auto i = 0, e = length(factor_type_names); i != e; ++i) {
                     if (type_str == factor_type_names[i]) {
-                        sim.factors.get<factor_type>(id) =
-                          enum_cast<factor_type>(i);
+                        sim.factors.get<factor_type>(
+                          id) = enum_cast<factor_type>(i);
                         break;
                     }
                 }
@@ -4560,8 +4524,8 @@ struct json_dearchiver::impl {
             if (const auto i = val.FindMember("values"); i != val.MemberEnd()) {
                 if (i->value.IsObject()) {
                     auto& r = sim.factors.get<random_factor>(id);
-                    return read_random(
-                      i->value.GetObject(), r.dist, r.reals, r.ints);
+                    return read_random(i->value.GetObject(), r.dist, r.reals,
+                                       r.ints);
                 }
             }
             break;
@@ -4586,8 +4550,8 @@ struct json_dearchiver::impl {
 
                      const auto factor_id = sim.factors.alloc_id();
 
-                     return read_simulation_component_factor(
-                       value, sim, factor_id);
+                     return read_simulation_component_factor(value, sim,
+                                                             factor_id);
                  });
     }
 
@@ -4607,8 +4571,8 @@ struct json_dearchiver::impl {
 
                 for (auto i = 0, e = length(criteria_type_names); i != e; ++i) {
                     if (crit_str == criteria_type_names[i]) {
-                        sim.selections.get<criteria_type>(id) =
-                          enum_cast<criteria_type>(i);
+                        sim.selections.get<criteria_type>(
+                          id) = enum_cast<criteria_type>(i);
                         break;
                     }
                 }
@@ -4647,8 +4611,8 @@ struct json_dearchiver::impl {
 
                      const auto factor_id = sim.selections.alloc_id();
 
-                     return read_simulation_component_selection(
-                       value, sim, factor_id);
+                     return read_simulation_component_selection(value, sim,
+                                                                factor_id);
                  });
     }
 
@@ -4734,8 +4698,7 @@ struct json_dearchiver::impl {
 
         return is_value_object(val) and
                for_members(
-                 val,
-                 names,
+                 val, names,
                  [&](const auto idx, const auto& value) noexcept -> bool {
                      switch (idx) {
                      case 0:
@@ -4817,16 +4780,14 @@ struct json_dearchiver::impl {
 
         return is_value_object(val) and
                for_members(
-                 val,
-                 names,
+                 val, names,
                  [&](const auto idx, const auto& value) noexcept -> bool {
                      switch (idx) {
                      case 0:
                          return read_temp_string(value) and
                                 copy_string_to_selection_primary(
-                                  sim,
-                                  sim.objective.epsilon_constrained_params
-                                    .primary);
+                                  sim, sim.objective.epsilon_constrained_params
+                                         .primary);
                      };
 
                      return true;
@@ -4845,8 +4806,7 @@ struct json_dearchiver::impl {
 
         return is_value_object(val) and
                for_members(
-                 val,
-                 names,
+                 val, names,
                  [&](const auto idx, const auto& value) noexcept -> bool {
                      switch (idx) {
                      case 0:
@@ -4866,9 +4826,8 @@ struct json_dearchiver::impl {
                      case 2:
                          return read_temp_string(value) and
                                 copy_string_to_selection_primary(
-                                  sim,
-                                  sim.objective.epsilon_constrained_params
-                                    .primary);
+                                  sim, sim.objective.epsilon_constrained_params
+                                         .primary);
                      };
 
                      return true;
@@ -4889,8 +4848,7 @@ struct json_dearchiver::impl {
 
         return is_value_object(val) and
                for_members(
-                 val,
-                 names,
+                 val, names,
                  [&](const auto idx, const auto& value) noexcept -> bool {
                      switch (idx) {
                      case 0:
@@ -4938,29 +4896,30 @@ struct json_dearchiver::impl {
         file_path_str      file_path;
         name_str           name;
 
-        const auto read_project =
-          for_each_member(
-            val,
-            [&](const auto name, const auto& value) noexcept -> bool {
-                if ("path"sv == name)
-                    return read_temp_string(value) && copy_string_to(reg_name);
+        const auto read_project = for_each_member(
+                                    val,
+                                    [&](const auto  name,
+                                        const auto& value) noexcept -> bool {
+                                        if ("path"sv == name)
+                                            return read_temp_string(value) &&
+                                                   copy_string_to(reg_name);
 
-                if ("directory"sv == name)
-                    return read_temp_string(value) && copy_string_to(dir_path);
+                                        if ("directory"sv == name)
+                                            return read_temp_string(value) &&
+                                                   copy_string_to(dir_path);
 
-                if ("file"sv == name)
-                    return read_temp_string(value) && copy_string_to(file_path);
+                                        if ("file"sv == name)
+                                            return read_temp_string(value) &&
+                                                   copy_string_to(file_path);
 
-                return true;
-            }) &&
-          copy_to_sim(
-            files, ids, sim, reg_name.sv(), dir_path.sv(), file_path.sv());
+                                        return true;
+                                    }) &&
+                                  copy_to_sim(files, ids, sim, reg_name.sv(),
+                                              dir_path.sv(), file_path.sv());
 
         if (not read_project)
             return error("fail to access project file ({}, {}, {})",
-                         reg_name.sv(),
-                         dir_path.sv(),
-                         file_path.sv());
+                         reg_name.sv(), dir_path.sv(), file_path.sv());
 
         const auto read_component = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -4987,8 +4946,8 @@ struct json_dearchiver::impl {
 
             sim.objective.epsilon_constrained_params.epsilons.clear();
             sim.objective.epsilon_constrained_params.operations.clear();
-            sim.objective.epsilon_constrained_params.primary =
-              undefined<selection_id>();
+            sim.objective.epsilon_constrained_params
+              .primary = undefined<selection_id>();
         } else {
             sim.objective.weighted_sum_params.types.resize(
               nb, optimization_type::maximize);
@@ -4996,8 +4955,8 @@ struct json_dearchiver::impl {
             sim.objective.epsilon_constrained_params.epsilons.resize(nb, 0.0);
             sim.objective.epsilon_constrained_params.operations.resize(
               nb, operation_type::less_equal);
-            sim.objective.epsilon_constrained_params.primary =
-              undefined<selection_id>();
+            sim.objective.epsilon_constrained_params
+              .primary = undefined<selection_id>();
         }
 
         if (sim.objective.method == optimization_method::simple) {
@@ -5035,8 +4994,7 @@ struct json_dearchiver::impl {
             return read_simulation_component(val, files, ids, compo);
         }
 
-        return error("unknown component type: {} ({})",
-                     ordinal(compo.type),
+        return error("unknown component type: {} ({})", ordinal(compo.type),
                      component_type_names[ordinal(compo.type)]);
         ;
     }
@@ -5234,11 +5192,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               try_modeling_copy_component_id(files,
-                                              ids,
-                                              reg_name.sv(),
-                                              dir_path.sv(),
-                                              file_path.sv(),
+               try_modeling_copy_component_id(files, ids, reg_name.sv(),
+                                              dir_path.sv(), file_path.sv(),
                                               c_id) and
                project_set(ids, files, c_id);
     }
@@ -5346,8 +5301,8 @@ struct json_dearchiver::impl {
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
-                                convert_to_tn_model_ids(
-                                  path, tn_id_opt, mdl_id_opt);
+                                convert_to_tn_model_ids(path, tn_id_opt,
+                                                        mdl_id_opt);
 
                      if ("parameter"sv == name) {
                          parameter p;
@@ -5364,8 +5319,8 @@ struct json_dearchiver::impl {
                optional_has_value(tn_id_opt) and
                optional_has_value(mdl_id_opt) and
                optional_has_value(parameter_opt) and
-               global_parameter_init(
-                 *tn_id_opt, *mdl_id_opt, name_opt->sv(), *parameter_opt);
+               global_parameter_init(*tn_id_opt, *mdl_id_opt, name_opt->sv(),
+                                     *parameter_opt);
     }
 
     bool read_global_parameters(const rapidjson::Value& val) noexcept
@@ -5538,8 +5493,8 @@ struct json_dearchiver::impl {
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
-                                convert_to_tn_model_ids(
-                                  path, parent_id, mdl_id);
+                                convert_to_tn_model_ids(path, parent_id,
+                                                        mdl_id);
 
                      if ("color"sv == name)
                          return read_color(value, c);
@@ -5687,8 +5642,8 @@ struct json_dearchiver::impl {
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
-                                convert_to_tn_model_ids(
-                                  path, graph_tn_id, mdl_id);
+                                convert_to_tn_model_ids(path, graph_tn_id,
+                                                        mdl_id);
 
                      return true;
                  }) and
@@ -5761,8 +5716,8 @@ struct json_dearchiver::impl {
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
-                                convert_to_tn_model_ids(
-                                  path, grid_tn_id, mdl_id);
+                                convert_to_tn_model_ids(path, grid_tn_id,
+                                                        mdl_id);
 
                      return true;
                  }) and
@@ -6122,11 +6077,12 @@ struct json_archiver::impl {
                const parameter& p) noexcept
     {
         const auto type_i = p.integers[counter_tag::i_obs_type];
-        const auto type =
-          0 <= type_i and type_i < std::ssize(counter::observation_type_names)
-            ? enum_cast<counter::observation_type>(type_i)
-            : counter::observation_type::event_number;
-        const auto sv = counter::observation_type_names[ordinal(type)];
+        const auto type   = 0 <= type_i and
+                                type_i <
+                                  std::ssize(counter::observation_type_names)
+                              ? enum_cast<counter::observation_type>(type_i)
+                              : counter::observation_type::event_number;
+        const auto sv     = counter::observation_type_names[ordinal(type)];
 
         writer.StartObject();
         writer.Key("observation-type");
@@ -6234,11 +6190,11 @@ struct json_archiver::impl {
         writer.Double(p.reals[constant_tag::offset]);
         writer.Key("type");
 
-        const auto type =
-          (0 <= p.integers[constant_tag::i_type] &&
-           p.integers[constant_tag::i_type] < 5)
-            ? enum_cast<constant::init_type>(p.integers[constant_tag::i_type])
-            : constant::init_type::constant;
+        const auto type = (0 <= p.integers[constant_tag::i_type] &&
+                           p.integers[constant_tag::i_type] < 5)
+                            ? enum_cast<constant::init_type>(
+                                p.integers[constant_tag::i_type])
+                            : constant::init_type::constant;
 
         switch (type) {
         case constant::init_type::constant:
@@ -6254,8 +6210,8 @@ struct json_archiver::impl {
             writer.String("incoming_component_n");
             writer.Key("port");
 
-            const auto port =
-              enum_cast<port_id>(p.integers[constant_tag::i_port]);
+            const auto port = enum_cast<port_id>(
+              p.integers[constant_tag::i_port]);
             if (compo.x.exists(port)) {
                 const auto& str = compo.x.get<port_str>(port);
                 writer.String(str.c_str());
@@ -6267,8 +6223,8 @@ struct json_archiver::impl {
             writer.String("outcoming_component_n");
             writer.Key("port");
 
-            const auto port =
-              enum_cast<port_id>(p.integers[constant_tag::i_port]);
+            const auto port = enum_cast<port_id>(
+              p.integers[constant_tag::i_port]);
             if (compo.y.exists(port)) {
                 const auto& str = compo.y.get<port_str>(port);
                 writer.String(str.c_str());
@@ -6817,8 +6773,8 @@ struct json_archiver::impl {
         writer.Key("hsm");
         writer.StartObject();
 
-        const auto id =
-          enum_cast<component_id>(p.integers[hsm_wrapper_tag::id]);
+        const auto id = enum_cast<component_id>(
+          p.integers[hsm_wrapper_tag::id]);
 
         if (ids.exists(id)) {
             const auto& c = ids.components[id];
@@ -7261,19 +7217,11 @@ struct json_archiver::impl {
             w.Key("dynamics");
             dispatch(
               ch.id.mdl_type,
-              [&]<typename Tag>(const Tag tag,
-                                auto&     files,
-                                auto&     ids,
-                                auto&     compo,
-                                auto&     param,
-                                auto&     w) noexcept {
+              [&]<typename Tag>(const Tag tag, auto& files, auto& ids,
+                                auto& compo, auto& param, auto& w) noexcept {
                   write(w, files, ids, tag, compo, param);
               },
-              files,
-              ids,
-              compo,
-              param,
-              w);
+              files, ids, compo, param, w);
         }
 
         w.EndObject();
@@ -7302,10 +7250,8 @@ struct json_archiver::impl {
             w.Key("x");
             w.StartArray();
 
-            compo.x.for_each([&](auto /*id*/,
-                                 const auto& type,
-                                 const auto& str,
-                                 auto&       pos) noexcept {
+            compo.x.for_each([&](auto /*id*/, const auto& type, const auto& str,
+                                 auto& pos) noexcept {
                 w.StartObject();
                 w.Key("name");
                 w.String(str.c_str());
@@ -7325,10 +7271,8 @@ struct json_archiver::impl {
             w.Key("y");
             w.StartArray();
 
-            compo.y.for_each([&](auto /*id*/,
-                                 const auto& type,
-                                 const auto& str,
-                                 auto&       pos) noexcept {
+            compo.y.for_each([&](auto /*id*/, const auto& type, const auto& str,
+                                 auto& pos) noexcept {
                 w.StartObject();
                 w.Key("name");
                 w.String(str.c_str());
@@ -7475,25 +7419,20 @@ struct json_archiver::impl {
         for (const auto& con : gen.connections)
             if (auto* c_src = gen.children.try_to_get(con.src); c_src)
                 if (auto* c_dst = gen.children.try_to_get(con.dst); c_dst)
-                    write_internal_connection(ids,
-                                              gen,
-                                              *c_src,
-                                              con.index_src,
-                                              *c_dst,
-                                              con.index_dst,
-                                              w);
+                    write_internal_connection(ids, gen, *c_src, con.index_src,
+                                              *c_dst, con.index_dst, w);
 
         for (const auto& con : gen.input_connections)
             if (auto* c = gen.children.try_to_get(con.dst); c)
                 if (compo.x.exists(con.x))
-                    write_input_connection(
-                      ids, compo, gen, con.x, *c, con.port, w);
+                    write_input_connection(ids, compo, gen, con.x, *c, con.port,
+                                           w);
 
         for (const auto& con : gen.output_connections)
             if (auto* c = gen.children.try_to_get(con.src); c)
                 if (compo.y.exists(con.y))
-                    write_output_connection(
-                      ids, compo, gen, con.y, *c, con.port, w);
+                    write_output_connection(ids, compo, gen, con.y, *c,
+                                            con.port, w);
 
         write_connection_packs(files, ids, compo, w);
 
@@ -7625,18 +7564,14 @@ struct json_archiver::impl {
                 if (not write_dot_file(files, ids, g.g, *f)) {
                     log(
                       log_level::error,
-                      [](auto&       t,
-                         auto&       m,
-                         const auto* dir,
+                      [](auto& t, auto& m, const auto* dir,
                          const auto* file) noexcept {
                           t = "Fail to write dot file";
-                          format(m,
-                                 "Fail to write {} in {}",
+                          format(m, "Fail to write {} in {}",
                                  dir ? dir->path.c_str() : "?",
                                  file ? file->path.c_str() : "?");
                       },
-                      dir,
-                      file);
+                      dir, file);
                 }
             } else {
                 log(log_level::error, [](auto& t, auto& m) noexcept {
@@ -7830,10 +7765,8 @@ struct json_archiver::impl {
     void write_hsm_component(const hsm_component& hsm, Writer& w) noexcept
     {
         write_hierarchical_state_machine(
-          hsm.machine,
-          std::span{ hsm.names.begin(), hsm.names.size() },
-          std::span{ hsm.positions.begin(), hsm.positions.size() },
-          w);
+          hsm.machine, std::span{ hsm.names.begin(), hsm.names.size() },
+          std::span{ hsm.positions.begin(), hsm.positions.size() }, w);
 
         w.Key("i1");
         w.Int(hsm.i1);
@@ -7994,8 +7927,7 @@ struct json_archiver::impl {
             w.StartArray();
             for (auto i = 0,
                       e = length(sim.objective.weighted_sum_params.types);
-                 i != e;
-                 ++i) {
+                 i != e; ++i) {
                 w.String(
                   optimization_type_names
                     [ordinal(sim.objective.weighted_sum_params.types[i])]
@@ -8011,8 +7943,7 @@ struct json_archiver::impl {
             w.StartArray();
             for (auto i = 0,
                       e = length(sim.objective.weighted_sum_params.weights);
-                 i != e;
-                 ++i) {
+                 i != e; ++i) {
                 w.Double(sim.objective.weighted_sum_params.weights[i]);
             }
             w.EndArray();
@@ -8029,8 +7960,7 @@ struct json_archiver::impl {
             for (auto i = 0,
                       e = length(
                         sim.objective.epsilon_constrained_params.epsilons);
-                 i != e;
-                 ++i) {
+                 i != e; ++i) {
                 w.Double(sim.objective.epsilon_constrained_params.epsilons[i]);
             }
             w.EndArray();
@@ -8040,8 +7970,7 @@ struct json_archiver::impl {
             for (auto i = 0,
                       e = length(
                         sim.objective.epsilon_constrained_params.operations);
-                 i != e;
-                 ++i) {
+                 i != e; ++i) {
                 w.String(
                   optimization_type_names
                     [ordinal(
@@ -8111,10 +8040,10 @@ struct json_archiver::impl {
                 w.String(names[id].c_str());
                 w.Key("type");
 
-                const auto type =
-                  compo.srcs.data
-                    .get<external_source_definition::source_element>(id)
-                    .type;
+                const auto
+                  type = compo.srcs.data
+                           .get<external_source_definition::source_element>(id)
+                           .type;
                 w.String(external_source_type_string[ordinal(type)]);
 
                 switch (type) {
@@ -8548,8 +8477,8 @@ status json_dearchiver::operator()(const file_access& files,
     if (auto ret = read_file_to_buffer(buffer, io); ret.has_error())
         return ret.error();
 
-    if (auto ret =
-          parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+    if (auto ret = parse_json_data(std::span(buffer.data(), buffer.size()),
+                                   doc);
         ret.has_error()) {
         compo.state = component_status::unreadable;
         return ret.error();
@@ -8584,8 +8513,8 @@ status json_dearchiver::operator()(project&                pj,
     if (const auto ret = read_file_to_buffer(buffer, io); ret.has_error())
         return ret.error();
 
-    if (const auto ret =
-          parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+    if (const auto ret = parse_json_data(
+          std::span(buffer.data(), buffer.size()), doc);
         ret.has_error())
         return ret.error();
 
@@ -8652,14 +8581,12 @@ status json_archiver::operator()(const file_access&          files,
                               io.get_mode()[file_open_options::extended])))
         return make_error(std::errc::invalid_argument);
 
-    auto fp = reinterpret_cast<FILE*>(io.get_handle());
+    auto fp = io.to_file();
     buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
-                            rapidjson::UTF8<>,
-                            rapidjson::UTF8<>,
-                            rapidjson::CrtAllocator,
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream, rapidjson::UTF8<>,
+                            rapidjson::UTF8<>, rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
       w(os);
 
@@ -8710,10 +8637,8 @@ status json_archiver::operator()(const file_access&          files,
 
     switch (print) {
     case json_archiver::print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
+        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
                                 rapidjson::kWriteNanAndInfFlag>
           w(buffer);
         w.SetIndent(' ', 2);
@@ -8721,10 +8646,8 @@ status json_archiver::operator()(const file_access&          files,
     } break;
 
     case json_archiver::print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
+        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
                                 rapidjson::kWriteNanAndInfFlag>
           w(buffer);
         w.SetIndent(' ', 2);
@@ -8733,10 +8656,8 @@ status json_archiver::operator()(const file_access&          files,
     } break;
 
     default: {
-        rapidjson::Writer<rapidjson::StringBuffer,
-                          rapidjson::UTF8<>,
-                          rapidjson::UTF8<>,
-                          rapidjson::CrtAllocator,
+        rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                          rapidjson::UTF8<>, rapidjson::CrtAllocator,
                           rapidjson::kWriteNanAndInfFlag>
           w(buffer);
         i.do_component_save(w, files, ids, compo_id, compo);
@@ -8778,15 +8699,13 @@ status json_archiver::operator()(project&                pj,
 
     debug::ensure(head_id == parent->id);
 
-    auto fp = reinterpret_cast<FILE*>(io.get_handle());
+    auto fp = io.to_file();
     clear();
     buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
-                            rapidjson::UTF8<>,
-                            rapidjson::UTF8<>,
-                            rapidjson::CrtAllocator,
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream, rapidjson::UTF8<>,
+                            rapidjson::UTF8<>, rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
                         w(os);
     json_archiver::impl i{ *this };
@@ -8831,10 +8750,8 @@ status json_archiver::operator()(project&                pj,
 
     switch (print_options) {
     case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
+        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
                                 rapidjson::kWriteNanAndInfFlag>
           w(rbuffer);
         w.SetIndent(' ', 2);
@@ -8842,10 +8759,8 @@ status json_archiver::operator()(project&                pj,
     } break;
 
     case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
+        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
                                 rapidjson::kWriteNanAndInfFlag>
           w(rbuffer);
         w.SetIndent(' ', 2);
@@ -8854,10 +8769,8 @@ status json_archiver::operator()(project&                pj,
     } break;
 
     default: {
-        rapidjson::Writer<rapidjson::StringBuffer,
-                          rapidjson::UTF8<>,
-                          rapidjson::UTF8<>,
-                          rapidjson::CrtAllocator,
+        rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<>,
+                          rapidjson::UTF8<>, rapidjson::CrtAllocator,
                           rapidjson::kWriteNanAndInfFlag>
           w(rbuffer);
         i.do_project_save(w, pj, files, ids, head_id);
