@@ -10,12 +10,11 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
-#include <filesystem>
+#include "utils.hpp"
+
 #include <numeric>
 
 #include <boost/ut.hpp>
-
-#include <fmt/format.h>
 
 using namespace std::literals;
 
@@ -109,26 +108,14 @@ static auto get_input_connection_number(const irt::simulation& sim,
 //     }
 // }
 
-template<std::size_t length>
-static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
-{
-    std::error_code ec;
-
-    try {
-        auto p = std::filesystem::temp_directory_path(ec) / "reg-temp";
-        str    = p.string();
-        return true;
-    } catch (...) {
-        return false;
-    }
-}
-
 static void simulation_component_tester(
   const std::span<const irt::real> c1,
   const std::span<const irt::real> c2,
   const std::span<const irt::real> result) noexcept
 {
     using namespace boost::ut;
+
+    const auto temp_path = irt::temp_path_with_unlink{ "sim-compo-tester"sv };
 
     irt::modeling mod;
 
@@ -138,11 +125,8 @@ static void simulation_component_tester(
     irt::file_path_id      project_file_id{ 0 };
 
     mod.files.write([&](auto& fs) {
-        irt::registred_path_str temp_path;
-        expect(fatal(get_temp_registred_path(temp_path)));
-
         reg_id                              = fs.alloc_registred("temp", 0);
-        fs.registred_paths.get(reg_id).path = temp_path;
+        fs.registred_paths.get(reg_id).path = temp_path.sv();
 
         dir_id                          = fs.alloc_dir(reg_id);
         fs.dir_paths.get(dir_id).parent = reg_id;
@@ -479,7 +463,12 @@ int main()
     };
 
     "external-source-write"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{
+            "external_source"sv
+        };
+
         {
+
             irt::modeling mod;
             irt::project  pj;
 
@@ -562,12 +551,9 @@ int main()
                 generic.children_parameters[dyn_id].set_dynamic_queue_ta(
                   dyn_src_id);
 
-                irt::registred_path_str temp_path;
-                expect(fatal(get_temp_registred_path(temp_path)));
-
                 mod.files.write([&](auto& fs) {
                     auto reg_id = fs.alloc_registred("temp", 0);
-                    fs.registred_paths.get(reg_id).path = temp_path;
+                    fs.registred_paths.get(reg_id).path = temp_path.sv();
 
                     auto dir_id                     = fs.alloc_dir(reg_id);
                     fs.dir_paths.get(dir_id).parent = reg_id;
@@ -605,13 +591,10 @@ int main()
             irt::modeling mod;
             irt::project  pj;
 
-            irt::registred_path_str temp_path;
-            expect(fatal(get_temp_registred_path(temp_path)));
-
             mod.files.write([&](auto& fs) {
                 auto  reg_id = fs.alloc_registred("temp", 0);
                 auto& reg    = fs.registred_paths.get(reg_id);
-                reg.path     = temp_path;
+                reg.path     = temp_path.sv();
                 fs.browse_registreds();
             });
 
@@ -1185,10 +1168,9 @@ int main()
     };
 
     "grid-3x3"_test = [] {
-        irt::vector<char>       buffer;
-        irt::registred_path_str temp_path;
+        const auto temp_path = irt::temp_path_with_unlink{ "grid-33"sv };
 
-        expect(get_temp_registred_path(temp_path) == true);
+        irt::vector<char> buffer;
 
         irt::modeling mod;
         irt::project  pj;
@@ -1235,7 +1217,7 @@ int main()
             mod.files.write([&](auto& fs) {
                 const auto reg_id = fs.alloc_registred("temp", 0);
                 auto&      reg    = fs.registred_paths.get(reg_id);
-                reg.path          = temp_path;
+                reg.path          = temp_path.sv();
 
                 const auto dir_id = fs.alloc_dir(reg_id);
                 auto&      dir    = fs.dir_paths.get(dir_id);
@@ -1303,7 +1285,7 @@ int main()
             mod.files.write([&](auto& fs) {
                 const auto reg_id = fs.alloc_registred("temp", 0);
                 auto&      reg    = fs.registred_paths.get(reg_id);
-                reg.path          = temp_path;
+                reg.path          = temp_path.sv();
 
                 fs.create_directories(reg_id);
             });
@@ -1374,9 +1356,10 @@ int main()
     };
 
     "internal_component_io"_test = [] {
-        {
-            irt::modeling mod;
+        const auto temp_path = irt::temp_path_with_unlink{ "internal"sv };
 
+        {
+            irt::modeling                                                mod;
             std::array<irt::component_id, irt::internal_component_count> i_ids;
 
             mod.ids.write([&](auto& ids) {
@@ -1395,7 +1378,7 @@ int main()
                     auto  reg_id = fs.alloc_registred("temp", 0);
                     auto& reg    = fs.registred_paths.get(reg_id);
 
-                    get_temp_registred_path(reg.path);
+                    reg.path = temp_path.sv();
                     fs.create_directories(reg_id);
 
                     auto dir_id = fs.alloc_dir(reg_id, "dir-temp");
@@ -1451,7 +1434,7 @@ int main()
 
                 const auto reg_id = fs.alloc_registred("temp", 0);
                 auto&      reg    = fs.registred_paths.get(reg_id);
-                get_temp_registred_path(reg.path);
+                reg.path          = temp_path.sv();
                 fs.create_directories(reg_id);
                 fs.browse_registreds();
             });

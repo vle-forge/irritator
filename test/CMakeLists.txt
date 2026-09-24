@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(irritator-cli VERSION 0.1.0.0 LANGUAGES CXX)
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN})
+  add_executable(${test_name} utils.hpp;${ARGN})
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}\"
