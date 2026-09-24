@@ -520,7 +520,7 @@ bool file::read(void* buffer, i64 length) noexcept
     if (not file_handle or not buffer or length <= 0) {
         using namespace std::string_view_literals;
 
-        debug::log(log_level::critical, "file read error"sv, "bad arguments"sv);
+        debug::log(log_level::critical, "file read error: bad arguments"sv);
         return false;
     }
 
@@ -528,11 +528,10 @@ bool file::read(void* buffer, i64 length) noexcept
     const auto read = std::fread(buffer, len, 1, to_file());
 
     if (read != 1) {
-        debug::log(log_level::critical, [&](auto& t, auto& m) {
+        debug::log(log_level::critical, [&](auto& m) {
             using namespace std::string_view_literals;
 
-            t = "file read error"sv;
-            format(m, "read error (length {} bytes", len);
+            format(m, "file read error: length {} bytes", len);
         });
 
         return false;
@@ -550,8 +549,7 @@ bool file::write(const void* buffer, i64 length) noexcept
     if (not file_handle or not buffer or length <= 0) {
         using namespace std::string_view_literals;
 
-        debug::log(log_level::critical, "file write error"sv,
-                   "bad arguments"sv);
+        debug::log(log_level::critical, "file write error: bad arguments"sv);
         return false;
     }
 
@@ -559,11 +557,10 @@ bool file::write(const void* buffer, i64 length) noexcept
     const auto written = std::fwrite(buffer, len, 1, to_file());
 
     if (written != 1) {
-        debug::log(log_level::critical, [&](auto& t, auto& m) {
+        debug::log(log_level::critical, [&](auto& m) {
             using namespace std::string_view_literals;
 
-            t = "file write error"sv;
-            format(m, "read error (length {} bytes", len);
+            format(m, "file write error: length {} bytes", len);
         });
 
         return false;

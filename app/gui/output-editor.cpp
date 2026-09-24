@@ -161,7 +161,7 @@ static void write(project&                        pj,
         vobs and vobs->exists(sub_id))
         write(pj, ofs, *vobs, sub_id);
     else
-        log(log_level::error, "Output editor"sv, "Unknown observation"sv);
+        log(log_level::error, "output-error: unknown observation"sv);
 }
 
 static void write(project&                        pj,
@@ -172,11 +172,11 @@ static void write(project&                        pj,
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
         write(pj, ofs, vobs_id, obs_id);
     else
-        log(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "Output editor";
-            format(msg,
-                   "Failed to open file `{}' to write observation",
-                   file_path.string());
+        log(log_level::error, [&](auto& msg) noexcept {
+            format(
+              msg,
+              "output-editor: Failed to open file `{}' to write observation",
+              file_path.string());
         });
 }
 
@@ -197,9 +197,8 @@ static void write(application&       app,
     if (auto* p = app.copy_obs.try_to_get(id); p)
         write(ofs, *p);
     else
-        log(log_level::error, [](auto& title, auto& msg) noexcept {
-            title = "Output editor";
-            msg   = "Unknown copy observation";
+        log(log_level::error, [](auto& msg) noexcept {
+            msg = "output-editor: unknown copy observation";
         });
 }
 
@@ -210,11 +209,11 @@ static void write(application&                 app,
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
         write(app, ofs, id);
     else
-        log(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "Output editor";
-            format(msg,
-                   "Failed to open file `{}' to write observation",
-                   file_path.string());
+        log(log_level::error, [&](auto& msg) noexcept {
+            format(
+              msg,
+              "output-editor: failed to open file `{}' to write observation",
+              file_path.string());
         });
 }
 

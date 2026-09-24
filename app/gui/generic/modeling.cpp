@@ -947,9 +947,10 @@ static bool add_component_to_current(const component_access& ids,
                                      ImVec2                  click_pos)
 {
     if (not ids.can_add(parent_id, compo_to_add_id)) {
-        log(log_level::error, [&ids, compo_to_add_id](auto& t, auto& m) {
-            t = "Fail to add component";
-            format(m, "Irritator does not accept recursive component {}",
+        log(log_level::error, [&ids, compo_to_add_id](auto& m) {
+            format(m,
+                   "modeling: generic component does not accept recursive "
+                   "component {}",
                    ids.components[compo_to_add_id].name.sv());
         });
 
@@ -958,9 +959,9 @@ static bool add_component_to_current(const component_access& ids,
 
     if (not parent_compo.children.can_alloc(1) and
         not parent_compo.grow_children()) {
-        log(log_level::error, [](auto& t, auto& m) {
-            t = "Generic component";
-            m = "Can not allocate new model. Delete models or increase "
+        log(log_level::error, [](auto& m) {
+            m = "modeling: can not allocate new model. Delete models or "
+                "increase "
                 "generic component default size.";
         });
 
@@ -1321,11 +1322,9 @@ static bool show_popup_menuitem(const component_access&        ids,
             if (ids.exists(res.id)) {
                 auto& c = ids.components[res.id];
                 if (c.type == component_type::hsm)
-                    log(log_level::error, [](auto& title, auto& msg) noexcept {
-                        title = "Component editor";
-                        msg   = "Please, use the hsm_wrapper model to "
-                                "add a "
-                                "hierarchical state machine";
+                    log(log_level::error, [](auto& msg) noexcept {
+                        msg = "modeling: please, use the hsm_wrapper model to "
+                              "add a hierarchical state machine";
                     });
                 else
                     u += add_component_to_current(ids, parent_id, gen, res.id,
@@ -1444,16 +1443,18 @@ static bool show_popup_menuitem(const component_access&        ids,
 
 static void error_not_enough_connections(sz capacity) noexcept
 {
-    log(log_level::error, [&](auto& t, auto& m) {
-        t = "Not enough connection slot in this component";
-        format(m, "All connections slots ({}) are used.", capacity);
+    log(log_level::error, [&](auto& m) {
+        format(m,
+               "modeling: not enough connection slot in ths component. All "
+               "connections slots ({}) are used.",
+               capacity);
     });
 }
 
 static void error_not_connection_auth() noexcept
 {
-    log(log_level::error, [&](auto& t, auto&) {
-        t = "Can not connect component input on output ports";
+    log(log_level::error, [&](auto& m) {
+        m = "modeling: can not connect component input on output ports";
     });
 }
 

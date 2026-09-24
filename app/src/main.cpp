@@ -284,8 +284,8 @@ public:
 
     irt::expected<void> prepare_and_run() noexcept
     {
-        log(irt::log_level::notice, [&](auto& t, auto&) {
-            irt::format(t, "Run simulation for file {}\n", front);
+        log(irt::log_level::notice, [&](auto& m) {
+            irt::format(m, "Run simulation for file {}\n", front);
         });
 
         const std::filesystem::path str{ front };

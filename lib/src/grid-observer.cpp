@@ -22,10 +22,10 @@ static auto init_or_reuse_observer(project&       pj,
     } else {
         if (const auto ret = pj.sim.observe(mdl, timestep.to_double());
             ret.has_error()) {
-            log(log_level::error, [&](auto& t, auto& m) {
-                t = "Graph observation";
-                m = "Fail to observe a model\n";
-            });
+            using namespace std::string_view_literals;
+
+            log(log_level::error,
+                "grid-observation: Fail to observe a model\n"sv);
         }
     }
 
@@ -87,10 +87,9 @@ static void build_grid_observer(grid_observer&  grid_obs,
                 grid_obs.observers[index] =
                   init_or_reuse_observer(pj, *mdl, grid_obs.timestep);
             } else {
-                log(log_level::warning, [&](auto& t, auto& m) noexcept {
-                    t = "Grid observer error";
-                    format(
-                      m, "unique_id {} is not found", child->unique_id.sv());
+                log(log_level::warning, [&](auto& m) noexcept {
+                    format(m, "grid-observation: unique_id {} is not found",
+                           child->unique_id.sv());
                 });
             }
         }

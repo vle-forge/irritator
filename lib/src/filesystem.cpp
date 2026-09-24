@@ -31,6 +31,7 @@
 #include <irritator/format.hpp>
 
 #include <filesystem>
+#include <string_view>
 
 #define irritator_to_string(s) to_string(s)
 #define to_string(s) #s
@@ -564,9 +565,9 @@ path get_imgui_filename() noexcept
     if (auto path_opt = get_home_filename("imgui.ini"); path_opt.has_value())
         return *path_opt;
 
-    log(log_level::critical,
-        std::string_view{ "init.: fail to get imgui.ini file" },
-        std::string_view{});
+    using namespace std::string_view_literals;
+
+    log(log_level::critical, "filesystem.: fail to get imgui.ini file"sv);
 
     return path{};
 }

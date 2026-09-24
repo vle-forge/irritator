@@ -45,14 +45,12 @@ enum class log_level : u8 {
 };
 
 struct log_record {
-    constexpr static inline auto title_length = 63;
-    constexpr static inline auto msg_length   = 254;
+    constexpr static inline auto length = 512 - 2;
 
-    u64                        ts;
-    std::thread::id            tid;
-    small_string<title_length> t;
-    small_string<msg_length>   msg;
-    log_level                  level;
+    u64                  ts;
+    std::thread::id      tid;
+    small_string<length> msg;
+    log_level            level;
 };
 
 using thread_journal = static_circular_buffer<log_record, 4096>;
@@ -65,16 +63,13 @@ u64 get_time_since_epoch() noexcept;
 /**
  * @brief Add message into the @c log_history buffer.
  * @param lvl level of log.
- * @param t title of the log.
- * @param msg = the content of the log.
+ * @param msg the content of the log.
  */
-inline void log(log_level        lvl,
-                std::string_view t,
-                std::string_view msg = std::string_view{}) noexcept
+inline void log(log_level lvl, std::string_view msg) noexcept
 {
     if (current_journal) [[likely]]
         current_journal->push(log_record{
-          get_time_since_epoch(), std::this_thread::get_id(), t, msg, lvl });
+          get_time_since_epoch(), std::this_thread::get_id(), msg, lvl });
 }
 
 /**
@@ -83,8 +78,7 @@ inline void log(log_level        lvl,
  * @param fn A function with title and message as argument
  *
  * @code
- * log(log_level::debug, [pos](auto& t, auto& m) {
- *     t = "The title";
+ * log(log_level::debug, [pos](auto& m) {
  *     format(m, "position is {},{}\n", pos.x, pos.y);
  * });
  * @endcode
@@ -98,48 +92,6 @@ inline void log(log_level level, Fn&& fn, Args&&... args) noexcept
             l.level = level;
             l.tid   = std::this_thread::get_id();
 
-            std::invoke(std::forward<Fn>(fn), l.t, l.msg,
-                        std::forward<Args>(args)...);
-        });
-    }
-}
-
-/**
- * @brief Add message into the @c log_history buffer.
- * @param lvl level of log.
- * @param t title of the log.
- * @param msg = the content of the log.
- */
-inline void log_m(log_level lvl, std::string_view msg) noexcept
-{
-    if (current_journal) [[likely]]
-        current_journal->push(log_record{ get_time_since_epoch(),
-                                          std::this_thread::get_id(),
-                                          std::string_view{}, msg, lvl });
-}
-
-/**
- * @brief Add message into the @c log_history buffer using callback.
- * @param lvl level of log.
- * @param fn A function with title and message as argument
- *
- * @code
- * log(log_level::debug, [pos](auto& t, auto& m) {
- *     t = "The title";
- *     format(m, "position is {},{}\n", pos.x, pos.y);
- * });
- * @endcode
- */
-template<typename Fn, typename... Args>
-inline void log_m(log_level level, Fn&& fn, Args&&... args) noexcept
-{
-    if (current_journal) [[likely]] {
-        current_journal->push([&](log_record& l) noexcept {
-            l.ts    = get_time_since_epoch();
-            l.level = level;
-            l.tid   = std::this_thread::get_id();
-            l.t.clear();
-
             std::invoke(std::forward<Fn>(fn), l.msg,
                         std::forward<Args>(args)...);
         });
@@ -151,19 +103,16 @@ namespace debug {
 /**
  * @brief Only in irt::debug mode, add message into the @c log_history buffer.
  * @param lvl level of log.
- * @param t title of the log.
  * @param msg = the content of the log.
  */
 irt_force_inline_attribute void log(
   [[maybe_unused]] log_level        lvl,
-  [[maybe_unused]] std::string_view t,
   [[maybe_unused]] std::string_view msg = std::string_view{}) noexcept
 {
     if constexpr (::irt::debug::enable_ensure == true) {
         if (current_journal) [[likely]]
-            current_journal->push(log_record{ get_time_since_epoch(),
-                                              std::this_thread::get_id(), t,
-                                              msg, lvl });
+            current_journal->push(log_record{
+              get_time_since_epoch(), std::this_thread::get_id(), msg, lvl });
     }
 }
 
@@ -174,8 +123,7 @@ irt_force_inline_attribute void log(
  * @param fn A function with title and message as argument
  *
  * @code
- * log(log_level::debug, [pos](auto& t, auto& m) {
- *     t = "The title";
+ * log(log_level::debug, [pos](auto& m) {
  *     format(m, "position is {},{}\n", pos.x, pos.y);
  * });
  * @endcode
@@ -191,56 +139,6 @@ irt_force_inline_attribute void log(log_level level,
                 l.ts    = get_time_since_epoch();
                 l.level = level;
                 l.tid   = std::this_thread::get_id();
-
-                std::invoke(std::forward<Fn>(fn), l.t, l.msg,
-                            std::forward<Args>(args)...);
-            });
-        }
-    }
-}
-
-/**
- * @brief Only in irt::debug mode, add message into the @c log_history buffer.
- * @param lvl level of log.
- * @param t title of the log.
- * @param msg = the content of the log.
- */
-irt_force_inline_attribute void log_m(log_level        lvl,
-                                      std::string_view msg) noexcept
-{
-    if constexpr (::irt::debug::enable_ensure == true) {
-        if (current_journal) [[likely]]
-            current_journal->push(log_record{ get_time_since_epoch(),
-                                              std::this_thread::get_id(),
-                                              std::string_view{}, msg, lvl });
-    }
-}
-
-/**
- * @brief Only in irt::debug mode, add message into the @c log_history buffer
- * using callback.
- * @param lvl level of log.
- * @param fn A function with title and message as argument
- *
- * @code
- * log(log_level::debug, [pos](auto& t, auto& m) {
- *     t = "The title";
- *     format(m, "position is {},{}\n", pos.x, pos.y);
- * });
- * @endcode
- */
-template<typename Fn, typename... Args>
-irt_force_inline_attribute void log_m(log_level level,
-                                      Fn&&      fn,
-                                      Args&&... args) noexcept
-{
-    if constexpr (::irt::debug::enable_ensure == true) {
-        if (current_journal) [[likely]] {
-            current_journal->push([&](log_record& l) noexcept {
-                l.ts    = get_time_since_epoch();
-                l.level = level;
-                l.tid   = std::this_thread::get_id();
-                l.t.clear();
 
                 std::invoke(std::forward<Fn>(fn), l.msg,
                             std::forward<Args>(args)...);
@@ -13126,9 +13024,9 @@ inline status queue::transition(simulation& sim,
               { irt::real(t + ta), msg[0], msg[1], msg[2] });
 
             if (not success)
-                log(log_level::alert, [](auto& t, auto& m) {
-                    t = "simulation";
-                    m = "queue::transition: failed to push message to fifo";
+                log(log_level::alert, [](auto& m) {
+                    m = "simulation: queue::transition: failed to push message "
+                        "to fifo";
                 });
         }
     }

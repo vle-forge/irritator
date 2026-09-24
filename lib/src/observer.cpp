@@ -134,10 +134,10 @@ void resampler::flush_batch(observer& obs) noexcept
           const auto n = m_batch.size();
 
           if (not history.can_alloc(n) and not history.template grow<2, 1>(n)) {
-              log(log_level::debug, [&](auto& t, auto& m) {
-                  t = "Simulation observation";
-                  m = "fail to allocate more observer history";
-              });
+              using namespace std::string_view_literals;
+
+              log(log_level::debug,
+                  "simulation: fail to allocate more observer history"sv);
               return;
           }
 

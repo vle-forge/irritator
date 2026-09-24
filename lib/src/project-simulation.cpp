@@ -75,10 +75,9 @@ static expected<irtb_files> open_irtb_file(
         jfile /= jfilename.sv();
         bfile /= bfilename.sv();
 
-        log(log_level::notice, [&](auto& t, auto& m) noexcept {
-            t = "Simulation observer logger";
-            format(m, "Using {} and {} to store observations", jfile.sv(),
-                   bfile.sv());
+        log(log_level::notice, [&](auto& m) noexcept {
+            format(m, "project: using {} and {} to store observations",
+                   jfile.sv(), bfile.sv());
         });
 
         auto j = file::open(jfile, file_mode(file_open_options::write));
@@ -88,10 +87,10 @@ static expected<irtb_files> open_irtb_file(
             return irtb_files{ .json_file   = std::move(*j),
                                .binary_file = std::move(*b) };
 
-        log(log_level::notice, [&](auto& t, auto& m) noexcept {
-            t = "Simulation observer logger";
-            format(m, "Error opening file {} and {} to store observations",
-                   jfile.sv(), bfile.sv());
+        log(log_level::notice, [&](auto& m) noexcept {
+            format(
+              m, "project: error opening file {} and {} to store observations",
+              jfile.sv(), bfile.sv());
         });
 
         return make_error(simulation_errc::file_open_error);
@@ -148,11 +147,9 @@ static status flush_to_irtb(const observers_type& observers,
         const auto ret     = flush_to_irtb(obs, cursors[obs_idx], out);
 
         if (ret.has_error()) {
-            log(log_level::error,
-                [ec = ret.error()](auto& t, auto& m) noexcept {
-                    format(t, "Simulation error in observation system");
-                    format(m, "Fail to write binary data: {}", ec);
-                });
+            log(log_level::error, [ec = ret.error()](auto& m) noexcept {
+                format(m, "project: fail to write binary data: {}", ec);
+            });
 
             return ret.error();
         }
@@ -300,24 +297,20 @@ status project::simulation_copy(const modeling& mod) noexcept
       .or_else([&](const auto ec) noexcept {
           simulation_state = simulation_status::not_started;
 
-          using namespace std::literals;
+          using namespace std::string_view_literals;
 
           switch (ec.cat()) {
           case category::project:
-              log(log_level::error, "Error importing the project"sv,
-                  "Error in project copy"sv);
+              log(log_level::error, "project: error in project copy"sv);
               break;
           case category::modeling:
-              log(log_level::error, "Error importing the project"sv,
-                  "Error in modeling copy"sv);
+              log(log_level::error, "project: error in modeling copy"sv);
               break;
           case category::simulation:
-              log(log_level::error, "Error importing the project"sv,
-                  "Error in simulation copy"sv);
+              log(log_level::error, "project: error in simulation copy"sv);
               break;
           default:
-              log(log_level::error, "Error importing the project"sv,
-                  "Unknown copy error"sv);
+              log(log_level::error, "project: error in copy error"sv);
               break;
           }
 
@@ -339,8 +332,7 @@ status project::simulation_init(const modeling& mod) noexcept
 
     if (not tree_nodes.exists(tn_head())) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error, "Error during initialization"sv,
-            "The component is empty"sv);
+        log(log_level::error, "project: the component is empty"sv);
         return make_error(project_errc::empty_project);
     }
 
@@ -349,8 +341,7 @@ status project::simulation_init(const modeling& mod) noexcept
 
     if (auto r = simulation_init_observation(mod); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error, "Error during initialization"sv,
-            "Observation system failed"sv);
+        log(log_level::error, "project: observation system failed"sv);
         return r.error();
     }
 
@@ -373,15 +364,13 @@ status project::simulation_init(const modeling& mod) noexcept
 
     if (auto r = sim.srcs.prepare(); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error, "Error during initialization"sv,
-            "External source system failed"sv);
+        log(log_level::error, "project: external source system failed"sv);
         return r.error();
     }
 
     if (auto r = sim.initialize(); r.has_error()) {
         simulation_state = simulation_status::not_started;
-        log(log_level::error, "Error during initialization"sv,
-            "Simulation system failed"sv);
+        log(log_level::error, "project: simulation system failed"sv);
         return r.error();
     }
 
@@ -395,7 +384,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     auto* tn = tree_nodes.try_to_get(data.tn_id);
 
     if (not tn) [[unlikely]] {
-        log_m(log_level::error, [&](auto& m) noexcept {
+        log(log_level::error, [&](auto& m) noexcept {
             format(m, "Fail to find tree node with ID {}", ordinal(data.tn_id));
         });
 
@@ -407,7 +396,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
     const auto sim_alloc = sim.can_alloc(1) or sim.grow_models<3, 2>();
 
     if (not tn_alloc or not sim_alloc) {
-        log_m(log_level::error, [&](auto& m) noexcept {
+        log(log_level::error, [&](auto& m) noexcept {
             format(m,
                    "Fail to allocate new model in tree node {} (capacity: {}",
                    ordinal(data.tn_id), tn->children.capacity());
@@ -419,7 +408,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
 
     if (auto ret = sim.make_initialize(mdl, sim.current_time());
         ret.has_error()) {
-        log_m(log_level::error, [&](auto& m) noexcept {
+        log(log_level::error, [&](auto& m) noexcept {
             format(m, "Fail to initialize new model of type {}",
                    dynamics_type_names[ordinal(data.type)]);
         });
@@ -434,7 +423,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
         if (auto r = new_json_irtb(sim.observers, mdl.obs_id,
                                    sim.current_time(), m_json_irtb);
             r.has_error()) {
-            log_m(log_level::error, [&](auto& m) noexcept {
+            log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(data.type)]);
             });
@@ -450,7 +439,7 @@ status project::simulation_free_model(
 {
     auto* tn = tree_nodes.try_to_get(data.tn_id);
     if (not tn) [[unlikely]] {
-        log_m(log_level::error, [&](auto& m) noexcept {
+        log(log_level::error, [&](auto& m) noexcept {
             format(m, "Fail to find tree node with ID {}", ordinal(data.tn_id));
         });
 
@@ -459,7 +448,7 @@ status project::simulation_free_model(
 
     auto* mdl = sim.models.try_to_get(data.mdl_id);
     if (not mdl) [[unlikely]] {
-        log_m(log_level::error, [&](auto& m) noexcept {
+        log(log_level::error, [&](auto& m) noexcept {
             format(m, "Fail to find model with ID {}", ordinal(data.mdl_id));
         });
 
@@ -470,7 +459,7 @@ status project::simulation_free_model(
         if (auto r = free_json_irtb(sim.observers, mdl->obs_id,
                                     sim.current_time(), m_json_irtb);
             r.has_error()) {
-            log_m(log_level::error, [&](auto& m) noexcept {
+            log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(mdl->type)]);
             });
@@ -500,7 +489,7 @@ status project::simulation_copy_model(
         return success();
 
     if (not sim.can_alloc(1) and not sim.grow_models<2, 1>()) {
-        log_m(log_level::error, [](auto& m) noexcept {
+        log(log_level::error, [](auto& m) noexcept {
             m = "Internal error: fail to allocate more models.";
         });
 
@@ -511,7 +500,7 @@ status project::simulation_copy_model(
 
     if (const auto r = sim.make_initialize(dst_mdl, sim.current_time());
         r.has_error()) {
-        log_m(log_level::error, [r](auto& m) noexcept {
+        log(log_level::error, [r](auto& m) noexcept {
             format(m, "Internal error: fail to initialize new model: {})",
                    r.error());
         });
@@ -537,7 +526,7 @@ status project::simulation_copy_model(
         if (auto r = new_json_irtb(sim.observers, dst_mdl.obs_id,
                                    sim.current_time(), m_json_irtb);
             r.has_error()) {
-            log_m(log_level::error, [&](auto& m) noexcept {
+            log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
                        dynamics_type_names[ordinal(dst_mdl.type)]);
             });
@@ -553,8 +542,8 @@ status project::simulation_new_connection(
     const auto can_connect = sim.can_connect(1) or sim.grow_connections<3, 2>();
 
     if (not can_connect) {
-        log_m(log_level::error,
-              [](auto& m) noexcept { m = "Fail to allocate new connection."; });
+        log(log_level::error,
+            [](auto& m) noexcept { m = "Fail to allocate new connection."; });
 
         return make_error(project_errc::memory_error);
     }
@@ -567,7 +556,7 @@ status project::simulation_new_connection(
 
     const auto r = sim.connect(*src, data.port_src, *dst, data.port_dst);
     if (r.has_error()) {
-        log_m(log_level::error, [r](auto& m) noexcept {
+        log(log_level::error, [r](auto& m) noexcept {
             format(m, "fail to allocate new connection ({}) ", r.error());
         });
 
@@ -601,13 +590,13 @@ status project::simulation_new_observer(
         if (sim.observers.can_alloc(1) or sim.observers.grow<3, 2>(1)) {
             sim.observe(*mdl);
         } else {
-            log_m(log_level::error, [&](auto& m) noexcept {
+            log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Failed to allocate observer. (capacity:{})",
                        sim.observers.capacity());
             });
         }
     } else {
-        log_m(log_level::error, [&](auto& msg) noexcept {
+        log(log_level::error, [&](auto& msg) noexcept {
             format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
@@ -621,7 +610,7 @@ status project::simulation_free_observer(
     if (auto* mdl = sim.models.try_to_get(data.mdl_id)) {
         sim.unobserve(*mdl);
     } else {
-        log_m(log_level::error, [&](auto& msg) noexcept {
+        log(log_level::error, [&](auto& msg) noexcept {
             format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
@@ -650,13 +639,13 @@ status project::simulation_send_message(
 
             mdl->tn = t;
         } else {
-            log_m(log_level::error, [&](auto& msg) noexcept {
+            log(log_level::error, [&](auto& msg) noexcept {
                 format(msg, "Model ID {} is not a constant model.",
                        ordinal(data.mdl_id));
             });
         }
     } else {
-        log_m(log_level::error, [&](auto& msg) noexcept {
+        log(log_level::error, [&](auto& msg) noexcept {
             format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
         });
     }
@@ -707,8 +696,8 @@ bool project::push(const command& cmd) noexcept
     using namespace std::literals;
 
     if (not commands.push(cmd)) {
-        log(log_level::error, "Simulation  live modeling error"sv,
-            "Fail to add command order in live simulation"sv);
+        log(log_level::error,
+            "simulation: fail to add command order in live simulation"sv);
         return false;
     }
 
@@ -866,7 +855,7 @@ status project::simulation_run_for(
         if (auto ret = sim.run(); ret.has_error()) {
             simulation_state = simulation_status::finish_requiring;
 
-            log_m(log_level::error, [&](auto& msg) noexcept {
+            log(log_level::error, [&](auto& msg) noexcept {
                 format(msg, "Fail in {} with error {}",
                        ordinal(ret.error().cat()), ret.error().value());
             });
@@ -1009,7 +998,7 @@ status project::simulation_step() noexcept
             if (auto ret = sim.run(); ret.has_error()) {
                 simulation_state = simulation_status::finish_requiring;
 
-                log_m(log_level::error, [&](auto& msg) noexcept {
+                log(log_level::error, [&](auto& msg) noexcept {
                     format(msg, "Fail in {} with error {}",
                            ordinal(ret.error().cat()), ret.error().value());
                 });
@@ -1042,9 +1031,8 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
     simulation_state = simulation_status::finished;
 
     if (ret.has_error()) {
-        log(log_level::error, [](auto& t, auto& m) {
-            t = "Simulation finalizing fail";
-            m = "FIXME from ret";
+        log(log_level::error, [&](auto& m) {
+            format(m, "simulation: finalizing fail: {}", ret.error());
         });
     }
 

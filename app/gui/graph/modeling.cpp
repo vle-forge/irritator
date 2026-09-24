@@ -270,12 +270,9 @@ bool graph_component_editor_data::show_graph(application& app,
                 } else {
                     log(
                       log_level::error,
-                      [](auto& t, auto& m, auto& id) {
-                          t = "Failed to add new node.";
-                          format(m,
-                                 "Error: category {} value {}",
-                                 ordinal(id.error().cat()),
-                                 id.error().value());
+                      [](auto& m, auto& id) {
+                          format(m, "graph-editor: fail to add more node {}",
+                                 id.error());
                       },
                       id);
                 }
@@ -788,9 +785,9 @@ void save_dot_file(application&       app,
             app.mod.ids.read([&](const auto& ids, auto) {
                 const auto file = fs.get_fs_path(file_id);
                 if (file.has_error()) {
-                    log(log_level::error, [&](auto& t, auto& m) {
-                        t = "Graph component editor";
-                        format(m, "Fail to open file {}\n", ordinal(file_id));
+                    log(log_level::error, [&](auto& m) {
+                        format(m, "graph-editor: Fail to open file {}\n",
+                               ordinal(file_id));
                     });
 
                     return;
@@ -798,9 +795,9 @@ void save_dot_file(application&       app,
 
                 const auto ret = write_dot_file(fs, ids, *g, *file);
                 if (ret.has_error()) {
-                    log(log_level::error, [&](auto& t, auto& m) {
-                        t = "Graph component editor";
-                        format(m, "Fail to write file {}\n", file->sv());
+                    log(log_level::error, [&](auto& m) {
+                        format(m, "graph-editor: Fail to write file {}\n",
+                               file->sv());
                     });
                 }
             });
