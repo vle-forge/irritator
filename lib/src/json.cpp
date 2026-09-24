@@ -92,39 +92,26 @@ struct json_dearchiver::impl {
         warnings.resize(start + ret.size);
 
         if (warnings.size() + 20 > warnings.capacity())
-            log(log_level::warning, [&](auto& title, auto& msg) {
-                format(title, "json warning {}\n", m_path);
-                msg = warnings.sv();
+            log(log_level::warning, [&](auto& msg) {
+                format(msg, "json warning {}: {}\n", m_path, warnings.sv());
             });
     }
 
     template<typename... T>
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        log(
-          log_level::error,
-          [](auto& title, auto& msg, auto path, auto& stack, auto& fmt,
-             auto args) {
-              format(title, "json error {}", path);
+        auto       title = small_string<255>{};
+        const auto ret = fmt::vformat_to_n(title.data(), title.capacity(), fmt,
+                                           fmt::make_format_args(args...));
+        title.resize(ret.size);
 
-              auto data      = msg.data();
-              sz   remaining = static_cast<int>(msg.capacity()) - 1;
-              sz   write     = 0;
+        log(log_level::error,
+            [&](auto& msg) { format(msg, "json error: {}", title.sv()); });
 
-              for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                  auto ret = fmt::format_to_n(data, remaining, "  {}: {}\n",
-                                              static_cast<int>(i),
-                                              stack[i].sv());
-                  write += ret.size;
-                  msg.resize(write);
-                  data = ret.out;
-                  remaining -= ret.size;
-              }
-
-              auto ret = fmt::vformat_to_n(data, remaining, fmt, args);
-              msg.resize(write + ret.size);
-          },
-          m_path, std::as_const(stack), fmt, fmt::make_format_args(args...));
+        for (const auto& e : stack) {
+            log(log_level::error,
+                [&](auto& msg) { format(msg, "- {}", e.sv()); });
+        }
 
         has_error = true;
 
@@ -4439,10 +4426,11 @@ struct json_dearchiver::impl {
                 return true;
             } else {
                 has_missing_dependent_component = true;
-                log(log_level::info, [&](auto& t, auto& m) {
-                    format(t, "simulation-component loader: {}", file);
-                    format(m, "Fail to load project ({}, {})",
-                           ordinal(pj_opt.error().cat()),
+                log(log_level::info, [&](auto& m) {
+                    format(m,
+                           "simulation-component: fail to load project "
+                           "{} with error ({}, {})",
+                           file, ordinal(pj_opt.error().cat()),
                            pj_opt.error().value());
                     return false;
                 });
@@ -7564,20 +7552,17 @@ struct json_archiver::impl {
                 if (not write_dot_file(files, ids, g.g, *f)) {
                     log(
                       log_level::error,
-                      [](auto& t, auto& m, const auto* dir,
-                         const auto* file) noexcept {
-                          t = "Fail to write dot file";
-                          format(m, "Fail to write {} in {}",
+                      [](auto& m, const auto* dir, const auto* file) noexcept {
+                          format(m, "dot-writer: fail to write {} in {}",
                                  dir ? dir->path.c_str() : "?",
                                  file ? file->path.c_str() : "?");
                       },
                       dir, file);
                 }
             } else {
-                log(log_level::error, [](auto& t, auto& m) noexcept {
-                    t = "Fail to write dot file";
-                    m = "File path is undefined";
-                });
+                using namespace std::string_view_literals;
+
+                log(log_level::error, "dot-writer: file path is undefined"sv);
             }
             break;
         }

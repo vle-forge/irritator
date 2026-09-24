@@ -71,8 +71,10 @@ static void new_file_task(application&                         app,
           app.mod.files.write([&](auto& fs) {
               auto file_id = fs.alloc_file(dir_id, name->sv(), type);
               if (is_undefined(file_id)) {
-                  log(log_level::error, [&](auto& t, auto& /*m*/) {
-                      t = "Fail to allocate a new directory";
+                  log(log_level::error, [&](auto& m) {
+                      format(m,
+                             "irritator: fail to allocate a new file (max: {})",
+                             fs.file_paths.size());
                   });
               } else {
                   file_b.fulfill(file_id);
@@ -91,16 +93,18 @@ static void new_directory_task(
         app.mod.files.write([&](auto& fs) {
             auto dir_id = fs.alloc_dir(reg_id, name->sv());
             if (is_undefined(dir_id)) {
-                log(log_level::error, [&](auto& t, auto& /*m*/) {
-                    t = "Fail to allocate a new directory";
+                log(log_level::error, [&](auto& m) {
+                    format(
+                      m,
+                      "irritator: fail to allocate a new directory (max: {})",
+                      fs.dir_paths.size());
                 });
             } else {
                 if (not fs.create_directories(dir_id)) {
-                    log(log_level::error, [&](auto& t, auto& m) {
-                        t = "Fail to create a new directory";
-                        format(m,
-                               "Fail to open and create directory {}",
-                               name->sv());
+                    log(log_level::error, [&](auto& m) {
+                        format(
+                          m, "irritator: fail to open and create directory {}",
+                          name->sv());
                     });
 
                     fs.dir_paths.free(dir_id);
@@ -499,8 +503,7 @@ application::application(log_history& jn_) noexcept
     task_mgr.start();
     journal_scope j;
 
-    log(log_level::info, [&](auto& t, auto& m) noexcept {
-        t = "irritator initialized";
+    log(log_level::info, [&](auto& m) noexcept {
         format(m,
                "Starting with {} ordered list {} unordered list and {} "
                "threads\n",
@@ -539,16 +542,9 @@ void application::try_set_component_as_project(const file_access& /*files*/,
 
                         if (const auto ret = pj->set(ids, fs, id);
                             ret.has_error()) {
-                            log(log_level::error, [&](auto& t, auto& m) {
-                                const auto cat = ret.error().cat();
-                                const auto err = ret.error().value();
-
-                                t = "Project: fail to set a new project";
-                                format(m,
-                                       "Error during import (category: {} "
-                                       "error: {})",
-                                       ordinal(cat),
-                                       err);
+                            log(log_level::error, [&](auto& m) {
+                                format(m, "project: error during import ({}))",
+                                       ret.error());
                             });
 
                             return;
@@ -593,16 +589,9 @@ void application::try_open_project_window(const file_access& /*files*/,
                     mod.ids.read([&](const auto& ids, auto) noexcept {
                         if (const auto ret = pj->load(fs, ids);
                             ret.has_error()) {
-                            log(log_level::error, [&](auto& t, auto& m) {
-                                const auto cat = ret.error().cat();
-                                const auto err = ret.error().value();
-
-                                t = "Project: fail to set a new project";
-                                format(m,
-                                       "Error during import (category: {} "
-                                       "error: {})",
-                                       ordinal(cat),
-                                       err);
+                            log(log_level::error, [&](auto& m) {
+                                format(m, "project: error during import ({})",
+                                       ret.error());
                             });
 
                             return;
@@ -666,8 +655,7 @@ bool application::init() noexcept
                 new_dir.priority = priorities[idx];
 
                 log(log_level::info,
-                    [&new_dir](auto& title, auto& msg) noexcept {
-                        title = "New directory registred";
+                    [&new_dir](auto& msg) noexcept {
                         format(msg,
                                "{} registred as path `{}' priority: {}",
                                new_dir.name.sv(),
@@ -681,9 +669,8 @@ bool application::init() noexcept
     });
 
     if (auto ret = mod.fill_components(); ret.has_error()) {
-        log(log_level::warning, [&](auto& title, auto& msg) noexcept {
-            title = "Modeling initialization error";
-            msg   = "Fail to fill read component list";
+        log(log_level::warning, [&](auto& msg) noexcept {
+            format(msg, "fail to read components ({})", ret.error());
         });
     }
 
@@ -821,11 +808,11 @@ void application::show_dock() noexcept
 
     if (auto new_pj = new_project_req.try_take(); new_pj.has_value()) {
         if (not pjs.can_alloc(1)) {
-            log(log_level::error, [&](auto& title, auto& msg) noexcept {
-                title = "Fail to allocate another project";
-                format(msg,
-                       "There is {} projects opened. Close one before.",
-                       pjs.size());
+            log(log_level::error, [&](auto& msg) noexcept {
+                format(
+                  msg,
+                  "project: there is {} projects opened. Close one before.",
+                  pjs.size());
             });
         } else {
             if (auto* pj_released = new_pj->release()) {
@@ -1111,23 +1098,20 @@ void application::start_load_project(const project_id pj_id) noexcept
         mod.files.read([&](const auto& fs, auto) noexcept {
             mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (auto ret = pj->pj.load(fs, ids); ret.has_value()) {
-                    log(log_level::info,
-                        [&](auto& title, auto& /*msg*/) noexcept {
-                            mod.files.read(
-                              [&](const auto& fs, const auto /*vesr*/) {
-                                  format(title,
-                                         "Loading project file {} success",
-                                         fs.file_paths.get(pj->pj.project_file)
-                                           .path.sv());
-                              });
-                        });
-                } else {
-                    log(log_level::error, [&](auto& title, auto& msg) noexcept {
+                    log(log_level::info, [&](auto& msg) noexcept {
                         mod.files.read([&](const auto& fs,
                                            const auto /*vesr*/) {
                             format(
-                              title,
-                              "Loading project file {} error",
+                              msg, "Loading project file {} success",
+                              fs.file_paths.get(pj->pj.project_file).path.sv());
+                        });
+                    });
+                } else {
+                    log(log_level::error, [&](auto& msg) noexcept {
+                        mod.files.read([&](const auto& fs,
+                                           const auto /*vesr*/) {
+                            format(
+                              msg, "Loading project file {} error",
                               fs.file_paths.get(pj->pj.project_file).path.sv());
                             format(msg, "{}", ret.error());
                         });
@@ -1148,18 +1132,16 @@ void application::start_save_project(const project_id pj_id) noexcept
         mod.files.read([&](const auto& fs, auto) noexcept {
             mod.ids.read([&](const auto& ids, auto) noexcept {
                 if (auto ret = pj_ed->pj.save(fs, ids); ret) {
-                    log(log_level::info,
-                        [&](auto& title, auto& /*msg*/) noexcept {
-                            mod.files.read([&](const auto& fs,
-                                               const auto /*vers*/) {
-                                format(title,
-                                       "Saving project file {} success",
-                                       fs.file_paths.get(pj_ed->pj.project_file)
-                                         .path.sv());
-                            });
-                        });
+                    log(log_level::info, [&](auto& msg) noexcept {
+                        mod.files.read(
+                          [&](const auto& fs, const auto /*vers*/) {
+                              format(msg, "Saving project file {} success",
+                                     fs.file_paths.get(pj_ed->pj.project_file)
+                                       .path.sv());
+                          });
+                    });
                 } else {
-                    log(log_level::error, [&](auto& title, auto& msg) noexcept {
+                    log(log_level::error, [&](auto& msg) noexcept {
                         const small_string<127> name = mod.files.read(
                           [&](const auto& fs, const auto /*vers*/) {
                               const auto* f = fs.file_paths.try_to_get(
@@ -1167,9 +1149,8 @@ void application::start_save_project(const project_id pj_id) noexcept
                               return f ? f->path.sv() : std::string_view{ "-" };
                           });
 
-                        format(
-                          title, "Saving project file {} error", name.sv());
-                        format(msg, "{}", ret.error());
+                        format(msg, "Saving project file {} error {}",
+                               name.sv(), ret.error());
                     });
                 }
             });
@@ -1186,18 +1167,16 @@ void application::start_save_component(const component_id id) noexcept
                     const auto& compo = ids.components[id];
 
                     if (auto ret = mod.save(ids, fs, id); not ret) {
-                        log(log_level::error, [&](auto& title, auto& msg) {
-                            title = "Component save error";
+                        log(log_level::error, [&](auto& msg) {
                             format(msg,
-                                   "Fail to save {} (part: {} {}",
-                                   compo.name.sv(),
-                                   ordinal(ret.error().cat()),
+                                   "component: fail to save {} (part: {} {}",
+                                   compo.name.sv(), ordinal(ret.error().cat()),
                                    ret.error().value());
                         });
                     } else {
-                        log(log_level::notice, [&](auto& title, auto& msg) {
-                            title = "Component save";
-                            format(msg, "Save {} success", compo.name.sv());
+                        log(log_level::notice, [&](auto& msg) {
+                            format(msg, "component: save {} success",
+                                   compo.name.sv());
                         });
                     }
                 }
@@ -1312,9 +1291,8 @@ void text_file_viewer::update(application&       app,
           });
 
         if (not filename.has_value()) {
-            log(log_level::error, [&](auto& title, auto& msg) {
-                title = "Text file viewer error";
-                msg   = "Fail to create file name";
+            log(log_level::error, [&](auto& msg) {
+                msg = "text-file: Fail to create file name";
             });
             return;
         }
@@ -1324,12 +1302,9 @@ void text_file_viewer::update(application&       app,
           file_mode{ file_open_options::read, file_open_options::text });
 
         if (file.has_error()) {
-            log(log_level::error, [&](auto& title, auto& msg) {
-                title = "Text file viewer error";
-                format(msg,
-                       "Fail to open file {} (part: {} {})",
-                       filename->sv(),
-                       ordinal(file.error().cat()),
+            log(log_level::error, [&](auto& msg) {
+                format(msg, "text-file: fail to open file {} (part: {} {})",
+                       filename->sv(), ordinal(file.error().cat()),
                        file.error().value());
             });
             return;
@@ -1339,12 +1314,10 @@ void text_file_viewer::update(application&       app,
           app.config.vars.text_file_viewer_max_file_size.load();
 
         if (file->length() > limit) {
-            log(log_level::error, [&](auto& title, auto& msg) {
-                title = "Text file viewer error";
+            log(log_level::error, [&](auto& msg) {
                 format(msg,
-                       "File {} is too big to be loaded ({} bytes)",
-                       filename->sv(),
-                       file->length());
+                       "text-file: file {} is too big to be loaded ({} bytes)",
+                       filename->sv(), file->length());
             });
             return;
         }

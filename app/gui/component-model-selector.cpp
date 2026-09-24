@@ -233,10 +233,10 @@ void component_model_selector::update(const project&     pj,
             tn_id              = undefined<tree_node_id>();
             mdl_id             = undefined<model_id>();
 
-            log(log_level::error, [&](auto& title, auto& msg) noexcept {
-                title = "Component model selector error";
-                msg   = "Fail to update component list";
-            });
+            using namespace std::string_view_literals;
+
+            log(log_level::error,
+                "component-model-selector: fail to update component list"sv);
         } else {
             component_selected = -1;
             for (sz i = 0, e = data.components.size(); i != e; ++i) {

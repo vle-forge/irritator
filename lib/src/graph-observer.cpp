@@ -21,9 +21,9 @@ static auto init_or_reuse_observer(project&               pj,
     } else {
         if (const auto ret = pj.sim.observe(mdl, timestep.to_double());
             ret.has_error()) {
-            log(log_level::error, [&](auto& t, auto& m) {
-                t = "Graph observation";
-                format(m, "Fail to observe a model {}\n", str);
+            log(log_level::error, [&](auto& m) {
+                format(m, "graph-observation: fail to observe a model {}\n",
+                       str);
             });
         }
     }
@@ -66,10 +66,9 @@ static void build_graph(graph_observer&  graph_obs,
                     graph_obs.observers[index] = init_or_reuse_observer(
                       pj, *mdl, graph_obs.timestep, child->unique_id.sv());
                 } else {
-                    log(log_level::warning, [&](auto& t, auto& m) noexcept {
-                        t = "Graph observer error";
+                    log(log_level::warning, [&](auto& m) noexcept {
                         format(m,
-                               "unique_id {} is not found",
+                               "graph-observation: unique_id {} is not found",
                                child->unique_id.sv());
                     });
                 }

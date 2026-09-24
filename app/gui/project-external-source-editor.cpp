@@ -84,13 +84,10 @@ static void display_allocate_external_source(application&    app,
     if (part.has_value()) {
         auto ret = display_allocate_external_source(app, ed, *part);
         if (not ret.has_value()) {
-            log(log_level::error,
-                [&](auto& title, auto& msg) {
-                    format(title,
-                           "Fail to initialize {} source",
-                           external_source_str(*part));
-                    format(msg, "{}", ret.error());
-                });
+            log(log_level::error, [&](auto& msg) {
+                format(msg, "external-source: fail to initialize {} source {}",
+                       external_source_str(*part), ret.error());
+            });
         }
     }
 }
@@ -731,8 +728,8 @@ void project_external_source_editor::show(application&    app,
                           ImGuiDataType_U32,
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         if (auto ret = ptr->init(); !ret) {
-                            log(log_level::error, [](auto& t, auto&) {
-                                t = "Fail to initialize binary file source";
+                            log(log_level::error, [](auto& m) {
+                                m = "Fail to initialize binary file source";
                             });
                         }
                     }
@@ -1124,34 +1121,31 @@ void show_menu_external_sources(external_source& srcs,
     if (constant_ptr) {
         src.reset();
         if (auto ret = constant_ptr->init(src, src_data); !ret) {
-            log(log_level::error, [](auto& t, auto&) {
-                t = "Fail to initalize constant source";
-            });
+            log(log_level::error,
+                [](auto& m) { m = "Fail to initalize constant source"; });
         }
     }
 
     if (binary_file_ptr) {
         src.reset();
         if (auto ret = binary_file_ptr->init(src, src_data); !ret) {
-            log(log_level::error, [](auto& t, auto&) {
-                t = "Fail to initalize binary file source";
-            });
+            log(log_level::error,
+                [](auto& m) { m = "Fail to initalize binary file source"; });
         }
     }
 
     if (text_file_ptr) {
         src.reset();
         if (auto ret = text_file_ptr->init(src, src_data); !ret) {
-            log(log_level::error, [](auto& t, auto&) {
-                t = "Fail to initalize text file source";
-            });
+            log(log_level::error,
+                [](auto& m) { m = "Fail to initalize text file source"; });
         }
     }
 
     if (random_ptr) {
         src.reset();
         // if (auto ret = random_ptr->init(src, src_data); !ret) {
-        //     log(log_level::error, [](auto& t, auto&) {
+        //     log(log_level::error, [](auto& m) {
         //         t = "Fail to initalize random source";
         //     });
         // }

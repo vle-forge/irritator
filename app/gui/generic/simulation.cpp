@@ -966,9 +966,8 @@ static int copy(project_editor&                                pj_ed,
                   .type = command_type::copy_model,
                   .data{ .copy_model{ .tn_id  = current,
                                       .mdl_id = nodes[index].mdl } } })) {
-                log(log_level::error, [](auto& title, auto& msg) noexcept {
-                    title = "Internal error during copy";
-                    msg   = "The project commands order list is full";
+                log(log_level::error, [](auto& msg) noexcept {
+                    msg = "simulation: commands order list is full";
                 });
                 return ret;
             }
@@ -990,9 +989,8 @@ static int new_model(project_editor&     pj_ed,
                                                       .type  = type,
                                                       .x     = click_pos.x,
                                                       .y = click_pos.y } } })) {
-        log(log_level::error, [](auto& title, auto& msg) noexcept {
-            title = "Internal error during model allocation";
-            msg   = "Project command order list is full";
+        log(log_level::error, [](auto& msg) noexcept {
+            msg = "simulation: command order list is full";
         });
 
         return false;
@@ -1014,9 +1012,8 @@ static int free_model(project_editor&    pj_ed,
                   .data{ .free_model{
                     .tn_id  = current,
                     .mdl_id = pj_ed.pj.sim.models.get_id(*mdl) } } })) {
-                log(log_level::error, [](auto& title, auto& msg) noexcept {
-                    title = "Internal error during model deletion";
-                    msg   = "The project commands order list is full";
+                log(log_level::error, [](auto& msg) noexcept {
+                    msg = "simulation: commands order list is full";
                 });
                 return ret;
             }
@@ -1051,9 +1048,8 @@ static int connect(project_editor&    pj_ed,
                      .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                      .port_src   = static_cast<i8>(out.port_index),
                      .port_dst   = static_cast<i8>(in.port_index) } } })) {
-        log(log_level::error, [](auto& title, auto& msg) noexcept {
-            title = "Internal error during connection";
-            msg   = "Project command order list is full";
+        log(log_level::error, [](auto& msg) noexcept {
+            msg = "simulation: commands order list is full";
         });
 
         return 0;
@@ -1082,9 +1078,8 @@ static int disconnect(project_editor&                                pj_ed,
                     .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                     .port_src   = static_cast<i8>(out.port_index),
                     .port_dst   = static_cast<i8>(in.port_index) } } })) {
-                log(log_level::error, [](auto& title, auto& msg) noexcept {
-                    title = "Internal error during disconnection";
-                    msg   = "Project command order list is full";
+                log(log_level::error, [](auto& msg) noexcept {
+                    msg = "simulation: commands order list is full";
                 });
 
                 return ret;

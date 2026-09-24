@@ -43,10 +43,9 @@ static bool push_back_if_not_find(vector<component_id>& vec,
 {
     if (can_add(vec, id)) {
         if (not vec.can_alloc(1) and not vec.template grow<2, 1>()) {
-            log(log_level::error, [&vec](auto& title, auto& msg) noexcept {
-                title = "Adding connection pack error";
+            log(log_level::error, [&vec](auto& msg) noexcept {
                 format(msg,
-                       "Not enough memory to allocate "
+                       "modeling: not enough memory to allocate "
                        "more connection pack ({})",
                        vec.capacity());
             });
@@ -811,17 +810,18 @@ static bool show_input_connections_new(const component_access& ids,
                     not ret) {
                     log(
                       log_level::error,
-                      [](auto& t, auto& m, auto ec) {
-                          t = "Fail to add input connection";
+                      [](auto& m, auto ec) {
                           if (ec.value() ==
                               ordinal(modeling_errc::
                                         graph_input_connection_already_exists))
-                              m = "Input connection already exists.";
+                              m = "modeling: fail to add input connection - "
+                                  "Input connection already exists.";
                           else if (ec.value() ==
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more "
+                              m = "modeling: fail to add input connection - "
+                                  "Not enough memory to allocate more "
                                   "input "
                                   "connection.";
                       },
@@ -902,18 +902,18 @@ static bool show_output_connections_new(const component_access& ids,
                     not ret) {
                     log(
                       log_level::error,
-                      [](auto& t, auto& m, auto ec) {
-                          t = "Fail to add input connection";
+                      [](auto& m, auto ec) {
                           if (ec.value() ==
                               ordinal(modeling_errc::
                                         graph_input_connection_already_exists))
-                              m = "Input connection already exists.";
+                              m = "modeling: fail to input connection - Input "
+                                  "connection already exists.";
                           else if (ec.value() ==
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more "
-                                  "input "
+                              m = "modeling: fail to input connection - Not "
+                                  "enough memory to allocate more input "
                                   "connection.";
                       },
                       ret.error());
@@ -1057,17 +1057,16 @@ static bool connect_input(const port_id      g_port_id,
     if (not ret) {
         log(
           log_level::error,
-          [](auto& t, auto& m, auto ec) {
-              t = "Fail to add input connection";
+          [](auto& m, auto ec) {
               if (ec.value() ==
                   ordinal(modeling_errc::graph_input_connection_already_exists))
-                  m = "Input connection already exists.";
+                  m = "modeling: fail to add input connection - Input "
+                      "connection already exists.";
               else if (ec.value() ==
                        ordinal(
                          modeling_errc::graph_input_connection_container_full))
-                  m = "Not enough memory to allocate more "
-                      "input "
-                      "connection.";
+                  m = "modeling: fail to add input connection - Not enough "
+                      "memory to allocate more input connection.";
           },
           ret.error());
 
@@ -1188,18 +1187,17 @@ static bool connect_output(const port_id      g_port_id,
     if (not ret) {
         log(
           log_level::error,
-          [](auto& t, auto& m, auto ec) {
-              t = "Fail to add output connection";
+          [](auto& m, auto ec) {
               if (ec.value() ==
                   ordinal(
                     modeling_errc::graph_output_connection_already_exists))
-                  m = "Output connection already exists.";
+                  m = "modeling: fail to add output connection - Output "
+                      "connection already exists.";
               else if (ec.value() ==
                        ordinal(
                          modeling_errc::graph_output_connection_container_full))
-                  m = "Not enough memory to allocate more "
-                      "output "
-                      "connection.";
+                  m = "modeling: fail to add output connection - Not enough "
+                      "memory to allocate more output connection.";
           },
           ret.error());
 
@@ -1261,17 +1259,17 @@ static bool show_input_connections_new(const component_access& ids,
             if (auto ret = graph.connect_input(con.x, con.v, con.id); not ret) {
                 log(
                   log_level::error,
-                  [](auto& t, auto& m, auto ec) {
-                      t = "Fail to add input connection";
+                  [](auto& m, auto ec) {
                       if (ec.value() ==
                           ordinal(modeling_errc::
                                     graph_input_connection_already_exists))
-                          m = "Input connection already exists.";
+                          m = "modeling: fail to add input connection - Input "
+                              "connection already exists.";
                       else if (ec.value() ==
                                ordinal(modeling_errc::
                                          graph_input_connection_container_full))
-                          m = "Not enough memory to allocate more "
-                              "input "
+                          m = "modeling: fail to add input connection - Not "
+                              "enough memory to allocate more input "
                               "connection.";
                   },
                   ret.error());
@@ -1337,18 +1335,18 @@ static bool show_output_connections_new(const component_access& ids,
                 not ret) {
                 log(
                   log_level::error,
-                  [](auto& t, auto& m, auto ec) {
-                      t = "Fail to add output connection";
+                  [](auto& m, auto ec) {
                       if (ec.value() ==
                           ordinal(modeling_errc::
                                     graph_output_connection_already_exists))
-                          m = "Output connection already exists.";
+                          m = "modeling: fail to add output connection - "
+                              "Output connection already exists.";
                       else if (ec.value() ==
                                ordinal(
                                  modeling_errc::
                                    graph_output_connection_container_full))
-                          m = "Not enough memory to allocate more "
-                              "output "
+                          m = "modeling: fail to add output connection - Not "
+                              "enough memory to allocate more output "
                               "connection.";
                   },
                   ret.error());
@@ -2263,21 +2261,19 @@ static auto display_component_editor(component_editor&      ed,
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
                             if (auto ret = app.mod.save(ids, fs, tab->id);
                                 not ret) {
-                                log(log_level::error, [&](auto& title,
-                                                          auto& msg) {
-                                    title = "Component save error";
-                                    format(msg, "Fail to save {} (part: {} {})",
+                                log(log_level::error, [&](auto& msg) {
+                                    format(msg,
+                                           "component: fail to save {} (part: "
+                                           "{} {})",
                                            tab->compo.name.sv(),
                                            ordinal(ret.error().cat()),
                                            ret.error().value());
                                 });
                             } else {
-                                log(log_level::notice,
-                                    [&](auto& title, auto& msg) {
-                                        title = "Component save";
-                                        format(msg, "Save {} success",
-                                               tab->compo.name.sv());
-                                    });
+                                log(log_level::notice, [&](auto& msg) {
+                                    format(msg, "component: save {} success",
+                                           tab->compo.name.sv());
+                                });
                             }
                         });
 
@@ -2428,9 +2424,8 @@ void component_editor::close(const component_id id) noexcept
     }
 }
 
-auto log_not_enough_memory = [](auto& title, auto& msg) noexcept {
-    title = "Component editor failure";
-    msg   = "Fail to allocate more component editor";
+auto log_not_enough_memory = [](auto& msg) noexcept {
+    msg = "component editor: fail to allocate more component editor";
 };
 
 void component_editor::request_to_open(const component_id id) noexcept

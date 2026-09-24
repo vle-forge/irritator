@@ -99,10 +99,9 @@ bool show_local_observers(application&    app,
 
                         g_ed.update(app, cgraph.g);
                     } else {
-                        log(log_level::error, [](auto& title, auto& msg) {
-                            title = "Project editor";
-                            msg   = "Too many graph editor opened. Close "
-                                    "some before to open a new one.";
+                        log(log_level::error, [](auto& msg) {
+                            msg = "project: too many graph editor opened. "
+                                  "Close some before to open a new one.";
                         });
                     }
                 }

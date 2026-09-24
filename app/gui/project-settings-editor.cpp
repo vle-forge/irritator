@@ -333,19 +333,18 @@ static bool show_project_simulation_settings(application&    app,
                 app.mod.files.read([&](const auto& fs, auto) noexcept {
                     app.mod.ids.read([&](const auto& ids, auto) noexcept {
                         if (auto ret = ed.pj.save(fs, ids); ret) {
-                            log(log_level::info, [&](auto& title,
-                                                     auto& /*msg*/) noexcept {
+                            log(log_level::info, [&](auto& msg) noexcept {
                                 app.mod.files.read([&](const auto& fs,
                                                        const auto /*vers*/) {
-                                    format(title,
-                                           "Saving project file {} success",
-                                           fs.file_paths.get(ed.pj.project_file)
-                                             .path.sv());
+                                    format(
+                                      msg,
+                                      "project: saving project file {} success",
+                                      fs.file_paths.get(ed.pj.project_file)
+                                        .path.sv());
                                 });
                             });
                         } else {
-                            log(log_level::error, [&](auto& title,
-                                                      auto& msg) noexcept {
+                            log(log_level::error, [&](auto& msg) noexcept {
                                 const small_string<127>
                                   name = app.mod.files.read(
                                     [&](const auto& fs, const auto /*vers*/) {
@@ -356,10 +355,10 @@ static bool show_project_simulation_settings(application&    app,
                                                  : std::string_view{ "-" };
                                     });
 
-                                format(title, "Saving project file {} error",
-                                       name.sv());
-
-                                format(msg, "{}", ret.error());
+                                format(
+                                  msg,
+                                  "project: saving project file {} error {}",
+                                  name.sv(), ret.error());
                             });
                         }
 

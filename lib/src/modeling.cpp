@@ -203,9 +203,8 @@ static status browse_directory(file_access&          fs,
         }
         return success();
     } catch (...) {
-        log(log_level::error, [&](auto& t, auto& m) noexcept {
-            t = "Modeling initialization error";
-            format(m, "Fail to register path {}", reg_dir.path.sv());
+        log(log_level::error, [&](auto& m) noexcept {
+            format(m, "modeling: fail to register path {}", reg_dir.path.sv());
         });
     }
 
@@ -245,14 +244,12 @@ static status browse_dirs_registred(file_access&                 fs,
                     if (auto ret =
                           browse_directory(fs, reg_dir, dir, it->path());
                         ret.has_error()) {
-                        log(log_level::error, [&](auto& t, auto& m) noexcept {
-                            t = "Modeling initialization error";
+                        log(log_level::error, [&](auto& m) noexcept {
                             format(m,
-                                   "Too many file in application for "
+                                   "modeling: too many file in application for "
                                    "registred path {} "
                                    "directory {} (size={}, capacityr={})",
-                                   reg_dir.name.sv(),
-                                   dir.path.sv(),
+                                   reg_dir.name.sv(), dir.path.sv(),
                                    fs.file_paths.size(),
                                    fs.file_paths.capacity());
                         });
@@ -263,9 +260,9 @@ static status browse_dirs_registred(file_access&                 fs,
             }
         }
     } catch (...) {
-        log(log_level::error, [&](auto& t, auto& m) noexcept {
-            t = "Modeling initialization error";
-            format(m, "File system error in paths {}\n", reg_dir.path.sv());
+        log(log_level::error, [&](auto& m) noexcept {
+            format(m, "modeling: file system error in paths {}\n",
+                   reg_dir.path.sv());
         });
     }
 
@@ -291,21 +288,19 @@ int file_access::browse_registred(const registred_path_id id) noexcept
             } else {
                 r->flags[fs_flag::access_error];
 
-                log(log_level::error, [&](auto& t, auto& m) noexcept {
-                    t = "Modeling initialization error";
+                log(log_level::error, [&](auto& m) noexcept {
                     format(m,
-                           "Registred path {} with value `{}' does not exists",
-                           r->name.sv(),
-                           r->path.sv());
+                           "modeling: registred path {} with value `{}' does "
+                           "not exists",
+                           r->name.sv(), r->path.sv());
                 });
             }
         } catch (...) {
-            log(log_level::error, [&](auto& t, auto& m) noexcept {
-                t = "Modeling initialization error";
+            log(log_level::error, [&](auto& m) noexcept {
                 format(m,
-                       "File system error registred patg {} with value `{}'\n",
-                       r->name.sv(),
-                       r->path.sv());
+                       "modelig: file system error registred patg {} with "
+                       "value `{}'\n",
+                       r->name.sv(), r->path.sv());
             });
         }
     }
@@ -426,10 +421,10 @@ status modeling::fill_components() noexcept
                       } else {
                           log(
                             log_level::warning,
-                            [&](auto& t, auto& m, const auto& f) noexcept {
-                                t = "Modeling initialization error";
+                            [&](auto& m, const auto& f) noexcept {
                                 format(m,
-                                       "Fail to read dot graph `{}' ({}:{})",
+                                       "modeling: fail to read dot graph `{}' "
+                                       "({}:{})",
                                        reinterpret_cast<const char*>(f.c_str()),
                                        ordinal(ret.error().cat()),
                                        ret.error().value());
@@ -464,15 +459,13 @@ status modeling::fill_components() noexcept
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
-                                log(log_level::warning,
-                                    [&](auto& t, auto& m) noexcept {
-                                        t = "Modeling initialization error";
-                                        format(m,
-                                               "Need to read dependency for "
-                                               "component {} ({})",
-                                               compo.name.sv(),
-                                               ordinal(id));
-                                    });
+                                log(log_level::warning, [&](auto& m) noexcept {
+                                    format(
+                                      m,
+                                      "modeling: need to read dependency for "
+                                      "component {} ({})",
+                                      compo.name.sv(), ordinal(id));
+                                });
                                 have_unread_component = true;
                                 break;
 
@@ -485,13 +478,12 @@ status modeling::fill_components() noexcept
                                 break;
 
                             case component_status::unreadable:
-                                log(log_level::warning,
-                                    [&](auto& t, auto& m) noexcept {
-                                        t = "Modeling initialization error";
-                                        format(m,
-                                               "Fail to read component `{}'",
-                                               compo.name.sv());
-                                    });
+                                log(log_level::warning, [&](auto& m) noexcept {
+                                    format(
+                                      m,
+                                      "modeling: fail to read component `{}'",
+                                      compo.name.sv());
+                                });
                                 break;
                             }
                         } else {

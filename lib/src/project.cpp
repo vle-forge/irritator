@@ -521,9 +521,10 @@ static auto make_tree_hsm_leaf(const project_to_simulation& sc,
     const auto compo_id   = enum_cast<component_id>(id_param_0);
 
     if (not ids.exists(compo_id)) {
-        log(log_level::error, [&](auto& t, auto&) {
-            t = "hsm-wrapper initialization error: undefined component";
-        });
+        using namespace std::string_view_literals;
+
+        log(log_level::error,
+            "project: hsm-wrapper initialization error: undefined component"sv);
         return make_error(project_errc::component_unknown);
     }
 
@@ -557,9 +558,11 @@ static auto make_tree_simulation_leaf(const project_to_simulation& sc,
     const auto compo_id   = enum_cast<component_id>(id_param_0);
 
     if (not ids.exists(compo_id)) {
-        log(log_level::error, [&](auto& t, auto&) {
-            t = "simulation-wrapper initialization error: undefined component";
-        });
+        using namespace std::string_view_literals;
+
+        log(
+          log_level::error,
+          "project: simulation-wrapper initialization error: undefined component"sv);
         return make_error(project_errc::component_unknown);
     }
 
@@ -873,12 +876,11 @@ static status make_tree_recursive(project_to_simulation&  sc,
                                          child);
 
             if (not mdl_id) {
-                log(log_level::error, [&](auto& t, auto& m) noexcept {
-                    t = "Project: import error in generic component";
-                    format(m,
-                           "model {} dynamics type {}",
-                           src.children_names[child_idx].sv(),
-                           dynamics_type_names[ordinal(mdl_type)]);
+                log(log_level::error, [&](auto& m) noexcept {
+                    format(
+                      m, "project: fail to allocate model {} dynamics type {}",
+                      src.children_names[child_idx].sv(),
+                      dynamics_type_names[ordinal(mdl_type)]);
                 });
 
                 return mdl_id.error();
@@ -2237,8 +2239,12 @@ status project::set(const component_access& ids,
     sim.grow_models_to(req.model_nb);
     sim.grow_connections_to(req.model_nb * 8);
 
-    log(log_level::debug,
-        [&](auto&, auto& m) { format(m, "Project memory initialization"); });
+    log(log_level::debug, [&](auto& m) {
+        format(m,
+               "project: memory initialization (model: {} - hsm: {} - "
+               "tree-nodes: {}",
+               req.model_nb, req.hsm_nb, req.tree_node_nb);
+    });
 
     project_to_simulation sc(*this);
     irt_check(sc.make_hsm_mod_to_sim(ids));

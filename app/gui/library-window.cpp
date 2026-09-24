@@ -13,22 +13,20 @@ namespace irt {
 
 static bool can_delete_component(application& app, component_id id) noexcept
 {
+    using namespace std::string_view_literals;
+
     switch (app.library_wnd.is_component_deletable(app, id)) {
     case library_window::is_component_deletable_t::deletable:
         return true;
 
     case library_window::is_component_deletable_t::used_by_component:
-        log(log_level::info, [](auto& title, auto& msg) noexcept {
-            title = "Can not delete this component";
-            msg   = "This component is used in another component";
-        });
+        log(log_level::info, "library: can not delete this component. This "
+                             "component is used in another component"sv);
         break;
 
     case library_window::is_component_deletable_t::used_by_project:
-        log(log_level::info, [](auto& title, auto& msg) noexcept {
-            title = "Can not delete this component";
-            msg   = "This component is used in project";
-        });
+        log(log_level::info, "library: can not delete this component. This "
+                             "component is used in a project"sv);
         break;
     }
 
@@ -41,6 +39,8 @@ static void show_component_popup_menu(application&            app,
                                       const component_id      compo_id,
                                       const component&        sel) noexcept
 {
+    using namespace std::string_view_literals;
+
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component"))
             app.component_ed.add_generic_component_data();
@@ -63,22 +63,15 @@ static void show_component_popup_menu(application&            app,
             app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
                 app.mod.ids.write([&](auto& ids) noexcept {
                     if (not ids.can_alloc_component(1)) {
-                        log(log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Library";
-                                msg = "Fail to copy model: too many component";
-                            });
-
+                        log(
+                          log_level::error,
+                          "library: fail to copy model: too many component"sv);
                         return;
                     }
 
                     const auto c = ids.copy(compo_id);
                     if (c.has_error()) {
-                        log(log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Library";
-                                msg   = "Fail to copy model";
-                            });
+                        log(log_level::error, "library: fail to copy model"sv);
                         return;
                     }
                 });
@@ -117,9 +110,10 @@ static void show_component_popup_menu(application&            app,
                                 if (std::filesystem::exists(std_path, ec)) {
                                     std::filesystem::remove(std_path, ec);
                                     log(log_level::notice,
-                                        [&](auto& title, auto& msg) noexcept {
-                                            title = "Remove component file";
-                                            format(msg, "File `{}' removed",
+                                        [&](auto& msg) noexcept {
+                                            format(msg,
+                                                   "library: File `{}' removed "
+                                                   "from component list",
                                                    file->sv());
                                         });
                                 }
@@ -561,23 +555,20 @@ void library_window::show_menu() noexcept
                             const auto compo_id = ids.alloc_generic_component();
 
                             if (is_undefined(compo_id)) {
-                                log(log_level::error, [](auto& t, auto& m) {
-                                    t = "Library: copy in generic "
-                                        "component";
-                                    m = "Can not allocate a new component";
-                                });
-                                return;
+                                log(log_level::error,
+                                    std::string_view(
+                                      "library: can not allocate a new "
+                                      "component"));
                             }
 
                             const auto ret = ids.copy(
                               enum_cast<internal_component>(i), compo_id);
 
                             if (ret.has_error())
-                                log(log_level::error, [i](auto& t, auto& m) {
-                                    t = "Library: copy in "
-                                        "generic component";
+                                log(log_level::error, [i](auto& m) {
                                     format(m,
-                                           "Fail to copy {} into a new generic "
+                                           "library: fail to copy {} into a "
+                                           "new generic "
                                            "component",
                                            internal_component_names[i]);
                                 });

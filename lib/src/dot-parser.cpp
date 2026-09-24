@@ -259,13 +259,9 @@ private:
         warnings.resize(start + ret.size);
 
         if (warnings.size() + 20 > warnings.capacity())
-            log(
-              log_level::warning,
-              [](auto& title, auto& msg, const auto& w) {
-                  title = "Dot parser warning";
-                  msg   = w.sv();
-              },
-              warnings);
+            log(log_level::warning, [&](auto& msg) {
+                format(msg, "dot-parser: {}", warnings.sv());
+            });
     }
 
     template<msg_id Index, typename... Args>
@@ -274,16 +270,14 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        log(
-          log_level::error,
-          [](auto& title, auto& msg, auto& format, auto args) {
-              title = "Dot parser error";
+        auto       title = small_string<255>{};
+        const auto ret   = fmt::vformat_to_n(title.data(), title.capacity(),
+                                             msg_fmt[idx],
+                                             fmt::make_format_args(args...));
+        title.resize(ret.size);
 
-              auto ret = fmt::vformat_to_n(msg.data(), msg.capacity() - 1,
-                                           format, args);
-              msg.resize(ret.size);
-          },
-          msg_fmt[idx], fmt::make_format_args(args...));
+        log(log_level::error,
+            [&](auto& msg) { format(msg, "dot-parser: {}", title.sv()); });
 
         return false;
     }
@@ -867,9 +861,10 @@ private:
         const auto  file_id = fs.find_file(name_3.reg, name_3.dir, name_3.file);
         const auto* fp      = fs.file_paths.try_to_get(file_id);
         if (not fp) {
-            log(log_level::error, [&](auto& t, auto& m) {
-                t = "Dot parser error";
-                format(m, "Fail to found component from string: `{}'", str);
+            log(log_level::error, [&](auto& m) {
+                format(m,
+                       "dot-paser: fail to found component from string: `{}'",
+                       str);
             });
 
             return undefined<component_id>();
@@ -879,9 +874,9 @@ private:
             if (ids.component_file_paths[id].file == file_id)
                 return id;
 
-        log(log_level::error, [&](auto& t, auto& m) {
-            t = "Dot parser error";
-            format(m, "Fail to found component from string: `{}'", str);
+        log(log_level::error, [&](auto& m) {
+            format(m, "dot-parser: fail to found component from string: `{}'",
+                   str);
         });
 
         return undefined<component_id>();

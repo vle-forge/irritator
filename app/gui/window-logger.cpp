@@ -22,27 +22,21 @@ static inline constexpr std::string_view log_level_enhanced_names[] = {
 
 static inline constexpr std::size_t max_history_size = 4096;
 
-static auto display_text(
-  ImFont&                                       font,
-  const std::string_view                        level,
-  const small_string<log_record::title_length>& title,
-  const small_string<log_record::msg_length>&   description) noexcept -> void
+static auto display_text(ImFont&                                 font,
+                         const std::string_view                  level,
+                         const small_string<log_record::length>& msg) noexcept
+  -> void
 {
     ImGui::PushFont(&font);
     ImGui::TextFormat("{}", level);
     ImGui::PopFont();
 
-    if (not title.empty()) {
-        ImGui::SameLine();
-        ImGui::TextFormat(" {}\n", title.sv());
-    }
-
-    if (not description.empty()) {
+    if (not msg.empty()) {
         ImGui::PushFont(&font);
         ImGui::TextUnformatted("\ue016");
         ImGui::PopFont();
         ImGui::SameLine();
-        ImGui::TextWrapped("%s", description.c_str());
+        ImGui::TextWrapped("%s", msg.c_str());
     }
 
     ImGui::Separator();
@@ -107,7 +101,7 @@ void window_logger::show() noexcept
             const auto str       = log_level_enhanced_names[l_current];
 
             if (l_min >= l_current)
-                display_text(*app.icons, str, l.t, l.msg);
+                display_text(*app.icons, str, l.msg);
         }
 
         if (span.size() > max_history_size)
