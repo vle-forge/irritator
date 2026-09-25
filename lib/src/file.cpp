@@ -33,49 +33,11 @@
 
 namespace irt {
 
-std::ifstream path::open_std_ifstream() const noexcept
-{
-    debug::ensure(not empty());
-
-    const auto std_path = to_std_path();
-
-    return std::ifstream(std_path);
-}
-
-std::ofstream path::open_std_ofstream() const noexcept
-{
-    debug::ensure(not empty());
-
-    const auto std_path = to_std_path();
-
-    return std::ofstream(std_path);
-}
-
-std_file path::open_std_file(const char* mode) const noexcept
-{
-    debug::ensure(not empty());
-
-#if defined(_WIN32)
-    try {
-        const auto std_path = to_std_path();
-        wchar_t    wmode[8]{};
-        std::mbstowcs(wmode, mode, std::size(wmode) - 1);
-
-        return std_file(_wfopen(std_path.c_str(), wmode));
-    } catch (...) {
-        return std_file();
-    }
-#else
-    return std_file(std::fopen(c_str(), mode));
-#endif
-}
-
 /* * * * * * * * * * *
  *
  * irt::file impl
  *
  * * * * * * * * * * */
-
 
 static constexpr auto get_mode(const file_mode c) noexcept -> small_string<8>
 {
@@ -326,6 +288,23 @@ expected<file> file::open(const path& filename, const file_mode mode) noexcept
 
     if (not f.get())
         return make_error(modeling_errc::file_error);
+
+    return file{ std::move(f), mode };
+}
+
+std::optional<file> file::try_open(const path&     filename,
+                                   const file_mode mode) noexcept
+{
+    debug::ensure(filename != nullptr);
+
+    if (filename.empty())
+        return std::nullopt;
+
+    const auto m = ::irt::get_mode(mode);
+    auto       f = filename.open_std_file(m.c_str());
+
+    if (not f.get())
+        return std::nullopt;
 
     return file{ std::move(f), mode };
 }
@@ -743,6 +722,308 @@ bool memory::write(const void* buffer, i64 length) noexcept
     }
 
     return false;
+}
+
+/* * * * * * * * * *
+ *
+ * is-portable-filenamme
+ *
+ * * * * * * * * * */
+
+namespace details {
+
+struct decoded_codepoint {
+    char32_t    cp  = 0;
+    std::size_t len = 0; // 0 means utf-8 sequence is invalid
+};
+
+// Decodes one utf-8 code point at position i. Rejects truncated
+// sequences, overlong encodings, utf16 surrogates (U+D800..U+DFFF) and
+// values beyond U+10FFFF.
+static constexpr decoded_codepoint decode_utf8(std::string_view s,
+                                               std::size_t      i) noexcept
+{
+    const auto b0 = static_cast<unsigned char>(s[i]);
+
+    if (b0 < 0x80)
+        return { b0, 1 };
+
+    std::size_t len     = 0;
+    char32_t    cp      = 0;
+    char32_t    min_val = 0;
+
+    if ((b0 & 0xE0) == 0xC0) {
+        len     = 2;
+        cp      = b0 & 0x1F;
+        min_val = 0x80;
+    } else if ((b0 & 0xF0) == 0xE0) {
+        len     = 3;
+        cp      = b0 & 0x0F;
+        min_val = 0x800;
+    } else if ((b0 & 0xF8) == 0xF0) {
+        len     = 4;
+        cp      = b0 & 0x07;
+        min_val = 0x10000;
+    } else {
+        return {};
+    }
+
+    if (len > s.size() - i)
+        return {};
+
+    for (std::size_t k = 1; k < len; ++k) {
+        const auto b = static_cast<unsigned char>(s[i + k]);
+        if ((b & 0xC0) != 0x80)
+            return {};
+        cp = (cp << 6) | (b & 0x3F);
+    }
+
+    if (cp < min_val || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+        return {};
+
+    return { cp, len };
+}
+
+static constexpr char ascii_upper(char c) noexcept
+{
+    return (c >= 'a' && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
+}
+
+static constexpr bool iequals_ascii(std::string_view a,
+                                    std::string_view b) noexcept
+{
+    if (a.size() != b.size())
+        return false;
+
+    for (std::size_t i = 0, e = a.size(); i < e; ++i)
+        if (ascii_upper(a[i]) != ascii_upper(b[i]))
+            return false;
+
+    return true;
+}
+
+// Device names reserved by Windows, case-insensitive, even when followed
+// by an extension ("con.txt", "Nul.tar.gz", "COM1 .log").
+static constexpr bool is_windows_reserved(std::string_view name) noexcept
+{
+    auto stem = name.substr(0, name.find('.'));
+    while (!stem.empty() && stem.back() == ' ')
+        stem.remove_suffix(1);
+
+    constexpr std::string_view simple[] = { "CON", "PRN",    "AUX",
+                                            "NUL", "CONIN$", "CONOUT$" };
+    for (const auto r : simple)
+        if (iequals_ascii(stem, r))
+            return true;
+
+    constexpr std::string_view numbered[] = { "COM", "LPT" };
+    for (const auto p : numbered) {
+        if (stem.size() < 4 || !iequals_ascii(stem.substr(0, 3), p))
+            continue;
+
+        const auto suffix = stem.substr(3);
+        if (suffix.size() == 1 && suffix[0] >= '0' && suffix[0] <= '9')
+            return true;
+
+        // COM¹ COM² COM³ LPT¹ LPT² LPT³ (U+00B9, U+00B2, U+00B3)
+        if (suffix == "\xC2\xB9" || suffix == "\xC2\xB2" ||
+            suffix == "\xC2\xB3")
+            return true;
+    }
+
+    return false;
+}
+
+// Returns true if @c name is a valid file or directory name on Windows,
+// Linux and macOS simultaneously.
+static constexpr bool is_portable_filename(std::string_view name) noexcept
+{
+    // 255 utf8 bytes: ext4/APFS limit. Since a code point never takes
+    // more UTF-16 code units than utf8 bytes, this also guarantees the
+    // NTFS/HFS+ limit of 255 UTF-16 code units.
+
+    if (name.empty() || name.size() > 255)
+        return false;
+
+    // Windows silently strips a trailing dot or space.
+    // Also covers "." and "..".
+
+    if (name.back() == ' ' || name.back() == '.')
+        return false;
+
+    for (std::size_t i = 0; i < name.size();) {
+        const auto [cp, len] = decode_utf8(name, i);
+        if (len == 0)
+            return false; // invalid utf8 (rejected by APFS)
+
+        if (cp < 0x20 || cp == 0x7F)
+            return false; // control characters (0x7F: out of caution)
+
+        switch (cp) {
+        case U'<':
+        case U'>':
+        case U':':
+        case U'"':
+        case U'/':
+        case U'\\':
+        case U'|':
+        case U'?':
+        case U'*':
+            return false;
+        default:
+            break;
+        }
+
+        i += len;
+    }
+
+    return !is_windows_reserved(name);
+}
+
+static_assert(is_portable_filename("rapport.txt"));
+static_assert(is_portable_filename("r\xC3\xA9sum\xC3\xA9.txt")); // résumé.txt
+static_assert(is_portable_filename("\xF0\x9F\x98\x80"));         // emoji
+static_assert(is_portable_filename("console.log"));
+static_assert(is_portable_filename("COM10"));
+static_assert(!is_portable_filename(""));
+static_assert(!is_portable_filename("."));
+static_assert(!is_portable_filename(".."));
+static_assert(!is_portable_filename("fichier."));
+static_assert(!is_portable_filename("fichier "));
+static_assert(!is_portable_filename("a:b"));
+static_assert(!is_portable_filename("a/b"));
+static_assert(!is_portable_filename("a\\b"));
+static_assert(!is_portable_filename("con"));
+static_assert(!is_portable_filename("Nul.tar.gz"));
+static_assert(!is_portable_filename("lpt9.txt"));
+static_assert(!is_portable_filename("COM\xC2\xB9.txt")); // COM¹.txt
+static_assert(!is_portable_filename("\xC0\xAF"));        // overlong encoding
+static_assert(!is_portable_filename("\xED\xA0\x80"));    // surrogate
+static_assert(!is_portable_filename("a\xC3"));           // truncated sequence
+
+} // namespace details
+
+bool is_portable_filename(std::string_view name) noexcept
+{
+    return details::is_portable_filename(name);
+}
+
+path& path::operator/=(std::string_view directory) noexcept
+{
+    if (!empty() && back() != '/')
+        push_back('/');
+
+    debug::ensure(can_append(directory));
+    debug::ensure(is_portable_filename(directory));
+
+    append(directory);
+
+    return *this;
+}
+
+file_type path::has_extension() const noexcept
+{
+    const auto str = sv();
+
+    auto best        = file_type::undefined_file;
+    auto best_length = sz{ 0 };
+
+    for (std::size_t i = 1; i < std::size(file_type_names); ++i) {
+        const auto ext = file_type_names[i];
+        if (ext.size() > best_length && str.ends_with(ext)) {
+            best        = static_cast<file_type>(i);
+            best_length = ext.size();
+        }
+    }
+
+    return best;
+}
+
+void path::replace_extension(const file_type type) noexcept
+{
+    debug::ensure(type != file_type::undefined_file);
+
+    if (const auto current = has_extension();
+        current != file_type::undefined_file) {
+        const auto old_ext = file_type_names[static_cast<std::size_t>(current)];
+        resize(size() - old_ext.size());
+    }
+
+    const auto new_ext = file_type_names[static_cast<std::size_t>(type)];
+    debug::ensure(std::cmp_less_equal(size() + new_ext.size(), capacity()));
+    append(new_ext);
+}
+
+std::string_view path::filename() const noexcept
+{
+    const std::string_view str = sv();
+    const auto             pos = str.find_last_of('/');
+
+    return pos == std::string_view::npos ? str : str.substr(pos + 1);
+}
+
+std::string_view path::extension() const noexcept
+{
+    const auto fn  = filename();
+    const auto pos = fn.find_last_of('.');
+    return pos == std::string_view::npos ? std::string_view{} : fn.substr(pos);
+}
+
+path path::parent_directory() const noexcept
+{
+    const std::string_view str = sv();
+    const auto             pos = str.find_last_of('/');
+
+    path ret;
+    if (pos != std::string_view::npos)
+        ret.append(str.substr(0, pos));
+    return ret;
+}
+
+std::filesystem::path path::to_std_path() const noexcept
+{
+    debug::ensure(not empty());
+
+    return std::filesystem::path(
+      reinterpret_cast<const char8_t*>(data()),
+      reinterpret_cast<const char8_t*>(data() + size()));
+}
+
+std::ifstream path::open_std_ifstream() const noexcept
+{
+    debug::ensure(not empty());
+
+    const auto std_path = to_std_path();
+
+    return std::ifstream(std_path);
+}
+
+std::ofstream path::open_std_ofstream() const noexcept
+{
+    debug::ensure(not empty());
+
+    const auto std_path = to_std_path();
+
+    return std::ofstream(std_path);
+}
+
+std_file path::open_std_file(const char* mode) const noexcept
+{
+    debug::ensure(not empty());
+
+#if defined(_WIN32)
+    try {
+        const auto std_path = to_std_path();
+        wchar_t    wmode[8]{};
+        std::mbstowcs(wmode, mode, std::size(wmode) - 1);
+
+        return std_file(_wfopen(std_path.c_str(), wmode));
+    } catch (...) {
+        return std_file();
+    }
+#else
+    return std_file(std::fopen(c_str(), mode));
+#endif
 }
 
 } // namespace irt

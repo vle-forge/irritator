@@ -33,23 +33,27 @@ enum class seek_origin : u8 { current, end, set };
 class file
 {
 public:
-    /**
-       @brief Try to open a file.
-
-       @example
-       const auto filename = path("data.bin");
-       auto file =  file::open(filename, file::mode::read);
-       if (file) {
-         int x, y, z;
-         return file->read(x) && file->read(y) && file->read(z);
-       }
-       @endexample
-
-       @param  filename File name in utf-8.
-       @return @c file if success @c error_code otherwise.
-     */
+    /// @brief Try to open a file.
+    ///
+    /// @example
+    /// const auto filename = path("data.bin");
+    /// auto file =  file::open(filename, file::mode::read);
+    /// if (file) {
+    ///   int x, y, z;
+    ///   return file->read(x) && file->read(y) && file->read(z);
+    /// }
+    /// @endexample
+    ///
+    /// @param  filename File name in utf-8.
+    /// @return @c file if success @c error_code otherwise.
     static expected<file> open(const path&     filename,
                                const file_mode mode) noexcept;
+
+    /// Try to open a file.
+    /// @param fillename The file name in utf-8.
+    /// @return @c file if success or std::nullopt_t otherwise.
+    static std::optional<file> try_open(const path&     filename,
+                                        const file_mode mode) noexcept;
 
     /**
        Try to create a temporary @a file. This function neither returns a
@@ -233,8 +237,8 @@ public:
     /// Get access to the underlying std::FILE handler (can be nullptr).
     std::FILE* to_file() const noexcept;
 
-    /// Get the mode 
-    file_mode  get_mode() const noexcept;
+    /// Get the mode
+    file_mode get_mode() const noexcept;
 
 private:
     file(std_file&& f, file_mode m) noexcept
