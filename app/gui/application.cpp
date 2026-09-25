@@ -164,10 +164,8 @@ void file_selector::combobox_dir(application&       app,
             if (not already_exist) {
                 if (new_dir_.should_request()) {
                     new_directory_task(
-                      app,
-                      reg_id_,
-                      std::make_unique<directory_path_str>(buffer),
-                      new_dir_);
+                      app, reg_id_,
+                      std::make_unique<directory_path_str>(buffer), new_dir_);
                 }
             }
         }
@@ -251,9 +249,7 @@ void file_selector::combobox_file(application&       app,
                 add_extension(buffer, type);
 
             if (new_file_.should_request()) {
-                new_file_task(app,
-                              dir_id_,
-                              type,
+                new_file_task(app, dir_id_, type,
                               std::make_unique<file_path_str>(buffer),
                               new_file_);
             }
@@ -407,8 +403,7 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 {
     ImGui::SeparatorText("C++");
 
-    static const char* names[] = { "models and connections",
-                                   "and final tests",
+    static const char* names[] = { "models and connections", "and final tests",
                                    "and tests in progress" };
 
     debug::ensure(options <= 2u);
@@ -428,10 +423,7 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 
         app.add_gui_task([&]() {
             const auto ret = write_test_simulation(
-              stdout,
-              ed.pj.name.sv(),
-              ed.pj.sim,
-              ed.pj.sim.limits.begin(),
+              stdout, ed.pj.name.sv(), ed.pj.sim, ed.pj.sim.limits.begin(),
               ed.pj.sim.limits.end(),
               enum_cast<write_test_simulation_options>(options));
 
@@ -506,8 +498,7 @@ application::application(log_history& jn_) noexcept
         format(m,
                "Starting with {} ordered list {} unordered list and {} "
                "threads\n",
-               task_mgr.ordered_size(),
-               task_mgr.unordered_size(),
+               task_mgr.ordered_size(), task_mgr.unordered_size(),
                task_mgr.ordered_size() + task_mgr.unordered_size());
     });
 }
@@ -581,7 +572,7 @@ void application::try_open_project_window(const file_access& /*files*/,
 
         add_gui_task([this, file_id]() {
             if (new_project_req.should_request()) {
-                auto pj  = std::make_unique<project>();
+                auto pj          = std::make_unique<project>();
                 pj->project_file = file_id;
 
                 mod.files.read([&](const auto& fs, auto) noexcept {
@@ -634,8 +625,7 @@ bool application::init() noexcept
 {
     config.vars.rec_paths.read([&](const auto& conf,
                                    const auto /*vers*/) noexcept {
-        const auto& paths =
-          conf.recs.template get<recorded_paths::long_path_str>();
+        const auto& paths = conf.recs.template get<path>();
         const auto& names = conf.recs.template get<recorded_paths::name_str>();
         const auto& priorities = conf.recs.template get<i8>();
 
@@ -653,14 +643,11 @@ bool application::init() noexcept
                 new_dir.path     = paths[idx].sv();
                 new_dir.priority = priorities[idx];
 
-                log(log_level::info,
-                    [&new_dir](auto& msg) noexcept {
-                        format(msg,
-                               "{} registred as path `{}' priority: {}",
-                               new_dir.name.sv(),
-                               new_dir.path.sv(),
-                               new_dir.priority);
-                    });
+                log(log_level::info, [&new_dir](auto& msg) noexcept {
+                    format(msg, "{} registred as path `{}' priority: {}",
+                           new_dir.name.sv(), new_dir.path.sv(),
+                           new_dir.priority);
+                });
 
                 fs.recorded_paths.emplace_back(new_dir_id);
             }
@@ -725,8 +712,8 @@ auto application::show_menu() noexcept -> show_result_t
 
             ImGui::MenuItem("Show output editor", nullptr, &output_ed.is_open);
 
-            ImGui::MenuItem(
-              "Show component hierarchy", nullptr, &library_wnd.is_open);
+            ImGui::MenuItem("Show component hierarchy", nullptr,
+                            &library_wnd.is_open);
 
             ImGui::MenuItem("Show memory usage", nullptr, &memory_wnd.is_open);
             ImGui::MenuItem("Show task usage", nullptr, &task_wnd.is_open);
@@ -755,9 +742,9 @@ auto application::show_menu() noexcept -> show_result_t
 
 void application::show_dock() noexcept
 {
-    static auto                  first_time = true;
-    constexpr ImGuiDockNodeFlags dockspace_flags =
-      ImGuiDockNodeFlags_PassthruCentralNode;
+    static auto first_time = true;
+    constexpr ImGuiDockNodeFlags
+      dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode;
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     main_dock_id = ImGui::DockSpaceOverViewport(0, viewport, dockspace_flags);
@@ -766,8 +753,8 @@ void application::show_dock() noexcept
         first_time = false;
 
         ImGui::DockBuilderRemoveNode(main_dock_id);
-        ImGui::DockBuilderAddNode(
-          main_dock_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderAddNode(main_dock_id, dockspace_flags |
+                                                  ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(main_dock_id, viewport->Size);
 
         right_dock_id = ImGui::DockBuilderSplitNode(
@@ -794,10 +781,8 @@ void application::show_dock() noexcept
             ImGui::SetCursorPos(
               ImGui::GetCursorPos() +
               (ImGui::GetContentRegionAvail() - ImVec2(50.f, 15.f)) * 0.5f);
-            ImGui::TextFormat("Welcome to Irritator {}.{}.{}",
-                              VERSION_MAJOR,
-                              VERSION_MINOR,
-                              VERSION_PATCH);
+            ImGui::TextFormat("Welcome to Irritator {}.{}.{}", VERSION_MAJOR,
+                              VERSION_MINOR, VERSION_PATCH);
 
             ImGui::End();
         }
@@ -815,8 +800,8 @@ void application::show_dock() noexcept
             });
         } else {
             if (auto* pj_released = new_pj->release()) {
-                const auto opened =
-                  mod.files.read([&](const auto& fs, auto) noexcept -> bool {
+                const auto opened = mod.files.read(
+                  [&](const auto& fs, auto) noexcept -> bool {
                       const auto  f_id = pj_released->project_file;
                       const auto* f    = fs.file_paths.try_to_get(f_id);
 
@@ -906,8 +891,8 @@ void application::show_dock() noexcept
                 return true;
 
             small_string<64> name;
-            format(
-              name, "{}-graph-{}", pj->pj.name.sv(), get_index(v.graph_ed_id));
+            format(name, "{}-graph-{}", pj->pj.name.sv(),
+                   get_index(v.graph_ed_id));
 
             if (ge->show(name.c_str(), *this, *pj, *tn, *go) ==
                 graph_editor::show_result_type::request_to_close) {
@@ -989,19 +974,16 @@ bool show_select_model_box(const char*     button_label,
 
     if (ImGui::Button(button_label)) {
         debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.update(ed.pj,
-                                       access.parent_id,
-                                       access.compo_id,
-                                       access.tn_id,
-                                       access.mdl_id);
+        app.component_model_sel.update(ed.pj, access.parent_id, access.compo_id,
+                                       access.tn_id, access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (ImGui::BeginPopupModal(
-          popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal(popup_label, nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
 
         if (const auto r = app.component_model_sel.combobox(
               "Select model to observe grid", ed.pj);
@@ -1043,19 +1025,16 @@ bool show_select_model_box(const char*     button_label,
 
     if (ImGui::Button(button_label)) {
         debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.update(ed.pj,
-                                       access.parent_id,
-                                       access.compo_id,
-                                       access.tn_id,
-                                       access.mdl_id);
+        app.component_model_sel.update(ed.pj, access.parent_id, access.compo_id,
+                                       access.tn_id, access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
 
     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
     ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (ImGui::BeginPopupModal(
-          popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal(popup_label, nullptr,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
 
         if (const auto r = app.component_model_sel.combobox(
               "Select model to observe graph", ed.pj);
@@ -1218,8 +1197,8 @@ void application::start_init_source(const project_id  pj_id,
                     src.buffer = std::span(data.chunk_real);
 
                     data.chunk_id[0] = 0x648593178264597;
-                    data.chunk_id[1] =
-                      static_cast<u64>(reinterpret_cast<uintptr_t>(c));
+                    data.chunk_id[1] = static_cast<u64>(
+                      reinterpret_cast<uintptr_t>(c));
                     data.chunk_id[2] = 0;
                     data.chunk_id[3] = 0;
                     data.chunk_id[4] = 0;
@@ -1270,8 +1249,8 @@ window_status text_file_viewer::show(application& app,
         }
 
         content.read([&](const auto& buffer, auto /*vers*/) noexcept {
-            ImGui::TextWrapped(
-              "%.*s", static_cast<int>(buffer.size()), buffer.data());
+            ImGui::TextWrapped("%.*s", static_cast<int>(buffer.size()),
+                               buffer.data());
         });
     });
 
@@ -1284,8 +1263,8 @@ void text_file_viewer::update(application&       app,
                               const file_path_id file_id_) noexcept
 {
     app.add_gui_task([&, file_id_]() noexcept {
-        const auto filename =
-          app.mod.files.read([&](const auto& fs, auto) noexcept {
+        const auto filename = app.mod.files.read(
+          [&](const auto& fs, auto) noexcept {
               return make_file(fs, file_id_);
           });
 
@@ -1296,9 +1275,8 @@ void text_file_viewer::update(application&       app,
             return;
         }
 
-        auto file = file::open(
-          *filename,
-          file_mode{ file_open_options::read, file_open_options::text });
+        auto file = file::open(*filename, file_mode{ file_open_options::read,
+                                                     file_open_options::text });
 
         if (file.has_error()) {
             log(log_level::error, [&](auto& msg) {
@@ -1309,8 +1287,8 @@ void text_file_viewer::update(application&       app,
             return;
         }
 
-        const auto limit =
-          app.config.vars.text_file_viewer_max_file_size.load();
+        const auto limit = app.config.vars.text_file_viewer_max_file_size
+                             .load();
 
         if (file->length() > limit) {
             log(log_level::error, [&](auto& msg) {

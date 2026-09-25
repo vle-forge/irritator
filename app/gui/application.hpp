@@ -1504,9 +1504,11 @@ public:
     bool timer_started = false;
 
 private:
-    /** To share new registred_path identifier between task and main gui thread.
-     */
-    atomic_request_buffer<recorded_path_id> new_reg_dir_id;
+    /// To share new registred_path identifier between task and main gui thread.
+    atomic_request_buffer<recorded_path_id>  new_reg_dir_id;
+
+    /// To share new recorded path name.
+    request_buffer<recorded_paths::name_str> new_name;
 
     recorded_path_id new_dir_id     = undefined<recorded_path_id>();
     bool             choose_new_dir = false;

@@ -65,10 +65,10 @@ component& component::operator=(const component& other) noexcept
 component& component::operator=(component&& other) noexcept
 {
     if (this != &other) {
-        x = std::exchange(other.x, port_type{});
-        y = std::exchange(other.y, port_type{});
-        input_connection_pack =
-          std::exchange(other.input_connection_pack, vector<connection_pack>{});
+        x                      = std::exchange(other.x, port_type{});
+        y                      = std::exchange(other.y, port_type{});
+        input_connection_pack  = std::exchange(other.input_connection_pack,
+                                               vector<connection_pack>{});
         output_connection_pack = std::exchange(other.output_connection_pack,
                                                vector<connection_pack>{});
         name                   = other.name;
@@ -241,8 +241,8 @@ static status browse_dirs_registred(file_access&                 fs,
                     dir.parent   = fs.registred_paths.get_id(reg_dir);
 
                     reg_dir.children.emplace_back(dir_id);
-                    if (auto ret =
-                          browse_directory(fs, reg_dir, dir, it->path());
+                    if (auto ret = browse_directory(fs, reg_dir, dir,
+                                                    it->path());
                         ret.has_error()) {
                         log(log_level::error, [&](auto& m) noexcept {
                             format(m,
@@ -351,8 +351,8 @@ static auto load_component(const file_access& files,
             auto desc_filename = filename;
             desc_filename.replace_extension(file_type::txt_file);
 
-            auto d = file::open(desc_filename,
-                                file_mode{ file_open_options::read });
+            auto d = file::try_open(desc_filename,
+                                    file_mode{ file_open_options::read });
 
             if (d.has_value()) {
                 auto& desc     = ids.component_descriptions[compo_id];
@@ -378,8 +378,8 @@ static auto load_component(const file_access& files,
 status modeling::fill_components() noexcept
 {
     return ids.write([&](auto& ids) noexcept -> status {
-        const auto file_read_status =
-          files.write([&](auto& fs) noexcept -> status {
+        const auto file_read_status = files.write(
+          [&](auto& fs) noexcept -> status {
               fs.browse_registreds();
 
               for (auto& f : fs.file_paths) {
@@ -454,8 +454,7 @@ status modeling::fill_components() noexcept
 
                     auto& filepath = ids.component_file_paths[id];
                     if (const auto f = make_file(fs, filepath); f.has_value()) {
-                        if (const auto ret =
-                              load_component(fs, ids, *f, id);
+                        if (const auto ret = load_component(fs, ids, *f, id);
                             ret.has_error()) {
                             switch (compo.state) {
                             case component_status::unread:
@@ -549,8 +548,8 @@ void file_access::refresh(const dir_path_id id) noexcept
 
                     while (it != et) {
                         if (it->is_regular_file()) {
-                            const auto type =
-                              get_extension(it->path().filename().string());
+                            const auto type = get_extension(
+                              it->path().filename().string());
                             if (type != file_type::undefined_file) {
                                 const auto f = find_file_in_directory(
                                   id, it->path().string());
@@ -684,13 +683,13 @@ registred_path_id file_access::alloc_registred(const std::string_view name,
         auto& reg    = registred_paths.alloc();
         auto  reg_id = registred_paths.get_id(reg);
 
-        reg.name = name;
-        reg.priority =
-          static_cast<i8>(std::clamp<int>(priority, INT8_MIN, INT8_MAX));
+        reg.name     = name;
+        reg.priority = static_cast<i8>(
+          std::clamp<int>(priority, INT8_MIN, INT8_MAX));
         recorded_paths.emplace_back(reg_id);
 
-        auto to_erase =
-          std::ranges::remove_if(recorded_paths, [&](const auto id) {
+        auto to_erase = std::ranges::remove_if(
+          recorded_paths, [&](const auto id) {
               const auto* r = registred_paths.try_to_get(id);
               return r == nullptr;
           });
@@ -980,11 +979,11 @@ file_access::full_file_access_result file_access::get_full_access(
     if (const auto* f = file_paths.try_to_get(id))
         if (const auto* d = dir_paths.try_to_get(f->parent))
             if (const auto* r = registred_paths.try_to_get(d->parent))
-                return full_file_access_result{ .reg_id =
-                                                  registred_paths.get_id(*r),
-                                                .dir_id = dir_paths.get_id(*d),
-                                                .file_id =
-                                                  file_paths.get_id(*f) };
+                return full_file_access_result{
+                    .reg_id  = registred_paths.get_id(*r),
+                    .dir_id  = dir_paths.get_id(*d),
+                    .file_id = file_paths.get_id(*f)
+                };
 
     return full_file_access_result{};
 }
@@ -1073,9 +1072,7 @@ expected<component_id> component_access::copy(
     if (not dst.y.can_alloc(src.y.size()))
         return make_error(modeling_errc::component_output_container_full);
 
-    src.x.for_each([&](auto /*id*/,
-                       const auto  type,
-                       const auto& name,
+    src.x.for_each([&](auto /*id*/, const auto type, const auto& name,
                        const auto& pos) noexcept {
         auto new_id                    = dst.x.alloc_id();
         dst.x.get<port_option>(new_id) = type;
@@ -1083,9 +1080,7 @@ expected<component_id> component_access::copy(
         dst.x.get<position>(new_id)    = pos;
     });
 
-    src.y.for_each([&](auto /*id*/,
-                       const auto  type,
-                       const auto& name,
+    src.y.for_each([&](auto /*id*/, const auto type, const auto& name,
                        const auto& pos) noexcept {
         auto new_id                    = dst.y.alloc_id();
         dst.y.get<port_option>(new_id) = type;
@@ -1275,8 +1270,8 @@ static bool can_add_component(const component_access& ids,
         auto id = compo.id.graph_id;
         if (auto* g = ids.graph_components.try_to_get(id); g) {
             for (const auto edge_id : g->g.nodes)
-                if (not can_add_component(
-                      ids, g->g.node_components[edge_id], out, search))
+                if (not can_add_component(ids, g->g.node_components[edge_id],
+                                          out, search))
                     return false;
         }
     } break;
@@ -1380,8 +1375,8 @@ status modeling::save(const component_access& ids,
     if (not filenames.has_value())
         return make_error(modeling_errc::file_error);
 
-    auto cfile =
-      file::open(filenames->component, file_mode{ file_open_options::write });
+    auto cfile = file::open(filenames->component,
+                            file_mode{ file_open_options::write });
     if (cfile.has_error()) [[unlikely]]
         return cfile.error();
 
@@ -1389,8 +1384,8 @@ status modeling::save(const component_access& ids,
     if (auto ret = j(fs, ids, id, *cfile); ret.has_error())
         return ret.error();
 
-    auto dfile =
-      file::open(filenames->description, file_mode{ file_open_options::write });
+    auto dfile = file::open(filenames->description,
+                            file_mode{ file_open_options::write });
 
     if (dfile.has_value()) [[likely]] {
         const auto& str = ids.component_descriptions[id];

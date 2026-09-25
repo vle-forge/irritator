@@ -62,13 +62,12 @@ struct theme_colors {
 };
 
 struct recorded_paths {
-    using long_path_str = small_string<256 * 16 - 2>;
-    using name_str      = small_string<32 - 1>;
+    using name_str = small_string<63>;
 
     id_data_array<void,
                   recorded_path_id,
                   allocator<new_delete_memory_resource>,
-                  long_path_str,
+                  path,
                   name_str,
                   i8>
       recs;

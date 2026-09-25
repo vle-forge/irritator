@@ -295,7 +295,10 @@ expected<path> get_system_prefix_component_dir() noexcept
     return ret;
 }
 #else
-expected<path> get_system_prefix_component_dir() noexcept { return path{}; }
+expected<path> get_system_prefix_component_dir() noexcept
+{
+    return make_error(std::errc::bad_address);
+}
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)

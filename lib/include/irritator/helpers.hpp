@@ -53,8 +53,8 @@ static constexpr bool validity[16] = { true,  true,  true,  true, true, true,
 struct qss_integrator_tag {
     static constexpr std::string_view x_names[] = { "X_dot", "reset" };
     static constexpr std::string_view y_names[] = { "out" };
-    static constexpr const port_type x_types[] = { qss, scalar };
-    static constexpr const port_type y_types[] = { qss };
+    static constexpr const port_type  x_types[] = { qss, scalar };
+    static constexpr const port_type  y_types[] = { qss };
 
     enum parameter_names : u8 { X = 0, dQ };
 };
@@ -146,9 +146,7 @@ struct qss_sum_3_tag {
 };
 
 struct qss_sum_4_tag {
-    static constexpr std::string_view x_names[] = { "in-1",
-                                                    "in-2",
-                                                    "in-3",
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out" };
 
@@ -177,9 +175,7 @@ struct qss_wsum_3_tag {
 };
 
 struct qss_wsum_4_tag {
-    static constexpr std::string_view x_names[] = { "in-1",
-                                                    "in-2",
-                                                    "in-3",
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out" };
 
@@ -299,9 +295,7 @@ struct generator_tag {
     static constexpr std::string_view x_names[] = { "value", "t", "+", "x" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { scalar,
-                                                   scalar,
-                                                   scalar,
+    static constexpr const port_type x_types[] = { scalar, scalar, scalar,
                                                    scalar };
     static constexpr const port_type y_types[] = { scalar };
 
@@ -377,13 +371,9 @@ struct logical_invert_tag {
 };
 
 struct hsm_wrapper_tag {
-    static constexpr std::string_view x_names[] = { "in-1",
-                                                    "in-2",
-                                                    "in-3",
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
                                                     "in-4" };
-    static constexpr std::string_view y_names[] = { "out-1",
-                                                    "out-2",
-                                                    "out-3",
+    static constexpr std::string_view y_names[] = { "out-1", "out-2", "out-3",
                                                     "out-4" };
 
     static constexpr const port_type x_types[] = { qss, qss, qss, qss };
@@ -627,327 +617,278 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss3_integrator:
-        return std::invoke(std::forward<Function>(f),
-                           qss_integrator_tag{},
+        return std::invoke(std::forward<Function>(f), qss_integrator_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss2_multiplier:
     case dynamics_type::qss3_multiplier:
-        return std::invoke(std::forward<Function>(f),
-                           qss_multiplier_tag{},
+        return std::invoke(std::forward<Function>(f), qss_multiplier_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:
-        return std::invoke(std::forward<Function>(f),
-                           qss_cross_tag{},
+        return std::invoke(std::forward<Function>(f), qss_cross_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_max_hold:
     case dynamics_type::qss2_max_hold:
     case dynamics_type::qss3_max_hold:
-        return std::invoke(std::forward<Function>(f),
-                           qss_max_hold_tag{},
+        return std::invoke(std::forward<Function>(f), qss_max_hold_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_min_hold:
     case dynamics_type::qss2_min_hold:
     case dynamics_type::qss3_min_hold:
-        return std::invoke(std::forward<Function>(f),
-                           qss_min_hold_tag{},
+        return std::invoke(std::forward<Function>(f), qss_min_hold_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_flipflop:
     case dynamics_type::qss2_flipflop:
     case dynamics_type::qss3_flipflop:
-        return std::invoke(std::forward<Function>(f),
-                           qss_flipflop_tag{},
+        return std::invoke(std::forward<Function>(f), qss_flipflop_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_filter:
     case dynamics_type::qss2_filter:
     case dynamics_type::qss3_filter:
-        return std::invoke(std::forward<Function>(f),
-                           qss_filter_tag{},
+        return std::invoke(std::forward<Function>(f), qss_filter_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
-        return std::invoke(std::forward<Function>(f),
-                           qss_power_tag{},
+        return std::invoke(std::forward<Function>(f), qss_power_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_square:
     case dynamics_type::qss2_square:
     case dynamics_type::qss3_square:
-        return std::invoke(std::forward<Function>(f),
-                           qss_square_tag{},
+        return std::invoke(std::forward<Function>(f), qss_square_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_2:
     case dynamics_type::qss2_sum_2:
     case dynamics_type::qss3_sum_2:
-        return std::invoke(std::forward<Function>(f),
-                           qss_sum_2_tag{},
+        return std::invoke(std::forward<Function>(f), qss_sum_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_3:
     case dynamics_type::qss2_sum_3:
     case dynamics_type::qss3_sum_3:
-        return std::invoke(std::forward<Function>(f),
-                           qss_sum_3_tag{},
+        return std::invoke(std::forward<Function>(f), qss_sum_3_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_4:
     case dynamics_type::qss2_sum_4:
     case dynamics_type::qss3_sum_4:
-        return std::invoke(std::forward<Function>(f),
-                           qss_sum_4_tag{},
+        return std::invoke(std::forward<Function>(f), qss_sum_4_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_2:
     case dynamics_type::qss2_wsum_2:
     case dynamics_type::qss3_wsum_2:
-        return std::invoke(std::forward<Function>(f),
-                           qss_wsum_2_tag{},
+        return std::invoke(std::forward<Function>(f), qss_wsum_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss3_wsum_3:
-        return std::invoke(std::forward<Function>(f),
-                           qss_wsum_3_tag{},
+        return std::invoke(std::forward<Function>(f), qss_wsum_3_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_4:
     case dynamics_type::qss2_wsum_4:
     case dynamics_type::qss3_wsum_4:
-        return std::invoke(std::forward<Function>(f),
-                           qss_wsum_4_tag{},
+        return std::invoke(std::forward<Function>(f), qss_wsum_4_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_inverse:
     case dynamics_type::qss2_inverse:
     case dynamics_type::qss3_inverse:
-        return std::invoke(std::forward<Function>(f),
-                           qss_inverse_tag{},
+        return std::invoke(std::forward<Function>(f), qss_inverse_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_integer:
     case dynamics_type::qss2_integer:
     case dynamics_type::qss3_integer:
-        return std::invoke(std::forward<Function>(f),
-                           qss_integer_tag{},
+        return std::invoke(std::forward<Function>(f), qss_integer_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_compare:
     case dynamics_type::qss2_compare:
     case dynamics_type::qss3_compare:
-        return std::invoke(std::forward<Function>(f),
-                           qss_compare_tag{},
+        return std::invoke(std::forward<Function>(f), qss_compare_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_gain:
     case dynamics_type::qss2_gain:
     case dynamics_type::qss3_gain:
-        return std::invoke(std::forward<Function>(f),
-                           qss_gain_tag{},
+        return std::invoke(std::forward<Function>(f), qss_gain_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_sin:
     case dynamics_type::qss2_sin:
     case dynamics_type::qss3_sin:
-        return std::invoke(std::forward<Function>(f),
-                           qss_sin_tag{},
+        return std::invoke(std::forward<Function>(f), qss_sin_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_cos:
     case dynamics_type::qss2_cos:
     case dynamics_type::qss3_cos:
-        return std::invoke(std::forward<Function>(f),
-                           qss_cos_tag{},
+        return std::invoke(std::forward<Function>(f), qss_cos_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_log:
     case dynamics_type::qss2_log:
     case dynamics_type::qss3_log:
-        return std::invoke(std::forward<Function>(f),
-                           qss_log_tag{},
+        return std::invoke(std::forward<Function>(f), qss_log_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_exp:
     case dynamics_type::qss2_exp:
     case dynamics_type::qss3_exp:
-        return std::invoke(std::forward<Function>(f),
-                           qss_exp_tag{},
+        return std::invoke(std::forward<Function>(f), qss_exp_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::counter:
-        return std::invoke(std::forward<Function>(f),
-                           counter_tag{},
+        return std::invoke(std::forward<Function>(f), counter_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::queue:
-        return std::invoke(
-          std::forward<Function>(f), queue_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), queue_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::dynamic_queue:
-        return std::invoke(std::forward<Function>(f),
-                           dynamic_queue_tag{},
+        return std::invoke(std::forward<Function>(f), dynamic_queue_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::priority_queue:
-        return std::invoke(std::forward<Function>(f),
-                           priority_queue_tag{},
+        return std::invoke(std::forward<Function>(f), priority_queue_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::generator:
-        return std::invoke(std::forward<Function>(f),
-                           generator_tag{},
+        return std::invoke(std::forward<Function>(f), generator_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::constant:
-        return std::invoke(std::forward<Function>(f),
-                           constant_tag{},
+        return std::invoke(std::forward<Function>(f), constant_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::accumulator_2:
-        return std::invoke(std::forward<Function>(f),
-                           accumulator_2_tag{},
+        return std::invoke(std::forward<Function>(f), accumulator_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::time_func:
-        return std::invoke(std::forward<Function>(f),
-                           time_func_tag{},
+        return std::invoke(std::forward<Function>(f), time_func_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::logical_and_2:
-        return std::invoke(std::forward<Function>(f),
-                           logical_and_2_tag{},
+        return std::invoke(std::forward<Function>(f), logical_and_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_and_3:
-        return std::invoke(std::forward<Function>(f),
-                           logical_and_3_tag{},
+        return std::invoke(std::forward<Function>(f), logical_and_3_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_or_2:
-        return std::invoke(std::forward<Function>(f),
-                           logical_or_2_tag{},
+        return std::invoke(std::forward<Function>(f), logical_or_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_or_3:
-        return std::invoke(std::forward<Function>(f),
-                           logical_or_3_tag{},
+        return std::invoke(std::forward<Function>(f), logical_or_3_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
-        return std::invoke(std::forward<Function>(f),
-                           logical_invert_tag{},
+        return std::invoke(std::forward<Function>(f), logical_invert_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::hsm_wrapper:
-        return std::invoke(std::forward<Function>(f),
-                           hsm_wrapper_tag{},
+        return std::invoke(std::forward<Function>(f), hsm_wrapper_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::simulation_wrapper:
-        return std::invoke(std::forward<Function>(f),
-                           simulation_wrapper_tag{},
+        return std::invoke(std::forward<Function>(f), simulation_wrapper_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_sample_hold:
     case dynamics_type::qss2_sample_hold:
     case dynamics_type::qss3_sample_hold:
-        return std::invoke(std::forward<Function>(f),
-                           sample_hold_tag{},
+        return std::invoke(std::forward<Function>(f), sample_hold_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::zero_order_hold:
-        return std::invoke(std::forward<Function>(f),
-                           zero_order_hold_tag{},
+        return std::invoke(std::forward<Function>(f), zero_order_hold_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_quantizer:
     case dynamics_type::qss2_quantizer:
     case dynamics_type::qss3_quantizer:
-        return std::invoke(std::forward<Function>(f),
-                           quantizer_tag{},
+        return std::invoke(std::forward<Function>(f), quantizer_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_integrate_and_fire:
     case dynamics_type::qss2_integrate_and_fire:
     case dynamics_type::qss3_integrate_and_fire:
-        return std::invoke(std::forward<Function>(f),
-                           integrate_and_fire_tag{},
+        return std::invoke(std::forward<Function>(f), integrate_and_fire_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_threshold_crossing:
     case dynamics_type::qss2_threshold_crossing:
     case dynamics_type::qss3_threshold_crossing:
-        return std::invoke(std::forward<Function>(f),
-                           threshold_crossing_tag{},
+        return std::invoke(std::forward<Function>(f), threshold_crossing_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_pwm:
     case dynamics_type::qss2_pwm:
     case dynamics_type::qss3_pwm:
-        return std::invoke(
-          std::forward<Function>(f), pwm_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), pwm_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sqrt:
     case dynamics_type::qss2_sqrt:
     case dynamics_type::qss3_sqrt:
-        return std::invoke(
-          std::forward<Function>(f), sqrt_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), sqrt_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_atan:
     case dynamics_type::qss2_atan:
     case dynamics_type::qss3_atan:
-        return std::invoke(
-          std::forward<Function>(f), atan_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), atan_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_tan:
     case dynamics_type::qss2_tan:
     case dynamics_type::qss3_tan:
-        return std::invoke(
-          std::forward<Function>(f), tan_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), tan_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_tanh:
     case dynamics_type::qss2_tanh:
     case dynamics_type::qss3_tanh:
-        return std::invoke(
-          std::forward<Function>(f), tanh_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), tanh_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sigmoid:
     case dynamics_type::qss2_sigmoid:
     case dynamics_type::qss3_sigmoid:
-        return std::invoke(std::forward<Function>(f),
-                           sigmoid_tag{},
+        return std::invoke(std::forward<Function>(f), sigmoid_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_division:
     case dynamics_type::qss2_division:
     case dynamics_type::qss3_division:
-        return std::invoke(std::forward<Function>(f),
-                           division_tag{},
+        return std::invoke(std::forward<Function>(f), division_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_atan2:
     case dynamics_type::qss2_atan2:
     case dynamics_type::qss3_atan2:
-        return std::invoke(
-          std::forward<Function>(f), atan2_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), atan2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_abs:
     case dynamics_type::qss2_abs:
     case dynamics_type::qss3_abs:
-        return std::invoke(
-          std::forward<Function>(f), abs_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), abs_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sign:
     case dynamics_type::qss2_sign:
     case dynamics_type::qss3_sign:
-        return std::invoke(
-          std::forward<Function>(f), sign_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), sign_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_minimum:
     case dynamics_type::qss2_minimum:
     case dynamics_type::qss3_minimum:
-        return std::invoke(std::forward<Function>(f),
-                           minimum_tag{},
+        return std::invoke(std::forward<Function>(f), minimum_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_maximum:
     case dynamics_type::qss2_maximum:
     case dynamics_type::qss3_maximum:
-        return std::invoke(std::forward<Function>(f),
-                           maximum_tag{},
+        return std::invoke(std::forward<Function>(f), maximum_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_saturation:
     case dynamics_type::qss2_saturation:
     case dynamics_type::qss3_saturation:
-        return std::invoke(std::forward<Function>(f),
-                           saturation_tag{},
+        return std::invoke(std::forward<Function>(f), saturation_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_dead_zone:
     case dynamics_type::qss2_dead_zone:
     case dynamics_type::qss3_dead_zone:
-        return std::invoke(std::forward<Function>(f),
-                           dead_zone_tag{},
+        return std::invoke(std::forward<Function>(f), dead_zone_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_hysteresis:
     case dynamics_type::qss2_hysteresis:
     case dynamics_type::qss3_hysteresis:
-        return std::invoke(std::forward<Function>(f),
-                           hysteresis_tag{},
+        return std::invoke(std::forward<Function>(f), hysteresis_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_wrap:
     case dynamics_type::qss2_wrap:
     case dynamics_type::qss3_wrap:
-        return std::invoke(
-          std::forward<Function>(f), wrap_tag{}, std::forward<Args>(args)...);
+        return std::invoke(std::forward<Function>(f), wrap_tag{},
+                           std::forward<Args>(args)...);
     }
 
     unreachable();
@@ -958,13 +899,13 @@ constexpr auto dispatch_from_dyn(Function&& f, Args&&... args) noexcept
 {
     const auto type = dynamics_typeof<std::decay_t<Dymamics>>();
 
-    return dispatch(
-      type, std::forward<Function>(f), std::forward<Args>(args)...);
+    return dispatch(type, std::forward<Function>(f),
+                    std::forward<Args>(args)...);
 }
 
 template<typename Tag>
-concept not_simulation_wrapper =
-  not std::is_same_v<Tag, simulation_wrapper_tag>;
+concept not_simulation_wrapper = not std::is_same_v<Tag,
+                                                    simulation_wrapper_tag>;
 
 template<typename Tag1, typename Tag2>
 constexpr bool are_ports_compatible(Tag1, int port1, Tag2, int port2) noexcept
@@ -1136,10 +1077,10 @@ template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
 class static_bounded_floating_point
 {
 public:
-    static inline constexpr T lower =
-      static_cast<T>(LowerNum) / static_cast<T>(LowerDenom);
-    static inline constexpr T upper =
-      static_cast<T>(UpperNum) / static_cast<T>(UpperDenom);
+    static inline constexpr T lower = static_cast<T>(LowerNum) /
+                                      static_cast<T>(LowerDenom);
+    static inline constexpr T upper = static_cast<T>(UpperNum) /
+                                      static_cast<T>(UpperDenom);
     static_assert(lower < upper);
 
 private:
@@ -1197,11 +1138,11 @@ struct is_expected<::irt::expected<T>> : std::true_type {};
 template<typename Vec, typename Fn, typename... Args>
 void for_each_cond(Vec& vec, Fn&& fn, Args&&... args) noexcept
 {
-    const auto [first, last] =
-      std::ranges::remove_if(vec, [&](const auto& elem) {
-          return std::invoke(
-            std::forward<Fn>(fn), elem, std::forward<Args>(args)...);
-      });
+    const auto [first,
+                last] = std::ranges::remove_if(vec, [&](const auto& elem) {
+        return std::invoke(std::forward<Fn>(fn), elem,
+                           std::forward<Args>(args)...);
+    });
 
     vec.erase(first, last);
 }
@@ -1241,8 +1182,8 @@ auto if_data_exists_do(Data&                          d,
                        FunctionElse&&                 f_else) noexcept
   -> std::invoke_result_t<FunctionIf, typename Data::value_type&>
 {
-    using ret_if_t =
-      std::invoke_result_t<FunctionIf, typename Data::value_type&>;
+    using ret_if_t   = std::invoke_result_t<FunctionIf,
+                                            typename Data::value_type&>;
     using ret_else_t = std::invoke_result_t<FunctionElse>;
 
     static_assert(std::is_same_v<ret_if_t, ret_else_t>);

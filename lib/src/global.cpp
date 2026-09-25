@@ -56,8 +56,7 @@ static void do_build_default(variables& v) noexcept
                 const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
                 const auto  len = u8.size();
 
-                paths.recs.template get<recorded_paths::long_path_str>(
-                  id) = std::string_view(ptr, len);
+                paths.recs.template get<path>(id) = std::string_view(ptr, len);
                 paths.recs.template get<recorded_paths::name_str>(
                   id)                           = "system";
                 paths.recs.template get<i8>(id) = 20;
@@ -74,8 +73,7 @@ static void do_build_default(variables& v) noexcept
                 const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
                 const auto  len = u8.size();
 
-                paths.recs.template get<recorded_paths::long_path_str>(
-                  id) = std::string_view(ptr, len);
+                paths.recs.template get<path>(id) = std::string_view(ptr, len);
                 paths.recs.template get<recorded_paths::name_str>(
                   id)                           = "p-system";
                 paths.recs.template get<i8>(id) = 10;
@@ -92,8 +90,7 @@ static void do_build_default(variables& v) noexcept
                 const auto* ptr = reinterpret_cast<const char*>(u8.c_str());
                 const auto  len = u8.size();
 
-                paths.recs.template get<recorded_paths::long_path_str>(
-                  id) = std::string_view(ptr, len);
+                paths.recs.template get<path>(id) = std::string_view(ptr, len);
                 paths.recs.template get<recorded_paths::name_str>(id) = "user";
                 paths.recs.template get<i8>(id)                       = 0;
             }
@@ -110,8 +107,7 @@ static std::error_code do_write(const variables& vars, std::FILE* file) noexcept
 
     vars.rec_paths.read([&](const recorded_paths& conf,
                             const auto /*vers*/) noexcept {
-        const auto& paths = conf.recs
-                              .template get<recorded_paths::long_path_str>();
+        const auto& paths = conf.recs.template get<path>();
         const auto& names = conf.recs.template get<recorded_paths::name_str>();
         const auto& priorities = conf.recs.template get<i8>();
 
@@ -298,8 +294,8 @@ static bool do_read_elem(variables&             vars,
             const auto id  = rec_paths.recs.alloc_id();
             const auto idx = get_index(id);
 
-            auto& paths = rec_paths.recs.get<recorded_paths::long_path_str>();
-            auto& names = rec_paths.recs.get<recorded_paths::name_str>();
+            auto& paths      = rec_paths.recs.get<path>();
+            auto& names      = rec_paths.recs.get<recorded_paths::name_str>();
             auto& priorities = rec_paths.recs.get<i8>();
 
             priorities[idx] = 0;
