@@ -1858,8 +1858,6 @@ private:
     show_result_t show_menu() noexcept;
     void          show_dock() noexcept;
     void          show_select_directory_dlg() noexcept;
-
-    u64 m_journal_timestep;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node

@@ -477,77 +477,6 @@ vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
     return ret;
 }
 
-journal_handler::journal_handler() noexcept
-  : journal_handler(reserve_constraint(32u))
-{}
-
-journal_handler::journal_handler(reserve_constraint len) noexcept
-{
-    m_logs.write(
-      [](auto& buffer, const auto cap) noexcept {
-          buffer.ring.reserve(cap);
-          buffer.ids.reserve(cap);
-          buffer.titles.resize(cap);
-          buffer.descriptions.resize(cap);
-      },
-      len.value());
-}
-
-void journal_handler::clear() noexcept
-{
-    m_logs.write([](auto& buffer) noexcept {
-        buffer.ring.clear();
-        buffer.ids.clear();
-    });
-}
-
-u64 journal_handler::get_tick_count_in_milliseconds() noexcept
-{
-    namespace sc = std::chrono;
-
-    return duration_cast<sc::milliseconds>(
-             sc::steady_clock::now().time_since_epoch())
-      .count();
-}
-
-u64 journal_handler::get_elapsed_time(const u64 from) noexcept
-{
-    return get_tick_count_in_milliseconds() - from;
-}
-
-unsigned journal_handler::capacity() const noexcept
-{
-    auto capacity = 0u;
-
-    m_logs.read([](const auto& buffer, const auto /*version*/,
-                   auto&       capacity) { capacity = buffer.ring.capacity(); },
-                capacity);
-
-    return capacity;
-}
-
-unsigned journal_handler::size() const noexcept
-{
-    auto len = 0u;
-
-    m_logs.read([](const auto& buffer, const auto /*version*/,
-                   auto&       size) { size = buffer.ring.size(); },
-                len);
-
-    return len;
-}
-
-int journal_handler::ssize() const noexcept
-{
-    auto len = 0;
-
-    m_logs.read([](const auto& buffer, const auto /*version*/,
-                   auto&       size) { size = buffer.ring.ssize(); },
-                len);
-
-    return len;
-}
-
 static inline u64 get_tick_count_in_milliseconds() noexcept
 {
     namespace sc = std::chrono;
@@ -562,25 +491,6 @@ static bool is_expired(const u64 creation_time, const u64 duration) noexcept
     const auto elapsed_time = get_tick_count_in_milliseconds() - creation_time;
 
     return elapsed_time >= duration;
-}
-
-void journal_handler::cleanup_expired(const u64 duration) noexcept
-{
-    m_logs.write([&](auto& buffer) {
-        for (const auto id : buffer.ring)
-            if (buffer.ids.exists(id) and
-                is_expired(buffer.ids[id].first, duration))
-                buffer.ids.free(id);
-
-        while (not buffer.ring.empty()) {
-            const auto id = buffer.ring.front();
-
-            if (not buffer.ids.exists(id))
-                buffer.ring.dequeue();
-            else
-                break;
-        }
-    });
 }
 
 config_manager::config_manager() noexcept { do_build_default(vars); }

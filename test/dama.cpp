@@ -13,7 +13,6 @@
 using namespace std::literals;
 using namespace boost::ut;
 
-
 template<typename Dynamics>
 inline auto get_p(irt::simulation& sim, const Dynamics& d) noexcept
   -> irt::parameter&
@@ -34,9 +33,7 @@ int main()
 
         expect(fatal(temp_path.success()));
 
-        irt::journal_handler jn;
-        irt::modeling        mod;
-
+        irt::modeling          mod;
         irt::registred_path_id reg_id{ 0 };
         irt::dir_path_id       dir_id{ 0 };
         irt::file_path_id      gen_component_file_id{ 0 };
@@ -59,8 +56,8 @@ int main()
 
             gen_component_file_id = fs.alloc_file(
               dir_id, "gen-compo.irt", irt::file_type::component_file);
-            project_file_id = fs.alloc_file(
-              dir_id, "project.pirt", irt::file_type::project_file);
+            project_file_id = fs.alloc_file(dir_id, "project.pirt",
+                                            irt::file_type::project_file);
         });
 
         // ---- LEVEL 1: gen_compo -- SAME as before, mu fixed to 2.0 only ----
@@ -116,8 +113,8 @@ int main()
         // ---- LEVEL 2: sim_compo -- mu = fixed{2.0} (single branch),
         //      lambda = single{1.0} (the modelling-time default) ----
         simulation_component_file_id = mod.files.write([&](auto& fs) {
-            return fs.alloc_file(
-              dir_id, "sim-compo.irt", irt::file_type::component_file);
+            return fs.alloc_file(dir_id, "sim-compo.irt",
+                                 irt::file_type::component_file);
         });
 
         const auto sim_compo = mod.ids.write([&](auto& ids) {
@@ -144,14 +141,14 @@ int main()
                     lambda_id = fid;
             }
 
-            sim.factors.template get<irt::factor_type>(mu_id) =
-              irt::factor_type::fixed;
+            sim.factors.template get<irt::factor_type>(
+              mu_id)              = irt::factor_type::fixed;
             const auto mu_factors = std::array<irt::real, 1>{ 2.0 };
             sim.factors.template get<irt::fixed_factor>(mu_id).values.assign(
               mu_factors.begin(), mu_factors.end());
 
-            sim.factors.template get<irt::factor_type>(lambda_id) =
-              irt::factor_type::single;
+            sim.factors.template get<irt::factor_type>(
+              lambda_id) = irt::factor_type::single;
             sim.factors.template get<irt::single_factor>(lambda_id).value = 1.0;
 
             const auto throughput_id = [&]() {
@@ -162,18 +159,18 @@ int main()
                 return *sim.selections.begin();
             }();
 
-            sim.selections.template get<irt::name_str>(throughput_id) =
-              "throughput";
-            sim.selections.template get<irt::criteria_type>(throughput_id) =
-              irt::criteria_type::max;
+            sim.selections.template get<irt::name_str>(
+              throughput_id) = "throughput";
+            sim.selections.template get<irt::criteria_type>(
+              throughput_id) = irt::criteria_type::max;
 
             sim.objective.method = irt::optimization_method::simple;
             sim.objective.type   = irt::optimization_type::maximize;
             sim.objective.simple_params.primary = throughput_id;
 
             sim.file_id = project_file_id;
-            ids.component_file_paths[compo_id].file =
-              simulation_component_file_id;
+            ids.component_file_paths[compo_id]
+              .file = simulation_component_file_id;
 
             mod.files.read(
               [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
@@ -185,8 +182,8 @@ int main()
         // ---- LEVEL 3: sim_wrapper_compo -- WITH the x[2] lambda injection
         // ----
         simulation_wrapper_file_id = mod.files.write([&](auto& fs) {
-            return fs.alloc_file(
-              dir_id, "sim-wrapper.irt", irt::file_type::component_file);
+            return fs.alloc_file(dir_id, "sim-wrapper.irt",
+                                 irt::file_type::component_file);
         });
 
         const auto sim_wrapper_compo = mod.ids.write([&](auto& ids) {
@@ -194,10 +191,10 @@ int main()
             auto& compo    = ids.components[compo_id];
             auto& gen      = ids.generic_components.get(compo.id.generic_id);
 
-            auto& cst_init = gen.alloc(irt::dynamics_type::constant);
-            auto& cst_run  = gen.alloc(irt::dynamics_type::constant);
-            auto& cst_lambda =
-              gen.alloc(irt::dynamics_type::constant); // injects x[2]
+            auto& cst_init   = gen.alloc(irt::dynamics_type::constant);
+            auto& cst_run    = gen.alloc(irt::dynamics_type::constant);
+            auto& cst_lambda = gen.alloc(
+              irt::dynamics_type::constant); // injects x[2]
             auto& sim_w = gen.alloc(irt::dynamics_type::simulation_wrapper);
             auto& throughput = gen.alloc(irt::dynamics_type::counter);
 
@@ -223,25 +220,23 @@ int main()
             gen.children_parameters[cst_lambda_id].set_constant(3.0, 0.5);
 
             gen.children_parameters[sim_w_id]
-              .integers[irt::simulation_wrapper_tag::run] =
-              ordinal(irt::simulation_wrapper::run_type::complete);
+              .integers[irt::simulation_wrapper_tag::run] = ordinal(
+              irt::simulation_wrapper::run_type::complete);
             gen.children_parameters[sim_w_id]
               .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
 
-            gen.connect(
-              cst_init, { .model = 0 }, sim_w, { .model = 0 }); // x[0] init
-            gen.connect(
-              cst_run, { .model = 0 }, sim_w, { .model = 1 }); // x[1] run
-            gen.connect(
-              cst_lambda, { .model = 0 }, sim_w, { .model = 2 }); // x[2] lambda
+            gen.connect(cst_init, { .model = 0 }, sim_w,
+                        { .model = 0 }); // x[0] init
+            gen.connect(cst_run, { .model = 0 }, sim_w,
+                        { .model = 1 }); // x[1] run
+            gen.connect(cst_lambda, { .model = 0 }, sim_w,
+                        { .model = 2 }); // x[2] lambda
 
-            gen.connect(sim_w,
-                        { .model = 0 },
-                        throughput,
+            gen.connect(sim_w, { .model = 0 }, throughput,
                         { .model = 0 }); // y[0]=throughput
 
-            ids.component_file_paths[compo_id].file =
-              simulation_wrapper_file_id;
+            ids.component_file_paths[compo_id]
+              .file = simulation_wrapper_file_id;
             mod.files.read(
               [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
             return compo_id;
@@ -267,8 +262,7 @@ int main()
         for (const auto& mdl : pj.sim.models) {
             if (mdl.type == irt::dynamics_type::counter) {
                 const auto& cpt = irt::get_dyn<irt::counter>(mdl);
-                fmt::print("throughput: events={} last={}\n",
-                           cpt.event_number,
+                fmt::print("throughput: events={} last={}\n", cpt.event_number,
                            cpt.last_value);
                 // ~6-7 events if injection works (period 3.0 over horizon 20)
                 // ~20 events if injection is ignored (period 1.0, the
@@ -281,9 +275,7 @@ int main()
         const auto temp_path = irt::temp_path_with_unlink{ "omega_b"sv };
         expect(fatal(temp_path.success()));
 
-        irt::journal_handler jn;
-        irt::modeling        mod;
-
+        irt::modeling          mod;
         irt::registred_path_id reg_id{ 0 };
         irt::dir_path_id       dir_id{ 0 };
         irt::file_path_id      gen_component_file_id{ 0 };
@@ -307,8 +299,8 @@ int main()
 
             gen_component_file_id = fs.alloc_file(
               dir_id, "gen-compo.irt", irt::file_type::component_file);
-            project_file_id = fs.alloc_file(
-              dir_id, "project.pirt", irt::file_type::project_file);
+            project_file_id = fs.alloc_file(dir_id, "project.pirt",
+                                            irt::file_type::project_file);
         });
 
         // -----------------------------------------------------------
@@ -371,8 +363,8 @@ int main()
         //            default, to be overridden dynamically)
         // -----------------------------------------------------------
         simulation_component_file_id = mod.files.write([&](auto& fs) {
-            return fs.alloc_file(
-              dir_id, "sim-compo.irt", irt::file_type::component_file);
+            return fs.alloc_file(dir_id, "sim-compo.irt",
+                                 irt::file_type::component_file);
         });
 
         const auto sim_compo = mod.ids.write([&](auto& ids) {
@@ -399,14 +391,14 @@ int main()
                     lambda_id = fid;
             }
 
-            sim.factors.template get<irt::factor_type>(mu_id) =
-              irt::factor_type::fixed;
+            sim.factors.template get<irt::factor_type>(
+              mu_id)              = irt::factor_type::fixed;
             const auto mu_factors = std::array<irt::real, 1>{ 2.0 };
             sim.factors.template get<irt::fixed_factor>(mu_id).values.assign(
               mu_factors.begin(), mu_factors.end());
 
-            sim.factors.template get<irt::factor_type>(lambda_id) =
-              irt::factor_type::single;
+            sim.factors.template get<irt::factor_type>(
+              lambda_id) = irt::factor_type::single;
             sim.factors.template get<irt::single_factor>(lambda_id).value = 1.0;
 
             const auto throughput_id = [&]() {
@@ -417,18 +409,18 @@ int main()
                 return *sim.selections.begin();
             }();
 
-            sim.selections.template get<irt::name_str>(throughput_id) =
-              "throughput";
-            sim.selections.template get<irt::criteria_type>(throughput_id) =
-              irt::criteria_type::max;
+            sim.selections.template get<irt::name_str>(
+              throughput_id) = "throughput";
+            sim.selections.template get<irt::criteria_type>(
+              throughput_id) = irt::criteria_type::max;
 
             sim.objective.method = irt::optimization_method::simple;
             sim.objective.type   = irt::optimization_type::maximize;
             sim.objective.simple_params.primary = throughput_id;
 
             sim.file_id = project_file_id;
-            ids.component_file_paths[compo_id].file =
-              simulation_component_file_id;
+            ids.component_file_paths[compo_id]
+              .file = simulation_component_file_id;
 
             mod.files.read(
               [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
@@ -442,8 +434,8 @@ int main()
         //            built at the modelling layer this time.
         // -----------------------------------------------------------
         hsm_component_file_id = mod.files.write([&](auto& fs) {
-            return fs.alloc_file(
-              dir_id, "omega-b.irt", irt::file_type::component_file);
+            return fs.alloc_file(dir_id, "omega-b.irt",
+                                 irt::file_type::component_file);
         });
 
         const auto hsm_compo = mod.ids.write([&](auto& ids) {
@@ -454,9 +446,9 @@ int main()
 
             using var = irt::hierarchical_state_machine::variable;
 
-            machine.constants[0] = 0.1f; // +epsilon_0
-            machine.constants[1] =
-              1.0f; // seed lambda_hat (matches sim_compo default)
+            machine.constants[0] = 0.1f;  // +epsilon_0
+            machine.constants[1] = 1.0f;  // seed lambda_hat (matches sim_compo
+                                          // default)
             machine.constants[2] = -0.1f; // -epsilon_0
 
             expect(!!machine.set_state(
@@ -502,8 +494,8 @@ int main()
         // LEVEL 3 -- Psi + Delta, WITH Omega_B feeding x[2] (lambda)
         // -----------------------------------------------------------
         simulation_wrapper_file_id = mod.files.write([&](auto& fs) {
-            return fs.alloc_file(
-              dir_id, "sim-wrapper.irt", irt::file_type::component_file);
+            return fs.alloc_file(dir_id, "sim-wrapper.irt",
+                                 irt::file_type::component_file);
         });
 
         const auto sim_wrapper_compo = mod.ids.write([&](auto& ids) {
@@ -559,31 +551,31 @@ int main()
             // is inferred by analogy with simulation_wrapper_tag::id.
 
             gen.children_parameters[sim_w_id]
-              .integers[irt::simulation_wrapper_tag::run] =
-              ordinal(irt::simulation_wrapper::run_type::complete);
+              .integers[irt::simulation_wrapper_tag::run] = ordinal(
+              irt::simulation_wrapper::run_type::complete);
             gen.children_parameters[sim_w_id]
               .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
 
             // Wiring:
-            gen.connect(
-              cst_init, { .model = 0 }, sim_w, { .model = 0 }); // x[0] init
-            gen.connect(
-              cst_run, { .model = 0 }, sim_w, { .model = 1 }); // x[1] run
+            gen.connect(cst_init, { .model = 0 }, sim_w,
+                        { .model = 0 }); // x[0] init
+            gen.connect(cst_run, { .model = 0 }, sim_w,
+                        { .model = 1 }); // x[1] run
 
             // Observation dual-wired into hsmw (confirmed pattern).
             gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 0 });
             gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 1 });
 
             // Omega_B's revised belief feeds the lambda factor.
-            gen.connect(
-              hsmw, { .model = 0 }, sim_w, { .model = 2 }); // x[2] lambda
+            gen.connect(hsmw, { .model = 0 }, sim_w,
+                        { .model = 2 }); // x[2] lambda
 
             // Outputs: throughput (selection) and winning lambda (factor).
             gen.connect(sim_w, { .model = 0 }, best_throughput, { .model = 0 });
             gen.connect(sim_w, { .model = 1 }, win_lambda, { .model = 0 });
 
-            ids.component_file_paths[compo_id].file =
-              simulation_wrapper_file_id;
+            ids.component_file_paths[compo_id]
+              .file = simulation_wrapper_file_id;
             mod.files.read(
               [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
             return compo_id;
@@ -613,8 +605,7 @@ int main()
                 const auto& cpt = irt::get_dyn<irt::counter>(mdl);
                 fmt::print("counter[{:6}]: events={:6} last={:8}\n",
                            irt::get_index(pj.sim.models.get_id(mdl)),
-                           cpt.event_number,
-                           cpt.last_value);
+                           cpt.event_number, cpt.last_value);
                 // win_lambda: expect last close to 4.0 if the full chain
                 // (observation -> Omega_B revision -> x[2] injection ->
                 // Delta using the REVISED belief) works end-to-end.
@@ -722,9 +713,7 @@ int main()
 
         fmt::print(
           "omega_b_revision_cycle: events={} last={:.3f} belief={:.3f}\n",
-          cnt.event_number,
-          cnt.last_value,
-          hsmw.exec.r1);
+          cnt.event_number, cnt.last_value, hsmw.exec.r1);
 
         // Two revisions emitted (t=1 positive, t=3 negative); the t=2
         // observation falls under epsilon_0 and correctly holds without

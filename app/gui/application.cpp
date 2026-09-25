@@ -496,7 +496,6 @@ application::application(log_history& jn_) noexcept
   , sims{ 16 }
   , graph_eds{ 16 }
   , copy_obs{ 16 }
-  , m_journal_timestep{ journal_handler::get_tick_count_in_milliseconds() }
 {
     settings_wnd.apply_style(config.vars.theme.load());
 
