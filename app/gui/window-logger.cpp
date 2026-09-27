@@ -27,19 +27,21 @@ static auto display_text(ImFont&                                 font,
                          const small_string<log_record::length>& msg) noexcept
   -> void
 {
-    ImGui::PushFont(&font);
-    ImGui::TextFormat("{}", level);
-    ImGui::PopFont();
+    const auto sv = msg.sv();
 
-    if (not msg.empty()) {
+    if (not sv.starts_with("- ")) {
+        ImGui::Separator();
+        ImGui::PushFont(&font);
+        ImGui::TextFormat("{}", level);
+        ImGui::PopFont();
+        ImGui::SameLine();
         ImGui::PushFont(&font);
         ImGui::TextUnformatted("\ue016");
         ImGui::PopFont();
         ImGui::SameLine();
-        ImGui::TextWrapped("%s", msg.c_str());
     }
 
-    ImGui::Separator();
+    ImGui::TextWrapped("%s", msg.c_str());
 }
 
 void window_logger::show() noexcept
@@ -64,18 +66,22 @@ void window_logger::show() noexcept
             if (auto_scroll)
                 scroll_to_bottom = true;
 
-        auto sel = static_cast<std::size_t>(ordinal(level_min));
+        if (ImGui::BeginMenu("Log level")) {
+            auto sel = static_cast<std::size_t>(ordinal(level_min));
 
-        for (std::size_t i = 0, e = std::size(log_level_names); i != e; ++i) {
-            const auto label    = small_string<32>(log_level_names[i]);
-            const auto selected = sel == i;
+            for (std::size_t i = 0, e = std::size(log_level_names); i != e;
+                 ++i) {
+                const auto label    = small_string<32>(log_level_names[i]);
+                const auto selected = sel == i;
 
-            if (ImGui::MenuItem(label.c_str(), nullptr, selected))
-                sel = i;
+                if (ImGui::MenuItem(label.c_str(), nullptr, selected))
+                    sel = i;
+            }
+
+            if (sel != static_cast<std::size_t>(ordinal(level_min)))
+                app.config.vars.loglevel = enum_cast<log_level>(sel);
+            ImGui::EndMenu();
         }
-
-        if (sel != static_cast<std::size_t>(ordinal(level_min)))
-            app.config.vars.loglevel = enum_cast<log_level>(sel);
 
         ImGui::EndPopup();
     }
@@ -87,8 +93,8 @@ void window_logger::show() noexcept
         app.jn.reset_history();
 
     ImGui::Separator();
-    ImGui::BeginChild(
-      "scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("scrolling", ImVec2(0, 0), false,
+                      ImGuiWindowFlags_HorizontalScrollbar);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
@@ -101,7 +107,7 @@ void window_logger::show() noexcept
             const auto str       = log_level_enhanced_names[l_current];
 
             if (l_min >= l_current)
-                display_text(*app.icons, str, l.msg);
+                display_text(*app.icons, str, l.msg.sv());
         }
 
         if (span.size() > max_history_size)
