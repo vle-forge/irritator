@@ -963,8 +963,9 @@ static void show_component_observations(application&    app,
             if (not sim_ed.pj.sim.sims.exists(sim_wrapper.sim_id))
                 continue;
 
-            const auto& sub_obs = sim_wrapper.embedded_sims.get<
-              simulation_wrapper::simulation_observation>();
+            auto&       embed_sims = sim_ed.pj.sim.sims.get(sim_wrapper.sim_id);
+            const auto& sub_obs    = embed_sims.embedded_sims.get<
+              embedded_simulation::simulation_observation>();
 
             const auto& sim_src = sim_ed.pj.sim.sims.get(sim_wrapper.sim_id);
             const auto& select_names  = sim_src.selections.get<name_str>();
@@ -979,7 +980,7 @@ static void show_component_observations(application&    app,
                       "{}##{}", select_names[select_idx].sv(), select_idx);
 
                     if (ImPlot::BeginPlot(label.c_str(), ImVec2(-1, 400))) {
-                        for (const auto id : sim_wrapper.embedded_sims) {
+                        for (const auto id : embed_sims.embedded_sims) {
                             const auto idx = get_index(id);
 
                             if (const auto* data = sub_obs[idx].get(

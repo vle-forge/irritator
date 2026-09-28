@@ -98,18 +98,18 @@ static void model_init(const parameter& /*param*/,
 static void model_init(const parameter& param, counter& dyn) noexcept
 {
     const auto type_i = param.integers[counter_tag::i_obs_type];
-    const auto type =
-      0 <= type_i and type_i < std::ssize(counter::observation_type_names)
-        ? enum_cast<counter::observation_type>(type_i)
-        : counter::observation_type::event_number;
+    const auto type   = 0 <= type_i and
+                            type_i < std::ssize(counter::observation_type_names)
+                          ? enum_cast<counter::observation_type>(type_i)
+                          : counter::observation_type::event_number;
 
     dyn.type = type;
 }
 
 static void parameter_init(parameter& param, const counter& dyn) noexcept
 {
-    param.integers[counter_tag::i_obs_type] =
-      static_cast<i64>(ordinal(dyn.type));
+    param.integers[counter_tag::i_obs_type] = static_cast<i64>(
+      ordinal(dyn.type));
 }
 
 static void model_init(const parameter& param, constant& dyn) noexcept
@@ -117,11 +117,11 @@ static void model_init(const parameter& param, constant& dyn) noexcept
     dyn.value  = param.reals[constant_tag::value];
     dyn.offset = param.reals[constant_tag::offset];
 
-    dyn.type =
-      (0 <= param.integers[constant_tag::i_type] &&
-       param.integers[constant_tag::i_type] < 5)
-        ? enum_cast<constant::init_type>(param.integers[constant_tag::i_type])
-        : constant::init_type::constant;
+    dyn.type = (0 <= param.integers[constant_tag::i_type] &&
+                param.integers[constant_tag::i_type] < 5)
+                 ? enum_cast<constant::init_type>(
+                     param.integers[constant_tag::i_type])
+                 : constant::init_type::constant;
 
     dyn.port = param.integers[constant_tag::i_port];
 }
@@ -188,8 +188,8 @@ static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 
 static void model_init(const parameter& param, generator& dyn) noexcept
 {
-    dyn.flags =
-      bitflags<generator::option>(param.integers[generator_tag::i_options]);
+    dyn.flags = bitflags<generator::option>(
+      param.integers[generator_tag::i_options]);
 
     if (dyn.flags[generator::option::ta_use_source]) {
         dyn.source_ta.reset(param.integers[generator_tag::source_ta]);
@@ -214,8 +214,8 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
         param.reals[generator_tag::sigma] = dyn.ta;
 
     if (dyn.flags[generator::option::value_use_source])
-        param.integers[generator_tag::source_value] =
-          from_source(dyn.source_value);
+        param.integers[generator_tag::source_value] = from_source(
+          dyn.source_value);
     else
         param.reals[generator_tag::value] = dyn.value;
 }
@@ -693,8 +693,8 @@ static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
     param.integers[hsm_wrapper_tag::i1] = static_cast<i64>(dyn.exec.i1);
     param.integers[hsm_wrapper_tag::i2] = static_cast<i64>(dyn.exec.i2);
 
-    param.integers[hsm_wrapper_tag::source_value] =
-      from_source(dyn.exec.source_value);
+    param.integers[hsm_wrapper_tag::source_value] = from_source(
+      dyn.exec.source_value);
 
     param.reals[hsm_wrapper_tag::r1]    = dyn.exec.r1;
     param.reals[hsm_wrapper_tag::r2]    = dyn.exec.r2;
@@ -724,8 +724,8 @@ static void model_init(const parameter& param, simulation_wrapper& dyn) noexcept
         break;
     }
 
-    dyn.sim_id =
-      enum_cast<simulation_id>(param.integers[simulation_wrapper_tag::id]);
+    dyn.sim_id = enum_cast<embedded_simulation_id>(
+      param.integers[simulation_wrapper_tag::id]);
 }
 
 static void parameter_init(parameter&                param,
@@ -740,12 +740,13 @@ static void model_init(const parameter& param, time_func& dyn) noexcept
     dyn.offset   = param.reals[time_func_tag::offset];
     dyn.timestep = param.reals[time_func_tag::timestep];
 
-    const auto raw_type = param.integers[time_func_tag::i_type];
-    const auto clamped_type =
-      raw_type < 0 ? 0
-      : raw_type > static_cast<i64>(time_func::function_type_count)
-        ? static_cast<i64>(time_func::function_type_count)
-        : raw_type;
+    const auto raw_type     = param.integers[time_func_tag::i_type];
+    const auto clamped_type = raw_type < 0 ? 0
+                              : raw_type > static_cast<i64>(
+                                             time_func::function_type_count)
+                                ? static_cast<i64>(
+                                    time_func::function_type_count)
+                                : raw_type;
 
     dyn.function = enum_cast<time_func::function_type>(clamped_type);
 }
@@ -894,9 +895,9 @@ parameter& parameter::clear() noexcept
 
 parameter& parameter::set_constant(real value, real offset) noexcept
 {
-    reals[constant_tag::value] = value;
-    reals[constant_tag::offset] =
-      std::isfinite(offset) ? std::abs(offset) : 0.0;
+    reals[constant_tag::value]     = value;
+    reals[constant_tag::offset]    = std::isfinite(offset) ? std::abs(offset)
+                                                           : 0.0;
     integers[constant_tag::i_type] = ordinal(constant::init_type::constant);
     integers[constant_tag::i_port] = 0;
 
@@ -907,11 +908,11 @@ parameter& parameter::set_cross(real threshold,
                                 real up_value,
                                 real down_value) noexcept
 {
-    reals[qss_cross_tag::threshold] =
-      std::isfinite(threshold) ? threshold : 0.0;
-    reals[qss_cross_tag::up_value] = std::isfinite(up_value) ? up_value : one;
-    reals[qss_cross_tag::bottom_value] =
-      std::isfinite(down_value) ? down_value : one;
+    reals[qss_cross_tag::threshold] = std::isfinite(threshold) ? threshold
+                                                               : 0.0;
+    reals[qss_cross_tag::up_value]  = std::isfinite(up_value) ? up_value : one;
+    reals[qss_cross_tag::bottom_value] = std::isfinite(down_value) ? down_value
+                                                                   : one;
 
     return *this;
 }
@@ -924,12 +925,14 @@ parameter& parameter::set_power(real expoonent) noexcept
 
 parameter& parameter::set_filter(real lower_bound, real upper_bound) noexcept
 {
-    reals[qss_filter_tag::lower_bound] =
-      std::isfinite(lower_bound) ? lower_bound
-                                 : -std::numeric_limits<real>::infinity();
-    reals[qss_filter_tag::upper_bound] =
-      std::isfinite(upper_bound) ? upper_bound
-                                 : +std::numeric_limits<real>::infinity();
+    reals[qss_filter_tag::lower_bound] = std::isfinite(lower_bound)
+                                           ? lower_bound
+                                           : -std::numeric_limits<
+                                               real>::infinity();
+    reals[qss_filter_tag::upper_bound] = std::isfinite(upper_bound)
+                                           ? upper_bound
+                                           : +std::numeric_limits<
+                                               real>::infinity();
 
     if (reals[qss_filter_tag::lower_bound] > reals[qss_filter_tag::upper_bound])
         std::swap(reals[qss_filter_tag::lower_bound],
@@ -940,9 +943,9 @@ parameter& parameter::set_filter(real lower_bound, real upper_bound) noexcept
 
 parameter& parameter::set_compare(real equal, real not_equal) noexcept
 {
-    reals[qss_compare_tag::equal] = std::isfinite(equal) ? equal : one;
-    reals[qss_compare_tag::not_equal] =
-      std::isfinite(not_equal) ? not_equal : one;
+    reals[qss_compare_tag::equal]     = std::isfinite(equal) ? equal : one;
+    reals[qss_compare_tag::not_equal] = std::isfinite(not_equal) ? not_equal
+                                                                 : one;
 
     return *this;
 }
@@ -971,10 +974,11 @@ parameter& parameter::set_time_func(real offset,
                                     real timestep,
                                     int  type) noexcept
 {
-    reals[time_func_tag::offset] =
-      std::isfinite(offset) ? std::abs(offset) : 0.0;
-    reals[time_func_tag::timestep] =
-      std::isfinite(timestep) ? timestep <= 0.0 ? 0.1 : timestep : 0.1;
+    reals[time_func_tag::offset]    = std::isfinite(offset) ? std::abs(offset)
+                                                            : 0.0;
+    reals[time_func_tag::timestep]  = std::isfinite(timestep)
+                                        ? timestep <= 0.0 ? 0.1 : timestep
+                                        : 0.1;
     integers[time_func_tag::i_type] = type < 0 ? 0 : type > 2 ? 2 : type;
     return *this;
 }

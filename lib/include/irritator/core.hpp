@@ -529,7 +529,6 @@ enum class dir_path_id : u32;
 enum class file_path_id : u32;
 
 enum class hsm_id : u32;
-enum class simulation_id : u32;
 enum class graph_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
@@ -544,6 +543,7 @@ enum class random_source_id : u32;
 
 enum class factor_id : u32;
 enum class selection_id : u32;
+enum class embedded_simulation_id : u32;
 
 /*****************************************************************************
  *
@@ -2057,6 +2057,8 @@ using simulation_selection = id_data_array<
   criteria_type //!< observation trajectory selection function
   >;
 
+struct embedded_simulation;
+
 class simulation
 {
 public:
@@ -2066,9 +2068,9 @@ public:
     vector<parameter>      parameters;
     vector<observer_id>    immediate_observers;
 
-    data_array<model, model_id>                    models;
-    data_array<hierarchical_state_machine, hsm_id> hsms;
-    data_array<simulation, simulation_id>          sims;
+    data_array<model, model_id>                             models;
+    data_array<hierarchical_state_machine, hsm_id>          hsms;
+    data_array<embedded_simulation, embedded_simulation_id> sims;
 
     observers_type observers;
 
@@ -2077,10 +2079,6 @@ public:
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
 
     scheduller<allocator<new_delete_memory_resource>> sched;
-
-    simulation_factor    factors;
-    simulation_selection selections;
-    objective_function   objective;
 
     external_source srcs;
 
@@ -2376,6 +2374,62 @@ public:
      * This function must be call at the end of the simulation.
      */
     status finalize() noexcept;
+};
+
+/** The @c embedded_simulation class stores a @c simulation (models,
+ * connections, observers, etc.) that serves as its initial project. It also
+ * stores a set of @c simulation instances with different parameters to carry
+ * out an experimental design. */
+struct embedded_simulation {
+    simulation sim; /** original project file */
+
+    enum class sub_id : u32;
+
+    struct embedded_model_observation {
+        vector<resampled_sample> values; /*<! Raw output simulation. */
+
+        real compute_result(const criteria_type type) const noexcept;
+    };
+
+    using simulation_parameters  = vector<real>;
+    using simulation_observation = table<model_id, embedded_model_observation>;
+
+    using embedded_simulation_type = id_data_array<
+      void,
+      sub_id,
+      allocator<new_delete_memory_resource>,
+      simulation,
+      simulation_observation>;
+
+    /** Used to store a values receives from the @c x input port
+     * vectors. */
+    struct input_parameter {
+        model_id            mdl_id;
+        vector<real>        values;
+        std::optional<real> value; //!< if receives from delta_ext.
+    };
+
+    /** The @c run_type parameter defines the number of embedded
+     * simulation objects. If @c run_type equals  complete  then sims
+     * size can be equals to 1. */
+    embedded_simulation_type embedded_sims;
+
+    /** Number of @c input_parameters correspond to the number of
+     * factors in the simulation-component. */
+    vector<input_parameter> input_parameters;
+
+    std::array<u64, 6> seed = {
+        0x1357209348203948u, ///! user defined value
+        0u,                  ///! ID: from root simulator
+        0u,                  ///! Counter in steam: 0 a startup
+        0u,                  ///! position in buffer: 0 at startup
+        0u,                  ///! buffer[0]
+        0u                   ///! buffer[1]
+    };
+
+    simulation_factor    factors;
+    simulation_selection selections;
+    objective_function   objective;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -7968,52 +8022,17 @@ struct hsm_wrapper {
 /// @c y[0] output port.
 struct simulation_wrapper {
     /** x[0] is used to initialize the simulation, x[1] is used to run
-     * the simulation, x[2..] are used to  send assign new value to the
+     * the simulation, x[2..] are used to send assign new value to the
      * public parameter of the embedded simulation. */
-    vector<input_port> x;
+    small_vector<input_port, 12> x;
 
     /** y[0..] are used to send the public parameter of the embedded
      * simulation according to the selection criteria. */
-    vector<output_port_id> y;
-
-    struct embedded_model_observation {
-        vector<resampled_sample> values; /*<! Raw output simulation. */
-
-        real compute_result(const criteria_type type) const noexcept;
-    };
-
-    using simulation_parameters  = vector<real>;
-    using simulation_observation = table<model_id, embedded_model_observation>;
-
-    enum class sub_id : u32;
-
-    using embedded_simulation_type = id_data_array<
-      void,
-      sub_id,
-      allocator<new_delete_memory_resource>,
-      simulation,
-      simulation_observation>;
-
-    /** Used to store a values receives from the @c x input port
-     * vectors. */
-    struct input_parameter {
-        model_id            mdl_id;
-        vector<real>        values;
-        std::optional<real> value; //!< if receives from delta_ext.
-    };
-
-    /** The @c run_type parameter defines the number of embedded
-     * simulation objects. If @c run_type equals  complete  then sims
-     * size can be equals to 1. */
-    embedded_simulation_type embedded_sims;
-
-    /** Number of @c input_parameters correspond to the number of
-     * factors in the simulation-component. */
-    vector<input_parameter> input_parameters;
+    small_vector<output_port_id, 12> y;
 
     /** Identifier of the source of the simulation to run. This
      * identifier references simulation in simulation::sims member. */
-    simulation_id sim_id = {};
+    embedded_simulation_id sim_id = {};
 
     constexpr static inline std::string_view run_type_names[] = {
         "bag", "complete", "during", "time", "until",
@@ -8046,15 +8065,6 @@ struct simulation_wrapper {
                     ///< parameter.
     };
 
-    std::array<u64, 6> seed = {
-        0x1357209348203948u, ///! user defined value
-        0u,                  ///! ID: from root simulator
-        0u,                  ///! Counter in steam: 0 a startup
-        0u,                  ///! position in buffer: 0 at startup
-        0u,                  ///! buffer[0]
-        0u                   ///! buffer[1]
-    };
-
     time      sigma                 = time_domain<time>::infinity;
     time      observation_time_step = 0.1;
     run_type  run                   = run_type::complete;
@@ -8066,11 +8076,10 @@ struct simulation_wrapper {
      * simulation identifier @c sim_id. */
     simulation_wrapper(const simulation_wrapper& other) noexcept;
 
-    status     initialize(simulation& sim) noexcept;
-    status     transition(simulation& sim, time t, time e, time r) noexcept;
-    status     lambda(simulation& sim) noexcept;
-    status     finalize(simulation& sim) noexcept;
-    raw_sample observation(time t, time e) const noexcept;
+    status initialize(simulation& sim) noexcept;
+    status transition(simulation& sim, time t, time e, time r) noexcept;
+    status lambda(simulation& sim) noexcept;
+    status finalize(simulation& sim) noexcept;
 };
 
 template<std::size_t PortNumber>

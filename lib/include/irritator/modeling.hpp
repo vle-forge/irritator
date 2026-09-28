@@ -1806,10 +1806,10 @@ public:
      */
     status assign(project&& pj_to_move) noexcept;
 
-    /** Copy factors and selections data into simulation structure. The @c
-     * unique_id_path and the @c tree_node_id are removes from simulations
-     * factors and selections. */
-    status copy_to(simulation& sim) const noexcept;
+    /** Copy factors and selections data into @c embedded_simulation structure.
+     * The @c unique_id_path and the @c tree_node_id are removes from
+     * simulations factors and selections. */
+    status copy_to(embedded_simulation& sim) const noexcept;
 
     using factor_t = id_data_array<void,
                                    factor_id,

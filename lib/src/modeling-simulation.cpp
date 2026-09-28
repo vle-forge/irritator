@@ -30,13 +30,10 @@ status simulation_component::assign(project&& pj_to_move) noexcept
                 continue;
 
             const auto& mdl      = pj.sim.models.get(mdls[idx]);
-            const auto  can_edit = any_equal(mdl.type,
-                                             dynamics_type::constant,
-                                             dynamics_type::queue,
-                                             dynamics_type::generator,
-                                             dynamics_type::qss1_integrator,
-                                             dynamics_type::qss2_integrator,
-                                             dynamics_type::qss3_integrator);
+            const auto  can_edit = any_equal(
+              mdl.type, dynamics_type::constant, dynamics_type::queue,
+              dynamics_type::generator, dynamics_type::qss1_integrator,
+              dynamics_type::qss2_integrator, dynamics_type::qss3_integrator);
 
             if (not can_edit)
                 continue;
@@ -46,8 +43,8 @@ status simulation_component::assign(project&& pj_to_move) noexcept
 
             const auto new_id = factors.alloc_id();
 
-            factors.get<unique_id_path>(new_id) =
-              pj.build_unique_id_path(tns[idx], mdls[idx]);
+            factors.get<unique_id_path>(new_id) = pj.build_unique_id_path(
+              tns[idx], mdls[idx]);
             factors.get<tree_node_id>(new_id)        = tns[idx];
             factors.get<model_id>(new_id)            = mdls[idx];
             factors.get<name_str>(new_id)            = names[idx];
@@ -77,8 +74,8 @@ status simulation_component::assign(project&& pj_to_move) noexcept
 
             const auto new_id = selections.alloc_id();
 
-            selections.get<unique_id_path>(new_id) =
-              pj.build_unique_id_path(tns[g_obs_idx], mdls[g_obs_idx]);
+            selections.get<unique_id_path>(new_id) = pj.build_unique_id_path(
+              tns[g_obs_idx], mdls[g_obs_idx]);
             selections.get<tree_node_id>(new_id)  = tns[g_obs_idx];
             selections.get<model_id>(new_id)      = mdls[g_obs_idx];
             selections.get<name_str>(new_id)      = names[g_obs_idx];
@@ -106,20 +103,21 @@ status simulation_component::assign(project&& pj_to_move) noexcept
     return success();
 }
 
-status simulation_component::copy_to(simulation& sim) const noexcept
+status simulation_component::copy_to(
+  embedded_simulation& embed_sims) const noexcept
 {
-    sim = pj.sim;
+    embed_sims.sim = pj.sim;
 
-    sim.factors.clear();
-    sim.selections.clear();
+    embed_sims.factors.clear();
+    embed_sims.selections.clear();
 
-    if (not sim.factors.can_alloc(factors.size()) and
-        not sim.factors.grow<2, 1>(factors.size()))
+    if (not embed_sims.factors.can_alloc(factors.size()) and
+        not embed_sims.factors.grow<2, 1>(factors.size()))
         return make_error(
           simulation_errc::simulation_wrapper_not_enough_memory);
 
-    if (not sim.selections.can_alloc(selections.size()) and
-        not sim.selections.grow<2, 1>(selections.size()))
+    if (not embed_sims.selections.can_alloc(selections.size()) and
+        not embed_sims.selections.grow<2, 1>(selections.size()))
         return make_error(
           simulation_errc::simulation_wrapper_not_enough_memory);
 
@@ -129,32 +127,33 @@ status simulation_component::copy_to(simulation& sim) const noexcept
         const auto tn_mdl_opt = pj.get_model_path(path);
 
         if (tn_mdl_opt.has_value()) {
-            const auto new_id = sim.factors.alloc_id();
+            const auto new_id = embed_sims.factors.alloc_id();
 
-            sim.factors.get<model_id>(new_id)    = tn_mdl_opt->second;
-            sim.factors.get<name_str>(new_id)    = factors.get<name_str>(id);
-            sim.factors.get<factor_type>(new_id) = type;
+            embed_sims.factors.get<model_id>(new_id) = tn_mdl_opt->second;
+            embed_sims.factors.get<name_str>(new_id) = factors.get<name_str>(
+              id);
+            embed_sims.factors.get<factor_type>(new_id) = type;
 
             switch (type) {
             case factor_type::single:
             case factor_type::single_add:
             case factor_type::single_mult:
-                sim.factors.get<single_factor>(new_id) =
-                  factors.get<single_factor>(id);
+                embed_sims.factors.get<single_factor>(
+                  new_id) = factors.get<single_factor>(id);
                 break;
 
             case factor_type::fixed:
             case factor_type::fixed_add:
             case factor_type::fixed_mult:
-                sim.factors.get<fixed_factor>(new_id) =
-                  factors.get<fixed_factor>(id);
+                embed_sims.factors.get<fixed_factor>(
+                  new_id) = factors.get<fixed_factor>(id);
                 break;
 
             case factor_type::random:
             case factor_type::random_add:
             case factor_type::random_mult:
-                sim.factors.get<random_factor>(new_id) =
-                  factors.get<random_factor>(id);
+                embed_sims.factors.get<random_factor>(
+                  new_id) = factors.get<random_factor>(id);
                 break;
             }
         }
@@ -162,19 +161,20 @@ status simulation_component::copy_to(simulation& sim) const noexcept
 
     for (const auto id : selections) {
         const auto& path       = selections.get<unique_id_path>(id);
-        const auto tn_mdl_opt = pj.get_model_path(path);
+        const auto  tn_mdl_opt = pj.get_model_path(path);
 
         if (tn_mdl_opt.has_value()) {
-            const auto new_id = sim.selections.alloc_id();
+            const auto new_id = embed_sims.selections.alloc_id();
 
-            sim.selections.get<model_id>(new_id) = tn_mdl_opt->second;
-            sim.selections.get<name_str>(new_id) = selections.get<name_str>(id);
-            sim.selections.get<criteria_type>(new_id) =
-              selections.get<criteria_type>(id);
+            embed_sims.selections.get<model_id>(new_id) = tn_mdl_opt->second;
+            embed_sims.selections.get<name_str>(
+              new_id) = selections.get<name_str>(id);
+            embed_sims.selections.get<criteria_type>(
+              new_id) = selections.get<criteria_type>(id);
         }
     }
 
-    sim.objective = objective;
+    embed_sims.objective = objective;
 
     return success();
 }
