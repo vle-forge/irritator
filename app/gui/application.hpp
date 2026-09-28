@@ -327,7 +327,10 @@ public:
     bool is_open = true;
 
 private:
-    u64 version = 0;
+    u32 max_history_size = 256u;
+    u32 max_loop_number  = 60u;
+
+    u32 loop_number = 0u;
 
     bool clear_expected   = false;
     bool auto_scroll      = true;

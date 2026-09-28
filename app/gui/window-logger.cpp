@@ -20,8 +20,6 @@ static inline constexpr std::string_view log_level_enhanced_names[] = {
     "\ue08a", // debug
 };
 
-static inline constexpr std::size_t max_history_size = 4096;
-
 static auto display_text(ImFont&                                 font,
                          const std::string_view                  level,
                          const small_string<log_record::length>& msg) noexcept
@@ -49,7 +47,15 @@ void window_logger::show() noexcept
     auto&      app       = container_of(this, &application::log_wnd);
     const auto level_min = app.config.vars.loglevel.load();
 
-    app.jn.collect();
+    // Limits the refresh rate of the logs to one every 60 frames (one per
+    // second by default).
+
+    if (loop_number > max_loop_number) {
+        app.jn.collect();
+        loop_number = 0u;
+    } else {
+        ++loop_number;
+    }
 
     if (clear_expected) {
         app.jn.reset_history();
@@ -83,6 +89,45 @@ void window_logger::show() noexcept
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("History Length")) {
+            auto use_64 = max_history_size == 64;
+            if (ImGui::Checkbox("64", &use_64))
+                max_history_size = 64u;
+
+            auto use_256 = max_history_size == 256;
+            if (ImGui::Checkbox("256", &use_256))
+                max_history_size = 256u;
+
+            auto use_4096 = max_history_size == 4096;
+            if (ImGui::Checkbox("4096", &use_4096))
+                max_history_size = 4096u;
+
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("History Refresh")) {
+            auto use_1 = max_loop_number == 1;
+            if (ImGui::Checkbox("1", &use_1))
+                max_loop_number = 1u;
+
+            auto use_60 = max_loop_number == 60;
+            if (ImGui::Checkbox("60", &use_60))
+                max_loop_number = 60u;
+
+            auto use_120 = max_loop_number == 120;
+            if (ImGui::Checkbox("120", &use_120))
+                max_loop_number = 120u;
+
+            ImGui::EndMenu();
+        }
+
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        if (ImGui::MenuItem("Ping")) {
+            using namespace std::string_view_literals;
+            log(log_level::info, "Ping from menu"sv);
+        }
+#endif
+
         ImGui::EndPopup();
     }
 
@@ -98,6 +143,7 @@ void window_logger::show() noexcept
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
+    auto version = u64{ 0 };
     auto cursor = u64{ 0 };
 
     app.jn.read_log(version, cursor, [&](const auto span) {
