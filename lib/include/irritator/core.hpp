@@ -49,9 +49,9 @@ using log_record_message = small_string<512>;
 struct log_record {
     u64 ts; /**< @c ts corresponds to the creation date of the message since
                epoch (see @c get_time_since_epoch()). */
-    std::thread::id      tid;
-    log_record_message   msg;
-    log_level            level;
+    std::thread::id    tid;
+    log_record_message msg;
+    log_level          level;
 };
 
 using thread_journal = static_circular_buffer<log_record, 4096>;
@@ -225,6 +225,12 @@ constexpr int length(const T (&array)[N]) noexcept
 
 template<class T>
 constexpr int length(const vector<T>& vec) noexcept
+{
+    return static_cast<int>(vec.size());
+}
+
+template<class T, std::size_t Size>
+constexpr int length(const small_vector<T, Size>& vec) noexcept
 {
     return static_cast<int>(vec.size());
 }
