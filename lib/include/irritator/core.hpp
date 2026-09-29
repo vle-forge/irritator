@@ -8816,66 +8816,12 @@ concept dynamics = std::is_same_v<Dynamics, qss1_integrator> or
                    std::is_same_v<Dynamics, qss3_wrap>;
 
 struct model {
-    model() noexcept = default;
-
-    model(const model& other) noexcept
-      : tl(other.tl)
-      , tn(other.tn)
-      , handle(other.handle)
-      , type(other.type)
-      , obs_id(other.obs_id)
-    {
-        if (type == dynamics_type::simulation_wrapper)
-            new (&dyn) simulation_wrapper(*std::launder(
-              reinterpret_cast<const simulation_wrapper*>(&other.dyn)));
-        else
-            std::memcpy(dyn, other.dyn, sizeof(dyn));
-    }
-
-    model(model&& other) noexcept
-      : tl(other.tl)
-      , tn(other.tn)
-      , handle(other.handle)
-      , type(other.type)
-      , obs_id(other.obs_id)
-    {
-        if (type == dynamics_type::simulation_wrapper)
-            new (&dyn) simulation_wrapper(std::move(*std::launder(
-              reinterpret_cast<simulation_wrapper*>(&other.dyn))));
-        else
-            std::memcpy(dyn, other.dyn, sizeof(dyn));
-    }
-
-    model& operator=(const model& other) noexcept
-    {
-        if (this != &other) {
-            this->~model();
-            new (this) model(other);
-        }
-        return *this;
-    }
-
-    model& operator=(model&& other) noexcept
-    {
-        if (this != &other) {
-            this->~model();
-            new (this) model(std::move(other));
-        }
-        return *this;
-    }
-
-    ~model() noexcept
-    {
-        if (type == dynamics_type::simulation_wrapper)
-            std::launder(reinterpret_cast<simulation_wrapper*>(&dyn))
-              ->~simulation_wrapper();
-    }
-
     real          tl     = zero;
     real          tn     = time_domain<time>::infinity;
-    u32           handle = invalid_heap_handle;
-    dynamics_type type;
     observer_id   obs_id = observer_id{ 0 };
+    u32           handle = invalid_heap_handle;
+    dynamics_type type   = dynamics_type::constant;
+
     alignas(alignof(std::max_align_t)) std::byte dyn[max_size_in_bytes()];
 };
 
