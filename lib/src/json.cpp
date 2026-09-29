@@ -7032,13 +7032,16 @@ struct json_archiver::impl {
                                     const file_path&      file) noexcept
     {
         w.Key("path");
-        w.String(reg.name.begin(), reg.name.size());
+        w.String(reg.name.begin(),
+                 static_cast<rapidjson::SizeType>(reg.name.size()));
 
         w.Key("directory");
-        w.String(dir.path.begin(), dir.path.size());
+        w.String(dir.path.begin(),
+                 static_cast<rapidjson::SizeType>(dir.path.size()));
 
         w.Key("file");
-        w.String(file.path.begin(), file.path.size());
+        w.String(file.path.begin(),
+                 static_cast<rapidjson::SizeType>(file.path.size()));
     }
 
     template<typename Writer>
@@ -7541,13 +7544,18 @@ struct json_archiver::impl {
                     if (reg = files.registred_paths.try_to_get(dir->parent);
                         reg) {
                         w.Key("path");
-                        w.String(reg->name.data(), reg->name.size());
+                        w.String(
+                          reg->name.data(),
+                          static_cast<rapidjson::SizeType>(reg->name.size()));
                     }
                     w.Key("dir");
-                    w.String(dir->path.begin(), dir->path.size());
+                    w.String(
+                      dir->path.begin(),
+                      static_cast<rapidjson::SizeType>(dir->path.size()));
                 }
                 w.Key("file");
-                w.String(file->path.begin(), file->path.size());
+                w.String(file->path.begin(),
+                         static_cast<rapidjson::SizeType>(file->path.size()));
             }
 
             if (auto f = files.get_fs_path(p.file); f.has_value()) {
@@ -8153,7 +8161,8 @@ struct json_archiver::impl {
     {
         w.StartArray();
         for (const auto& elem : path)
-            w.String(elem.data(), elem.size());
+            w.String(elem.data(),
+                     static_cast<rapidjson::SizeType>(elem.size()));
         w.EndArray();
     }
 
@@ -8183,7 +8192,8 @@ struct json_archiver::impl {
 
             w.StartObject();
             w.Key("name");
-            w.String(vobs.name.begin(), vobs.name.size());
+            w.String(vobs.name.begin(),
+                     static_cast<rapidjson::SizeType>(vobs.name.size()));
 
             w.Key("models");
             w.StartArray();
@@ -8231,7 +8241,8 @@ struct json_archiver::impl {
         for (const auto& grid : pj.grid_observers) {
             w.StartObject();
             w.Key("name");
-            w.String(grid.name.begin(), grid.name.size());
+            w.String(grid.name.begin(),
+                     static_cast<rapidjson::SizeType>(grid.name.size()));
 
             unique_id_path path;
 
@@ -8261,7 +8272,8 @@ struct json_archiver::impl {
         for (const auto& graph : pj.graph_observers) {
             w.StartObject();
             w.Key("name");
-            w.String(graph.name.begin(), graph.name.size());
+            w.String(graph.name.begin(),
+                     static_cast<rapidjson::SizeType>(graph.name.size()));
 
             unique_id_path path;
 
@@ -8322,7 +8334,7 @@ struct json_archiver::impl {
         for (const auto id : pj.parameters) {
             w.StartObject();
             w.Key("name");
-            w.String(names[id].begin(), names[id].size());
+            w.String(names[id].begin(), rapidjson::SizeType(names[id].size()));
 
             unique_id_path path;
             w.Key("access");
@@ -8354,13 +8366,16 @@ struct json_archiver::impl {
         case component_type::grid:
         case component_type::hsm:
             w.Key("component-path");
-            w.String(reg.name.c_str(), reg.name.size(), false);
+            w.String(reg.name.c_str(),
+                     static_cast<rapidjson::SizeType>(reg.name.size()));
 
             w.Key("component-directory");
-            w.String(dir.path.c_str(), dir.path.size(), false);
+            w.String(dir.path.c_str(),
+                     static_cast<rapidjson::SizeType>(dir.path.size()));
 
             w.Key("component-file");
-            w.String(file.path.c_str(), file.path.size(), false);
+            w.String(file.path.c_str(),
+                     static_cast<rapidjson::SizeType>(file.path.size()));
             break;
 
         default:
