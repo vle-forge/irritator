@@ -724,7 +724,7 @@ void BeginCanvasInteraction(ImNodesEditorContext& editor)
     const bool mouse_not_in_canvas = !MouseInCanvas();
 
     if (editor.ClickInteraction.Type != ImNodesClickInteractionType_None ||
-        any_ui_element_hovered || mouse_not_in_canvas)
+        any_ui_element_hovered || mouse_not_in_canvas || !ImGui::IsWindowHovered())
     {
         return;
     }
@@ -1556,7 +1556,7 @@ void DrawNode(ImNodesEditorContext& editor, const int node_idx)
                 node.LayoutStyle.CornerRounding,
                 ImDrawCornerFlags_All,
                 node.LayoutStyle.BorderThickness);
-#else
+#elif IMGUI_VERSION_NUM < 19276
             GImNodes->CanvasDrawList->AddRect(
                 node.Rect.Min,
                 node.Rect.Max,
@@ -1564,6 +1564,14 @@ void DrawNode(ImNodesEditorContext& editor, const int node_idx)
                 node.LayoutStyle.CornerRounding,
                 ImDrawFlags_RoundCornersAll,
                 node.LayoutStyle.BorderThickness);
+#else
+            GImNodes->CanvasDrawList->AddRect(
+                node.Rect.Min,
+                node.Rect.Max,
+                node.ColorStyle.Outline,
+                node.LayoutStyle.CornerRounding,
+                node.LayoutStyle.BorderThickness,
+                ImDrawFlags_RoundCornersAll);
 #endif
         }
     }
@@ -1735,7 +1743,7 @@ static inline void CalcMiniMapLayout()
         const ImVec2 grid_content_size = editor.GridContentBounds.IsInverted()
                                              ? max_size
                                              : ImFloor(editor.GridContentBounds.GetSize());
-        const float grid_content_aspect_ratio = grid_content_size.x / grid_content_size.y;
+        const float  grid_content_aspect_ratio = grid_content_size.x / grid_content_size.y;
         mini_map_size = ImFloor(
             grid_content_aspect_ratio > max_size_aspect_ratio
                 ? ImVec2(max_size.x, max_size.x / grid_content_aspect_ratio)
@@ -2648,35 +2656,35 @@ struct ImNodesStyleVarInfo
 
 static const ImNodesStyleVarInfo GStyleVarInfo[] = {
     // ImNodesStyleVar_GridSpacing
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, GridSpacing)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, GridSpacing)},
     // ImNodesStyleVar_NodeCornerRounding
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, NodeCornerRounding)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, NodeCornerRounding)},
     // ImNodesStyleVar_NodePadding
-    {ImGuiDataType_Float, 2, (ImU32)IM_OFFSETOF(ImNodesStyle, NodePadding)},
+    {ImGuiDataType_Float, 2, (ImU32)offsetof(ImNodesStyle, NodePadding)},
     // ImNodesStyleVar_NodeBorderThickness
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, NodeBorderThickness)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, NodeBorderThickness)},
     // ImNodesStyleVar_LinkThickness
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, LinkThickness)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, LinkThickness)},
     // ImNodesStyleVar_LinkLineSegmentsPerLength
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, LinkLineSegmentsPerLength)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, LinkLineSegmentsPerLength)},
     // ImNodesStyleVar_LinkHoverDistance
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, LinkHoverDistance)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, LinkHoverDistance)},
     // ImNodesStyleVar_PinCircleRadius
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinCircleRadius)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinCircleRadius)},
     // ImNodesStyleVar_PinQuadSideLength
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinQuadSideLength)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinQuadSideLength)},
     // ImNodesStyleVar_PinTriangleSideLength
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinTriangleSideLength)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinTriangleSideLength)},
     // ImNodesStyleVar_PinLineThickness
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinLineThickness)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinLineThickness)},
     // ImNodesStyleVar_PinHoverRadius
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinHoverRadius)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinHoverRadius)},
     // ImNodesStyleVar_PinOffset
-    {ImGuiDataType_Float, 1, (ImU32)IM_OFFSETOF(ImNodesStyle, PinOffset)},
+    {ImGuiDataType_Float, 1, (ImU32)offsetof(ImNodesStyle, PinOffset)},
     // ImNodesStyleVar_MiniMapPadding
-    {ImGuiDataType_Float, 2, (ImU32)IM_OFFSETOF(ImNodesStyle, MiniMapPadding)},
+    {ImGuiDataType_Float, 2, (ImU32)offsetof(ImNodesStyle, MiniMapPadding)},
     // ImNodesStyleVar_MiniMapOffset
-    {ImGuiDataType_Float, 2, (ImU32)IM_OFFSETOF(ImNodesStyle, MiniMapOffset)},
+    {ImGuiDataType_Float, 2, (ImU32)offsetof(ImNodesStyle, MiniMapOffset)},
 };
 
 static const ImNodesStyleVarInfo* GetStyleVarInfo(ImNodesStyleVar idx)
