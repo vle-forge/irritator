@@ -87,7 +87,8 @@ struct json_dearchiver::impl {
         const auto start     = warnings.size();
         const auto remaining = warnings.capacity() - start;
         const auto ret = fmt::vformat_to_n(warnings.data() + start, remaining,
-                                           fmt, fmt::make_format_args(args...));
+                                           fmt.get(),
+                                           fmt::make_format_args(args...));
 
         warnings.resize(start + ret.size);
 
@@ -101,8 +102,9 @@ struct json_dearchiver::impl {
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
         auto       title = small_string<255>{};
-        const auto ret = fmt::vformat_to_n(title.data(), title.capacity(), fmt,
-                                           fmt::make_format_args(args...));
+        const auto ret   = fmt::vformat_to_n(title.data(), title.capacity(),
+                                             fmt.get(),
+                                             fmt::make_format_args(args...));
         title.resize(ret.size);
 
         log(log_level::error,
