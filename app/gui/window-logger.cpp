@@ -20,10 +20,9 @@ static inline constexpr std::string_view log_level_enhanced_names[] = {
     "\ue08a", // debug
 };
 
-static auto display_text(ImFont&                                 font,
-                         const std::string_view                  level,
-                         const small_string<log_record::length>& msg) noexcept
-  -> void
+static auto display_text(ImFont&                   font,
+                         const std::string_view    level,
+                         const log_record_message& msg) noexcept -> void
 {
     const auto sv = msg.sv();
 
@@ -153,7 +152,7 @@ void window_logger::show() noexcept
             const auto str       = log_level_enhanced_names[l_current];
 
             if (l_min >= l_current)
-                display_text(*app.icons, str, l.msg.sv());
+                display_text(*app.icons, str, l.msg);
         }
 
         if (span.size() > max_history_size)

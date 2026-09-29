@@ -1214,7 +1214,7 @@ int main()
 
     "small_string"_test = [] {
         irt::small_string<8> f1;
-        expect(f1.capacity() == 7);
+        expect(f1.capacity() == 6);
         expect(f1 == "");
         expect(f1.ssize() == 0);
 
@@ -1227,38 +1227,38 @@ int main()
         expect(f1.ssize() == 4);
 
         f1 = "okok123456";
-        expect(f1 == "okok123");
-        expect(f1.ssize() == 7);
+        expect(f1 == "okok12");
+        expect(f1.ssize() == 6);
 
         irt::small_string<8> f2(f1);
-        expect(f2 == "okok123");
-        expect(f2.ssize() == 7);
+        expect(f2 == "okok12");
+        expect(f2.ssize() == 6);
 
         expect(f1.c_str() != f2.c_str());
 
         irt::small_string<8> f3("012345678");
-        expect(f3 == "0123456");
-        expect(f3.ssize() == 7);
+        expect(f3 == "012345");
+        expect(f3.ssize() == 6);
 
         f3.clear();
         expect(f3 == "");
         expect(f3.ssize() == 0);
 
         f3 = f2;
-        expect(f3 == "okok123");
-        expect(f3.ssize() == 7);
+        expect(f3 == "okok12");
+        expect(f3.ssize() == 6);
 
         irt::small_string<8> f4;
         std::string_view     t0 = "012345678";
-        std::string_view     t1 = "okok123";
+        std::string_view     t1 = "okok12";
 
         f4 = t0;
-        expect(f4 == "0123456");
-        expect(f4.ssize() == 7);
+        expect(f4 == "012345");
+        expect(f4.ssize() == 6);
 
         f4 = t1;
-        expect(f4 == "okok123");
-        expect(f4.ssize() == 7);
+        expect(f4 == "okok12");
+        expect(f4.ssize() == 6);
     };
 
     "small_string default construction"_test = [] {
@@ -1266,8 +1266,19 @@ int main()
 
         expect(s.empty());
         expect(s.size() == 0);
-        expect(s.capacity() == 7);
+        expect(s.capacity() == 6);
         expect(std::string_view{ s.c_str() } == "");
+    };
+
+    "small_string default construction zero-initializes the storage"_test = [] {
+        irt::small_string<8> s;
+
+        const auto bytes = std::bit_cast<std::array<unsigned char, 8>>(s);
+        for (const auto b : bytes)
+            expect(b == 0);
+
+        constexpr irt::small_string<8> c;
+        static_assert(c.empty());
     };
 
     "small_string construction from const char*"_test = [] {
@@ -1278,11 +1289,42 @@ int main()
         expect(s.sv() == "abc");
     };
 
+    "small_string construction from nullptr const char*"_test = [] {
+        const char*          p = nullptr;
+        irt::small_string<8> s(p);
+
+        expect(s.empty());
+        expect(s == p);
+
+        irt::small_string<8> t("abc");
+        t = p;
+        expect(t.empty());
+    };
+
+    "small_string construction from string_view"_test = [] {
+        irt::small_string<8> s(std::string_view{ "abcdefghij" });
+
+        expect(s.size() == 6);
+        expect(s.sv() == "abcdef");
+    };
+
     "small_string construction truncates"_test = [] {
         irt::small_string<5> s("abcdef");
 
-        expect(s.size() == 4);
-        expect(s.sv() == "abcd");
+        expect(s.size() == 3);
+        expect(s.sv() == "abc");
+        expect(s.c_str()[3] == '\0');
+    };
+
+    "small_string smallest size"_test = [] {
+        irt::small_string<3> s("abc");
+
+        expect(s.capacity() == 1);
+        expect(s.sv() == "a");
+
+        s.push_back('z'); // ignored, already full
+        expect(s.sv() == "a");
+        expect(sizeof(s) == 3);
     };
 
     "small_string copy constructor"_test = [] {
@@ -1298,7 +1340,8 @@ int main()
         irt::small_string<8> b(std::move(a));
 
         expect(b.sv() == "move");
-        expect(a.empty());
+        // The source of a move is valid but unspecified (the class is
+        // trivially copyable): nothing else is checked here.
     };
 
     "small_string copy assignment"_test = [] {
@@ -1307,6 +1350,7 @@ int main()
 
         b = a;
         expect(b.sv() == "abc");
+        expect(a.sv() == "abc");
     };
 
     "small_string move assignment"_test = [] {
@@ -1315,7 +1359,17 @@ int main()
 
         b = std::move(a);
         expect(b.sv() == "abc");
-        expect(a.empty());
+    };
+
+    "small_string self assignment"_test = [] {
+        irt::small_string<8> a("abc");
+        auto&                r = a;
+
+        a = r;
+        expect(a.sv() == "abc");
+
+        a = std::move(r);
+        expect(a.sv() == "abc");
     };
 
     "small_string assign"_test = [] {
@@ -1323,6 +1377,32 @@ int main()
         s.assign("hello");
 
         expect(s.sv() == "hello");
+        expect(s.c_str()[5] == '\0');
+    };
+
+    "small_string assign truncates and replaces"_test = [] {
+        irt::small_string<8> s("abcdef");
+
+        s.assign("xy");
+        expect(s.sv() == "xy");
+        expect(s.c_str()[2] == '\0');
+
+        s.assign("0123456789");
+        expect(s.sv() == "012345");
+        expect(s.c_str()[6] == '\0');
+
+        s.assign("");
+        expect(s.empty());
+    };
+
+    "small_string assign from its own content"_test = [] {
+        irt::small_string<16> s("abcdef");
+
+        s.assign(s.sv().substr(2));
+        expect(s.sv() == "cdef");
+
+        s.assign(s.sv());
+        expect(s.sv() == "cdef");
     };
 
     "small_string push_back"_test = [] {
@@ -1331,10 +1411,51 @@ int main()
         s.push_back('a');
         s.push_back('b');
         s.push_back('c');
-        s.push_back('d');
+        s.push_back('d'); // ignored
         s.push_back('e'); // ignored
 
+        expect(s.sv() == "abc");
+        expect(s.size() == 3);
+        expect(s.c_str()[3] == '\0');
+    };
+
+    "small_string append"_test = [] {
+        irt::small_string<16> s("ab");
+
+        s.append("cd");
         expect(s.sv() == "abcd");
+        expect(s.c_str()[4] == '\0');
+
+        s.append("");
+        expect(s.sv() == "abcd");
+
+        s.append(std::string_view{ "efghijklmnop" }); // capacity is 14
+        expect(s.sv() == "abcdefghijklmn");
+        expect(s.size() == s.capacity());
+        expect(s.c_str()[14] == '\0');
+
+        s.append("zzz"); // full: no effect
+        expect(s.sv() == "abcdefghijklmn");
+    };
+
+    "small_string append its own content"_test = [] {
+        irt::small_string<16> s("ab");
+
+        s.append(s.sv());
+        expect(s.sv() == "abab");
+    };
+
+    "small_string can_append"_test = [] {
+        irt::small_string<8> s("abc"); // room for 3 more
+
+        expect(s.can_append(""));
+        expect(s.can_append("d"));
+        expect(s.can_append("def"));
+        expect(not s.can_append("defg"));
+
+        s.append("def");
+        expect(s.can_append(""));
+        expect(not s.can_append("g"));
     };
 
     "small_string clear"_test = [] {
@@ -1343,6 +1464,7 @@ int main()
 
         expect(s.empty());
         expect(s.size() == 0);
+        expect(s.c_str()[0] == '\0');
     };
 
     "small_string resize shrink"_test = [] {
@@ -1350,6 +1472,10 @@ int main()
 
         s.resize(3);
         expect(s.sv() == "abc");
+        expect(s.c_str()[3] == '\0');
+
+        s.resize(0);
+        expect(s.empty());
     };
 
     "small_string resize grow"_test = [] {
@@ -1357,14 +1483,25 @@ int main()
 
         s.resize(6);
         expect(s.size() == 6);
+        expect(s.sv() == std::string_view{ "abc\0\0\0", 6 });
         expect(s.c_str()[6] == '\0');
     };
+
+    "small_string resize grow fills with zeros, not stale characters"_test =
+      [] {
+          irt::small_string<8> s("abcdef");
+
+          s.resize(2);
+          s.resize(5);
+          expect(s.sv() == std::string_view{ "ab\0\0\0", 5 });
+      };
 
     "small_string resize over capacity"_test = [] {
         irt::small_string<8> s("abc");
 
         s.resize(42);
         expect(s.size() == s.capacity());
+        expect(s.c_str()[s.capacity()] == '\0');
     };
 
     "small_string resize negative"_test = [] {
@@ -1372,6 +1509,55 @@ int main()
 
         s.resize(-1);
         expect(s.empty());
+        expect(s.c_str()[0] == '\0');
+    };
+
+    "small_string resize with various integer types"_test = [] {
+        irt::small_string<8> s("abcdef");
+
+        s.resize(std::size_t{ 100 });
+        expect(s.size() == 6);
+
+        s.resize(std::uint8_t{ 2 });
+        expect(s.sv() == "ab");
+
+        s.resize(4u);
+        expect(s.size() == 4);
+
+        s.resize(std::int64_t{ -5 });
+        expect(s.empty());
+    };
+
+    "small_string resize_and_overwrite"_test = [] {
+        irt::small_string<8> s;
+        std::size_t          received = 0;
+
+        s.resize_and_overwrite(100, [&](char* p, std::size_t n) {
+            received = n;
+            p[0]     = 'x';
+            p[1]     = 'y';
+            p[2]     = 'z';
+            return std::size_t{ 3 };
+        });
+
+        expect(received == s.capacity()); // clamped to the capacity
+        expect(s.sv() == "xyz");
+        expect(s.c_str()[3] == '\0');
+    };
+
+    "small_string resize_and_overwrite keeps existing content"_test = [] {
+        irt::small_string<8> s("abcdef");
+
+        s.resize_and_overwrite(
+          6, [](char*, std::size_t) { return std::size_t{ 3 }; });
+        expect(s.sv() == "abc");
+        expect(s.c_str()[3] == '\0');
+
+        s.resize_and_overwrite(6, [](char* p, std::size_t) {
+            p[3] = 'D';
+            return std::size_t{ 4 };
+        });
+        expect(s.sv() == "abcD");
     };
 
     "small_string operator[]"_test = [] {
@@ -1380,6 +1566,24 @@ int main()
         expect(s[0] == 'a');
         expect(s[1] == 'b');
         expect(s[2] == 'c');
+
+        s[1] = 'X';
+        expect(s.sv() == "aXc");
+
+        const irt::small_string<8> c("xyz");
+        expect(c[2] == 'z');
+        expect(c[std::size_t{ 0 }] == 'x');
+    };
+
+    "small_string front and back"_test = [] {
+        irt::small_string<8> s("a");
+
+        expect(s.front() == 'a');
+        expect(s.back() == 'a'); // one-character string
+
+        s.push_back('b');
+        expect(s.front() == 'a');
+        expect(s.back() == 'b');
     };
 
     "small_string iterators"_test = [] {
@@ -1390,6 +1594,25 @@ int main()
             out.push_back(c);
 
         expect(out == "abc");
+        expect(std::distance(s.begin(), s.end()) == 3);
+
+        const irt::small_string<8>& cs = s;
+        expect(std::distance(cs.begin(), cs.end()) == 3);
+        expect(std::string_view(cs.begin(), cs.end()) == "abc");
+
+        irt::small_string<8> e;
+        expect(e.begin() == e.end());
+    };
+
+    "small_string interface types"_test = [] {
+        using S = irt::small_string<8>;
+        S s;
+
+        static_assert(std::is_same_v<decltype(s.size()), std::size_t>);
+        static_assert(std::is_same_v<decltype(S::capacity()), std::size_t>);
+        static_assert(std::is_same_v<decltype(s.ssize()), std::ptrdiff_t>);
+        static_assert(S::capacity() == 6);
+        expect(s.capacity() == S::capacity());
     };
 
     "small_string equality"_test = [] {
@@ -1399,6 +1622,36 @@ int main()
 
         expect(a == b);
         expect(not(a == c));
+        expect(a != c);
+    };
+
+    "small_string equality with string_view and const char*"_test = [] {
+        irt::small_string<8> s("abc");
+
+        expect(s == std::string_view{ "abc" });
+        expect(std::string_view{ "abc" } == s);
+        expect(s == "abc");
+        expect("abc" == s);
+        expect(s != "abd");
+        expect(std::string_view{ "abd" } != s);
+        expect(s != "ab");
+
+        const char* p = nullptr;
+        expect(s != p);
+        expect(irt::small_string<8>{} == p);
+    };
+
+    "small_string ordering"_test = [] {
+        irt::small_string<8> a("abc");
+        irt::small_string<8> b("abd");
+
+        expect(a < b);
+        expect(b > a);
+        expect(a <= a);
+        expect(a >= a);
+        expect((a <=> b) < 0);
+        expect((b <=> a) > 0);
+        expect((a <=> a) == 0);
     };
 
     "small_string compare with string_view"_test = [] {
@@ -1406,6 +1659,8 @@ int main()
 
         expect((s <=> std::string_view{ "abc" }) == 0);
         expect((s <=> std::string_view{ "abd" }) < 0);
+        expect((std::string_view{ "abb" } <=> s) < 0);
+        expect((std::string_view{ "abd" } <=> s) > 0);
     };
 
     "small_string compare with const char*"_test = [] {
@@ -1413,6 +1668,190 @@ int main()
 
         expect((s <=> "abc") == 0);
         expect((s <=> "abb") > 0);
+        expect(("abd" <=> s) > 0);
+        expect(("abc" <=> s) == 0);
+    };
+
+    "small_storage_size_t"_test = [] {
+        static_assert(
+          std::is_same_v<irt::small_storage_size_t<0>, std::uint8_t>);
+        static_assert(
+          std::is_same_v<irt::small_storage_size_t<255>, std::uint8_t>);
+        static_assert(
+          std::is_same_v<irt::small_storage_size_t<256>, std::uint16_t>);
+        static_assert(
+          std::is_same_v<irt::small_storage_size_t<65535>, std::uint16_t>);
+        static_assert(
+          std::is_same_v<irt::small_storage_size_t<65536>, std::uint32_t>);
+        static_assert(std::is_same_v<irt::small_storage_size_t<4294967295ull>,
+                                     std::uint32_t>);
+        static_assert(std::is_same_v<irt::small_storage_size_t<4294967296ull>,
+                                     std::uint64_t>);
+    };
+
+    "small_string layout"_test = [] {
+        auto check = []<std::size_t N>(std::integral_constant<std::size_t, N>) {
+            using S = irt::small_string<N>;
+
+            static_assert(sizeof(S) == N);
+            static_assert(std::is_trivially_copyable_v<S>);
+            static_assert(S::capacity() ==
+                          N - sizeof(typename S::size_type) - 1);
+
+            expect(sizeof(S) == N);
+        };
+
+        check(std::integral_constant<std::size_t, 3>{});
+        check(std::integral_constant<std::size_t, 4>{});
+        check(std::integral_constant<std::size_t, 8>{});
+        check(std::integral_constant<std::size_t, 16>{});
+        check(std::integral_constant<std::size_t, 32>{});
+        check(std::integral_constant<std::size_t, 64>{});
+        check(std::integral_constant<std::size_t, 128>{});
+        check(std::integral_constant<std::size_t, 200>{});
+        check(std::integral_constant<std::size_t, 256>{});
+        check(std::integral_constant<std::size_t, 512>{});
+    };
+
+    "small_string capacity of the usual sizes"_test = [] {
+        expect(irt::small_string<8>::capacity() == 6);
+        expect(irt::small_string<16>::capacity() == 14);
+        expect(irt::small_string<32>::capacity() == 30);
+        expect(irt::small_string<64>::capacity() == 62);
+    };
+
+    "small_string is trivially copyable, copies are independent"_test = [] {
+        irt::small_string<32> a("abc");
+        irt::small_string<32> b;
+
+        std::memcpy(&b, &a, sizeof(a));
+        expect(b.sv() == "abc");
+
+        b.push_back('d');
+        expect(a.sv() == "abc");
+        expect(b.sv() == "abcd");
+    };
+
+    "small_string never writes past its storage"_test = [] {
+        auto check = []<std::size_t N>(std::integral_constant<std::size_t, N>) {
+            struct guarded {
+                irt::small_string<N> s;
+                unsigned char        guard[16];
+            };
+
+            guarded g{};
+            std::memset(g.guard, 0xAB, sizeof(g.guard));
+
+            const auto intact = [&g] {
+                for (const auto b : g.guard)
+                    if (b != 0xAB)
+                        return false;
+                return true;
+            };
+            const auto terminated = [&g] {
+                return g.s.c_str()[g.s.size()] == '\0';
+            };
+
+            const std::string big(1000, 'x');
+
+            g.s.assign(big);
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            g.s.clear();
+            g.s.append(big);
+            g.s.append(big);
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            g.s.clear();
+            for (std::size_t i = 0; i < N + 5; ++i)
+                g.s.push_back('y');
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            g.s.resize(1000);
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            g.s.resize_and_overwrite(1000, [](char* p, std::size_t n) {
+                std::fill_n(p, n, 'z');
+                return n;
+            });
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            irt::format(g.s, "{}", big);
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+
+            g.s = std::string_view{ big };
+            expect(g.s.size() == g.s.capacity());
+            expect(terminated() and intact());
+        };
+
+        check(std::integral_constant<std::size_t, 3>{});
+        check(std::integral_constant<std::size_t, 8>{});
+        check(std::integral_constant<std::size_t, 16>{});
+        check(std::integral_constant<std::size_t, 32>{});
+        check(std::integral_constant<std::size_t, 128>{});
+        check(std::integral_constant<std::size_t, 129>{});
+        check(std::integral_constant<std::size_t, 200>{});
+        check(std::integral_constant<std::size_t, 255>{});
+        check(std::integral_constant<std::size_t, 256>{});
+        check(std::integral_constant<std::size_t, 512>{});
+    };
+
+    "small_string with capacity above 127 (signed size overflow)"_test = [] {
+        irt::small_string<200> s;
+        expect(s.capacity() == 198);
+
+        s.assign(std::string(150, 'a'));
+        expect(s.size() == 150);
+        expect(s.ssize() == 150); // was negative with an int8_t index type
+        expect(s.can_append(std::string(48, 'b')));
+        expect(not s.can_append(std::string(49, 'b')));
+
+        s.append(std::string(100, 'b'));
+        expect(s.size() == 198);
+        expect(s.ssize() == 198);
+        expect(not s.can_append("c"));
+        expect(s.back() == 'b');
+
+        s.append("c"); // no effect
+        expect(s.size() == 198);
+    };
+
+    "small_string with 16 bits size type"_test = [] {
+        irt::small_string<512> s;
+        expect(s.capacity() == 509);
+
+        s.assign(std::string(1000, 'a'));
+        expect(s.size() == 509);
+        expect(s.c_str()[509] == '\0');
+
+        s.resize(300);
+        expect(s.size() == 300);
+        expect(s.can_append(std::string(209, 'b')));
+        expect(not s.can_append(std::string(210, 'b')));
+    };
+
+    "small_string constexpr"_test = [] {
+        constexpr auto make = [] {
+            irt::small_string<16> s("ab");
+            s.append("cd");
+            s.push_back('e');
+            s.resize(4);
+            return s;
+        };
+
+        constexpr auto s = make();
+        static_assert(s.sv() == "abcd");
+        static_assert(s.size() == 4);
+        static_assert(s == "abcd");
+        static_assert(s.front() == 'a' and s.back() == 'd');
+
+        expect(s.sv() == "abcd");
     };
 
     "format fills small_string"_test = [] {
@@ -1421,6 +1860,8 @@ int main()
         irt::format(s, "value = {}", 42);
 
         expect(s.sv() == "value = 42");
+        expect(s.size() == 10);
+        expect(s.c_str()[10] == '\0');
     };
 
     "format truncates safely"_test = [] {
@@ -1429,7 +1870,26 @@ int main()
         irt::format(s, "abcdefghijk");
 
         expect(s.size() == s.capacity());
-        expect(s.sv() == "abcdefg");
+        expect(s.sv() == "abcdef");
+        expect(s.c_str()[6] == '\0');
+    };
+
+    "format truncates a formatted argument"_test = [] {
+        irt::small_string<8> s;
+
+        irt::format(s, "{}", 1234567890);
+
+        expect(s.sv() == "123456");
+    };
+
+    "format exact fit"_test = [] {
+        irt::small_string<8> s;
+
+        irt::format(s, "{}", "abcdef"); // exactly capacity()
+        expect(s.sv() == "abcdef");
+
+        irt::format(s, "{}", "abcde");
+        expect(s.sv() == "abcde");
     };
 
     "format resize consistency"_test = [] {
@@ -1447,6 +1907,44 @@ int main()
         irt::format(s, "ok");
 
         expect(s.sv() == "ok");
+        expect(s.c_str()[2] == '\0');
+    };
+
+    "format with an empty result"_test = [] {
+        irt::small_string<16> s("abc");
+
+        irt::format(s, "");
+
+        expect(s.empty());
+        expect(s.c_str()[0] == '\0');
+    };
+
+    "format with lvalue arguments"_test = [] {
+        irt::small_string<32> s;
+        std::string           name = "abc";
+        const int             n    = 7;
+
+        irt::format(s, "{}-{}", name, n);
+
+        expect(s.sv() == "abc-7");
+    };
+
+    "format can be followed by append and push_back"_test = [] {
+        irt::small_string<16> s;
+
+        irt::format(s, "a{}", 1);
+        s.append("bc");
+        s.push_back('d');
+
+        expect(s.sv() == "a1bcd");
+    };
+
+    "format_n"_test = [] {
+        const auto s = irt::format_n<16>("v={}", 12);
+        expect(s.sv() == "v=12");
+
+        const auto t = irt::format_n<8>("abcdefghij");
+        expect(t.sv() == "abcdef");
     };
 
     "small_string format stress"_test = [] {
@@ -1454,7 +1952,7 @@ int main()
 
         for (int i = 0; i < 1000; ++i) {
             irt::format(s, "i={}", i);
-            expect(s.sv().starts_with("i="));
+            expect(s.sv() == "i=" + std::to_string(i));
         }
     };
 

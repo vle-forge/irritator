@@ -46,7 +46,7 @@ name_str graph_component::make_unique_name_id(
 {
     debug::ensure(g.nodes.exists(v));
 
-    return format_n<31>("{}", get_index(v));
+    return format_n<32>("{}", get_index(v));
 }
 
 static auto build_graph_children(

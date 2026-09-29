@@ -345,15 +345,13 @@ static bool show_project_simulation_settings(application&    app,
                             });
                         } else {
                             log(log_level::error, [&](auto& msg) noexcept {
-                                const small_string<127>
-                                  name = app.mod.files.read(
-                                    [&](const auto& fs, const auto /*vers*/) {
-                                        const auto* f = fs.file_paths
-                                                          .try_to_get(
-                                                            ed.pj.project_file);
-                                        return f ? f->path.sv()
-                                                 : std::string_view{ "-" };
-                                    });
+                                const path name = app.mod.files.read(
+                                  [&](const auto& fs, const auto /*vers*/) {
+                                      const auto* f = fs.file_paths.try_to_get(
+                                        ed.pj.project_file);
+                                      return f ? f->path.sv()
+                                               : std::string_view{ "-" };
+                                  });
 
                                 format(
                                   msg,

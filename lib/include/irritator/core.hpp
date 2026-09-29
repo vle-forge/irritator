@@ -44,12 +44,13 @@ enum class log_level : u8 {
     debug
 };
 
-struct log_record {
-    constexpr static inline auto length = 512 - 2;
+using log_record_message = small_string<512>;
 
-    u64                  ts;
+struct log_record {
+    u64 ts; /**< @c ts corresponds to the creation date of the message since
+               epoch (see @c get_time_since_epoch()). */
     std::thread::id      tid;
-    small_string<length> msg;
+    log_record_message   msg;
     log_level            level;
 };
 
@@ -553,9 +554,8 @@ enum class embedded_simulation_id : u32;
 
 static constexpr int external_source_chunk_size = 512;
 static constexpr int default_max_client_number  = 32;
-static constexpr int default_name_string_size   = 32 - 1; // -1 for length;
 
-using name_str = small_string<default_name_string_size>;
+using name_str = small_string<32>;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
@@ -1878,7 +1878,7 @@ struct output_port {
                   Args&&... args) noexcept;
 };
 
-using observer_name           = small_string<31>;
+using observer_name           = small_string<32>;
 using observer_history_cursor = u64;
 using observers_type = id_data_array<observer,
                                      observer_id,

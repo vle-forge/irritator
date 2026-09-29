@@ -239,7 +239,7 @@ static constexpr bool starts_as_number(int c) noexcept
 class input_stream_buffer
 {
 private:
-    small_string<1022> warnings;
+    small_string<512> warnings;
 
     template<msg_id Index, typename... Args>
     constexpr void warning(Args&&... args) noexcept
@@ -270,7 +270,7 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        auto       title = small_string<255>{};
+        auto       title = small_string<256>{};
         const auto ret   = fmt::vformat_to_n(title.data(), title.capacity(),
                                              msg_fmt[idx],
                                              fmt::make_format_args(args...));

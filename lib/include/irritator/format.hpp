@@ -97,13 +97,12 @@ inline void format(small_string<N>&            str,
                    fmt::format_string<Args...> fmt_str,
                    Args&&... args) noexcept
 {
-    auto result = fmt::vformat_to_n(str.data(),
-                                    static_cast<std::size_t>(str.capacity()),
-                                    fmt_str,
-                                    fmt::make_format_args(args...));
-
-    str.resize(static_cast<typename small_string<N>::index_type>(
-      std::min<std::size_t>(result.size, str.capacity())));
+    str.resize_and_overwrite(
+      str.capacity(), [&](char* buf, std::size_t n) noexcept {
+          const auto r = fmt::format_to_n(buf, n, fmt_str,
+                                          std::forward<Args>(args)...);
+          return std::min<std::size_t>(r.size, n);
+      });
 }
 
 template<std::size_t N, typename... Args>
@@ -111,13 +110,7 @@ inline small_string<N> format_n(fmt::format_string<Args...> fmt_str,
                                 Args&&... args) noexcept
 {
     small_string<N> str;
-
-    auto result = fmt::vformat_to_n(
-      str.data(), str.capacity(), fmt_str, fmt::make_format_args(args...));
-
-    str.resize(static_cast<typename small_string<N>::index_type>(
-      std::min<std::size_t>(result.size, str.capacity())));
-
+    format(str, fmt_str, std::forward<Args>(args)...);
     return str;
 }
 

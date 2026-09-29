@@ -43,11 +43,11 @@ enum class global_observable_id : u64;
 enum class graph_node_id : irt::u32;
 enum class graph_edge_id : irt::u32;
 
-using port_str           = small_string<7>;
-using description_str    = small_string<1022>;
+using port_str           = small_string<8>;
+using description_str    = small_string<1024>;
 using registred_path_str = path;
-using directory_path_str = small_string<64 - 1>;
-using file_path_str      = small_string<64 - 1>;
+using directory_path_str = small_string<64>;
+using file_path_str      = small_string<64>;
 using color              = std::array<float, 4>;
 
 /// Maximum deepth of the component tree.

@@ -845,7 +845,7 @@ void project_external_source_editor::show(application&    app,
 static void build_source_element_name(
   const external_source_definition::source_element& src,
   const name_str&                                   str,
-  small_string<63>&                                 out) noexcept
+  name_str&                                         out) noexcept
 {
     static const char* names[] = { "(cst)", "(bin)", "(txt)", "(rnd)" };
 
@@ -854,7 +854,7 @@ static void build_source_element_name(
 
 static void get_source_element(const external_source_definition&    srcs,
                                const external_source_definition::id id,
-                               small_string<63>& out) noexcept
+                               name_str& out) noexcept
 {
     if (srcs.data.exists(id))
         build_source_element_name(
@@ -869,7 +869,7 @@ void show_combobox_external_sources(external_source_definition&     srcs,
                                     external_source_definition::id& elem_id,
                                     const char* name) noexcept
 {
-    small_string<63> buf;
+    name_str buf;
 
     if (ImGui::BeginCombo(name, name)) {
         if (ImGui::Selectable("-", not srcs.data.exists(elem_id)))
@@ -998,7 +998,7 @@ bool show_external_sources_combo(const char*                 title,
                                  external_source_definition& srcs,
                                  i64&                        src) noexcept
 {
-    auto       buf     = small_string<63>{};
+    auto       buf     = name_str{};
     const auto id      = enum_cast<external_source_definition::id>(src);
     auto       copy_id = id;
 
@@ -1032,7 +1032,7 @@ void show_menu_external_sources(external_source& srcs,
                                 source&          src,
                                 source_data&     src_data) noexcept
 {
-    small_string<64> tmp;
+    name_str tmp;
 
     constant_source*    constant_ptr    = nullptr;
     binary_file_source* binary_file_ptr = nullptr;

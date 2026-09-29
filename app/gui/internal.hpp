@@ -186,31 +186,18 @@ inline void TextFormat(fmt::format_string<Args...> fmt_str,
                        Args&&... args) noexcept
 {
     thread_local ::irt::small_string<255> buffer;
-
-    auto result = fmt::vformat_to_n(buffer.data(),
-                                    static_cast<std::size_t>(buffer.capacity()),
-                                    fmt_str,
-                                    fmt::make_format_args(args...));
-
-    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
-      std::min<std::size_t>(result.size, buffer.capacity())));
+    format(buffer, fmt_str, std::forward<Args>(args)...);
 
     ImGui::TextUnformatted(buffer.c_str());
 }
 
 template<typename... Args>
 void TextFormatDisabled(fmt::format_string<Args...> fmt_str,
-                        const Args&... args) noexcept
+                        Args&&... args) noexcept
 {
     thread_local ::irt::small_string<255> buffer;
 
-    auto result = fmt::vformat_to_n(buffer.data(),
-                                    static_cast<std::size_t>(buffer.capacity()),
-                                    fmt_str,
-                                    fmt::make_format_args(args...));
-
-    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
-      std::min<std::size_t>(result.size, buffer.capacity())));
+    format(buffer, fmt_str, std::forward<Args>(args)...);
 
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
@@ -225,13 +212,7 @@ inline void LabelFormat(const char*                 label,
 {
     thread_local ::irt::small_string<255> buffer;
 
-    auto result = fmt::vformat_to_n(buffer.data(),
-                                    static_cast<std::size_t>(buffer.capacity()),
-                                    fmt_str,
-                                    fmt::make_format_args(args...));
-
-    buffer.resize(static_cast<typename ::irt::small_string<255>::index_type>(
-      std::min<std::size_t>(result.size, buffer.capacity())));
+    format(buffer, fmt_str, std::forward<Args>(args)...);
 
     ImGui::LabelText(label, "%s", buffer.c_str());
 }
