@@ -776,9 +776,6 @@ static void show_subplots(application&       app,
                           variable_observer& vobs) noexcept
 {
     if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
         ImPlot::SetupLegend(ImPlotLocation_NorthWest);
         ImPlot::SetupAxisLimits(ImAxis_X1, ed.pj.sim.limits.begin(),
                                 ed.pj.sim.limits.end());
@@ -797,7 +794,6 @@ static void show_subplots(application&       app,
             app.plot_obs.show_plot_line(*obs, opts, name.c_str());
         }
 
-        ImPlot::PopStyleVar(2);
         ImPlot::EndPlot();
     }
 }
@@ -915,9 +911,6 @@ static void show_component_observations(application&    app,
                 ImGui::PushID(
                   get_index(sim_ed.pj.variable_observers.get_id(vobs)));
                 if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
-                    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
                     ImPlot::SetupLegend(ImPlotLocation_NorthWest);
                     ImPlot::SetupAxisLimits(ImAxis_X1,
                                             sim_ed.pj.sim.limits.begin(),
@@ -930,7 +923,6 @@ static void show_component_observations(application&    app,
                     if (sim_ed.pj.simulation_state !=
                         simulation_status::initializing)
                         show_local_variables_plot(app, sim_ed, vobs, tn_id);
-                    ImPlot::PopStyleVar(2);
                     ImPlot::EndPlot();
                 }
                 ImGui::PopID();
@@ -985,12 +977,16 @@ static void show_component_observations(application&    app,
 
                             if (const auto* data = sub_obs[idx].get(
                                   select_models[select_idx])) {
+                                ImPlotSpec spec;
+                                spec.LineWeight = 1.f;
+                                spec.MarkerSize = 6.f;
+                                spec.Stride     = sizeof(resampled_sample);
+                                spec.Flags      = ImPlotLineFlags_SkipNaN;
 
                                 ImPlot::PlotLine(
                                   format_n<64>("{}", idx).c_str(),
                                   &data->values[0].t, &data->values[0].value,
-                                  length(data->values), ImPlotLineFlags_SkipNaN,
-                                  0, sizeof(resampled_sample));
+                                  length(data->values), spec);
                             }
                         }
 

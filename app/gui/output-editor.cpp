@@ -552,9 +552,6 @@ void output_editor::show() noexcept
         ImPlot::SetCurrentContext(app.output_ed.m_ctx);
 
         if (ImPlot::BeginPlot("Plots", ImVec2(-1, -1))) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
             ImPlot::SetupAxes(nullptr,
                               nullptr,
                               ImPlotAxisFlags_AutoFit,
@@ -574,7 +571,6 @@ void output_editor::show() noexcept
                 if (p.plot_type != simulation_plot_type::none)
                     app.plot_copy_wgt.show_plot_line(p);
 
-            ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
         }
 

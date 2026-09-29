@@ -823,13 +823,13 @@ void project_external_source_editor::show(application&    app,
 
             ImPlot::SetNextAxesToFit();
             if (ImPlot::BeginPlot("External source preview", ImVec2(-1, -1))) {
-                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+                ImPlotSpec spec;
+                spec.LineWeight = 1.f;
+                spec.MarkerSize = 6.f;
 
-                ImPlot::PlotScatter(
-                  "value", vec.data(), static_cast<int>(vec.size()), 1.0, 0.0);
+                ImPlot::PlotScatter("value", vec.data(),
+                                    static_cast<int>(vec.size()), 1, 0, spec);
 
-                ImPlot::PopStyleVar(2);
                 ImPlot::EndPlot();
             }
         });

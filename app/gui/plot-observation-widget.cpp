@@ -20,8 +20,10 @@ void plot_observation_widget::show(project& pj) noexcept
         format(name, "{}##{}", v_obs.name.sv(), idx);
 
         if (ImPlot::BeginPlot(name.c_str(), ImVec2(-1, -1))) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+            ImPlotSpec spec;
+            spec.LineWeight = 1.f;
+            spec.MarkerSize = 6.f;
+            spec.Stride     = sizeof(resampled_sample);
 
             ImPlot::SetupLegend(ImPlotLocation_NorthWest);
             ImPlot::SetupAxisLimits(
@@ -40,23 +42,14 @@ void plot_observation_widget::show(project& pj) noexcept
                   [&](const auto& h, const auto /*version*/) noexcept {
                       switch (opt) {
                       case plot_type_options::line:
-                          ImPlot::PlotLine(name.c_str(),
-                                           &h[0].t,
-                                           &h[0].value,
-                                           static_cast<int>(h.size()),
-                                           0,
-                                           0,
-                                           sizeof(resampled_sample));
+                          ImPlot::PlotLine(name.c_str(), &h[0].t, &h[0].value,
+                                           static_cast<int>(h.size()), spec);
                           break;
 
                       case plot_type_options::dash:
-                          ImPlot::PlotScatter(name.c_str(),
-                                              &h[0].t,
+                          ImPlot::PlotScatter(name.c_str(), &h[0].t,
                                               &h[0].value,
-                                              static_cast<int>(h.size()),
-                                              0,
-                                              0,
-                                              sizeof(resampled_sample));
+                                              static_cast<int>(h.size()), spec);
                           break;
 
                       default:
@@ -65,7 +58,6 @@ void plot_observation_widget::show(project& pj) noexcept
                   });
             }
 
-            ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
         }
     }
@@ -79,13 +71,13 @@ static void show_discrete_plot_line(const plot_type_options options,
     case plot_type_options::line:
         obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotStairs(name,
-                                 &lbuf[0].t,
-                                 &lbuf[0].value,
-                                 static_cast<int>(lbuf.size()),
-                                 0,
-                                 0,
-                                 sizeof(resampled_sample));
+              ImPlotSpec spec;
+              spec.LineWeight = 1.f;
+              spec.MarkerSize = 6.f;
+              spec.Stride     = sizeof(resampled_sample);
+
+              ImPlot::PlotStairs(name, &lbuf[0].t, &lbuf[0].value,
+                                 static_cast<int>(lbuf.size()), spec);
           },
           name);
         break;
@@ -93,14 +85,13 @@ static void show_discrete_plot_line(const plot_type_options options,
     case plot_type_options::dash:
         obs.read_history(
           [](const auto& lbuf, const auto /*version*/, const auto& name) {
-              ImPlot::PlotBars(name,
-                               &lbuf[0].t,
-                               &lbuf[0].value,
-                               static_cast<int>(lbuf.ssize()),
-                               1.5,
-                               0,
-                               0,
-                               sizeof(resampled_sample));
+              ImPlotSpec spec;
+              spec.LineWeight = 1.f;
+              spec.MarkerSize = 6.f;
+              spec.Stride     = sizeof(resampled_sample);
+
+              ImPlot::PlotBars(name, &lbuf[0].t, &lbuf[0].value,
+                               static_cast<int>(lbuf.ssize()), 1.5, spec);
           },
           name);
         break;
@@ -116,25 +107,27 @@ static void show_continuous_plot_line(const plot_type_options options,
 {
     obs.read_history([&](const auto& lbuf, const auto /*version*/) noexcept {
         switch (options) {
-        case plot_type_options::line:
-            ImPlot::PlotLine(name,
-                             &lbuf[0].t,
-                             &lbuf[0].value,
-                             static_cast<int>(lbuf.size()),
-                             0,
-                             0,
-                             sizeof(resampled_sample));
-            break;
+        case plot_type_options::line: {
+            ImPlotSpec spec;
+            spec.LineWeight = 1.f;
+            spec.MarkerSize = 6.f;
+            spec.Stride     = sizeof(resampled_sample);
 
-        case plot_type_options::dash:
-            ImPlot::PlotScatter(name,
-                                &lbuf[0].t,
-                                &lbuf[0].value,
-                                static_cast<int>(lbuf.size()),
-                                0,
-                                0,
-                                sizeof(resampled_sample));
-            break;
+            ImPlot::PlotLine(name, &lbuf[0].t, &lbuf[0].value,
+                             static_cast<int>(lbuf.size()), spec);
+
+        } break;
+
+        case plot_type_options::dash: {
+            ImPlotSpec spec;
+            spec.LineWeight = 1.f;
+            spec.MarkerSize = 6.f;
+            spec.Stride     = sizeof(resampled_sample);
+
+            ImPlot::PlotScatter(name, &lbuf[0].t, &lbuf[0].value,
+                                static_cast<int>(lbuf.size()), spec);
+
+        } break;
 
         default:
             break;
