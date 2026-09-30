@@ -17,9 +17,171 @@ v0.1.0, 2026-xx-xx
 |image:https://github.com/vle-forge/irritator/actions/workflows/windows.yml/badge.svg?branch=test[Windows, link=https://github.com/vle-forge/irritator/actions/workflows/windows.yml]
 |===
 
-Copyright © 2021-2026 http://www.inrae.fr/en[INRA]
+Copyright © 2021-2026 http://www.inrae.fr/en[INRAE]
 
-The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost license]. See the LICENSE file.
+The software is released under the https://www.boost.org/LICENSE_1_0.txt[Boost
+license]. See the LICENSE file.
+
+== Abstract
+
+Irritator is a discrete-event simulation kernel based on the Parallel
+DEVS (PDEVS) formalism, written in $$C++20$$. Unlike other DEVS
+tools (including https://www.vle-project.org[VLE]), Irritator does not ask the
+modeler to write atomic models in code. Instead, a model is built by assembling
+a fixed catalogue of ready-to-use atomic models, so that a complete simulation
+can be described as data.
+
+The catalogue covers three families:
+
+* *Continuous-time models* using the QSS (Quantized State Systems) method, at
+  orders 1, 2 and 3 (`qss1_*`, `qss2_*`, `qss3_*`). Each order provides the
+  same set of models: integrator, multiplier, sums and weighted sums, gain,
+  power, square, inverse, division, elementary functions (`sin`, `cos`, `tan`,
+  `atan`, `atan2`, `exp`, `log`, `sqrt`, `tanh`, `sigmoid`, ...), and
+  non-linear or hybrid blocks (`cross`, `flipflop`, `hysteresis`, `saturation`,
+  `dead_zone`, `quantizer`, `sample_hold`, `integrate_and_fire`,
+  `threshold_crossing`, `pwm`, ...).
+* *Discrete-event models*: `generator`, `constant`, `time_func`, `counter`,
+  `accumulator_2`, `queue`, `dynamic_queue`, `priority_queue`,
+  `logical_and_2/3`, `logical_or_2/3`, `logical_invert` and `zero_order_hold`.
+* *Two special models* that embed behaviour instead of a fixed function:
+  `hsm_wrapper`, which runs a hierarchical state machine (HSM) as a PDEVS
+  atomic model, and `simulation_wrapper`, which embeds a complete Irritator
+  simulation inside another one.
+
+*Components and projects.* Atomic models are connected into *components*, which
+can themselves contain other components. A component is stored as a JSON
+file (`.irt`) and can be reused anywhere. A *project* (`.pirt`, also JSON)
+instantiates and configures components to build the final simulation.
+
+*Tools.* Irritator ships with a graphical user interface based on Dear ImGui to
+build, run and observe simulations. A plugin for
+https://www.unrealengine.com/[Unreal Engine 5] is under development to run
+Irritator simulations directly inside UE5.
+
+Irritator runs on Linux, Windows and macOS and is released under the Boost
+license.
+
+== Concepts
+
+This section describes what makes Irritator different from a general DEVS
+framework. It assumes that the reader is familiar with DEVS (atomic models,
+time advance, internal and external transitions, output function).
+
+=== Parallel DEVS kernel
+
+Irritator implements the Parallel DEVS (PDEVS) formalism. Each atomic model
+defines an internal transition (`δint`), an external transition (`δext`), a
+confluent transition (`δcon`) and a time advance (`ta`) in the same $$C++$$
+`<model>::transition(...)` function. The an output function (`λ`) in the $C++$$
+`<model>::lambda(...)` function. All imminent models produce their output, the
+messages are routed along the connections, and every model receiving a bag of
+messages or reaching its next internal event is activated. Simultaneous events
+are resolved by the confluent transition, as defined by PDEVS.
+
+=== A closed catalogue of atomic models
+
+In most DEVS tools, the modeler writes new atomic models in a programming
+language. Irritator takes the opposite approach: *the set of atomic models is
+fixed and provided by the kernel*. A modeler builds a simulation by selecting
+models from the catalogue, setting their parameters and connecting their ports.
+No $$C++$$ code is required to describe a simulation.
+
+The catalogue is organized in three groups:
+
+* *QSS models* for continuous and hybrid systems.
+* *Discrete-event models* for queueing, counting and event generation.
+* *Wrapper models* (`hsm_wrapper`, `simulation_wrapper`) that embed richer
+  behaviour inside a single atomic model.
+
+=== Continuous systems with QSS
+
+Continuous dynamics are simulated with the Quantized State Systems (QSS) family
+of methods. Instead of discretizing time as in classical numerical integration,
+QSS discretizes the *state*: a model emits an event only when its value has
+changed by more than a chosen quantum. A system of ordinary differential
+equations therefore becomes a network of DEVS atomic models exchanging events,
+and it can be coupled naturally with discrete-event models.
+
+Irritator provides three orders of the method:
+
+[cols="1,3"]
+|===
+|Order |Trajectory approximation
+
+|`qss1_*` |piecewise constant
+|`qss2_*` |piecewise linear
+|`qss3_*` |piecewise parabolic
+|===
+
+A higher order allows larger steps for the same accuracy, at the cost of more
+computation per event. Each order exposes the same set of blocks (integrator,
+sums, products, functions, non-linear and hybrid blocks), so a model can be
+switched from one order to another by changing the model type without
+redesigning the network.
+
+An ODE `dx/dt = f(x, u)` is built by connecting one `qss*_integrator` per state
+variable to the blocks that compute `f`. Discontinuities such as thresholds,
+saturation or switching are handled by the hybrid blocks (`cross`,
+`threshold_crossing`, `flipflop`, `hysteresis`, `dead_zone`,
+`saturation`, ...), which generate state events at the exact instants the
+condition changes.
+
+=== Discrete-event models
+
+The discrete-event catalogue covers the usual building blocks of event-oriented
+models:
+
+* sources: `generator`, `constant`, `time_func`;
+* waiting lines: `queue`, `dynamic_queue`, `priority_queue`;
+* aggregation: `counter`, `accumulator_2`;
+* logic: `logical_and_2`, `logical_and_3`, `logical_or_2`, `logical_or_3`,
+  `logical_invert`;
+* conversion between continuous and discrete signals: `zero_order_hold`.
+
+Because QSS and discrete-event models share the same DEVS kernel, a continuous
+model and a queueing model can be connected in the same simulation without any
+co-simulation layer.
+
+=== Hierarchical state machines: `hsm_wrapper`
+
+Some behaviours are more naturally described as state machines than as fixed
+blocks. The `hsm_wrapper` model runs a *hierarchical state machine* (HSM) as a
+single PDEVS atomic model. The state machine reacts to the messages received on
+the model's input ports and to internal timeouts, and produces messages on its
+output ports. From the point of view of the kernel, the HSM is just another
+atomic model, so it can be connected to QSS blocks, queues or other HSMs.
+
+=== Simulations inside simulations: `simulation_wrapper`
+
+The `simulation_wrapper` model embeds a complete Irritator simulation inside an
+atomic model of another simulation. This makes it possible to encapsulate a
+complex sub-model behind a small interface and to reuse it as one element of a
+larger model.
+
+=== Components and projects
+
+Irritator has two levels of description, both stored as JSON files:
+
+Component (`.irt`)::
+A reusable unit made of atomic models and of other components, with its
+connections. Components are hierarchical: a component can contain components,
+which allows large models to be built by composition.
+
+Project (`.pirt`)::
+A top-level file that selects and instantiates components, sets their parameters
+and defines the simulation to run. Projects are the entry point of the
+graphical user interface.
+
+Since a simulation is entirely described by these data files, it can be shared,
+versioned and edited without recompiling anything.
+
+=== User interfaces
+
+* *Graphical user interface*, based on Dear ImGui, to build components, edit
+  projects, run simulations and observe results.
+* *Unreal Engine 5 plugin* (under development), to run Irritator simulations
+  directly inside UE5.
 
 == Requirements and recommended
 
@@ -38,7 +200,8 @@ Install the glfw3 and OpenGL libraries. On Debian GNU/Linux and Ubuntu derivativ
 
 [source,bash]
 ....
-apt-get install build-essential cmake libglew2 libglew-dev libglfw3-dev libglx0 libopengl0 libgl1-mesa-dev
+apt-get install build-essential cmake libglew2 libglew-dev libglfw3-dev libglx0
+libopengl0 libgl1-mesa-dev
 ....
 
 === Windows
@@ -49,9 +212,9 @@ support  then open the Irrirator source directory and build.
 === MacOS
 
 Install (https://apps.apple.com/app/xcode[Xcode 12]) and Xcode Command Line
-Tools via the command `xcode-select --install` in terminal.  Then using
-(https://brew.sh[Homebrew]), install `cmake`, `glew` and `glfw` the OpenGL
-dependencies. 
+Tools via the command `xcode-select --install` in terminal.  Then
+using (https://brew.sh[Homebrew]), install `cmake`, `glew` and `glfw` the
+OpenGL dependencies. 
 
 == First installation
 
@@ -65,10 +228,10 @@ cd irritator
 git submodule update --init --recursive
 ....
 
-* from https://forgemia.inra.fr/gauthier.quesnel/irritator[ForgeMIA]:
+* from https://forge.inrae.fr/gauthier.quesnel/irritator.git[Forge INRAE]:
 
 ....
-git clone https://forgemia.inra.fr/gauthier.quesnel/irritator.git
+git clone https://forge.inrae.fr/gauthier.quesnel/irritator.git
 cd irritator
 git submodule update --init --recursive
 ....
@@ -89,4 +252,3 @@ make install
 ....
 ./app/gui/irritator-0.1
 ....
-
