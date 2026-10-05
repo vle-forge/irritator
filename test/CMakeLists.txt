@@ -22,7 +22,7 @@ function(irritator_add_test test_name)
 
   target_compile_definitions(${test_name}
     PRIVATE
-    $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
+    $<$<BOOL:${IRRITATOR_DEBUG_COND}>:IRRITATOR_ENABLE_DEBUG>
     $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
     $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
     $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>
