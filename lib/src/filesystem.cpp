@@ -385,14 +385,8 @@ public:
     explicit config_home_manager(bool use_log) noexcept
       : m_log{ use_log }
     {
-#if defined(VERSION_TWEAK) and (0 - VERSION_TWEAK - 1) != 1
-        log(0, "irritator-{}.{}.{}-{}\n", VERSION_MAJOR, VERSION_MINOR,
-            VERSION_PATCH, VERSION_TWEAK);
-
-#else
         log(0, "irritator-{}.{}.{}\n", VERSION_MAJOR, VERSION_MINOR,
             VERSION_PATCH);
-#endif
     }
 
     expected<path> operator()(std::string_view dir_name,

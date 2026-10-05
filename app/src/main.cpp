@@ -55,12 +55,9 @@ static void show_version() noexcept
 #if !defined(VERSION_PATCH)
 #define VERSION_PATCH = "patch version undefined"
 #endif
-#if !defined(VERSION_TWEAK)
-#define VERSION_TWEAK = "tweak version undefined"
-#endif
 
-    fmt::print("irritator-cli {}.{}.{}-{}\n\n", VERSION_MAJOR, VERSION_MINOR,
-               VERSION_PATCH, VERSION_TWEAK);
+    fmt::print("irritator-cli {}.{}.{}\n\n", VERSION_MAJOR, VERSION_MINOR,
+               VERSION_PATCH);
 }
 
 struct report_parameter {
