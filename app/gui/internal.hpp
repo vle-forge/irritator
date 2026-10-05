@@ -127,14 +127,21 @@ bool InputSmallString(const char*                label,
                       ImGuiInputTextCallback     callback  = nullptr,
                       void*                      user_data = nullptr)
 {
-    const bool ret = ImGui::InputText(label,
-                                      string.begin(),
-                                      static_cast<size_t>(string.capacity()),
-                                      flags,
-                                      callback,
-                                      user_data);
+    irt::small_string<Length> internal;
 
-    string.resize(static_cast<int>(std::strlen(string.begin())));
+    const auto ret = ImGui::InputText(label, internal.begin(),
+                                      static_cast<size_t>(internal.capacity()),
+                                      flags, callback, user_data);
+
+    if (ret) {
+        const auto internal_length = std::strlen(internal.c_str());
+
+        string.resize_and_overwrite(internal_length,
+                                    [&](char* buf, std::size_t n) noexcept {
+                                        std::strncpy(buf, internal.c_str(), n);
+                                        return n;
+                                    });
+    }
 
     return ret;
 }
@@ -144,17 +151,24 @@ bool InputFilteredString(const char*                label,
                          irt::small_string<Length>& string,
                          ImGuiInputTextFlags        flags = 0)
 {
+    irt::small_string<Length> internal;
+
     flags |= ImGuiInputTextFlags_CallbackCharFilter |
              ImGuiInputTextFlags_EnterReturnsTrue;
 
-    const bool ret = ImGui::InputText(label,
-                                      string.begin(),
-                                      static_cast<size_t>(string.capacity()),
-                                      flags,
-                                      irt::portable_filename_dirname_callback,
-                                      nullptr);
+    const auto ret = ImGui::InputText(
+      label, internal.begin(), static_cast<size_t>(internal.capacity()), flags,
+      irt::portable_filename_dirname_callback, nullptr);
 
-    string.resize(static_cast<int>(std::strlen(string.begin())));
+    if (ret) {
+        const auto internal_length = std::strlen(internal.c_str());
+
+        string.resize_and_overwrite(internal_length,
+                                    [&](char* buf, std::size_t n) noexcept {
+                                        std::strncpy(buf, internal.c_str(), n);
+                                        return n;
+                                    });
+    }
 
     return ret;
 }

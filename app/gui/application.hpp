@@ -494,8 +494,8 @@ public:
           file_id = undefined<file_path_id>(); //!< The file selected by the
                                                //!< user. If undefined, the user
                                                //!< select nothing or cancel.
-        int close = false; //<! @c true if user click on save or close.
-        int save  = false; //<! @c true if user click on save.
+        int close = false; //!< @c true if user click on save or close.
+        int save  = false; //!< @c true if user click on save.
     };
 
     combo_box_result combobox(application&       app,
