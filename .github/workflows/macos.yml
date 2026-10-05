@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Checkout repository and submodule
-      uses: actions/checkout@v2
+      uses: actions/checkout@v7
       with:
         submodules: recursive
 
@@ -31,3 +31,15 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       run: ctest -VV -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure
+
+    - name: Prepare archive
+      run: |
+        mkdir archive-${{matrix.BUILD_TYPE}}
+        cp "${{github.workspace}}/build/app/gui/irritator-0.1" archive-${{matrix.BUILD_TYPE}}/irritator
+        tar -czf irritator-macos-${{matrix.BUILD_TYPE}}.tar.gz -C archive-${{matrix.BUILD_TYPE}} irritator
+
+    - name: Upload archive
+      uses: actions/upload-artifact@v7
+      with:
+        name: irritator-macos-${{matrix.BUILD_TYPE}}
+        path: irritator-macos-${{matrix.BUILD_TYPE}}.tar.gz
