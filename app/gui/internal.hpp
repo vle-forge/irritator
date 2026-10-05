@@ -127,7 +127,7 @@ bool InputSmallString(const char*                label,
                       ImGuiInputTextCallback     callback  = nullptr,
                       void*                      user_data = nullptr)
 {
-    irt::small_string<Length> internal;
+    irt::small_string<Length> internal = string;
 
     const auto ret = ImGui::InputText(label, internal.begin(),
                                       static_cast<size_t>(internal.capacity()),
@@ -151,7 +151,7 @@ bool InputFilteredString(const char*                label,
                          irt::small_string<Length>& string,
                          ImGuiInputTextFlags        flags = 0)
 {
-    irt::small_string<Length> internal;
+    irt::small_string<Length> internal = string;
 
     flags |= ImGuiInputTextFlags_CallbackCharFilter |
              ImGuiInputTextFlags_EnterReturnsTrue;
@@ -171,6 +171,75 @@ bool InputFilteredString(const char*                label,
     }
 
     return ret;
+}
+
+inline bool InputFilename(const char*         label,
+                          irt::file_path_str& filename,
+                          irt::file_type      type) noexcept
+{
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackCharFilter |
+                                ImGuiInputTextFlags_EnterReturnsTrue;
+
+    char buffer[irt::file_path_str::capacity()];
+
+    if (not ImGui::InputText(label, std::data(buffer), std::size(buffer), flags,
+                             irt::portable_filename_dirname_callback, nullptr))
+        return false;
+
+    const auto buffer_len = std::strlen(buffer);
+    if (buffer_len == 0 or buffer_len > irt::file_path_str::capacity())
+        return false;
+
+    irt::path internal(std::string_view{ std::data(buffer), buffer_len });
+
+    internal.resize_and_overwrite(buffer_len,
+                                  [&](char* buf, std::size_t n) noexcept {
+                                      std::strncpy(buf, buffer, n);
+                                      return n;
+                                  });
+
+    const auto ext = internal.has_extension();
+    if (ext != type)
+        internal.replace_extension(type);
+
+    if (internal.size() > filename.capacity())
+        return false;
+
+    filename = internal.sv();
+
+    return true;
+}
+
+inline bool InputDirname(const char*              label,
+                         irt::directory_path_str& dirname) noexcept
+{
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackCharFilter |
+                                ImGuiInputTextFlags_EnterReturnsTrue;
+
+    char buffer[irt::directory_path_str::capacity()];
+
+    if (not ImGui::InputText(label, std::data(buffer), std::size(buffer), flags,
+                             irt::portable_filename_dirname_callback, nullptr))
+        return false;
+
+    const auto buffer_len = std::strlen(buffer);
+    if (buffer_len == 0 or buffer_len > irt::directory_path_str::capacity())
+        return false;
+
+    irt::path internal(std::string_view{ std::data(buffer), buffer_len });
+
+    internal.resize_and_overwrite(buffer_len,
+                                  [&](char* buf, std::size_t n) noexcept {
+                                      std::strncpy(buf, buffer, n);
+                                      return n;
+                                  });
+
+    if (internal.size() > dirname.capacity())
+        return false;
+
+    dirname = internal.sv();
+
+    return true;
 }
 
 template<std::size_t Length>

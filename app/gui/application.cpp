@@ -151,7 +151,7 @@ void file_selector::combobox_dir(application&       app,
     }
 
     if (is_undefined(dir_id_)) {
-        if (ImGui::InputFilteredString("New directory", buffer)) {
+        if (ImGui::InputDirname("New directory", buffer)) {
             const auto already_exist = [&]() {
                 for (const auto d_id : r.children)
                     if (const auto* dir = fs.dir_paths.try_to_get(d_id))
@@ -244,10 +244,7 @@ void file_selector::combobox_file(application&       app,
     }
 
     if (is_undefined(file_id_)) {
-        if (ImGui::InputFilteredString("New file", buffer)) {
-            if (not has_extension(buffer.sv(), type))
-                add_extension(buffer, type);
-
+        if (ImGui::InputFilename("New file", buffer, type)) {
             if (new_file_.should_request()) {
                 new_file_task(app, dir_id_, type,
                               std::make_unique<file_path_str>(buffer),
