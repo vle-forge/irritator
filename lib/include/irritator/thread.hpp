@@ -122,6 +122,125 @@ private:
 
 /* * * * *
  *
+ * share data
+ *
+ * * * * */
+
+/// @class request_buffer
+///
+/// @brief A lock-free asynchronous mailbox with a built-in anti-spam
+/// mechanism.
+///
+/// @details Designed for a "Request-Fulfill" pattern between a single
+/// high-frequency GUI thread (calling try_request() and try_take()) and
+/// asynchronous worker threads (calling fulfill() or fail()). Only one task is
+/// active at any given time, which prevents "Request Storms".
+///
+/// Ownership of the value follows the state:
+/// - idle, ready: owned by the GUI thread;
+/// - pending: owned by the worker thread.
+///
+/// The buffer must outlive the task: do not destroy it while a request is
+/// pending.
+///
+/// @tparam T The type of data being transferred. Must be nothrow move
+/// constructible.
+///
+/// @code
+/// void update_gui() {
+///     if (auto result = my_buffer->try_take())
+///         this->data = std::move(*result);
+///
+///     if (not this->has_data() && my_buffer->try_request()) {
+///         // Executed ONCE until fulfill() or fail() is called.
+///         add_gui_task([buf = my_buffer]() {   // shared_ptr copy
+///             try {
+///                 buf->fulfill(expensive_calculation());
+///             } catch (...) {
+///                 buf->fail();
+///             }
+///         });
+///     }
+/// }
+/// @endcode
+template<typename T>
+class request_buffer
+{
+    static_assert(std::is_nothrow_move_constructible_v<T>,
+                  "T must be nothrow move constructible");
+
+public:
+    enum class state : u8 { idle, pending, ready };
+
+    request_buffer() noexcept = default;
+
+    request_buffer(const request_buffer&)            = delete;
+    request_buffer& operator=(const request_buffer&) = delete;
+
+    ~request_buffer() noexcept
+    {
+        debug::ensure(m_state.load(std::memory_order_relaxed) !=
+                        state::pending and
+                      "request_buffer destroyed while a task is in flight");
+    }
+
+    /// GUI thread. Atomically switches idle -> pending.
+    /// @return true if the caller must now launch the task, false if a task is
+    /// already running or a result is waiting to be taken.
+    bool try_request() noexcept
+    {
+        state expected = state::idle;
+        return m_state.compare_exchange_strong(expected, state::pending,
+                                               std::memory_order_acq_rel,
+                                               std::memory_order_relaxed);
+    }
+
+    /// Worker thread. Delivers the result (pending -> ready).
+    void fulfill(T&& data) noexcept
+    {
+        debug::ensure(m_state.load(std::memory_order_relaxed) ==
+                      state::pending);
+
+        m_value.emplace(std::move(data));
+        m_state.store(state::ready, std::memory_order_release);
+    }
+
+    /// Worker thread. Gives up without delivering a result (pending -> idle),
+    /// to be called when the task throws. A new request may then be issued.
+    void fail() noexcept
+    {
+        debug::ensure(m_state.load(std::memory_order_relaxed) ==
+                      state::pending);
+
+        m_state.store(state::idle, std::memory_order_release);
+    }
+
+    /// GUI thread, never blocks. Consumes the result (ready -> idle).
+    /// @return the data if ready, otherwise std::nullopt.
+    std::optional<T> try_take() noexcept
+    {
+        if (m_state.load(std::memory_order_acquire) != state::ready)
+            return std::nullopt;
+
+        std::optional<T> out{ std::move(m_value) };
+        m_value.reset();
+        m_state.store(state::idle, std::memory_order_release);
+        return out;
+    }
+
+    /// Get the current state (mainly used in unit test.
+    state current_state() const noexcept
+    {
+        return m_state.load(std::memory_order_acquire);
+    }
+
+private:
+    std::atomic<state> m_state{ state::idle };
+    std::optional<T>   m_value;
+};
+
+/* * * * *
+ *
  * task system
  *
  * * * * */
