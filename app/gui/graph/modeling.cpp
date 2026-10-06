@@ -20,18 +20,18 @@ namespace irt {
 
 static void update_bound(graph_component& graph, std::integral auto i) noexcept
 {
-    graph.top_left_limit[0] =
-      std::min(graph.top_left_limit[0],
-               graph.g.node_positions[i][0] - graph.g.node_areas[i]);
-    graph.top_left_limit[1] =
-      std::min(graph.top_left_limit[1],
-               graph.g.node_positions[i][1] - graph.g.node_areas[i]);
-    graph.bottom_right_limit[0] =
-      std::max(graph.bottom_right_limit[0],
-               graph.g.node_positions[i][0] + graph.g.node_areas[i]);
-    graph.bottom_right_limit[1] =
-      std::max(graph.bottom_right_limit[1],
-               graph.g.node_positions[i][1] + graph.g.node_areas[i]);
+    graph.top_left_limit[0]     = std::min(graph.top_left_limit[0],
+                                           graph.g.node_positions[i][0] -
+                                             graph.g.node_areas[i]);
+    graph.top_left_limit[1]     = std::min(graph.top_left_limit[1],
+                                           graph.g.node_positions[i][1] -
+                                             graph.g.node_areas[i]);
+    graph.bottom_right_limit[0] = std::max(graph.bottom_right_limit[0],
+                                           graph.g.node_positions[i][0] +
+                                             graph.g.node_areas[i]);
+    graph.bottom_right_limit[1] = std::max(graph.bottom_right_limit[1],
+                                           graph.g.node_positions[i][1] +
+                                             graph.g.node_areas[i]);
 }
 
 bool graph_component_editor_data::compute_automatic_layout(
@@ -50,11 +50,10 @@ bool graph_component_editor_data::compute_automatic_layout(
     const auto k_square  = area / static_cast<float>(size);
     const auto k         = std::sqrt(k_square);
 
-    const auto t =
-      (1.f -
-       (static_cast<float>(iteration) / static_cast<float>(iteration_limit))) *
-      (1.f -
-       (static_cast<float>(iteration) / static_cast<float>(iteration_limit)));
+    const auto t = (1.f - (static_cast<float>(iteration) /
+                           static_cast<float>(iteration_limit))) *
+                   (1.f - (static_cast<float>(iteration) /
+                           static_cast<float>(iteration_limit)));
 
     for (const auto v_edge_id : graph.g.edges) {
         const auto& v_edge = graph.g.edges_nodes[get_index(v_edge_id)];
@@ -82,10 +81,10 @@ bool graph_component_editor_data::compute_automatic_layout(
                     const float d2    = delta.x * delta.x + delta.y * delta.y;
                     const float coeff = k_square / d2;
 
-                    displacements[v].x +=
-                      std::clamp(coeff * delta.x, -distance.x, distance.x);
-                    displacements[v].y +=
-                      std::clamp(coeff * delta.y, -distance.y, distance.y);
+                    displacements[v].x += std::clamp(coeff * delta.x,
+                                                     -distance.x, distance.x);
+                    displacements[v].y += std::clamp(coeff * delta.y,
+                                                     -distance.y, distance.y);
                 }
             }
         }
@@ -94,12 +93,12 @@ bool graph_component_editor_data::compute_automatic_layout(
     for (const auto edge_id : graph.g.edges) {
         const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
 
-        const auto  u = get_index(edge[0].first);
-        const auto  v = get_index(edge[1].first);
-        const float dx =
-          graph.g.node_positions[v][0] - graph.g.node_positions[u][0];
-        const float dy =
-          graph.g.node_positions[v][1] - graph.g.node_positions[u][1];
+        const auto  u  = get_index(edge[0].first);
+        const auto  v  = get_index(edge[1].first);
+        const float dx = graph.g.node_positions[v][0] -
+                         graph.g.node_positions[u][0];
+        const float dy = graph.g.node_positions[v][1] -
+                         graph.g.node_positions[u][1];
 
         if (dx && dy) {
             const float coeff = std::sqrt((dx * dx) / (dy * dy)) / k;
@@ -186,9 +185,10 @@ constexpr static bool is_line_intersects_box(ImVec2 p1,
 
     const auto sum    = corner_1 + corner_2 + corner_3 + corner_4;
     const auto a_miss = sum == 0 or sum == 4;
-    const bool b_miss =
-      (p1.x > bmax.x and p2.x > bmax.x) or (p1.x < bmin.x and p2.x < bmin.x) or
-      (p1.y > bmax.y and p2.y > bmax.y) or (p1.y < bmin.y and p2.y < bmin.y);
+    const bool b_miss = (p1.x > bmax.x and p2.x > bmax.x) or
+                        (p1.x < bmin.x and p2.x < bmin.x) or
+                        (p1.y > bmax.y and p2.y > bmax.y) or
+                        (p1.y < bmin.y and p2.y < bmin.y);
 
     return not(a_miss or b_miss);
 };
@@ -206,21 +206,19 @@ bool graph_component_editor_data::show_graph(application& app,
     if (canvas_sz.y < 50.0f)
         canvas_sz.y = 50.0f;
 
-    ImVec2 canvas_p1 =
-      ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
+    ImVec2 canvas_p1 = ImVec2(canvas_p0.x + canvas_sz.x,
+                              canvas_p0.y + canvas_sz.y);
 
     const ImGuiIO& io        = ImGui::GetIO();
     ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
     draw_list->AddRect(
-      canvas_p0,
-      canvas_p1,
+      canvas_p0, canvas_p1,
       app.config.vars.colors.read([&](const auto& colors, const auto /*vers*/) {
           return to_ImU32(colors[style_color::outer_border]);
       }));
 
-    ImGui::InvisibleButton("Canvas",
-                           canvas_sz,
+    ImGui::InvisibleButton("Canvas", canvas_sz,
                            ImGuiButtonFlags_MouseButtonLeft |
                              ImGuiButtonFlags_MouseButtonMiddle |
                              ImGuiButtonFlags_MouseButtonRight);
@@ -395,27 +393,32 @@ bool graph_component_editor_data::show_graph(application& app,
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
     const float GRID_STEP = 64.0f;
 
-    auto [inner_border, node_active, edge, edge_active, background_selection] =
-      app.config.vars.colors.read([&](const auto& colors, const auto /*v*/) {
-          return std::tuple(
-            to_ImU32(colors[style_color::inner_border]),
-            to_ImU32(colors[style_color::node_active]),
-            to_ImU32(colors[style_color::edge]),
-            to_ImU32(colors[style_color::edge_active]),
-            to_ImU32(colors[style_color::background_selection]));
-      });
+    auto [inner_border, node_active, edge, edge_active,
+          background_selection] = app.config.vars.colors
+                                    .read([&](const auto& colors,
+                                              const auto /*v*/) {
+                                        return std::tuple(
+                                          to_ImU32(
+                                            colors[style_color::inner_border]),
+                                          to_ImU32(
+                                            colors[style_color::node_active]),
+                                          to_ImU32(colors[style_color::edge]),
+                                          to_ImU32(
+                                            colors[style_color::edge_active]),
+                                          to_ImU32(
+                                            colors[style_color::
+                                                     background_selection]));
+                                    });
 
     for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x;
          x += GRID_STEP)
         draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
-                           ImVec2(canvas_p0.x + x, canvas_p1.y),
-                           inner_border);
+                           ImVec2(canvas_p0.x + x, canvas_p1.y), inner_border);
 
     for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y;
          y += GRID_STEP)
         draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
-                           ImVec2(canvas_p1.x, canvas_p0.y + y),
-                           inner_border);
+                           ImVec2(canvas_p1.x, canvas_p0.y + y), inner_border);
 
     for (const auto id : data.g.nodes) {
         const auto i = get_index(id);
@@ -578,8 +581,8 @@ bool graph_component_editor_data::show_scale_free_menu(
                    "graphs a good model for certain networking.");
 
         if (ImGui::InputInt("size", &m_graph.scale.nodes)) {
-            m_graph.scale.nodes =
-              std::clamp(m_graph.scale.nodes, 1, graph_component::children_max);
+            m_graph.scale.nodes = std::clamp(m_graph.scale.nodes, 1,
+                                             graph_component::children_max);
             ++u;
         }
 
@@ -605,17 +608,15 @@ bool graph_component_editor_data::show_scale_free_menu(
             clear_selected_nodes();
 
             if (not task_is_running.test_and_set()) {
-                if (m_graph_2nd.should_request()) {
+                if (m_graph_2nd.try_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
-                        new_graph.g.init_scale_free_graph(m_graph.scale.alpha,
-                                                          m_graph.scale.beta,
-                                                          m_graph.scale.id,
-                                                          m_graph.scale.nodes,
-                                                          new_graph.rng);
+                        new_graph.g.init_scale_free_graph(
+                          m_graph.scale.alpha, m_graph.scale.beta,
+                          m_graph.scale.id, m_graph.scale.nodes, new_graph.rng);
                         new_graph.scale = m_graph.scale;
-                        new_graph.g_type =
-                          graph_component::graph_type::scale_free;
+                        new_graph
+                          .g_type = graph_component::graph_type::scale_free;
                         new_graph.update_position();
                         new_graph.assign_grid_position(distance.x, distance.y);
 
@@ -653,14 +654,14 @@ bool graph_component_editor_data::show_small_world_menu(
 
         if (ImGui::InputInt("size", &m_graph.small.nodes)) {
             ++u;
-            m_graph.small.nodes =
-              std::clamp(m_graph.small.nodes, 1, graph_component::children_max);
+            m_graph.small.nodes = std::clamp(m_graph.small.nodes, 1,
+                                             graph_component::children_max);
         }
 
         if (ImGui::InputDouble("probability", &m_graph.small.probability)) {
             ++u;
-            m_graph.small.probability =
-              std::clamp(m_graph.small.probability, 0.0, 1.0);
+            m_graph.small.probability = std::clamp(m_graph.small.probability,
+                                                   0.0, 1.0);
         }
 
         if (ImGui::InputInt("k", &m_graph.small.k, 1, 2)) {
@@ -680,18 +681,15 @@ bool graph_component_editor_data::show_small_world_menu(
             clear_selected_nodes();
 
             if (not task_is_running.test_and_set()) {
-                if (m_graph_2nd.should_request()) {
+                if (m_graph_2nd.try_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
                         new_graph.g.init_small_world_graph(
-                          m_graph.small.probability,
-                          m_graph.small.k,
-                          m_graph.small.id,
-                          m_graph.small.nodes,
-                          new_graph.rng);
+                          m_graph.small.probability, m_graph.small.k,
+                          m_graph.small.id, m_graph.small.nodes, new_graph.rng);
                         new_graph.small = m_graph.small;
-                        new_graph.g_type =
-                          graph_component::graph_type::small_world;
+                        new_graph
+                          .g_type = graph_component::graph_type::small_world;
                         new_graph.update_position();
                         new_graph.assign_grid_position(distance.x, distance.y);
 
@@ -727,32 +725,31 @@ bool graph_component_editor_data::show_dot_file_menu(application& app) noexcept
         auto close = app.mod.files.read([&](const auto& fs,
                                             auto) noexcept -> bool {
             const auto selected = file_select.combobox_ro(
-              fs,
-              file_type::dot_file,
+              fs, file_type::dot_file,
               file_selector::flags(file_selector::flag::show_load_button,
                                    file_selector::flag::show_cancel_button));
 
             if (selected.save and not task_is_running.test_and_set()) {
                 m_graph.dot.file = selected.file_id;
 
-                if (m_graph_2nd.should_request()) {
+                if (m_graph_2nd.try_request()) {
                     app.add_gui_task([&app, this]() {
                         graph_component new_graph;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
                             if (auto path = fs.get_fs_path(m_graph.dot.file)) {
-                                app.mod.ids.read([&](const auto& ids,
-                                                     auto) noexcept {
-                                    if (auto dot_graph =
-                                          parse_dot_file(fs, ids, *path)) {
+                                app.mod.ids.read(
+                                  [&](const auto& ids, auto) noexcept {
+                                      if (auto dot_graph = parse_dot_file(
+                                            fs, ids, *path)) {
 
-                                        new_graph.g   = std::move(*dot_graph);
-                                        new_graph.dot = m_graph.dot;
-                                        new_graph.g_type =
-                                          graph_component::graph_type::dot_file;
-                                        new_graph.update_position();
-                                    }
-                                });
+                                          new_graph.g   = std::move(*dot_graph);
+                                          new_graph.dot = m_graph.dot;
+                                          new_graph.g_type = graph_component::
+                                            graph_type::dot_file;
+                                          new_graph.update_position();
+                                      }
+                                  });
                             }
                         });
 
@@ -823,14 +820,14 @@ void graph_component_editor_data::automatic_layout_task(
                     break;
 
                 const auto now = sc::system_clock::now();
-                const auto ms =
-                  sc::duration_cast<sc::milliseconds>(now - start);
+                const auto ms  = sc::duration_cast<sc::milliseconds>(now -
+                                                                     start);
                 if (ms >= sc::milliseconds{ time_limit_ms })
                     break;
 
                 next_update += ms;
                 if (next_update > sc::milliseconds{ update_frequence_ms }) {
-                    if (m_graph_2nd.should_request()) {
+                    if (m_graph_2nd.try_request()) {
                         next_update  = sc::milliseconds{ 0 };
                         auto to_move = graph_component(*g);
 
@@ -870,9 +867,7 @@ bool graph_component_editor_data::graph_component_editor_data::show(
                 close = app.mod.files.read(
                   [&](const auto& fs, auto) noexcept -> bool {
                       const auto selected = file_select.combobox(
-                        app,
-                        fs,
-                        file_type::dot_file,
+                        app, fs, file_type::dot_file,
                         file_selector::flags(
                           file_selector::flag::show_save_button,
                           file_selector::flag::show_cancel_button));
@@ -892,8 +887,8 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             }
 
             ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-            ImGui::SetNextWindowPos(
-              center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowPos(center, ImGuiCond_Appearing,
+                                    ImVec2(0.5f, 0.5f));
 
             ImGui::EndMenu();
         }
@@ -920,8 +915,8 @@ bool graph_component_editor_data::graph_component_editor_data::show(
             }
 
             if (ImGui::InputInt("draw frequence (ms)", &update_frequence_ms)) {
-                update_frequence_ms =
-                  std::clamp(update_frequence_ms, 0'160, 1'000);
+                update_frequence_ms = std::clamp(update_frequence_ms, 0'160,
+                                                 1'000);
             }
 
             ImGui::SeparatorText("Drawing settings");
@@ -996,9 +991,7 @@ bool graph_component_editor_data::show(component_editor& ed,
         is_initialized = true;
     }
 
-    if (ImGui::BeginChild("##graph-ed",
-                          ImVec2(0, 0),
-                          ImGuiChildFlags_None,
+    if (ImGui::BeginChild("##graph-ed", ImVec2(0, 0), ImGuiChildFlags_None,
                           ImGuiWindowFlags_MenuBar)) {
         u += show(app, compo);
     }
@@ -1031,8 +1024,8 @@ bool graph_component_editor_data::show_selected_nodes(
                 name_str name = m_graph.g.node_names[idx];
                 if (ImGui::InputFilteredString("name", name)) {
                     ++u;
-                    m_graph.g.node_names[idx] =
-                      m_graph.g.buffer.append(name.sv());
+                    m_graph.g.node_names[idx] = m_graph.g.buffer.append(
+                      name.sv());
                 }
 
                 if (auto area = m_graph.g.node_areas[idx];
@@ -1048,18 +1041,17 @@ bool graph_component_editor_data::show_selected_nodes(
                     ++u;
                 }
 
-                ImGui::LabelFormat("position",
-                                   "x: {} y: {}",
+                ImGui::LabelFormat("position", "x: {} y: {}",
                                    m_graph.g.node_positions[idx][0],
                                    m_graph.g.node_positions[idx][1]);
 
                 if (ids.exists(m_graph.g.node_components[idx])) {
-                    auto& compo =
-                      ids.components[m_graph.g.node_components[idx]];
+                    auto& compo = ids
+                                    .components[m_graph.g.node_components[idx]];
                     if (not compo.x.empty()) {
                         if (ImGui::TreeNodeEx("input ports")) {
-                            const auto& xnames =
-                              compo.x.template get<port_str>();
+                            const auto& xnames = compo.x
+                                                   .template get<port_str>();
                             for (const auto id : compo.x) {
                                 ImGui::TextFormat("{}", xnames[id].sv());
                             }
@@ -1069,8 +1061,8 @@ bool graph_component_editor_data::show_selected_nodes(
 
                     if (not compo.y.empty()) {
                         if (ImGui::TreeNodeEx("output ports")) {
-                            const auto& ynames =
-                              compo.y.template get<port_str>();
+                            const auto& ynames = compo.y
+                                                   .template get<port_str>();
                             for (const auto id : compo.y) {
                                 ImGui::TextFormat("{}", ynames[id].sv());
                             }

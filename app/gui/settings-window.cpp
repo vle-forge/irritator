@@ -101,7 +101,7 @@ void settings_window::show() noexcept
                   if (ImGui::InputSmallString(
                         "##reg-name", name,
                         ImGuiInputTextFlags_EnterReturnsTrue)) {
-                      if (new_name.should_request())
+                      if (new_name.try_request())
                           new_name.fulfill(std::move(name));
 
                       app.add_gui_task([&app, id, this]() {
@@ -167,9 +167,9 @@ void settings_window::show() noexcept
         ImGui::EndTable();
     }
 
-    if (const auto new_id = new_reg_dir_id.try_take(); new_id.has_value()) {
+    if (is_defined(new_reg_dir_id.load())) {
         choose_new_dir = true;
-        new_dir_id     = *new_id;
+        new_dir_id     = new_reg_dir_id;
     }
 
     if (choose_new_dir) {
@@ -209,17 +209,14 @@ void settings_window::show() noexcept
             app.f_dialog.clear();
         }
     } else if (ImGui::Button("Add new path")) {
-        app.add_gui_task([&app, req = &new_reg_dir_id]() {
+        app.add_gui_task([&]() {
             app.config.vars.rec_paths.write([&](auto& fs) {
                 if (fs.recs.can_alloc(1) or fs.recs.template grow<3, 2>(1)) {
-                    if (req->should_request()) {
-                        auto id = fs.recs.alloc_id();
-                        fs.recs.template get<path>(id).clear();
-                        fs.recs.template get<recorded_paths::name_str>(id)
-                          .clear();
-                        fs.recs.template get<i8>(id) = 0;
-                        req->fulfill(id);
-                    }
+                    auto id = fs.recs.alloc_id();
+                    fs.recs.template get<path>(id).clear();
+                    fs.recs.template get<recorded_paths::name_str>(id).clear();
+                    fs.recs.template get<i8>(id) = 0;
+                    new_reg_dir_id               = id;
                 }
             });
         });

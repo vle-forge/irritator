@@ -113,8 +113,8 @@ static bool display_factor_fixed(fixed_factor& factor,
         break;
 
     default:
-        ImGui::TextFormat(
-          "{} {} {}...", factor.values[0], factor.values[1], factor.values[2]);
+        ImGui::TextFormat("{} {} {}...", factor.values[0], factor.values[1],
+                          factor.values[2]);
         break;
     }
 
@@ -143,8 +143,8 @@ bool simulation_component_editor_data::display_objective(
 {
     auto u = 0;
 
-    const auto preview_method =
-      name_str(optimization_method_names[ordinal(m_sim.objective.method)]);
+    const auto preview_method = name_str(
+      optimization_method_names[ordinal(m_sim.objective.method)]);
 
     if (ImGui::BeginCombo("method", preview_method.c_str())) {
         for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
@@ -161,8 +161,8 @@ bool simulation_component_editor_data::display_objective(
         ImGui::EndCombo();
     }
 
-    const auto preview_type =
-      name_str(optimization_type_names[ordinal(m_sim.objective.type)]);
+    const auto preview_type = name_str(
+      optimization_type_names[ordinal(m_sim.objective.type)]);
 
     if (ImGui::BeginCombo("type", preview_type.c_str())) {
         for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
@@ -199,14 +199,14 @@ bool simulation_component_editor_data::display_parameter_table(
         auto& fixed_factors  = m_sim.factors.get<fixed_factor>();
         auto& random_factors = m_sim.factors.get<random_factor>();
 
-        ImGui::TableSetupColumn(
-          "name", ImGuiTableColumnFlags_WidthStretch, .2f);
-        ImGui::TableSetupColumn(
-          "dynamics", ImGuiTableColumnFlags_WidthStretch, .2f);
-        ImGui::TableSetupColumn(
-          "type", ImGuiTableColumnFlags_WidthStretch, .2f);
-        ImGui::TableSetupColumn(
-          "definition", ImGuiTableColumnFlags_WidthStretch, .4f);
+        ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch,
+                                .2f);
+        ImGui::TableSetupColumn("dynamics", ImGuiTableColumnFlags_WidthStretch,
+                                .2f);
+        ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch,
+                                .2f);
+        ImGui::TableSetupColumn("definition",
+                                ImGuiTableColumnFlags_WidthStretch, .4f);
 
         ImGui::TableHeadersRow();
 
@@ -214,12 +214,11 @@ bool simulation_component_editor_data::display_parameter_table(
             const auto  idx           = get_index(id);
             const auto* mdl           = pj.sim.models.try_to_get(models[idx]);
             const auto  is_accessible = mdl != nullptr;
-            const auto  can_edit =
-              is_accessible and any_equal(mdl->type,
-                                          dynamics_type::constant,
-                                          dynamics_type::qss1_integrator,
-                                          dynamics_type::qss2_integrator,
-                                          dynamics_type::qss3_integrator);
+            const auto  can_edit = is_accessible and
+                                   any_equal(mdl->type, dynamics_type::constant,
+                                             dynamics_type::qss1_integrator,
+                                             dynamics_type::qss2_integrator,
+                                             dynamics_type::qss3_integrator);
 
             ImGui::PushID(idx);
 
@@ -327,8 +326,8 @@ bool simulation_component_editor_data::display_observation_table(
                 ImGui::TableNextColumn();
 
                 const auto criteria_idx = static_cast<int>(criterias[idx]);
-                const auto preview =
-                  name_str(criteria_type_names[criteria_idx]);
+                const auto preview      = name_str(
+                  criteria_type_names[criteria_idx]);
 
                 ImGui::PushItemWidth(-1);
                 if (ImGui::BeginCombo("##crit", preview.c_str())) {
@@ -351,8 +350,8 @@ bool simulation_component_editor_data::display_observation_table(
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
-                auto copy =
-                  m_sim.objective.epsilon_constrained_params.epsilons[idx];
+                auto copy = m_sim.objective.epsilon_constrained_params
+                              .epsilons[idx];
                 if (ImGui::InputDouble("##avlue", &copy)) {
                     if (std::isfinite(copy)) {
                         m_sim.objective.epsilon_constrained_params
@@ -371,15 +370,15 @@ bool simulation_component_editor_data::display_observation_table(
                 if (ImGui::BeginCombo("type", preview_type.c_str())) {
                     for (auto i = 0, e = length(operation_type_names); i != e;
                          ++i) {
-                        const auto label = name_str(operation_type_names[i]);
-                        const auto selected =
-                          i == ordinal(m_sim.objective.type);
+                        const auto label    = name_str(operation_type_names[i]);
+                        const auto selected = i ==
+                                              ordinal(m_sim.objective.type);
                         if (ImGui::Selectable(label.c_str(), selected)) {
                             if (not selected) {
                                 ++u;
                                 m_sim.objective.epsilon_constrained_params
-                                  .operations[idx] =
-                                  enum_cast<operation_type>(i);
+                                  .operations[idx] = enum_cast<operation_type>(
+                                  i);
                             }
                         }
                     }
@@ -389,8 +388,8 @@ bool simulation_component_editor_data::display_observation_table(
 
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
-                auto is_primary =
-                  m_sim.objective.epsilon_constrained_params.primary == id;
+                auto is_primary = m_sim.objective.epsilon_constrained_params
+                                    .primary == id;
                 if (ImGui::Checkbox("##primary", &is_primary)) {
                     m_sim.objective.epsilon_constrained_params.primary = id;
                     ++u;
@@ -427,8 +426,8 @@ bool simulation_component_editor_data::display_observation_table(
                 ImGui::TableNextColumn();
 
                 const auto criteria_idx = static_cast<int>(criterias[idx]);
-                const auto preview =
-                  name_str(criteria_type_names[criteria_idx]);
+                const auto preview      = name_str(
+                  criteria_type_names[criteria_idx]);
 
                 ImGui::PushItemWidth(-1);
                 if (ImGui::BeginCombo("##crit", preview.c_str())) {
@@ -489,8 +488,8 @@ bool simulation_component_editor_data::display_observation_table(
                 ImGui::TableNextColumn();
 
                 const auto criteria_idx = static_cast<int>(criterias[idx]);
-                const auto preview =
-                  name_str(criteria_type_names[criteria_idx]);
+                const auto preview      = name_str(
+                  criteria_type_names[criteria_idx]);
 
                 ImGui::PushItemWidth(-1);
                 if (ImGui::BeginCombo("##crit", preview.c_str())) {
@@ -525,22 +524,21 @@ bool simulation_component_editor_data::display_observation_table(
                 ImGui::TableNextColumn();
                 ImGui::PushItemWidth(-1);
 
-                const auto preview_type =
-                  name_str(optimization_type_names[ordinal(
+                const auto preview_type = name_str(
+                  optimization_type_names[ordinal(
                     m_sim.objective.weighted_sum_params.types[idx])]);
 
                 if (ImGui::BeginCombo("type", preview_type.c_str())) {
                     for (auto i = 0, e = length(optimization_type_names);
-                         i != e;
-                         ++i) {
+                         i != e; ++i) {
                         const auto label = name_str(optimization_type_names[i]);
-                        const auto selected =
-                          i == ordinal(m_sim.objective.type);
+                        const auto selected = i ==
+                                              ordinal(m_sim.objective.type);
                         if (ImGui::Selectable(label.c_str(), selected)) {
                             if (not selected) {
                                 ++u;
-                                m_sim.objective.weighted_sum_params.types[idx] =
-                                  enum_cast<optimization_type>(i);
+                                m_sim.objective.weighted_sum_params
+                                  .types[idx] = enum_cast<optimization_type>(i);
                             }
                         }
                     }
@@ -578,8 +576,8 @@ bool simulation_component_editor_data::show(component_editor& ed,
     }
 
     const auto old_file_id = m_sim.file_id;
-    m_sim.file_id =
-      mod.files.read([&](const auto& fs, const auto /*vers*/) noexcept {
+    m_sim.file_id          = mod.files.read(
+      [&](const auto& fs, const auto /*vers*/) noexcept {
           const auto* file        = fs.file_paths.try_to_get(m_sim.file_id);
           const auto* preview     = file ? file->path.c_str() : "-";
           auto        new_file_id = m_sim.file_id;
@@ -607,7 +605,7 @@ bool simulation_component_editor_data::show(component_editor& ed,
       });
 
     if (old_file_id != m_sim.file_id) {
-        if (m_task_project.should_request()) {
+        if (m_task_project.try_request()) {
             app.add_gui_task([&app, this, f = m_sim.file_id]() {
                 app.mod.files.read([&](const auto& fs,
                                        const auto /*vers*/) noexcept {

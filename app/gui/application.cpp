@@ -51,20 +51,17 @@ void file_selector::combobox_reg(const file_access& fs) noexcept
     }
 }
 
-dir_path_id get_dir_id(atomic_request_buffer<dir_path_id>& dir_ptr,
-                       const dir_path_id                   other_id) noexcept
+dir_path_id get_dir_id(std::atomic<dir_path_id>& dir_ptr,
+                       const dir_path_id         other_id) noexcept
 {
-    if (const auto dir_opt = dir_ptr.try_take(); dir_opt.has_value())
-        return *dir_opt;
-    else
-        return other_id;
+    return is_defined(dir_ptr.load()) ? dir_ptr.load() : other_id;
 }
 
-static void new_file_task(application&                         app,
-                          dir_path_id                          dir_id,
-                          file_type                            type,
-                          std::unique_ptr<directory_path_str>  filename,
-                          atomic_request_buffer<file_path_id>& file_b) noexcept
+static void new_file_task(application&                        app,
+                          dir_path_id                         dir_id,
+                          file_type                           type,
+                          std::unique_ptr<directory_path_str> filename,
+                          std::atomic<file_path_id>&          file_b) noexcept
 {
     app.add_gui_task(
       [&app, dir_id, name = std::move(filename), type, &file_b]() {
@@ -77,17 +74,16 @@ static void new_file_task(application&                         app,
                              fs.file_paths.size());
                   });
               } else {
-                  file_b.fulfill(file_id);
+                  file_b = file_id;
               }
           });
       });
 }
 
-static void new_directory_task(
-  application&                        app,
-  registred_path_id                   reg_id,
-  std::unique_ptr<directory_path_str> dirname,
-  atomic_request_buffer<dir_path_id>& dir_b) noexcept
+static void new_directory_task(application&                        app,
+                               registred_path_id                   reg_id,
+                               std::unique_ptr<directory_path_str> dirname,
+                               std::atomic<dir_path_id>& dir_b) noexcept
 {
     app.add_gui_task([&app, reg_id, name = std::move(dirname), &dir_b]() {
         app.mod.files.write([&](auto& fs) {
@@ -112,7 +108,7 @@ static void new_directory_task(
                 }
             }
 
-            dir_b.fulfill(dir_id);
+            dir_b = dir_id;
         });
     });
 }
@@ -162,11 +158,9 @@ void file_selector::combobox_dir(application&       app,
             }();
 
             if (not already_exist) {
-                if (new_dir_.should_request()) {
-                    new_directory_task(
-                      app, reg_id_,
-                      std::make_unique<directory_path_str>(buffer), new_dir_);
-                }
+                new_directory_task(app, reg_id_,
+                                   std::make_unique<directory_path_str>(buffer),
+                                   new_dir_);
             }
         }
     }
@@ -203,13 +197,10 @@ void file_selector::combobox_dir_ro(const file_access& fs) noexcept
     }
 }
 
-file_path_id get_file_id(atomic_request_buffer<file_path_id>& file_ptr,
-                         const file_path_id                   other_id) noexcept
+file_path_id get_file_id(std::atomic<file_path_id>& file_ptr,
+                         const file_path_id         other_id) noexcept
 {
-    if (const auto file_opt = file_ptr.try_take(); file_opt.has_value())
-        return *file_opt;
-    else
-        return other_id;
+    return is_defined(file_ptr.load()) ? file_ptr.load() : other_id;
 }
 
 void file_selector::combobox_file(application&       app,
@@ -245,11 +236,8 @@ void file_selector::combobox_file(application&       app,
 
     if (is_undefined(file_id_)) {
         if (ImGui::InputFilename("New file", buffer, type)) {
-            if (new_file_.should_request()) {
-                new_file_task(app, dir_id_, type,
-                              std::make_unique<file_path_str>(buffer),
-                              new_file_);
-            }
+            new_file_task(app, dir_id_, type,
+                          std::make_unique<file_path_str>(buffer), new_file_);
         }
     }
 }
@@ -522,7 +510,7 @@ void application::try_set_component_as_project(const file_access& /*files*/,
 {
     if (debug::check(ids.exists(id))) {
         add_gui_task([this, id]() {
-            if (new_project_req.should_request()) {
+            if (new_project_req.try_request()) {
                 mod.ids.read([&](const auto& ids, auto) noexcept {
                     mod.files.read([&](const auto& fs, auto) noexcept {
                         auto pj = std::make_unique<project>();
@@ -568,7 +556,7 @@ void application::try_open_project_window(const file_access& /*files*/,
         // file_id is a project file and file_id can be set as a new project.
 
         add_gui_task([this, file_id]() {
-            if (new_project_req.should_request()) {
+            if (new_project_req.try_request()) {
                 auto pj          = std::make_unique<project>();
                 pj->project_file = file_id;
 
@@ -1298,7 +1286,7 @@ void text_file_viewer::update(application&       app,
 
         auto content = file->read_entire_file();
 
-        if (content_request.should_request()) {
+        if (content_request.try_request()) {
             content_request.fulfill(std::move(content));
             file_id = file_id_;
         }

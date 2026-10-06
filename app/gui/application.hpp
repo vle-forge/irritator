@@ -50,28 +50,37 @@ enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 
 /// @class request_buffer
 ///
-/// @brief A thread-safe asynchronous mailbox with a built-in anti-spam
+/// @brief A lock-free asynchronous mailbox with a built-in anti-spam
 /// mechanism.
 ///
-/// esigned for a "Request-Fulfill" pattern between a high-frequency
-/// GUI thread and asynchronous worker threads. It prevents "Request Storms" by
-/// ensuring only one computation task is active at any given time.
+/// @details Designed for a "Request-Fulfill" pattern between a single
+/// high-frequency GUI thread (calling try_request() and try_take()) and
+/// asynchronous worker threads (calling fulfill() or fail()). Only one task is
+/// active at any given time, which prevents "Request Storms".
 ///
-/// @tparam T The type of data being transferred. Supports complex types
-/// (strings, vectors).
+/// Ownership of the value follows the state:
+/// - idle, ready: owned by the GUI thread;
+/// - pending: owned by the worker thread.
+///
+/// The buffer must outlive the task: do not destroy it while a request is
+/// pending.
+///
+/// @tparam T The type of data being transferred. Must be nothrow move
+/// constructible.
 ///
 /// @code
 /// void update_gui() {
-///     // 1. We are trying to retrieve data that has just finished
-///     if (auto result = my_buffer.try_take())
-///         this->data = *result; // update the gui
+///     if (auto result = my_buffer->try_take())
+///         this->data = std::move(*result);
 ///
-///     // 2. If the data is still missing AND no task is in progress
-///     if (not this->has_data() && my_buffer.should_request()) {
-///         // This line will only be executed ONCE until fulfill() is called.
-///         add_gui_task([]() {
-///             auto data = expensive_calculation();
-///             my_buffer.fulfill(std::move(data));
+///     if (not this->has_data() && my_buffer->try_request()) {
+///         // Executed ONCE until fulfill() or fail() is called.
+///         add_gui_task([buf = my_buffer]() {   // shared_ptr copy
+///             try {
+///                 buf->fulfill(expensive_calculation());
+///             } catch (...) {
+///                 buf->fail();
+///             }
 ///         });
 ///     }
 /// }
@@ -79,6 +88,9 @@ enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 template<typename T>
 class request_buffer
 {
+    static_assert(std::is_nothrow_move_constructible_v<T>,
+                  "T must be nothrow move constructible");
+
 public:
     enum class state : u8 { idle, pending, ready };
 
@@ -87,142 +99,57 @@ public:
     request_buffer(const request_buffer&)            = delete;
     request_buffer& operator=(const request_buffer&) = delete;
 
-    /// Checks if a new request should be sent.
-    /// @return true if state was Idle (now pending), false if a task is already
-    /// running.
-    bool should_request() noexcept
+    ~request_buffer() noexcept
+    {
+        assert(m_state.load(std::memory_order_relaxed) != state::pending and
+               "request_buffer destroyed while a task is in flight");
+    }
+
+    /// GUI thread. Atomically switches idle -> pending.
+    /// @return true if the caller must now launch the task, false if a task is
+    /// already running or a result is waiting to be taken.
+    bool try_request() noexcept
     {
         state expected = state::idle;
         return m_state.compare_exchange_strong(expected, state::pending,
-                                               std::memory_order_acq_rel);
+                                               std::memory_order_acq_rel,
+                                               std::memory_order_relaxed);
     }
 
-    /// Delivers the result from the worker thread.
+    /// Worker thread. Delivers the result (pending -> ready).
     void fulfill(T&& data) noexcept
     {
-        {
-            std::lock_guard lock(m_mutex);
-            m_value.emplace(std::forward<T>(data));
-        }
+        assert(m_state.load(std::memory_order_relaxed) == state::pending);
+
+        m_value.emplace(std::move(data));
         m_state.store(state::ready, std::memory_order_release);
     }
 
-    /// Attempts to consume the result in the GUI thread.
-    /// @return std::optional containing the data if ready, otherwise
-    /// std::nullopt.
-    std::optional<T> try_take() noexcept
+    /// Worker thread. Gives up without delivering a result (pending -> idle),
+    /// to be called when the task throws. A new request may then be issued.
+    void fail() noexcept
     {
-        if (m_state.load(std::memory_order_acquire) == state::ready) {
-            std::unique_lock lock(m_mutex, std::try_to_lock);
-            if (lock.owns_lock()) {
-                std::optional<T> out = std::move(m_value);
-                m_value.reset();
-                m_state.store(state::idle, std::memory_order_release);
-                return out;
-            }
-        }
-        return std::nullopt;
+        assert(m_state.load(std::memory_order_relaxed) == state::pending);
+
+        m_state.store(state::idle, std::memory_order_release);
     }
 
-    /// Resets the buffer to idle. Use this if a task fails or times out.
-    void cancel() noexcept
+    /// GUI thread, never blocks. Consumes the result (ready -> idle).
+    /// @return the data if ready, otherwise std::nullopt.
+    std::optional<T> try_take() noexcept
     {
-        std::lock_guard lock(m_mutex);
+        if (m_state.load(std::memory_order_acquire) != state::ready)
+            return std::nullopt;
+
+        std::optional<T> out{ std::move(m_value) };
         m_value.reset();
         m_state.store(state::idle, std::memory_order_release);
+        return out;
     }
 
 private:
     std::atomic<state> m_state{ state::idle };
-    mutable std::mutex m_mutex;
     std::optional<T>   m_value;
-};
-
-/// @class atomic_request_buffer
-///
-/// @brief An ultra-fast, lock-free asynchronous mailbox for small data types.
-///
-/// @details Optimized version using purely atomic operations. Ideal for IDs,
-/// Enums, or small numeric results. T must be Trivially Copyable.
-///
-/// @code
-/// void on_render_frame() {
-///     // 1. try to read
-///     if (auto score = score_buffer.try_take()) {
-///         this->current_score = *score;
-///     }
-///
-///     // 2. If we need information and haven't already started the task
-///     if (needs_update && score_buffer.should_request()) {
-///         std::thread([&](){
-///             int res = compute_heavy_score();
-///             score_buffer.fulfill(res);
-///         }).detach();
-///     }
-/// }
-/// @endcode
-template<typename T>
-class atomic_request_buffer
-{
-    static_assert(std::is_trivially_copyable_v<T>,
-                  "T must be trivially copyable for atomic_request_buffer");
-
-public:
-    enum class state : u8 { idle, pending, ready };
-
-    atomic_request_buffer() noexcept = default;
-
-    atomic_request_buffer(const atomic_request_buffer&)            = delete;
-    atomic_request_buffer& operator=(const atomic_request_buffer&) = delete;
-
-    atomic_request_buffer(atomic_request_buffer&& other) noexcept
-    {
-        m_state.store(other.m_state.load(std::memory_order_acquire));
-        m_value.store(other.m_value.load(std::memory_order_relaxed));
-        other.m_state.store(state::idle, std::memory_order_release);
-    }
-
-    atomic_request_buffer& operator=(atomic_request_buffer&& other) noexcept
-    {
-        if (this != &other) {
-            m_state.store(other.m_state.load(std::memory_order_acquire));
-            m_value.store(other.m_value.load(std::memory_order_relaxed));
-            other.m_state.store(state::idle, std::memory_order_release);
-        }
-        return *this;
-    }
-
-    bool should_request() noexcept
-    {
-        state expected = state::idle;
-        return m_state.compare_exchange_strong(expected, state::pending,
-                                               std::memory_order_acq_rel);
-    }
-
-    void fulfill(T data) noexcept
-    {
-        m_value.store(data, std::memory_order_relaxed);
-        m_state.store(state::ready, std::memory_order_release);
-    }
-
-    std::optional<T> try_take() noexcept
-    {
-        if (m_state.load(std::memory_order_acquire) == state::ready) {
-            T result = m_value.load(std::memory_order_relaxed);
-            m_state.store(state::idle, std::memory_order_release);
-            return result;
-        }
-        return std::nullopt;
-    }
-
-    void cancel() noexcept
-    {
-        m_state.store(state::idle, std::memory_order_release);
-    }
-
-private:
-    std::atomic<state> m_state{ state::idle };
-    std::atomic<T>     m_value{ T{} };
 };
 
 /**
@@ -508,8 +435,8 @@ public:
                                  const flags = empty_option) noexcept;
 
 private:
-    atomic_request_buffer<dir_path_id>  new_dir_;
-    atomic_request_buffer<file_path_id> new_file_;
+    std::atomic<dir_path_id>  new_dir_;
+    std::atomic<file_path_id> new_file_;
 
     registred_path_id reg_id_  = undefined<registred_path_id>();
     dir_path_id       dir_id_  = undefined<dir_path_id>();
@@ -1508,7 +1435,7 @@ public:
 
 private:
     /// To share new registred_path identifier between task and main gui thread.
-    atomic_request_buffer<recorded_path_id>  new_reg_dir_id;
+    std::atomic<recorded_path_id> new_reg_dir_id;
 
     /// To share new recorded path name.
     request_buffer<recorded_paths::name_str> new_name;
@@ -1771,7 +1698,7 @@ public:
 
     void request_alloc_project_editor(std::unique_ptr<project> pj) noexcept
     {
-        if (new_project_req.should_request())
+        if (new_project_req.try_request())
             new_project_req.fulfill(std::move(pj));
     }
 
@@ -1843,8 +1770,8 @@ public:
 
     void request_open_directory_dlg(const registred_path_id id) noexcept;
 
-    atomic_request_buffer<file_path_id> new_file;
-    atomic_request_buffer<dir_path_id>  new_dir;
+    std::atomic<file_path_id> new_file;
+    std::atomic<dir_path_id>  new_dir;
 
 private:
     friend task_window;
