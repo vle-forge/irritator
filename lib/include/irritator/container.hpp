@@ -1121,9 +1121,8 @@ using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
  *
  * * * * * */
 
-/// Default policy: full copy, behavior identical to historical version of the
-/// shared_buffer. Valid for any T, including those modified in place (not only
-/// growing).
+/// Default policy: full copy. Valid for any T, including those modified in
+/// place (not only growing).
 template<typename T>
 struct copy_merge_policy {
     static void merge(T& dst, const T& src) noexcept { dst = src; }
@@ -1132,21 +1131,20 @@ struct copy_merge_policy {
 };
 
 /** Policy for containers with monotonic growth via addition only (never
- * editing/deleting existing elements). `dst` is guaranteed to be a strict
- * prefix of `src` by the triple-buffering construction (see
- * shared_buffer::pick_staging_slot) -- only copies the missing delta instead of
- * the entire content.
+ * editing/deleting existing elements). `dst` is guaranteed to be a prefix of
+ * `src` by the construction of shared_buffer (a slot that may not be a prefix
+ * of the active one, after write_only() or reset(), is flagged and fully
+ * copied by the next write()) -- only the missing delta is copied.
  *
- * WARNING: Strong precondition. If T is modified in place elsewhere in the code
- * (not just via push_back/emplace_back), this policy  would silently produce an
- * incorrect state. Use only for truly append-only logs/journals. */
+ * WARNING: `fn` given to write() must only append (push_back/emplace_back...).
+ * Use write_only() for any other modification. */
 template<typename T>
 struct append_only_merge_policy {
     static void merge(T& dst, const T& src) noexcept
     {
         debug::ensure(dst.size() <= src.size() &&
                       "append_only_merge_policy requires dst to be a prefix of "
-                      "src -- T must never be modified in place");
+                      "src -- write() callbacks must only append");
 
         dst.insert(dst.end(),
                    src.begin() + static_cast<std::ptrdiff_t>(dst.size()),
@@ -1157,7 +1155,29 @@ struct append_only_merge_policy {
 };
 
 /**
- * Atomic-only triple buffer: readers never lock, writers use a short lock.
+ * Triple buffer. Readers never lock and never wait for a writer; writers are
+ * serialized by a mutex and only wait for readers that still pin an old slot.
+ *
+ * Protocol
+ * --------
+ * - Slots: one `active` slot (the latest published state, read-only) and two
+ *   others. A writer modifies a non-active slot that no reader pins, then
+ *   publishes it by switching `m_active`.
+ * - A reader pins a slot (counter) and re-checks that it is still the active
+ *   one before touching it (see pin_guard). The pin/check and the
+ *   publish/check pairs are a Dekker handshake: all the operations on
+ *   `m_active` and on the pin counters are seq_cst.
+ * - With N simultaneous readers, at most N slots are pinned: with a single
+ *   reader the writer never waits.
+ *
+ * Rules
+ * -----
+ * - Do not call write(), write_only() or reset() from inside a write(),
+ *   write_only() callback (non-recursive mutex).
+ * - Callbacks must be short: a pinned slot cannot be reused by the writer.
+ * - write_only() callbacks receive a stale slot: they must fully overwrite it.
+ * - Versions are strictly increasing, including across reset().
+ * - read()/write() return their callback result by value (decayed).
  */
 template<typename T, typename MergePolicy = copy_merge_policy<T>>
 class shared_buffer
@@ -1172,276 +1192,293 @@ class shared_buffer
     static_assert(std::is_copy_assignable_v<T> || std::is_move_assignable_v<T>,
                   "T must be copy- or move-assignable");
 
+    template<typename... Args>
+    static constexpr bool
+      is_self_v = (sizeof...(Args) == 1) and
+                  (std::is_same_v<std::remove_cvref_t<Args>, shared_buffer> and
+                   ...);
+
 public:
     using value_type = T;
 
-    shared_buffer() noexcept
-    {
-        m_active.store(0, std::memory_order_relaxed);
-        m_staging = 1;
-        m_spare   = 2;
-    }
+    shared_buffer() noexcept = default;
 
+    /// Builds the initial state with T{ args... } (brace initialization).
+    /// Never selected for a shared_buffer argument (copy constructor).
     template<typename... Args>
+        requires(sizeof...(Args) > 0 and not is_self_v<Args...>)
     explicit shared_buffer(Args&&... args) noexcept
       : m_buffers{ T{ std::forward<Args>(args)... }, T(), T() }
-    {
-        m_active.store(0, std::memory_order_relaxed);
-        m_staging = 1;
-        m_spare   = 2;
-    }
+    {}
 
+    /// Copies a consistent snapshot of the latest published state (and its
+    /// version). Safe while `other` is read and written concurrently.
     shared_buffer(const shared_buffer& other) noexcept
-      : m_buffers{ T(other.m_buffers[0]), T(other.m_buffers[1]),
-                   T(other.m_buffers[2]) }
-      , m_versions{ u64(other.m_versions[0]), u64(other.m_versions[1]),
-                    u64(other.m_versions[2]) }
     {
-        m_active.store(0, std::memory_order_relaxed);
-        m_staging = 1;
-        m_spare   = 2;
+        other.read([this](const T& value, u64 version) noexcept {
+            m_buffers[0] = value;
+            m_versions[0].store(version, std::memory_order_relaxed);
+        });
     }
 
-    shared_buffer(shared_buffer&& other) noexcept
-      : m_buffers{ T(other.m_buffers[0]), T(other.m_buffers[1]),
-                   T(other.m_buffers[2]) }
-      , m_versions{ u64(other.m_versions[0]), u64(other.m_versions[1]),
-                    u64(other.m_versions[2]) }
-    {
-        m_active.store(0, std::memory_order_relaxed);
-        m_staging = 1;
-        m_spare   = 2;
-    }
+    shared_buffer& operator=(const shared_buffer&) = delete;
 
     /**
-     * Writer: merges staging from active via MergePolicy (full copy by default,
-     * delta only for append-only T), then publishes. Avoids slots currently
-     * pinned by readers.
+     * Writer: merges the staging slot from the active one via MergePolicy
+     * (full copy by default, delta only for append-only T), runs `fn(T&,
+     * args...)` on it, then publishes it.
      */
     template<typename Fn, typename... Args>
     auto write(Fn&& fn, Args&&... args) noexcept
-      -> decltype(std::invoke(std::forward<Fn>(fn),
-                              std::declval<T&>(),
-                              std::forward<Args>(args)...))
+      -> std::decay_t<std::invoke_result_t<Fn, T&, Args...>>
     {
-        std::lock_guard<std::mutex> wlock(m_writer);
+        std::lock_guard lock{ m_writer };
 
-        const auto a = m_active.load(std::memory_order_acquire);
-
+        const std::size_t a = m_active.load(std::memory_order_relaxed);
         const std::size_t s = pick_staging_slot(a);
         debug::ensure(s != a);
 
-        MergePolicy::merge(m_buffers[s], m_buffers[a]);
+        if (std::exchange(m_stale[s], false))
+            m_buffers[s] = m_buffers[a];
+        else
+            MergePolicy::merge(m_buffers[s], m_buffers[a]);
+
         m_versions[s].store(m_versions[a].load(std::memory_order_relaxed),
                             std::memory_order_relaxed);
 
-        if constexpr (std::is_void_v<decltype(std::invoke(
-                        std::forward<Fn>(fn), m_buffers[s],
-                        std::forward<Args>(args)...))>) {
-            std::invoke(std::forward<Fn>(fn), m_buffers[s],
-                        std::forward<Args>(args)...);
-            m_versions[s].fetch_add(1, std::memory_order_relaxed);
-
-            m_active.store(s, std::memory_order_release);
-
-            const auto old_active = a;
-            const auto old_spare  = m_spare;
-            m_spare               = old_active;
-            m_staging             = old_spare;
-        } else {
-            auto result = std::invoke(std::forward<Fn>(fn), m_buffers[s],
-                                      std::forward<Args>(args)...);
-            m_versions[s].fetch_add(1, std::memory_order_relaxed);
-
-            m_active.store(s, std::memory_order_release);
-
-            const auto old_active = a;
-            const auto old_spare  = m_spare;
-            m_spare               = old_active;
-            m_staging             = old_spare;
-
-            return result;
-        }
+        return run_and_publish(a, s, std::forward<Fn>(fn),
+                               std::forward<Args>(args)...);
     }
 
     /**
-     * Writer: overwrite staging without copying from active.
-     * Inchange : write_only never handles merging; MergePolicy is only involved
-     * in @c write().
+     * Writer: runs `fn(T&, args...)` on the staging slot without merging, and
+     * publishes it. `fn` receives an OLD content and must fully overwrite it.
+     * Safe with every MergePolicy: the other slots are flagged so that the
+     * next write() fully copies them.
      */
     template<typename Fn, typename... Args>
     auto write_only(Fn&& fn, Args&&... args) noexcept
-      -> decltype(std::invoke(std::forward<Fn>(fn),
-                              std::declval<T&>(),
-                              std::forward<Args>(args)...))
+      -> std::decay_t<std::invoke_result_t<Fn, T&, Args...>>
     {
-        std::lock_guard<std::mutex> wlock(m_writer);
+        std::lock_guard lock{ m_writer };
 
-        const auto a = m_active.load(std::memory_order_acquire);
-
+        const std::size_t a = m_active.load(std::memory_order_relaxed);
         const std::size_t s = pick_staging_slot(a);
         debug::ensure(s != a);
 
-        if constexpr (std::is_void_v<decltype(std::invoke(
-                        std::forward<Fn>(fn), m_buffers[s],
-                        std::forward<Args>(args)...))>) {
-            std::invoke(std::forward<Fn>(fn), m_buffers[s],
-                        std::forward<Args>(args)...);
-            m_versions[s].fetch_add(1, std::memory_order_relaxed);
+        m_versions[s].store(m_versions[a].load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+        m_stale[s] = false;
 
-            m_active.store(s, std::memory_order_release);
-
-            const auto old_active = a;
-            const auto old_spare  = m_spare;
-            m_spare               = old_active;
-            m_staging             = old_spare;
+        if constexpr (std::is_void_v<std::invoke_result_t<Fn, T&, Args...>>) {
+            run_and_publish(a, s, std::forward<Fn>(fn),
+                            std::forward<Args>(args)...);
+            mark_others_stale(s);
         } else {
-            auto result = std::invoke(std::forward<Fn>(fn), m_buffers[s],
-                                      std::forward<Args>(args)...);
-            m_versions[s].fetch_add(1, std::memory_order_relaxed);
-
-            m_active.store(s, std::memory_order_release);
-
-            const auto old_active = a;
-            const auto old_spare  = m_spare;
-            m_spare               = old_active;
-            m_staging             = old_spare;
-
+            auto result = run_and_publish(a, s, std::forward<Fn>(fn),
+                                          std::forward<Args>(args)...);
+            mark_others_stale(s);
             return result;
         }
     }
 
-    /// Reset all three slots to their empty state via MergePolicy::reset().
+    /// Publishes an empty state (MergePolicy::reset) as a new version. Safe
+    /// while readers are active: no slot a reader may touch is modified.
     void reset() noexcept
     {
-        std::lock_guard<std::mutex> wlock(m_writer);
+        std::lock_guard lock{ m_writer };
 
-        for (auto& count : m_reader_counts)
-            while (count.load(std::memory_order_acquire) != 0)
-                std::this_thread::yield();
+        const std::size_t a = m_active.load(std::memory_order_relaxed);
+        const std::size_t s = pick_staging_slot(a);
+        debug::ensure(s != a);
 
-        for (auto& buf : m_buffers)
-            MergePolicy::reset(buf);
+        MergePolicy::reset(m_buffers[s]);
+        m_versions[s].store(m_versions[a].load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+        m_stale[s] = false;
+        publish(a, s);
 
-        for (auto& v : m_versions)
-            v.store(0, std::memory_order_relaxed);
+        // Release the memory of the other slots when no reader pins them
+        // (a reader cannot pin them any more: they are not active). Otherwise
+        // flag them: the next write() fully copies them.
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (i == s)
+                continue;
 
-        m_active.store(0, std::memory_order_relaxed);
-        m_staging = 1;
-        m_spare   = 2;
+            if (m_pins[i].value.load(std::memory_order_seq_cst) == 0) {
+                MergePolicy::reset(m_buffers[i]);
+                m_stale[i] = false;
+            } else {
+                m_stale[i] = true;
+            }
+        }
     }
 
     /**
-     * Reader: lock-free, no copy, with pinning to prevent writer reuse of the
-     * slot.
+     * Reader: lock-free, no copy, `fn(const T&, u64 version, args...)` runs on
+     * a consistent snapshot pinned for the duration of the call.
      */
     template<typename Fn, typename... Args>
     auto read(Fn&& fn, Args&&... args) const noexcept
-      -> decltype(std::invoke(std::forward<Fn>(fn),
-                              std::declval<const T&>(),
-                              std::declval<std::uint64_t>(),
-                              std::forward<Args>(args)...))
+      -> std::decay_t<std::invoke_result_t<Fn, const T&, u64, Args...>>
     {
-        const auto idx = m_active.load(std::memory_order_acquire);
+        const pin_guard pin{ *this };
 
-        m_reader_counts[idx].fetch_add(1, std::memory_order_acquire);
-
-        const auto ver = m_versions[idx].load(std::memory_order_acquire);
-
-        if constexpr (std::is_void_v<decltype(std::invoke(
-                        std::forward<Fn>(fn), m_buffers[idx], ver,
-                        std::forward<Args>(args)...))>) {
-            std::invoke(std::forward<Fn>(fn), m_buffers[idx], ver,
-                        std::forward<Args>(args)...);
-
-            m_reader_counts[idx].fetch_sub(1, std::memory_order_release);
-        } else {
-            auto result = std::invoke(std::forward<Fn>(fn), m_buffers[idx], ver,
-                                      std::forward<Args>(args)...);
-
-            m_reader_counts[idx].fetch_sub(1, std::memory_order_release);
-
-            return result;
-        }
+        return std::invoke(std::forward<Fn>(fn), m_buffers[pin.index()],
+                           pin.version(), std::forward<Args>(args)...);
     }
 
     /**
-     * Try-read: guarantees the same active index before and after the callback.
-     * Still pinned to avoid reuse while reading.
+     * Like read(), and also tells whether the snapshot is still the latest
+     * published version once `fn` has returned. The callback has run on a
+     * consistent snapshot in any case.
+     * @return bool (void callback) or std::pair<bool, result>.
      */
     template<typename Fn, typename... Args>
     auto try_read(Fn&& fn, Args&&... args) const noexcept
     {
-        using return_type = decltype(std::invoke(
-          std::forward<Fn>(fn), std::declval<const T&>(),
-          std::declval<std::uint64_t>(), std::forward<Args>(args)...));
+        using result_type = std::invoke_result_t<Fn, const T&, u64, Args...>;
 
-        const auto idx1 = m_active.load(std::memory_order_acquire);
-        m_reader_counts[idx1].fetch_add(1, std::memory_order_acquire);
+        const pin_guard pin{ *this };
 
-        const auto ver1 = m_versions[idx1].load(std::memory_order_acquire);
+        if constexpr (std::is_void_v<result_type>) {
+            std::invoke(std::forward<Fn>(fn), m_buffers[pin.index()],
+                        pin.version(), std::forward<Args>(args)...);
 
-        if constexpr (std::is_void_v<return_type>) {
-            std::invoke(std::forward<Fn>(fn), m_buffers[idx1], ver1,
-                        std::forward<Args>(args)...);
-
-            m_reader_counts[idx1].fetch_sub(1, std::memory_order_release);
-
-            const auto idx2 = m_active.load(std::memory_order_acquire);
-            return idx1 == idx2;
+            return is_current(pin.version());
         } else {
-            auto result = std::invoke(std::forward<Fn>(fn), m_buffers[idx1],
-                                      ver1, std::forward<Args>(args)...);
+            std::decay_t<result_type> result = std::invoke(
+              std::forward<Fn>(fn), m_buffers[pin.index()], pin.version(),
+              std::forward<Args>(args)...);
 
-            m_reader_counts[idx1].fetch_sub(1, std::memory_order_release);
-
-            const auto idx2 = m_active.load(std::memory_order_acquire);
-            return std::make_pair(idx1 == idx2, std::move(result));
+            return std::pair<bool, std::decay_t<result_type>>{
+                is_current(pin.version()), std::move(result)
+            };
         }
     }
 
 private:
-    /**
-     * Pick a staging slot that is not active and not currently read..
-     */
+    struct alignas(64) pin_counter {
+        std::atomic<unsigned> value{ 0 };
+    };
+
+    /// Pins the active slot. The slot is re-checked after the increment: a
+    /// writer may have published and reused the slot between the load of
+    /// m_active and the increment. Once the check passes, the writer sees the
+    /// pin (seq_cst) and never touches the slot.
+    class pin_guard
+    {
+    public:
+        explicit pin_guard(const shared_buffer& b) noexcept
+          : m_owner(b)
+        {
+            for (;;) {
+                const std::size_t i = b.m_active.load(
+                  std::memory_order_seq_cst);
+
+                b.m_pins[i].value.fetch_add(1, std::memory_order_seq_cst);
+
+                if (b.m_active.load(std::memory_order_seq_cst) == i) {
+                    m_index   = i;
+                    m_version = b.m_versions[i].load(std::memory_order_acquire);
+                    return;
+                }
+
+                b.m_pins[i].value.fetch_sub(1, std::memory_order_release);
+            }
+        }
+
+        pin_guard(const pin_guard&)            = delete;
+        pin_guard& operator=(const pin_guard&) = delete;
+
+        ~pin_guard()
+        {
+            m_owner.m_pins[m_index].value.fetch_sub(1,
+                                                    std::memory_order_release);
+        }
+
+        std::size_t index() const noexcept { return m_index; }
+        u64         version() const noexcept { return m_version; }
+
+    private:
+        const shared_buffer& m_owner;
+        std::size_t          m_index   = 0;
+        u64                  m_version = 0;
+    };
+
+    bool is_current(u64 version) const noexcept
+    {
+        const std::size_t i = m_active.load(std::memory_order_seq_cst);
+        return m_versions[i].load(std::memory_order_acquire) == version;
+    }
+
+    /// A slot that is not active and not pinned. The spare slot (the previous
+    /// active one, hence the closest to the latest state) is preferred. Waits
+    /// for whichever of the two slots is released first.
     std::size_t pick_staging_slot(std::size_t a) noexcept
     {
-        auto is_free = [&](std::size_t i) {
-            return i != a &&
-                   m_reader_counts[i].load(std::memory_order_acquire) == 0;
+        const std::size_t other = 0 + 1 + 2 - a - m_spare;
+
+        auto is_free = [this](std::size_t i) noexcept {
+            return m_pins[i].value.load(std::memory_order_seq_cst) == 0;
         };
 
-        if (is_free(m_spare))
-            return m_spare;
+        for (;;) {
+            if (is_free(m_spare))
+                return m_spare;
 
-        const std::size_t other = 0 + 1 + 2 - a - m_spare;
-        if (is_free(other))
-            return other;
+            if (is_free(other))
+                return other;
 
-        while (m_reader_counts[m_spare].load(std::memory_order_acquire) != 0) {
             std::this_thread::yield();
         }
-        return m_spare;
+    }
+
+    void publish(std::size_t a, std::size_t s) noexcept
+    {
+        m_versions[s].fetch_add(1, std::memory_order_relaxed);
+        m_active.store(s, std::memory_order_seq_cst);
+        m_spare = a;
+    }
+
+    template<typename Fn, typename... Args>
+    auto run_and_publish(std::size_t a,
+                         std::size_t s,
+                         Fn&&        fn,
+                         Args&&... args) noexcept
+      -> std::decay_t<std::invoke_result_t<Fn, T&, Args...>>
+    {
+        if constexpr (std::is_void_v<std::invoke_result_t<Fn, T&, Args...>>) {
+            std::invoke(std::forward<Fn>(fn), m_buffers[s],
+                        std::forward<Args>(args)...);
+            publish(a, s);
+        } else {
+            std::decay_t<std::invoke_result_t<Fn, T&, Args...>>
+              result = std::invoke(std::forward<Fn>(fn), m_buffers[s],
+                                   std::forward<Args>(args)...);
+            publish(a, s);
+            return result;
+        }
+    }
+
+    void mark_others_stale(std::size_t active) noexcept
+    {
+        for (std::size_t i = 0; i < 3; ++i)
+            if (i != active)
+                m_stale[i] = true;
     }
 
 private:
-    mutable std::mutex m_writer;
+    mutable std::mutex                 m_writer;
+    std::array<T, 3>                   m_buffers{};
+    std::array<std::atomic<u64>, 3>    m_versions{};
+    mutable std::array<pin_counter, 3> m_pins{};
 
-    std::array<T, 3> m_buffers{};
+    alignas(64) std::atomic<std::size_t> m_active{ 0 };
 
-    std::array<std::atomic<std::uint64_t>, 3> m_versions{
-        { std::atomic<std::uint64_t>{ 0 }, std::atomic<std::uint64_t>{ 0 },
-          std::atomic<std::uint64_t>{ 0 } }
-    };
-
-    mutable std::array<std::atomic<unsigned>, 3> m_reader_counts{
-        { std::atomic<unsigned>{ 0 }, std::atomic<unsigned>{ 0 },
-          std::atomic<unsigned>{ 0 } }
-    };
-
-    std::atomic<std::size_t> m_active{ 0 };
-    std::size_t              m_staging{ 1 };
-    std::size_t              m_spare{ 2 };
+    // Only accessed with m_writer held.
+    std::size_t         m_spare = 2;
+    std::array<bool, 3> m_stale{};
 };
 
 /**
@@ -3074,7 +3111,6 @@ constexpr bool operator==(const small_string<N>& lhs, const char* rhs) noexcept
 {
     return lhs.sv() == std::string_view{ rhs ? rhs : "" };
 }
-
 
 //! @brief A vector like class but without dynamic allocation.
 //! @tparam T Any type (trivial or not).
@@ -6364,19 +6400,22 @@ constexpr char small_string<length>::back() const noexcept
 }
 
 template<std::size_t length>
-constexpr std::strong_ordering small_string<length>::operator<=>(const small_string& rhs) const noexcept
+constexpr std::strong_ordering small_string<length>::operator<=>(
+  const small_string& rhs) const noexcept
 {
     return sv() <=> rhs.sv();
 }
 
 template<std::size_t length>
-constexpr std::strong_ordering small_string<length>::operator<=>(std::string_view rhs) const noexcept
+constexpr std::strong_ordering small_string<length>::operator<=>(
+  std::string_view rhs) const noexcept
 {
     return sv() <=> rhs;
 }
 
 template<std::size_t length>
-constexpr std::strong_ordering small_string<length>::operator<=>(const char* rhs) const noexcept
+constexpr std::strong_ordering small_string<length>::operator<=>(
+  const char* rhs) const noexcept
 {
     return sv() <=> std::string_view{ rhs ? rhs : "" };
 }
