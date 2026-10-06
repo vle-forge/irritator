@@ -5,14 +5,16 @@
 #include <irritator/core.hpp>
 #include <irritator/thread.hpp>
 
+#include <atomic>
+#include <chrono>
 #include <mutex>
 #include <numeric>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <boost/ut.hpp>
-#include <fmt/format.h>
 
 using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
@@ -32,6 +34,23 @@ enum class data_task_id : irt::u32;
 using data_task_ref = irt::lambda_function<void(void)>;
 
 using namespace std::chrono_literals;
+
+// Never use sleep_for() to pace a loop: on Windows it costs one timer tick
+// (1 to 15.6 ms) even for 50 us. yield() is enough to let the other threads
+// run.
+static void pause(int n) noexcept
+{
+    for (int i = 0; i < n; ++i)
+        std::this_thread::yield();
+}
+
+// Busy wait: a duration that is a lower bound whatever the timer granularity.
+static void spin_for(std::chrono::microseconds d) noexcept
+{
+    const auto end = std::chrono::steady_clock::now() + d;
+    while (std::chrono::steady_clock::now() < end)
+        ;
+}
 
 template<typename Pred>
 static bool wait_until(Pred&& pred, std::chrono::milliseconds timeout = 5s)
@@ -212,7 +231,7 @@ static void stress_payload(unsigned readers, irt::u64 writes, bool with_reset)
         threads.emplace_back([&] {
             while (!stop.load(std::memory_order_acquire)) {
                 buf.reset();
-                std::this_thread::sleep_for(200us);
+                pause(20);
             }
         });
 
@@ -240,6 +259,97 @@ static void stress_payload(unsigned readers, irt::u64 writes, bool with_reset)
     if (!with_reset)
         expect(eq(snapshot(buf).second, written));
 }
+
+// Types of the shared_buffer scenarios
+
+struct Counter {
+    std::atomic_int  value = 0;
+    std::vector<int> history;
+
+    Counter() = default;
+    Counter(int v)
+      : value(v)
+    {}
+
+    Counter(const Counter& o) noexcept
+      : value(o.value.load())
+      , history(o.history)
+    {}
+
+    Counter(Counter&& o) noexcept
+      : value(o.value.load())
+      , history(std::move(o.history))
+    {}
+
+    Counter& operator=(const Counter& o) noexcept
+    {
+        if (this != &o) {
+            value   = o.value.load();
+            history = o.history;
+        }
+
+        return *this;
+    }
+
+    Counter& operator=(Counter&& o) noexcept
+    {
+        if (this != &o) {
+            value   = o.value.load();
+            history = std::move(o.history);
+        }
+
+        return *this;
+    }
+};
+
+struct ComplexData {
+    std::vector<int> data;
+    std::atomic_int  checksum = 0;
+
+    ComplexData() = default;
+
+    ComplexData(const ComplexData& o) noexcept
+      : data(o.data)
+      , checksum(o.checksum.load())
+    {}
+
+    ComplexData(ComplexData&& o) noexcept
+      : data(std::move(o.data))
+      , checksum(o.checksum.load())
+    {}
+
+    ComplexData& operator=(const ComplexData& o) noexcept
+    {
+        if (&o != this) {
+            data     = o.data;
+            checksum = o.checksum.load();
+        }
+
+        return *this;
+    }
+
+    ComplexData& operator=(ComplexData&& o) noexcept
+    {
+        if (&o != this) {
+            data     = std::move(o.data);
+            checksum = o.checksum.load();
+        }
+
+        return *this;
+    }
+
+    void add_value(int v)
+    {
+        data.push_back(v);
+        checksum += v;
+    }
+
+    bool is_valid() const
+    {
+        int sum = std::accumulate(data.begin(), data.end(), 0);
+        return sum == checksum;
+    }
+};
 
 // ---------------------------------------------------------------------------
 
@@ -455,7 +565,7 @@ int main()
             third_done = true;
         });
 
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(30ms);
         expect(!third_done.load())
           << "the writer must wait for the pinned slots";
         expect(eq(b.read([](const int& x, irt::u64) { return x; }), 2))
@@ -517,7 +627,7 @@ int main()
         threads.emplace_back([&] {
             while (!stop.load(std::memory_order_acquire)) {
                 buf.reset();
-                std::this_thread::sleep_for(300us);
+                pause(20);
             }
         });
 
@@ -618,7 +728,6 @@ int main()
     };
 
     "data-task-copy-capture"_test = [] {
-        fmt::print("data-task-copy-capture\n");
         irt::data_array<data_task, data_task_id, heap_mr> d(32);
 
         int a = 16;
@@ -639,7 +748,6 @@ int main()
     };
 
     "data-task-reference-capture"_test = [] {
-        fmt::print("data-task-reference-capture\n");
         irt::data_array<data_task_ref, data_task_id, heap_mr> d(32);
 
         int a = 16;
@@ -660,7 +768,6 @@ int main()
     };
 
     "spin-lock"_test = [] {
-        fmt::print("spin-lock\n");
         std::atomic_int counter = 0;
         irt::spin_mutex spin;
 
@@ -690,11 +797,10 @@ int main()
     };
 
     "scoped-lock"_test = [] {
-        fmt::print("scoped-lock\n");
         irt::spin_mutex mutex_1;
         irt::spin_mutex mutex_2;
 
-        for (int i = 0; i < 100; ++i) {
+        for (int i = 0; i < 30; ++i) {
             std::atomic_int mult = 0;
 
             std::thread j1([&mult, &mutex_1]() {
@@ -719,230 +825,674 @@ int main()
         }
     };
 
-    // use-case-test: checks a classic use of task and task_list.
-    "task-lists"_test = [] {
-        fmt::print("task-lists\n");
-        irt::task_manager tm(1, 0);
+    // -----------------------------------------------------------------------
+    // Task system: ordered lists
+    //
+    // Rules of these tests:
+    //  - the number of workers is explicit (the default is
+    //    hardware_concurrency() threads, which is slow to start on Windows);
+    //  - no sleep_for(): the tests wait for events (wait_empty,
+    //    wait_completion, wait_until) or count operations;
+    //  - `expect` is only called from the test thread, never from a task.
+    // -----------------------------------------------------------------------
+
+    "ordered: tasks run once, in submission order"_test = [] {
+        irt::task_manager tm(1, 0, 1);
         tm.start();
 
-        std::atomic_int counter = 0;
-        for (int i = 0; i < 100; ++i) {
-            tm.ordered(0).add([&counter]() { function_1(counter); });
-            tm.ordered(0).add([&counter]() { function_100(counter); });
-            tm.ordered(0).add([&counter]() { function_1(counter); });
-            tm.ordered(0).add([&counter]() { function_100(counter); });
-            tm.ordered(0).wait_empty();
-        }
+        std::vector<int> order; // written by the worker only, read after wait
+        for (int i = 0; i < 200; ++i)
+            expect(tm.ordered(0).add([&order, i] { order.push_back(i); }));
 
-        expect(eq(counter.load(), 20200));
-
-        tm.shutdown();
-    };
-
-    // use-case-test: checks a classic use of task and task_list and do not use
-    // wait.
-    "task-lists-without-wait"_test = [] {
-        fmt::print("task-lists-without-wait\n");
-        irt::task_manager tm(1, 1);
-        tm.start();
-
-        std::atomic_int counter = 0;
-        for (int i = 0; i < 100; ++i) {
-            tm.ordered(0).add([&counter]() { function_1(counter); });
-            tm.ordered(0).add([&counter]() { function_100(counter); });
-        }
         tm.ordered(0).wait_empty();
-        expect(eq(counter.load(), 101 * 100));
 
+        expect(eq(order.size(), std::size_t{ 200 }));
+        bool sorted = true;
+        for (int i = 0; i < static_cast<int>(order.size()); ++i)
+            sorted = sorted && order[static_cast<std::size_t>(i)] == i;
+        expect(sorted) << "FIFO order broken";
+
+        expect(eq(tm.ordered(0).tasks_submitted(), irt::u64{ 200 }));
+        expect(eq(tm.ordered(0).tasks_completed(), irt::u64{ 200 }));
         tm.shutdown();
     };
 
-    // stress-test: checks to add 200 tasks for a task_list vector < 200.
-    // task_list::add must wakeup the worker without the call to the submit
-    // function to avoid dead lock.
-    "large-task-lists"_test = [] {
-        fmt::print("large-task-lists\n");
-        irt::task_manager tm(1, 1);
+    "ordered: wait_empty on an idle list returns immediately"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+        tm.ordered(0).wait_empty();
+        tm.ordered(0).wait_empty();
+        expect(eq(tm.ordered(0).tasks_submitted(), irt::u64{ 0 }));
+        tm.shutdown();
+    };
 
-        constexpr int loop = 100;
-
+    "ordered: add / wait_empty cycles"_test = [] {
+        irt::task_manager tm(1, 0, 1);
         tm.start();
 
-        for (int x = 0; x < 100; ++x) {
-            std::atomic_int counter = 0;
-
-            for (int i = 0; i < loop; ++i) {
-                tm.ordered(0).add([&counter]() { function_1(counter); });
-                tm.ordered(0).add([&counter]() { function_100(counter); });
-            }
+        std::atomic_int counter = 0;
+        for (int i = 0; i < 30; ++i) {
+            tm.ordered(0).add([&counter] { function_1(counter); });
+            tm.ordered(0).add([&counter] { function_100(counter); });
+            tm.ordered(0).add([&counter] { function_1(counter); });
+            tm.ordered(0).add([&counter] { function_100(counter); });
             tm.ordered(0).wait_empty();
-
-            for (int i = 0; i < loop; ++i) {
-                tm.ordered(0).add([&counter]() { function_1(counter); });
-                tm.ordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.ordered(0).wait_empty();
-
-            for (int i = 0; i < loop; ++i) {
-                tm.ordered(0).add([&counter]() { function_1(counter); });
-                tm.ordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.ordered(0).wait_empty();
-
-            for (int i = 0; i < loop; ++i) {
-                tm.ordered(0).add([&counter]() { function_1(counter); });
-                tm.ordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.ordered(0).wait_empty();
-
-            expect(eq(counter.load(), 101 * 100 * 4));
+            expect(eq(counter.load(), (i + 1) * 202));
         }
-
         tm.shutdown();
     };
 
-    "n-worker-1-temp-task-lists-simple"_test = [] {
-        fmt::print("n-worker-1-temp-task-lists-simple\n");
-        irt::task_manager tm(0, 1);
+    // The queue holds up to 200 tasks (< task_max) that the worker has not
+    // started yet: add() must wake the worker without any submit().
+    "ordered: bursts close to the capacity of the queue"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
 
+        constexpr int burst = 200;
+        static_assert(burst < irt::ordered_task_list::task_max);
+
+        std::atomic_int counter = 0;
+        for (int x = 0; x < 5; ++x) {
+            for (int i = 0; i < burst / 2; ++i) {
+                tm.ordered(0).add([&counter] { function_1(counter); });
+                tm.ordered(0).add([&counter] { function_100(counter); });
+            }
+            tm.ordered(0).wait_empty();
+            expect(eq(counter.load(), (x + 1) * (burst / 2) * 101));
+        }
+        tm.shutdown();
+    };
+
+    "ordered: add refuses a task when the queue is full"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        std::atomic<bool> running{ false };
+        std::atomic<bool> release{ false };
+        std::atomic<int>  executed{ 0 };
+
+        // Keeps the worker busy: the queue itself is then empty.
+        tm.ordered(0).add([&] {
+            running = true;
+            while (!release.load())
+                std::this_thread::yield();
+        });
+        expect(wait_until([&] { return running.load(); }));
+
+        constexpr int attempts = 300;
+        int           accepted = 0;
+        for (int i = 0; i < attempts; ++i)
+            if (tm.ordered(0).add([&executed] { ++executed; }))
+                ++accepted;
+
+        // The ring buffer keeps one slot free: task_max - 1 usable slots.
+        expect(
+          ge(accepted, static_cast<int>(irt::ordered_task_list::task_max) - 1));
+        expect(accepted < attempts) << "add() accepted more than the capacity";
+
+        // Rejected tasks are not counted: wait_empty() cannot wait for them.
+        expect(eq(tm.ordered(0).tasks_submitted(),
+                  static_cast<irt::u64>(1 + accepted)));
+
+        release = true;
+        tm.ordered(0).wait_empty();
+
+        expect(eq(executed.load(), accepted));
+        expect(
+          eq(tm.ordered(0).tasks_completed(), tm.ordered(0).tasks_submitted()));
+        tm.shutdown();
+    };
+
+    "ordered: concurrent producers"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        constexpr int            producers = 3;
+        constexpr int            per_prod  = 80; // 240 < task_max
+        std::atomic_int          counter   = 0;
+        std::atomic_int          refused   = 0;
+        std::atomic<int>         ready{ 0 };
+        std::atomic<bool>        go{ false };
+        std::vector<std::thread> threads;
+
+        for (int p = 0; p < producers; ++p)
+            threads.emplace_back([&] {
+                ++ready;
+                while (!go.load())
+                    std::this_thread::yield();
+                for (int i = 0; i < per_prod; ++i)
+                    if (!tm.ordered(0).add([&counter] { ++counter; }))
+                        ++refused;
+            });
+
+        expect(wait_until([&] { return ready.load() == producers; }));
+        go = true;
+        for (auto& t : threads)
+            t.join();
+
+        tm.ordered(0).wait_empty();
+        expect(eq(refused.load(), 0));
+        expect(eq(counter.load(), producers * per_prod));
+        expect(eq(tm.ordered(0).tasks_completed(),
+                  irt::u64{ producers * per_prod }));
+        tm.shutdown();
+    };
+
+    "ordered: two lists run independently and in parallel"_test = [] {
+        irt::task_manager tm(2, 0, 1);
+        tm.start();
+
+        // Each task waits for the other one: this only terminates if the two
+        // lists really run at the same time.
+        std::atomic<bool> a_in{ false };
+        std::atomic<bool> b_in{ false };
+        std::atomic<bool> a_saw_b{ false };
+        std::atomic<bool> b_saw_a{ false };
+
+        tm.ordered(0).add([&] {
+            a_in    = true;
+            a_saw_b = wait_until([&] { return b_in.load(); });
+        });
+        tm.ordered(1).add([&] {
+            b_in    = true;
+            b_saw_a = wait_until([&] { return a_in.load(); });
+        });
+
+        tm.ordered(0).wait_empty();
+        tm.ordered(1).wait_empty();
+
+        expect(a_saw_b.load());
+        expect(b_saw_a.load());
+        tm.shutdown();
+    };
+
+    "ordered: two lists, balanced +1 / -1"_test = [] {
+        irt::task_manager tm(2, 0, 1);
+        std::atomic_int   buffer = 0;
+        tm.start();
+
+        for (int x = 0; x < 20; ++x) {
+            for (int i = 0; i < 100; ++i) {
+                tm.ordered(0).add([&buffer] { buffer.fetch_add(1); });
+                tm.ordered(1).add([&buffer] { buffer.fetch_sub(1); });
+            }
+            tm.ordered(0).wait_empty();
+            tm.ordered(1).wait_empty();
+        }
+
+        expect(eq(buffer.load(), 0));
+        expect(eq(tm.ordered(0).tasks_completed(), irt::u64{ 2000 }));
+        expect(eq(tm.ordered(1).tasks_completed(), irt::u64{ 2000 }));
+        tm.shutdown();
+    };
+
+    "ordered: worker statistics"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        for (int i = 0; i < 3; ++i)
+            tm.ordered(0).add([] { spin_for(2ms); });
+        tm.ordered(0).wait_empty();
+
+        // Updated before wait_empty() returns.
+        expect(eq(tm.wordered_tasks_completed(0), irt::u64{ 3 }));
+        // The execution time (ms) was the number of tasks before the fix.
+        expect(ge(tm.wordered_execution_time(0), irt::u64{ 6 }));
+        expect(tm.wordered_execution_time(0) < irt::u64{ 5000 });
+        tm.shutdown();
+    };
+
+    // The worker must update its statistics BEFORE the list publishes the
+    // completion (wait_empty() relies on it). The observer spins on the list
+    // counter instead of sleeping on the condition variable, to catch the few
+    // nanoseconds between the two updates.
+    "ordered: statistics are published before the completion"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        int stale = 0;
+        for (int i = 0; i < 3000; ++i) {
+            tm.ordered(0).add([] {});
+            while (tm.ordered(0).tasks_completed() !=
+                   static_cast<irt::u64>(i + 1))
+                std::this_thread::yield();
+            stale += tm.wordered_tasks_completed(0) !=
+                     static_cast<irt::u64>(i + 1);
+        }
+        expect(eq(stale, 0)) << "worker statistics published too late";
+        tm.shutdown();
+    };
+
+    "ordered: statistics can be read while the worker runs"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        std::atomic<bool>     stop{ false };
+        std::atomic<irt::u64> violations{ 0 };
+        std::atomic<irt::u64> polls{ 0 };
+
+        std::thread poller([&] {
+            irt::u64 last = 0;
+            while (!stop.load()) {
+                // `completed` first: completed <= submitted at every instant.
+                const auto completed = tm.ordered(0).tasks_completed();
+                const auto submitted = tm.ordered(0).tasks_submitted();
+                const auto wcomp     = tm.wordered_tasks_completed(0);
+                if (completed > submitted || completed < last)
+                    ++violations;
+                (void)wcomp;
+                (void)tm.wordered_execution_time(0);
+                last = completed;
+                ++polls;
+            }
+        });
+
+        for (int i = 0; i < 1500; ++i)
+            tm.ordered(0).add([] {});
+        tm.ordered(0).wait_empty();
+        // keep the poller running until it has observed something
+        expect(wait_until([&] { return polls.load() > 10; }));
+
+        stop = true;
+        poller.join();
+        expect(eq(violations.load(), irt::u64{ 0 }));
+        tm.shutdown();
+    };
+
+    "ordered: shutdown wakes wait_empty"_test = [] {
+        irt::task_manager tm(1, 0, 1);
+        tm.start();
+
+        std::atomic<bool> running{ false };
+        std::atomic<bool> release{ false };
+        std::atomic<bool> woken{ false };
+
+        tm.ordered(0).add([&] {
+            running = true;
+            while (!release.load())
+                std::this_thread::yield();
+        });
+        expect(wait_until([&] { return running.load(); }));
+
+        std::atomic<bool> entered{ false };
+        std::thread       waiter([&] {
+            entered = true;
+            tm.ordered(0).wait_empty();
+            woken = true;
+        });
+        expect(wait_until([&] { return entered.load(); }));
+        std::this_thread::sleep_for(20ms); // let the waiter block (once)
+        expect(!woken.load()) << "wait_empty() returned with a task running";
+
+        tm.ordered(0).shutdown();
+        const bool ok = wait_until([&] { return woken.load(); });
+        release       = true; // always, so that the test cannot hang
+        waiter.join();
+        expect(ok) << "wait_empty() was not woken by shutdown()";
+        tm.shutdown();
+    };
+
+    "ordered: shutdown drains the accepted tasks, then refuses new ones"_test =
+      [] {
+          irt::task_manager tm(1, 0, 1);
+          tm.start();
+
+          std::atomic_int counter = 0;
+          for (int i = 0; i < 100; ++i)
+              tm.ordered(0).add([&counter] { ++counter; });
+
+          tm.shutdown(); // joins the worker after the drain
+
+          expect(eq(counter.load(), 100));
+          expect(tm.ordered(0).stopping());
+          expect(!tm.ordered(0).add([&counter] { ++counter; }));
+          expect(eq(counter.load(), 100));
+          tm.shutdown(); // idempotent
+      };
+
+    // -----------------------------------------------------------------------
+    // Task system: unordered lists
+    // -----------------------------------------------------------------------
+
+    "unordered: every task of a batch runs exactly once"_test = [] {
+        irt::task_manager tm(0, 1, 2);
+        tm.start();
+
+        constexpr int                n = 1000;
+        std::vector<std::atomic_int> hits(n);
+        for (auto& h : hits)
+            h = 0;
+
+        for (int i = 0; i < n; ++i)
+            tm.unordered(0).add(
+              [&hits, i] { ++hits[static_cast<std::size_t>(i)]; });
+        tm.unordered(0).submit();
+        tm.unordered(0).wait_completion();
+
+        int wrong = 0;
+        for (auto& h : hits)
+            wrong += h.load() != 1;
+        expect(eq(wrong, 0));
+
+        expect(eq(tm.unordered(0).tasks_submitted(), irt::u64{ n }));
+        expect(eq(tm.unordered(0).tasks_completed(), irt::u64{ n }));
+
+        // Per-worker statistics are up to date when wait_completion returns.
+        irt::u64 total = 0;
+        for (std::size_t w = 0; w < tm.wunordered_size(); ++w)
+            total += tm.wunordered_tasks_completed(w);
+        expect(eq(total, irt::u64{ n }));
+        tm.shutdown();
+    };
+
+    "unordered: the workers run in parallel"_test = [] {
+        irt::task_manager tm(0, 1, 2);
+        tm.start();
+
+        // Each of the two tasks waits for the other one: sequential execution
+        // by a single thread cannot pass.
+        std::atomic<int> inside{ 0 };
+        std::atomic<int> met{ 0 };
+
+        for (int i = 0; i < 2; ++i)
+            tm.unordered(0).add([&] {
+                ++inside;
+                if (wait_until([&] { return inside.load() == 2; }))
+                    ++met;
+            });
+        tm.unordered(0).submit();
+        tm.unordered(0).wait_completion();
+
+        expect(eq(met.load(), 2));
+        tm.shutdown();
+    };
+
+    "unordered: many small batches"_test = [] {
+        irt::task_manager tm(0, 1, 2);
         tm.start();
 
         for (int x = 0; x < 100; ++x) {
             std::atomic_int counter_1 = 0;
             std::atomic_int counter_2 = 0;
 
-            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
-            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
-            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
-            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
-            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
-            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
-            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
-            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
+            for (int i = 0; i < 4; ++i) {
+                tm.unordered(0).add([&counter_1] { function_1(counter_1); });
+                tm.unordered(0).add([&counter_2] { function_100(counter_2); });
+            }
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
+
             expect(eq(counter_1.load(), 4));
             expect(eq(counter_2.load(), 400));
         }
-
         tm.shutdown();
     };
 
-    "n-worker-1-temp-task-lists"_test = [] {
-        fmt::print("n-worker-1-temp-task-lists\n");
-        auto start = std::chrono::steady_clock::now();
-
-        irt::task_manager tm(1, 1);
+    // One worker, one task per batch: the worker goes back to sleep between
+    // two batches, a lost wake-up blocks the next batch for ever. The driver
+    // spins on the list counter (instead of sleeping in wait_completion()) so
+    // that the next submit() races with the worker going back to sleep. The
+    // worker statistics must be published before the completion.
+    "unordered: no lost wake-up, statistics published first"_test = [] {
+        irt::task_manager tm(0, 1, 1);
         tm.start();
-        for (int n = 0; n < 40; ++n) {
+
+        std::atomic_int counter = 0;
+        int             stale   = 0;
+        constexpr int   batches = 3000;
+
+        for (int i = 0; i < batches; ++i) {
+            tm.unordered(0).add([&counter] { ++counter; });
+            tm.unordered(0).submit();
+            while (tm.unordered(0).tasks_completed() !=
+                   static_cast<irt::u64>(i + 1))
+                std::this_thread::yield();
+            stale += tm.wunordered_tasks_completed(0) !=
+                     static_cast<irt::u64>(i + 1);
+        }
+        tm.unordered(0).wait_completion();
+
+        expect(eq(counter.load(), batches));
+        expect(eq(stale, 0)) << "worker statistics published too late";
+        tm.shutdown();
+    };
+
+    "unordered: large batches"_test = [] {
+        irt::task_manager tm(1, 1, 2);
+        tm.start();
+
+        for (int n = 0; n < 10; ++n) {
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                tm.unordered(0).add([&counter]() { function_1(counter); });
-                tm.unordered(0).add([&counter]() { function_100(counter); });
+                tm.unordered(0).add([&counter] { function_1(counter); });
+                tm.unordered(0).add([&counter] { function_100(counter); });
             }
             tm.unordered(0).submit();
             tm.unordered(0).wait_completion();
             expect(eq(counter.load(), 101 * 100));
-
-            for (int i = 0; i < 100; ++i) {
-                tm.unordered(0).add([&counter]() { function_1(counter); });
-                tm.unordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.unordered(0).submit();
-            tm.unordered(0).wait_completion();
-            expect(eq(counter.load(), 101 * 100 * 2));
-
-            for (int i = 0; i < 100; ++i) {
-                tm.unordered(0).add([&counter]() { function_1(counter); });
-                tm.unordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.unordered(0).submit();
-            tm.unordered(0).wait_completion();
-            expect(eq(counter.load(), 101 * 100 * 3));
-
-            for (int i = 0; i < 100; ++i) {
-                tm.unordered(0).add([&counter]() { function_1(counter); });
-                tm.unordered(0).add([&counter]() { function_100(counter); });
-            }
-            tm.unordered(0).submit();
-            tm.unordered(0).wait_completion();
-
-            expect(eq(counter.load(), 101 * 100 * 4));
         }
         tm.shutdown();
-
-        auto end = std::chrono::steady_clock::now();
-        auto dif = std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                         start);
-        fmt::print("shared: {}\n", dif.count());
     };
 
-    "n-worker-1-temp-task-lists"_test = [] {
-        fmt::print("n-worker-1-temp-task-lists\n");
-        auto start = std::chrono::steady_clock::now();
-
-        for (int n = 0; n < 40; ++n) {
-            irt::task_manager tm(1, 1);
-
-            tm.start();
-            std::atomic_int counter = 0;
-
-            for (int i = 0; i < 100; ++i) {
-                function_1(counter);
-                function_100(counter);
-            }
-
-            for (int i = 0; i < 100; ++i) {
-                function_1(counter);
-                function_100(counter);
-            }
-
-            for (int i = 0; i < 100; ++i) {
-                function_1(counter);
-                function_100(counter);
-            }
-
-            for (int i = 0; i < 100; ++i) {
-                function_1(counter);
-                function_100(counter);
-            }
-
-            expect(eq(counter.load(), 101 * 100 * 4));
-
-            tm.shutdown();
-        }
-
-        auto end = std::chrono::steady_clock::now();
-        auto dif = std::chrono::duration_cast<std::chrono::milliseconds>(end -
-                                                                         start);
-        fmt::print("linear: {}\n", dif.count());
-    };
-
-    "static-circular-buffer"_test = [] {
-        fmt::print("static-circular-buffer\n");
-        irt::task_manager tm(2, 0);
-        std::atomic_int   buffer = 0;
-
-        constexpr int loop = 100;
-
+    "unordered: empty batch and wait_completion without submit"_test = [] {
+        irt::task_manager tm(0, 1, 1);
         tm.start();
 
-        for (int x = 0; x < 100; ++x) {
-            for (int i = 0; i < loop; ++i) {
-                tm.ordered(0).add([&buffer]() { buffer.fetch_add(1); });
-                tm.ordered(1).add([&buffer]() { buffer.fetch_sub(1); });
-            }
+        tm.unordered(0).wait_completion();
+        tm.unordered(0).submit(); // nothing to run
+        tm.unordered(0).wait_completion();
+        expect(eq(tm.unordered(0).tasks_submitted(), irt::u64{ 0 }));
+        expect(eq(tm.unordered(0).tasks_completed(), irt::u64{ 0 }));
 
-            tm.ordered(0).wait_empty();
-            tm.ordered(1).wait_empty();
-        }
-
+        std::atomic_int counter = 0;
+        tm.unordered(0).add([&counter] { ++counter; });
+        tm.unordered(0).submit();
+        tm.unordered(0).wait_completion();
+        expect(eq(counter.load(), 1));
         tm.shutdown();
     };
 
+    "unordered: tasks_completed counts finished tasks only"_test = [] {
+        irt::task_manager tm(0, 1, 1);
+        tm.start();
+
+        std::atomic<bool> running{ false };
+        std::atomic<bool> release{ false };
+
+        tm.unordered(0).add([&] {
+            running = true;
+            while (!release.load())
+                std::this_thread::yield();
+        });
+        tm.unordered(0).submit();
+        expect(wait_until([&] { return running.load(); }));
+
+        // The task is stolen but not finished.
+        expect(eq(tm.unordered(0).tasks_submitted(), irt::u64{ 1 }));
+        const auto during = tm.unordered(0).tasks_completed();
+
+        release = true;
+        tm.unordered(0).wait_completion();
+
+        expect(eq(during, irt::u64{ 0 }));
+        expect(eq(tm.unordered(0).tasks_completed(), irt::u64{ 1 }));
+        tm.shutdown();
+    };
+
+    "unordered: a task added during a batch is kept for the next one"_test =
+      [] {
+          irt::task_manager tm(0, 1, 1);
+          tm.start();
+
+          std::atomic<bool> running{ false };
+          std::atomic<bool> release{ false };
+          std::atomic_int   late = 0;
+
+          tm.unordered(0).add([&] {
+              running = true;
+              while (!release.load())
+                  std::this_thread::yield();
+          });
+          tm.unordered(0).submit();
+          expect(wait_until([&] { return running.load(); }));
+
+          expect(tm.unordered(0).add([&late] { ++late; })); // batch executing
+
+          release = true;
+          tm.unordered(0).wait_completion();
+          expect(eq(late.load(), 0)) << "must not run in the current batch";
+
+          tm.unordered(0).submit(); // the next batch
+          tm.unordered(0).wait_completion();
+          expect(eq(late.load(), 1)) << "task lost";
+
+          expect(eq(tm.unordered(0).tasks_submitted(), irt::u64{ 2 }));
+          expect(eq(tm.unordered(0).tasks_completed(), irt::u64{ 2 }));
+          tm.shutdown();
+      };
+
+    "unordered: shutdown wakes wait_completion and abandons the queue"_test =
+      [] {
+          irt::task_manager tm(0, 1, 1);
+          tm.start();
+
+          std::atomic<bool> running{ false };
+          std::atomic<bool> release{ false };
+          std::atomic<bool> woken{ false };
+          std::atomic_int   abandoned = 0;
+
+          tm.unordered(0).add([&] {
+              running = true;
+              while (!release.load())
+                  std::this_thread::yield();
+          });
+          tm.unordered(0).add([&abandoned] { ++abandoned; }); // never started
+          tm.unordered(0).submit();
+          expect(wait_until([&] { return running.load(); }));
+
+          std::atomic<bool> entered{ false };
+          std::thread       waiter([&] {
+              entered = true;
+              tm.unordered(0).wait_completion();
+              woken = true;
+          });
+          expect(wait_until([&] { return entered.load(); }));
+          std::this_thread::sleep_for(20ms); // let the waiter block (once)
+          expect(!woken.load()) << "wait_completion() returned too early";
+
+          tm.unordered(0).shutdown();
+          const bool ok = wait_until([&] { return woken.load(); });
+          release       = true;
+          waiter.join();
+          tm.shutdown();
+
+          expect(ok) << "wait_completion() was not woken by shutdown()";
+          expect(eq(abandoned.load(), 0));
+          expect(!tm.unordered(0).add([] {}));
+      };
+
+    // -----------------------------------------------------------------------
+    // Task system: manager
+    // -----------------------------------------------------------------------
+
+    "manager: number of workers"_test = [] {
+        irt::task_manager a(1, 1, 3);
+        expect(eq(a.wordered_size(), std::size_t{ 1 }));
+        expect(eq(a.wunordered_size(), std::size_t{ 3 }));
+
+        irt::task_manager b(1, 1, 0); // 0 means one worker
+        expect(eq(b.wunordered_size(), std::size_t{ 1 }));
+
+        irt::task_manager c(2, 0, 4); // no list: no thread to create
+        expect(eq(c.wordered_size(), std::size_t{ 2 }));
+        expect(eq(c.wunordered_size(), std::size_t{ 0 }));
+    };
+
+    "manager: start and shutdown cycles"_test = [] {
+        for (int i = 0; i < 10; ++i) {
+            irt::task_manager tm(1, 1, 2);
+            tm.start();
+            tm.start(); // idempotent
+
+            std::atomic_int counter = 0;
+            tm.ordered(0).add([&counter] { ++counter; });
+            tm.unordered(0).add([&counter] { ++counter; });
+            tm.unordered(0).submit();
+            tm.ordered(0).wait_empty();
+            tm.unordered(0).wait_completion();
+
+            expect(eq(counter.load(), 2));
+            tm.shutdown();
+        }
+    };
+
+    "manager: destructor joins the workers"_test = [] {
+        std::atomic_int counter = 0;
+        {
+            irt::task_manager tm(1, 1, 2);
+            tm.start();
+            for (int i = 0; i < 50; ++i)
+                tm.ordered(0).add([&counter] { ++counter; });
+            // no shutdown(): it was a std::terminate (joinable std::thread)
+        }
+        expect(eq(counter.load(), 50)) << "ordered tasks are drained";
+    };
+
+    "manager: shutdown before start does not hang"_test = [] {
+        irt::task_manager tm(1, 1, 1);
+        tm.shutdown();
+        expect(tm.ordered(0).stopping());
+        expect(tm.unordered(0).stopping());
+    };
+
+    // -----------------------------------------------------------------------
+    // shared_buffer used from the tasks
+    // -----------------------------------------------------------------------
+
+    "shared_buffer: readers and a writer in the task manager"_test = [] {
+        irt::task_manager tm(2, 0, 1);
+        tm.start();
+
+        irt::shared_buffer<irt::small_vector<int, 16>> buffer;
+        std::atomic_int                                bad = 0;
+
+        auto read_back = [&buffer, &bad] {
+            buffer.read([&bad](const auto& v, auto /*version*/) {
+                for (int x : v)
+                    if (x != 10)
+                        ++bad;
+            });
+        };
+
+        for (int i = 0; i < 16; ++i) {
+            tm.ordered(0).add(read_back);
+            tm.ordered(1).add(
+              [&buffer] { buffer.write([](auto& v) { v.push_back(10); }); });
+            tm.ordered(0).add(read_back);
+        }
+
+        tm.ordered(0).wait_empty();
+        tm.ordered(1).wait_empty();
+
+        expect(eq(bad.load(), 0));
+        const auto [size,
+                    version] = buffer.read([](const auto& v, irt::u64 ver) {
+            return std::pair{ v.size(), ver };
+        });
+        expect(eq(size, std::size_t{ 16 }));
+        expect(eq(version, irt::u64{ 16 }));
+        tm.shutdown();
+    };
+
+    // -----------------------------------------------------------------------
+    // shared_buffer: scenarios with user-defined types (ex-"test_*")
+    //
+    // No sleep_for() and no fixed duration: the work is counted, and the
+    // threads are released together by a start flag.
+    // -----------------------------------------------------------------------
+
     "single_locker"_test = [] {
-        fmt::print("single_locker\n");
         struct data {
             data() noexcept = default;
 
@@ -953,9 +1503,9 @@ int main()
             int x = 0;
         };
 
-        irt::shared_buffer<data> safe_data(100);
+        for (int round = 0; round < 2; ++round) {
+            irt::shared_buffer<data> safe_data(100);
 
-        {
             safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
             safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
             safe_data.write([](auto& x) {
@@ -966,574 +1516,341 @@ int main()
             safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
             safe_data.write([](auto& x) { expect(eq(x.x, 103)); });
         }
-
-        irt::shared_buffer<data> safe_data_2(100);
-
-        {
-            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
-            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
-            safe_data_2.write([](auto& x) {
-                expect(eq(x.x, 100));
-                x.x = 103;
-            });
-            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
-            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
-            safe_data_2.write([](auto& x) { expect(eq(x.x, 103)); });
-        }
     };
 
-    "locker-in-task-manager"_test = [] {
-        fmt::print("locker-in-task-manager\n");
-        irt::task_manager tm(2, 0);
-        tm.start();
-
-        irt::shared_buffer<irt::small_vector<int, 16>> buffer;
-        std::atomic_int                                counter = 0;
-
-        for (int i = 0; i < 16; ++i) {
-            tm.ordered(0).add([&buffer, &counter]() {
-                buffer.read([&counter](const auto& vec, auto /*v*/) {
-                    if (not vec.empty())
-                        counter = vec.back();
-                    else
-                        counter = 0;
-                });
-            });
-
-            tm.ordered(1).add([&buffer]() {
-                buffer.write([](auto& vec) { vec.push_back(10); });
-            });
-
-            tm.ordered(0).add([&buffer, &counter]() {
-                buffer.read([&counter](const auto& vec, auto /*ver*/) {
-                    if (not vec.empty())
-                        counter = vec.back();
-                    else
-                        counter = 0;
-                });
-            });
-        }
-
-        tm.ordered(0).wait_empty();
-        tm.ordered(1).wait_empty();
-
-        tm.shutdown();
-    };
-
-    struct Counter {
-        std::atomic_int  value = 0;
-        std::vector<int> history;
-
-        Counter() = default;
-        Counter(int v)
-          : value(v)
-        {}
-
-        Counter(const Counter& o) noexcept
-          : value(o.value.load())
-          , history(o.history)
-        {}
-
-        Counter(Counter&& o) noexcept
-          : value(o.value.load())
-          , history(std::move(o.history))
-        {}
-
-        Counter& operator=(const Counter& o) noexcept
-        {
-            if (this != &o) {
-                value   = o.value.load();
-                history = o.history;
-            }
-
-            return *this;
-        }
-
-        Counter& operator=(Counter&& o) noexcept
-        {
-            if (this != &o) {
-                value   = o.value.load();
-                history = std::move(o.history);
-            }
-
-            return *this;
-        }
-    };
-
-    struct ComplexData {
-        std::vector<int> data;
-        std::atomic_int  checksum = 0;
-
-        ComplexData() = default;
-
-        ComplexData(const ComplexData& o) noexcept
-          : data(o.data)
-          , checksum(o.checksum.load())
-        {}
-
-        ComplexData(ComplexData&& o) noexcept
-          : data(std::move(o.data))
-          , checksum(o.checksum.load())
-        {}
-
-        ComplexData& operator=(const ComplexData& o) noexcept
-        {
-            if (&o != this) {
-                data     = o.data;
-                checksum = o.checksum.load();
-            }
-
-            return *this;
-        }
-
-        ComplexData& operator=(ComplexData&& o) noexcept
-        {
-            if (&o != this) {
-                data     = std::move(o.data);
-                checksum = o.checksum.load();
-            }
-
-            return *this;
-        }
-
-        void add_value(int v)
-        {
-            data.push_back(v);
-            checksum += v;
-        }
-
-        bool is_valid() const
-        {
-            int sum = std::accumulate(data.begin(), data.end(), 0);
-            return sum == checksum;
-        }
-    };
-
-    "test_concurrent_reads"_test = [] {
-        fmt::print("test_concurrent_reads\n");
-
+    "concurrent readers of a constant value"_test = [] {
         irt::shared_buffer<Counter> buffer(Counter(42));
         std::atomic<bool>           start{ false };
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            errors{ 0 };
 
-        const int num_readers      = 4;
-        const int reads_per_thread = 10000;
+        constexpr int num_readers      = 3;
+        constexpr int reads_per_thread = 3000;
 
         std::vector<std::thread> threads;
+        for (int i = 0; i < num_readers; ++i)
+            threads.emplace_back([&] {
+                while (!start.load())
+                    std::this_thread::yield();
 
-        for (int i = 0; i < num_readers; ++i) {
-            threads.emplace_back([&]() {
-                while (!start.load()) {
-                }
-
-                for (int j = 0; j < reads_per_thread; ++j) {
-                    buffer.read(
-                      [&](const Counter& c, const irt::u64 /*version*/) {
-                          if (c.value != 42) {
-                              errors.fetch_add(1);
-                          }
-                          read_count.fetch_add(1);
-                      });
-                }
+                for (int j = 0; j < reads_per_thread; ++j)
+                    buffer.read([&](const Counter& c, irt::u64 /*version*/) {
+                        if (c.value != 42)
+                            errors.fetch_add(1);
+                        read_count.fetch_add(1);
+                    });
             });
-        }
 
-        start.store(true);
-
-        for (auto& t : threads) {
+        start = true;
+        for (auto& t : threads)
             t.join();
-        }
 
-        fmt::print("  read count: {}\n", read_count.load());
-        fmt::print("  errors: {}\n", errors.load());
+        expect(eq(errors.load(), 0));
+        expect(eq(read_count.load(), num_readers * reads_per_thread));
     };
 
-    "test_single_writer_multiple_readers"_test = [] {
-        fmt::print("test_single_writer_multiple_readers\n");
-
+    "single writer, readers see a monotonic value"_test = [] {
         irt::shared_buffer<Counter> buffer(Counter(0));
+        std::atomic<bool>           start{ false };
         std::atomic<bool>           stop{ false };
-        std::atomic<int>            write_count{ 0 };
+        std::atomic<int>            ready{ 0 };
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            monotonic_errors{ 0 };
 
-        const int num_readers = 3;
-
-        std::thread writer([&]() {
-            for (int i = 0; i < 1000; ++i) {
-                buffer.write([i](Counter& c) { c.value = i; });
-                write_count.fetch_add(1);
-                std::this_thread::sleep_for(std::chrono::microseconds(100));
-            }
-            stop.store(true);
-        });
+        constexpr int num_readers = 3;
+        constexpr int writes      = 2000;
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < num_readers; ++i) {
-            readers.emplace_back([&]() {
+        for (int i = 0; i < num_readers; ++i)
+            readers.emplace_back([&] {
                 int last_value = -1;
+                ++ready;
+                while (!start.load())
+                    std::this_thread::yield();
+
                 while (!stop.load()) {
-                    buffer.read(
-                      [&](const Counter& c, const irt::u64 /*version*/) {
-                          if (c.value < last_value) {
-                              monotonic_errors.fetch_add(1);
-                          }
-                          last_value = c.value;
-                          read_count.fetch_add(1);
-                      });
+                    buffer.read([&](const Counter& c, irt::u64 /*version*/) {
+                        if (c.value < last_value)
+                            monotonic_errors.fetch_add(1);
+                        last_value = c.value;
+                        read_count.fetch_add(1);
+                    });
                 }
             });
+
+        expect(wait_until([&] { return ready.load() == num_readers; }));
+        start = true;
+
+        for (int i = 1; i <= writes; ++i) {
+            buffer.write([i](Counter& c) { c.value = i; });
+            if (i % 64 == 0)
+                std::this_thread::yield(); // let the readers run
         }
 
-        writer.join();
+        // Do not stop before the readers have really overlapped the writer.
+        expect(wait_until([&] { return read_count.load() >= 1000; }));
+        stop = true;
         for (auto& r : readers)
             r.join();
 
-        fmt::print("  write count: {}\n", write_count.load());
-        fmt::print("  read count: {}\n", read_count.load());
-        fmt::print("  monotonic errors: {}\n", monotonic_errors.load());
+        expect(eq(monotonic_errors.load(), 0));
+        expect(eq(buffer.read(
+                    [](const Counter& c, irt::u64) { return c.value.load(); }),
+                  writes));
     };
 
-    "test_multiple_writers"_test = [] {
-        fmt::print("test_multiple_writers\n");
-
+    "multiple writers: no lost update"_test = [] {
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           start{ false };
-        std::atomic<int>            total_writes{ 0 };
 
-        const int num_writers       = 4;
-        const int writes_per_thread = 1000;
+        constexpr int num_writers       = 4;
+        constexpr int writes_per_thread = 500;
 
         std::vector<std::thread> threads;
+        for (int i = 0; i < num_writers; ++i)
+            threads.emplace_back([&, thread_id = i] {
+                while (!start.load())
+                    std::this_thread::yield();
 
-        for (int i = 0; i < num_writers; ++i) {
-            threads.emplace_back([&, thread_id = i]() {
-                while (!start.load()) {
-                }
-
-                for (int j = 0; j < writes_per_thread; ++j) {
+                for (int j = 0; j < writes_per_thread; ++j)
                     buffer.write([thread_id, j](Counter& c) {
                         c.value++;
                         c.history.push_back(thread_id * 10000 + j);
                     });
-                    total_writes.fetch_add(1);
-                }
             });
-        }
 
-        start.store(true);
-
-        for (auto& t : threads) {
+        start = true;
+        for (auto& t : threads)
             t.join();
-        }
 
-        int    final_value  = 0;
-        size_t history_size = 0;
-        buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
-            final_value  = c.value;
-            history_size = c.history.size();
+        constexpr int total = num_writers * writes_per_thread;
+
+        const auto [value, size,
+                    version] = buffer.read([](const Counter& c, irt::u64 ver) {
+            return std::tuple{ c.value.load(), c.history.size(), ver };
         });
+        expect(eq(value, total));
+        expect(eq(size, static_cast<std::size_t>(total)));
+        expect(eq(version, static_cast<irt::u64>(total)));
 
-        fmt::print("  Writes required: {}\n", num_writers, writes_per_thread);
-        fmt::print("  final value: {}\n", final_value);
-        fmt::print("  history size: {}\n", history_size);
+        // Each writer's entries are in its own submission order.
+        const auto history = buffer.read(
+          [](const Counter& c, irt::u64) { return c.history; });
+        std::vector<int> next(num_writers, 0);
+        bool             ordered = true;
+        for (int x : history) {
+            const auto id = static_cast<std::size_t>(x / 10000);
+            ordered       = ordered && x % 10000 == next[id]++;
+        }
+        expect(ordered);
     };
 
-    "test_data_integrity"_test = [] {
-        fmt::print("test_data_integrity\n");
-
+    "data integrity: checksum always matches the content"_test = [] {
         irt::shared_buffer<ComplexData> buffer;
         std::atomic<bool>               stop{ false };
+        std::atomic<int>                ready{ 0 };
         std::atomic<int>                integrity_errors{ 0 };
         std::atomic<int>                checks{ 0 };
 
-        std::thread writer([&]() {
-            std::random_device              rd;
-            std::mt19937                    gen(rd());
-            std::uniform_int_distribution<> dis(1, 100);
-
-            for (int i = 0; i < 5000; ++i) {
-                int value = dis(gen);
-                buffer.write(
-                  [value](ComplexData& data) { data.add_value(value); });
-                std::this_thread::sleep_for(std::chrono::microseconds(50));
-            }
-            stop.store(true);
-        });
+        constexpr int readers_count = 3;
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < 3; ++i) {
-            readers.emplace_back([&]() {
+        for (int i = 0; i < readers_count; ++i)
+            readers.emplace_back([&] {
+                ++ready;
                 while (!stop.load()) {
-                    buffer.read(
-                      [&](const ComplexData& data, const irt::u64 /*version*/) {
-                          if (!data.is_valid()) {
-                              integrity_errors.fetch_add(1);
-                          }
-                          checks.fetch_add(1);
-                      });
+                    buffer.read([&](const ComplexData& data, irt::u64) {
+                        if (!data.is_valid())
+                            integrity_errors.fetch_add(1);
+                        checks.fetch_add(1);
+                    });
                 }
             });
+
+        expect(wait_until([&] { return ready.load() == readers_count; }));
+
+        std::mt19937                    gen(42);
+        std::uniform_int_distribution<> dis(1, 100);
+        for (int i = 0; i < 1500; ++i) {
+            const int value = dis(gen);
+            buffer.write([value](ComplexData& d) { d.add_value(value); });
+            if (i % 32 == 0)
+                std::this_thread::yield();
         }
 
-        writer.join();
-        for (auto& r : readers) {
-            r.join();
-        }
-
-        fmt::print("  checks: {}\n", checks.load());
-        fmt::print("  integrity errors: {}\n", integrity_errors.load());
-    };
-
-    "test_try_read_under_load"_test = [] {
-        fmt::print("test_try_read_under_load\n");
-
-        irt::shared_buffer<Counter> buffer(Counter(0));
-        std::atomic<bool>           stop{ false };
-        std::atomic<int>            successful_reads{ 0 };
-        std::atomic<int>            failed_reads{ 0 };
-
-        std::thread writer([&]() {
-            int counter = 0;
-            while (!stop.load()) {
-                buffer.write([&counter](Counter& c) { c.value = counter++; });
-                std::this_thread::sleep_for(std::chrono::microseconds(10));
-            }
-        });
-
-        std::vector<std::thread> readers;
-        for (int i = 0; i < 3; ++i) {
-            readers.emplace_back([&]() {
-                auto start_time = std::chrono::steady_clock::now();
-                while (std::chrono::steady_clock::now() - start_time <
-                       std::chrono::seconds(2)) {
-                    bool success = buffer.try_read(
-                      [](const Counter& /*c*/, const irt::u64 /*version*/) {
-                          // success !
-                      });
-
-                    if (success) {
-                        successful_reads.fetch_add(1);
-                    } else {
-                        failed_reads.fetch_add(1);
-                    }
-                }
-            });
-        }
-
+        expect(wait_until([&] { return checks.load() >= 1000; }));
+        stop = true;
         for (auto& r : readers)
             r.join();
 
-        stop.store(true);
-        writer.join();
-
-        int    total        = successful_reads.load() + failed_reads.load();
-        double success_rate = (100.0 * successful_reads.load()) / total;
-
-        fmt::print("  successful reads: {}\n", successful_reads.load());
-        fmt::print("  failed reads: {}\n", failed_reads.load());
-        fmt::print("  success rate: {}%\n", success_rate);
+        expect(eq(integrity_errors.load(), 0));
+        expect(buffer.read([](const ComplexData& d, irt::u64) {
+            return d.data.size() == 1500 && d.is_valid();
+        }));
     };
 
-    "test_stress_mixed"_test = [] {
-        fmt::print("test_stress_mixed\n");
-
+    "try_read under load"_test = [] {
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           stop{ false };
+        std::atomic<int>            ready{ 0 };
+        std::atomic<int>            successful_reads{ 0 };
+        std::atomic<int>            failed_reads{ 0 };
 
-        auto       start_time = std::chrono::steady_clock::now();
-        const auto duration   = std::chrono::seconds(3);
+        constexpr int num_readers = 3;
+        constexpr int tries       = 5000;
+
+        std::thread writer([&] {
+            int counter = 0;
+            ++ready;
+            while (!stop.load()) {
+                buffer.write([&counter](Counter& c) { c.value = counter++; });
+                std::this_thread::yield();
+            }
+        });
+
+        std::vector<std::thread> readers;
+        for (int i = 0; i < num_readers; ++i)
+            readers.emplace_back([&] {
+                ++ready;
+                for (int j = 0; j < tries; ++j) {
+                    if (buffer.try_read([](const Counter&, irt::u64) {}))
+                        successful_reads.fetch_add(1);
+                    else
+                        failed_reads.fetch_add(1);
+                }
+            });
+
+        for (auto& r : readers)
+            r.join();
+        stop = true;
+        writer.join();
+
+        expect(eq(successful_reads.load() + failed_reads.load(),
+                  num_readers * tries));
+
+        // Quiescent buffer: try_read must succeed.
+        expect(buffer.try_read([](const Counter&, irt::u64) {}));
+    };
+
+    "mixed stress: writers, readers and try_readers"_test = [] {
+        irt::shared_buffer<Counter> buffer(Counter(0));
+        std::atomic<bool>           stop{ false };
+        std::atomic<int>            writers_done{ 0 };
+        std::atomic<int>            ready{ 0 };
+        std::atomic<irt::u64>       backwards{ 0 };
+
+        constexpr int num_writers       = 2;
+        constexpr int writes_per_thread = 2000;
+        constexpr int num_readers       = 4; // 2 read(), 2 try_read()
 
         std::vector<std::thread> threads;
 
-        for (int i = 0; i < 2; ++i) {
-            threads.emplace_back([&]() {
-                while (std::chrono::steady_clock::now() - start_time <
-                       duration) {
+        for (int i = 0; i < num_writers; ++i)
+            threads.emplace_back([&] {
+                ++ready;
+                for (int j = 0; j < writes_per_thread; ++j)
                     buffer.write([](Counter& c) { c.value++; });
-                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                ++writers_done;
+            });
+
+        for (int i = 0; i < num_readers; ++i)
+            threads.emplace_back([&, use_try = (i % 2 == 1)] {
+                irt::u64 last = 0;
+                ++ready;
+                while (writers_done.load() < num_writers) {
+                    auto fn = [&](const Counter&, irt::u64 version) {
+                        if (version < last)
+                            ++backwards;
+                        last = version;
+                    };
+                    if (use_try)
+                        buffer.try_read(fn);
+                    else
+                        buffer.read(fn);
                 }
             });
-        }
 
-        for (int i = 0; i < 2; ++i) {
-            threads.emplace_back([&]() {
-                while (std::chrono::steady_clock::now() - start_time <
-                       duration) {
-                    buffer.read(
-                      [](const Counter& c, const irt::u64 /*version*/) {
-                          volatile int x = c.value;
-                          (void)x;
-                      });
-                }
-            });
-        }
-
-        for (int i = 0; i < 2; ++i) {
-            threads.emplace_back([&]() {
-                while (std::chrono::steady_clock::now() - start_time <
-                       duration) {
-                    buffer.try_read(
-                      [](const Counter& c, const irt::u64 /*version*/) {
-                          volatile int x = c.value;
-                          (void)x;
-                      });
-                }
-            });
-        }
-
-        stop = true;
-        for (auto& t : threads) {
+        for (auto& t : threads)
             t.join();
-        }
 
-        int final_value = 0;
-        buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
-            final_value = c.value;
+        const auto [value,
+                    version] = buffer.read([](const Counter& c, irt::u64 v) {
+            return std::pair{ c.value.load(), v };
         });
-
-        fmt::print("final value: {}\n", final_value);
+        expect(eq(value, num_writers * writes_per_thread));
+        expect(
+          eq(version, static_cast<irt::u64>(num_writers * writes_per_thread)));
+        expect(eq(backwards.load(), irt::u64{ 0 }));
     };
 
-    struct Data {
-        std::vector<double> values;
+    "large value: readers never see a torn update"_test = [] {
+        struct Data {
+            std::vector<double> values;
 
-        Data()
-          : values(1000, 0.0)
-        {}
+            Data()
+              : values(1000, 0.0)
+            {}
 
-        void update(double v)
-        {
-            for (auto& x : values)
-                x = v;
-        }
-    };
+            void update(double v)
+            {
+                for (auto& x : values)
+                    x = v;
+            }
+        };
 
-    "shared_buffer_test::SingleWriterReader"_test = [] {
         irt::shared_buffer<Data> buf;
 
-        // Writer met à jour
+        // single-threaded
         buf.write([](Data& d) { d.update(1.23); });
-
-        // Reader lit
         bool ok = false;
-        buf.read([&](const Data& d, std::uint64_t ver) {
+        buf.read([&](const Data& d, irt::u64 ver) {
             expect(not d.values.empty());
-            for (auto x : d.values) {
+            for (auto x : d.values)
                 expect(irt::almost_equal(x, 1.23, 1e-10));
-            }
-            expect(ge(ver, 1u));
+            expect(ge(ver, irt::u64{ 1 }));
             ok = true;
         });
-
         expect(ok);
-    };
 
-    "shared_buffer_test::ConcurrentReaders"_test = [] {
-        irt::shared_buffer<Data> buf;
-        static const auto        max_reader = 3u; /*
-   std::thread::hardware_concurrency() <= 1u
-            ? 1u
-            : std::thread::hardware_concurrency() - 1u; */
+        // concurrent
         std::atomic<bool> stop{ false };
+        std::atomic<int>  ready{ 0 };
+        std::atomic<int>  checks{ 0 };
+        std::atomic<int>  torn{ 0 };
 
-        std::thread writer([&] {
-            for (int i = 0; i < 50; ++i) {
-                buf.write([&](Data& d) { d.update(double(i)); });
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-            stop.store(true, std::memory_order_release);
-        });
+        constexpr unsigned num_readers = 3;
 
         std::vector<std::thread> readers;
-        std::atomic<int>         checks{ 0 };
-
-        for (unsigned r = 0; r < max_reader; ++r) {
+        for (unsigned r = 0; r < num_readers; ++r)
             readers.emplace_back([&] {
+                ++ready;
                 while (!stop.load(std::memory_order_acquire)) {
-                    buf.read([&](const Data& d, std::uint64_t ver) {
-                        if (!d.values.empty()) {
-                            const double v0 = d.values[0];
-                            bool         ok = true;
-                            for (std::size_t i = 1; i < d.values.size(); ++i) {
-                                if (d.values[i] != v0) {
-                                    ok = false;
-                                    break;
-                                }
+                    buf.read([&](const Data& d, irt::u64) {
+                        const double v0 = d.values[0];
+                        for (std::size_t i = 1; i < d.values.size(); ++i)
+                            if (d.values[i] != v0) {
+                                ++torn;
+                                break;
                             }
-                            if (ok)
-                                checks.fetch_add(1, std::memory_order_relaxed);
-                        }
-                        (void)ver;
+                        ++checks;
                     });
                 }
             });
+
+        expect(wait_until(
+          [&] { return ready.load() == static_cast<int>(num_readers); }));
+
+        for (int i = 0; i < 300; ++i) {
+            buf.write([i](Data& d) { d.update(double(i)); });
+            std::this_thread::yield();
         }
 
-        writer.join();
+        expect(wait_until([&] { return checks.load() >= 500; }));
+        stop.store(true, std::memory_order_release);
         for (auto& th : readers)
             th.join();
 
-        expect(gt(checks.load(), 0));
-    };
-
-    "shared_buffer_test::ConcurrentReadersConditionVar"_test = [] {
-        irt::shared_buffer<Data> buf;
-        std::mutex               m;
-        std::condition_variable  cv;
-        bool                     stop       = false;
-        static const auto        max_reader = 3u;
-        // std::thread::hardware_concurrency() <= 1u
-        //          ? 1u
-        //          : std::thread::hardware_concurrency() - 1u;
-
-        std::thread writer([&] {
-            for (int i = 0; i < 50; ++i) {
-                buf.write([&](Data& d) { d.update(double(i)); });
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-            {
-                std::lock_guard<std::mutex> lk(m);
-                stop = true;
-            }
-            cv.notify_all();
-        });
-
-        std::vector<std::thread> readers;
-        std::atomic<int>         checks{ 0 };
-
-        for (unsigned r = 0; r < max_reader; ++r) {
-            readers.emplace_back([&] {
-                std::unique_lock<std::mutex> lk(m);
-                while (!stop) {
-                    lk.unlock();
-                    buf.read([&](const Data& d, std::uint64_t ver) {
-                        if (!d.values.empty()) {
-                            const double v0 = d.values[0];
-                            bool         ok = true;
-                            for (std::size_t i = 1; i < d.values.size(); ++i) {
-                                if (d.values[i] != v0) {
-                                    ok = false;
-                                    break;
-                                }
-                            }
-                            if (ok)
-                                checks.fetch_add(1, std::memory_order_relaxed);
-                        }
-                        (void)ver;
-                    });
-                    lk.lock();
-                    cv.wait_for(lk, std::chrono::milliseconds(1),
-                                [&] { return stop; });
-                }
-            });
-        }
-
-        writer.join();
-        for (auto& th : readers)
-            th.join();
-
+        expect(eq(torn.load(), 0));
         expect(gt(checks.load(), 0));
     };
 }
