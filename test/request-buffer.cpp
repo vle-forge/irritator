@@ -20,7 +20,6 @@
 #include <functional>
 #include <memory>
 #include <stdexcept>
-#include <stop_token>
 
 #include <boost/ut.hpp>
 
@@ -51,15 +50,18 @@ public:
     explicit thread_pool(unsigned n)
     {
         for (unsigned i = 0; i < n; ++i)
-            m_threads.emplace_back([this](std::stop_token st) { run(st); });
+            m_threads.emplace_back([this] { run(); });
     }
 
     ~thread_pool()
     {
-        for (auto& t : m_threads)
-            t.request_stop();
+        {
+            std::lock_guard lock(m_mutex);
+            m_stop = true;
+        }
         m_cv.notify_all();
-        // the jthread destructors join
+        for (auto& t : m_threads)
+            t.join();
     }
 
     void submit(std::function<void()> task)
@@ -72,15 +74,16 @@ public:
     }
 
 private:
-    void run(std::stop_token st)
+    void run()
     {
         for (;;) {
             std::function<void()> task;
             {
                 std::unique_lock lock(m_mutex);
-                m_cv.wait(lock, st, [this] { return !m_queue.empty(); });
+                m_cv.wait(lock, [this] { return m_stop || !m_queue.empty(); });
                 if (m_queue.empty())
-                    return; // stop requested and nothing left to drain
+                    return;
+
                 task = std::move(m_queue.front());
                 m_queue.pop_front();
             }
@@ -89,9 +92,10 @@ private:
     }
 
     std::mutex                        m_mutex;
-    std::condition_variable_any       m_cv;
+    std::condition_variable           m_cv;
     std::deque<std::function<void()>> m_queue;
-    std::vector<std::jthread>         m_threads; // last: joined first
+    std::vector<std::thread>          m_threads;
+    bool                              m_stop = false;
 };
 
 // ---------------------------------------------------------------------------
