@@ -252,18 +252,19 @@ bool InputSmallStringMultiline(const char*                label,
                                ImGuiInputTextCallback     callback  = nullptr,
                                void*                      user_data = nullptr)
 {
-    const bool ret =
-      ImGui::InputTextMultiline(label,
-                                string.begin(),
-                                static_cast<size_t>(string.capacity()),
-                                size,
-                                flags,
-                                callback,
-                                user_data);
+    auto buffer = string;
 
-    string.resize(static_cast<int>(std::strlen(string.begin())));
+    if (not ImGui::InputTextMultiline(label, buffer.data(), buffer.capacity(),
+                                      size, flags, callback, user_data))
+        return false;
 
-    return ret;
+    string.resize_and_overwrite(std::strlen(buffer.c_str()),
+                                [&](char* buf, std::size_t n) noexcept {
+                                    std::strncpy(buf, buffer.c_str(), n);
+                                    return n;
+                                });
+
+    return true;
 }
 
 template<typename... Args>
