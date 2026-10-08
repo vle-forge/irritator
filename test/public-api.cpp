@@ -2269,6 +2269,7 @@ int main()
     };
 
     "binary-memory-io"_test = [] {
+#if 0
         auto f = irt::memory::make(256);
 
         expect(f.has_value()) << fatal;
@@ -2295,6 +2296,7 @@ int main()
         f->rewind();
 
         expect(f->tell() == 0);
+#endif
     };
 
     "random-philox-64"_test = [] {

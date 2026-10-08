@@ -7,9 +7,12 @@
 #include <irritator/format.hpp>
 #include <irritator/macros.hpp>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <span>
 #include <string_view>
 #include <utility>
 
@@ -61,6 +64,33 @@ static constexpr auto get_mode(const file_mode c) noexcept -> small_string<8>
     return vec;
 }
 
+namespace {
+
+// 64 bits positions: `long` (fseek/ftell) has only 32 bits on Windows.
+
+int seek64(std::FILE* f, const i64 offset, const int whence) noexcept
+{
+#if defined(_WIN32)
+    return ::_fseeki64(f, offset, whence);
+#else
+    if (not std::in_range<off_t>(offset))
+        return -1;
+
+    return ::fseeko(f, static_cast<off_t>(offset), whence);
+#endif
+}
+
+i64 tell64(std::FILE* f) noexcept
+{
+#if defined(_WIN32)
+    return ::_ftelli64(f);
+#else
+    return ::ftello(f);
+#endif
+}
+
+} // namespace
+
 expected<file> file::open_tmp() noexcept
 {
     const auto m = file_mode(file_open_options::write,
@@ -68,11 +98,13 @@ expected<file> file::open_tmp() noexcept
 
 #if defined(_WIN32)
     std::FILE* tmpf = nullptr;
-    if (auto err = tmpfile_s(&tmpf); err == 0 and tmpf != nullptr) {
+    const auto err  = tmpfile_s(&tmpf);
+    if (err == 0 and tmpf != nullptr) {
         return file{ std_file(tmpf), m };
     }
 
-    return make_error(static_cast<i16>(::GetLastError()), category::generic);
+    return make_error(static_cast<i16>(err != 0 ? err : EINVAL),
+                      category::generic);
 #else
     if (auto tmpf = std::tmpfile())
         return file{ std_file(tmpf), m };
@@ -81,202 +113,9 @@ expected<file> file::open_tmp() noexcept
 #endif
 }
 
-template<typename File>
-bool read_from_file(File& f, i8& value) noexcept
-{
-    return f.read(&value, 1);
-}
-
-template<typename File>
-bool write_to_file(File& f, const i8 value) noexcept
-{
-    return f.write(&value, 1);
-}
-
-template<typename File>
-bool read_from_file(File& f, i16& value) noexcept
-{
-    return f.read(&value, 2);
-}
-
-irt::vector<char> file::read_entire_file() noexcept
-{
-    debug::ensure(is_open());
-    debug::ensure(mode[file_open_options::read] or
-                  mode[file_open_options::extended]);
-
-    vector<char> buffer;
-
-    if (is_open() and
-        (mode[file_open_options::read] or mode[file_open_options::extended])) {
-
-        const auto end = std::fseek(to_file(), 0, SEEK_END);
-        if (end >= 0) {
-            const auto size = std::ftell(to_file());
-            if (size >= 0) {
-                const auto beg = std::fseek(to_file(), 0, SEEK_SET);
-                if (beg == 0) {
-                    if (buffer.resize(size)) {
-                        std::fill_n(buffer.data(), buffer.size(), '\0');
-
-                        const auto read_size = std::fread(
-                          buffer.data(), 1, static_cast<size_t>(size),
-                          to_file());
-
-                        buffer.resize(read_size);
-                    }
-                }
-            }
-        }
-    }
-
-    return buffer;
-}
-
-std::span<char> file::read_entire_file(std::span<char> buffer) noexcept
-{
-    debug::ensure(is_open());
-    debug::ensure(mode[file_open_options::read] or
-                  mode[file_open_options::extended]);
-
-    if (is_open() and
-        (mode[file_open_options::read] or mode[file_open_options::extended])) {
-
-        const auto end = std::fseek(to_file(), 0, SEEK_END);
-        if (end >= 0) {
-            const auto size = std::ftell(to_file());
-            if (size >= 0) {
-                const auto beg = std::fseek(to_file(), 0, SEEK_SET);
-                if (beg == 0) {
-                    const auto real_size = std::cmp_less(size, buffer.size())
-                                             ? static_cast<std::size_t>(size)
-                                           : std::cmp_greater(size,
-                                                              buffer.size())
-                                             ? buffer.size()
-                                             : static_cast<std::size_t>(size);
-
-                    std::fill_n(buffer.data(), real_size, '\0');
-
-                    const auto read_size = std::fread(buffer.data(), 1,
-                                                      real_size, to_file());
-
-                    buffer[read_size] = '\0';
-
-                    return buffer.subspan(0, read_size);
-                }
-            }
-        }
-    }
-
-    return std::span<char>();
-}
-
-template<typename File>
-bool write_to_file(File& f, const i16 value) noexcept
-{
-    return f.write(&value, 2);
-}
-
-template<typename File>
-bool read_from_file(File& f, i32& value) noexcept
-{
-    return f.read(&value, 4);
-}
-
-template<typename File>
-bool write_to_file(File& f, const i32 value) noexcept
-{
-    return f.write(&value, 4);
-}
-
-template<typename File>
-bool read_from_file(File& f, i64& value) noexcept
-{
-    return f.read(&value, 8);
-}
-
-template<typename File>
-bool write_to_file(File& f, const i64 value) noexcept
-{
-    return f.write(&value, 8);
-}
-
-template<typename File>
-bool read_from_file(File& f, u8& value) noexcept
-{
-    return f.read(&value, 1);
-}
-
-template<typename File>
-bool write_to_file(File& f, const u8 value) noexcept
-{
-    return f.write(&value, 1);
-}
-
-template<typename File>
-bool read_from_file(File& f, u16& value) noexcept
-{
-    return f.read(&value, 2);
-}
-
-template<typename File>
-bool write_to_file(File& f, const u16 value) noexcept
-{
-    return f.write(&value, 2);
-}
-
-template<typename File>
-bool read_from_file(File& f, u32& value) noexcept
-{
-    return f.read(&value, 4);
-}
-
-template<typename File>
-bool write_to_file(File& f, const u32 value) noexcept
-{
-    return f.write(&value, 4);
-}
-
-template<typename File>
-bool read_from_file(File& f, u64& value) noexcept
-{
-    return f.read(&value, 8);
-}
-
-template<typename File>
-bool write_to_file(File& f, const u64 value) noexcept
-{
-
-    return f.write(&value, 8);
-}
-
-template<typename File>
-bool read_from_file(File& f, float& value) noexcept
-{
-    return f.read(reinterpret_cast<void*>(&value), 4);
-}
-
-template<typename File>
-bool write_to_file(File& f, const float value) noexcept
-{
-    return f.write(&value, 4);
-}
-
-template<typename File>
-bool read_from_file(File& f, double& value) noexcept
-{
-    return f.read(reinterpret_cast<void*>(&value), 8);
-}
-
-template<typename File>
-bool write_to_file(File& f, const double value) noexcept
-{
-    return f.write(&value, 8);
-}
-
 expected<file> file::open(const path& filename, const file_mode mode) noexcept
 {
-    debug::ensure(filename != nullptr);
+    debug::ensure(not filename.empty());
 
     if (filename.empty())
         return make_error(
@@ -295,7 +134,7 @@ expected<file> file::open(const path& filename, const file_mode mode) noexcept
 std::optional<file> file::try_open(const path&     filename,
                                    const file_mode mode) noexcept
 {
-    debug::ensure(filename != nullptr);
+    debug::ensure(not filename.empty());
 
     if (filename.empty())
         return std::nullopt;
@@ -307,24 +146,6 @@ std::optional<file> file::try_open(const path&     filename,
         return std::nullopt;
 
     return file{ std::move(f), mode };
-}
-
-expected<memory> memory::make(const i64 length) noexcept
-{
-    debug::ensure(1 <= length and length <= INT32_MAX);
-
-    if (not(1 <= length and length <= INT32_MAX))
-        return make_error(
-          static_cast<std::int16_t>(std::errc::invalid_argument),
-          category::generic);
-
-    memory mem(length);
-    if (not std::cmp_equal(mem.data.size(), length))
-        return make_error(
-          static_cast<std::int16_t>(std::errc::invalid_argument),
-          category::generic);
-
-    return mem;
 }
 
 file::file(file&& other) noexcept
@@ -346,383 +167,90 @@ file& file::operator=(file&& other) noexcept
     return *this;
 }
 
-void file::close() noexcept
+bool file::close() noexcept
 {
-    if (file_handle) {
-        file_handle.reset();
-    }
+    if (not file_handle)
+        return true;
+
+    // `fclose` is called by hand to get its result: a delayed write error
+    // (disk full) is only reported here.
+
+    return std::fclose(file_handle.release()) == 0;
 }
 
 bool file::is_open() const noexcept { return file_handle.get() != nullptr; }
-bool file::is_eof() const noexcept { return std::feof(to_file()); }
 
-i64 file::length() const noexcept
+bool file::flush() const noexcept
 {
     debug::ensure(file_handle);
 
-    const auto prev = std::ftell(to_file());
-    std::fseek(to_file(), 0, SEEK_END);
-
-    const auto size = std::ftell(to_file());
-    std::fseek(to_file(), prev, SEEK_SET);
-
-    return size;
-}
-
-i64 file::tell() const noexcept
-{
-    debug::ensure(file_handle);
-
-    return std::ftell(to_file());
-}
-
-void file::flush() const noexcept
-{
-    debug::ensure(file_handle);
-
-    std::fflush(to_file());
-}
-
-i64 file::seek(i64 offset, seek_origin origin) noexcept
-{
-    debug::ensure(file_handle);
-
-    const auto offset_good = static_cast<long int>(offset);
-    const auto origin_good = origin == seek_origin::current ? SEEK_CUR
-                             : origin == seek_origin::end   ? SEEK_END
-                                                            : SEEK_CUR;
-
-    return std::fseek(to_file(), offset_good, origin_good);
-}
-
-void file::rewind() noexcept
-{
-    debug::ensure(file_handle);
-
-    std::rewind(to_file());
-}
-
-bool file::read(bool& value) noexcept
-{
-    u8 integer_value{};
-
-    if (read(integer_value)) {
-        value = integer_value != 0u;
-        return true;
-    }
-
-    return false;
-}
-
-bool file::read(u8& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(u16& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(u32& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(u64& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(i8& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(i16& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(i32& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(i64& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(float& value) noexcept { return read_from_file(*this, value); }
-
-bool file::read(double& value) noexcept { return read_from_file(*this, value); }
-
-bool file::write(const bool value) noexcept
-{
-    const u8 new_value = value ? 0xff : 0x0;
-    return write_to_file(*this, new_value);
-}
-
-bool file::write(const u8 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const u16 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const u32 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const u64 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const i8 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const i16 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const i32 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const i64 value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const float value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::write(const double value) noexcept
-{
-    return write_to_file(*this, value);
-}
-
-bool file::read(void* buffer, i64 length) noexcept
-{
-    debug::ensure(file_handle);
-    debug::ensure(buffer);
-    debug::ensure(length > 0);
-
-    if (not file_handle or not buffer or length <= 0) {
-        using namespace std::string_view_literals;
-
-        debug::log(log_level::critical, "file read error: bad arguments"sv);
+    if (not file_handle)
         return false;
-    }
 
-    const auto len  = static_cast<size_t>(length);
-    const auto read = std::fread(buffer, len, 1, to_file());
-
-    if (read != 1) {
-        debug::log(log_level::critical, [&](auto& m) {
-            using namespace std::string_view_literals;
-
-            format(m, "file read error: length {} bytes", len);
-        });
-
-        return false;
-    }
-
-    return true;
+    return std::fflush(to_file()) == 0;
 }
 
-bool file::write(const void* buffer, i64 length) noexcept
+irt::vector<char> file::read_entire_file() noexcept
 {
-    debug::ensure(file_handle);
-    debug::ensure(buffer);
-    debug::ensure(length > 0);
+    debug::ensure(is_open());
+    debug::ensure(mode[file_open_options::read] or
+                  mode[file_open_options::extended]);
 
-    if (not file_handle or not buffer or length <= 0) {
-        using namespace std::string_view_literals;
+    vector<char> buffer;
 
-        debug::log(log_level::critical, "file write error: bad arguments"sv);
-        return false;
+    if (not is_open() or
+        not(mode[file_open_options::read] or mode[file_open_options::extended]))
+        return buffer;
+
+    if (seek64(to_file(), 0, SEEK_END) != 0)
+        return buffer;
+
+    const auto size = tell64(to_file());
+    if (size <= 0 or seek64(to_file(), 0, SEEK_SET) != 0)
+        return buffer;
+
+    if (buffer.resize(size)) {
+        const auto read_size = std::fread(buffer.data(), 1,
+                                          static_cast<size_t>(size), to_file());
+
+        buffer.resize(read_size);
     }
 
-    const auto len     = static_cast<size_t>(length);
-    const auto written = std::fwrite(buffer, len, 1, to_file());
+    return buffer;
+}
 
-    if (written != 1) {
-        debug::log(log_level::critical, [&](auto& m) {
-            using namespace std::string_view_literals;
+std::span<char> file::read_entire_file(std::span<char> buffer) noexcept
+{
+    debug::ensure(is_open());
+    debug::ensure(mode[file_open_options::read] or
+                  mode[file_open_options::extended]);
 
-            format(m, "file write error: length {} bytes", len);
-        });
+    if (buffer.empty() or not is_open() or
+        not(mode[file_open_options::read] or mode[file_open_options::extended]))
+        return std::span<char>();
 
-        return false;
-    }
+    if (seek64(to_file(), 0, SEEK_END) != 0)
+        return std::span<char>();
 
-    return true;
+    const auto size = tell64(to_file());
+    if (size < 0 or seek64(to_file(), 0, SEEK_SET) != 0)
+        return std::span<char>();
+
+    // One byte is reserved for the terminator.
+
+    const auto real_size = std::min(static_cast<std::size_t>(size),
+                                    buffer.size() - 1);
+
+    const auto read_size = std::fread(buffer.data(), 1, real_size, to_file());
+
+    buffer[read_size] = '\0';
+
+    return buffer.subspan(0, read_size);
 }
 
 std::FILE* file::to_file() const noexcept { return file_handle.get(); }
 
 file_mode file::get_mode() const noexcept { return mode; }
-
-memory::memory(const i64 length) noexcept
-  : data(static_cast<i32>(length), static_cast<i32>(length))
-  , pos(0)
-{}
-
-memory::memory(memory&& other) noexcept
-  : data(std::move(other.data))
-  , pos(other.pos)
-{
-    other.pos = 0;
-}
-
-memory& memory::operator=(memory&& other) noexcept
-{
-    data      = std::move(other.data);
-    pos       = other.pos;
-    other.pos = 0;
-
-    return *this;
-}
-
-bool memory::is_open() const noexcept { return data.capacity() == 0; }
-bool memory::is_eof() const noexcept
-{
-    return std::cmp_equal(pos, data.capacity());
-}
-
-i64 memory::length() const noexcept { return data.capacity(); }
-
-i64 memory::tell() const noexcept { return pos; }
-
-void memory::flush() const noexcept {}
-
-i64 memory::seek(i64 offset, seek_origin origin) noexcept
-{
-    switch (origin) {
-    case seek_origin::current:
-        pos += offset;
-        break;
-    case seek_origin::end:
-        pos = data.capacity() - offset;
-        break;
-    case seek_origin::set:
-        pos = offset;
-        break;
-    }
-
-    return pos;
-}
-
-void memory::rewind() noexcept { pos = 0; }
-
-bool memory::read(bool& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(u32& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(u64& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(i8& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(i16& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(i32& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(i64& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(float& value) noexcept { return read(&value, sizeof(value)); }
-
-bool memory::read(double& value) noexcept
-{
-    return read(&value, sizeof(value));
-}
-
-bool memory::write(const bool value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const u8 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const u16 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const u32 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const u64 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const i8 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const i16 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const i32 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const i64 value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const float value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::write(const double value) noexcept
-{
-    return write(&value, sizeof(value));
-}
-
-bool memory::read(void* buffer, i64 length) noexcept
-{
-    debug::ensure(data.size() == data.capacity());
-    debug::ensure(buffer);
-    debug::ensure(length > 0);
-
-    if (data.size() != data.capacity() or not buffer or length <= 0)
-        return false;
-
-    if (std::cmp_less_equal(pos + length, data.capacity())) {
-        std::copy_n(data.data() + pos, static_cast<size_t>(length),
-                    reinterpret_cast<u8*>(buffer));
-
-        pos += length;
-        return true;
-    }
-
-    return false;
-}
-
-bool memory::write(const void* buffer, i64 length) noexcept
-{
-    debug::ensure(data.size() == data.capacity());
-    debug::ensure(buffer);
-    debug::ensure(length > 0);
-
-    if (data.size() != data.capacity() or not buffer or length <= 0)
-        return false;
-
-    if (std::cmp_less_equal(pos + length, data.capacity())) {
-        std::copy_n(reinterpret_cast<const u8*>(buffer),
-                    static_cast<size_t>(length), data.data() + pos);
-
-        pos += length;
-        return true;
-    }
-
-    return false;
-}
 
 /* * * * * * * * * *
  *
@@ -1024,6 +552,294 @@ std_file path::open_std_file(const char* mode) const noexcept
 #else
     return std_file(std::fopen(c_str(), mode));
 #endif
+}
+
+template<typename File>
+bool read_from_file(File& f, i8& value) noexcept
+{
+    return f.read(&value, 1);
+}
+
+template<typename File>
+bool write_to_file(File& f, const i8 value) noexcept
+{
+    return f.write(&value, 1);
+}
+
+template<typename File>
+bool read_from_file(File& f, i16& value) noexcept
+{
+    return f.read(&value, 2);
+}
+
+template<typename File>
+bool write_to_file(File& f, const i16 value) noexcept
+{
+    return f.write(&value, 2);
+}
+
+template<typename File>
+bool read_from_file(File& f, i32& value) noexcept
+{
+    return f.read(&value, 4);
+}
+
+template<typename File>
+bool write_to_file(File& f, const i32 value) noexcept
+{
+    return f.write(&value, 4);
+}
+
+template<typename File>
+bool read_from_file(File& f, i64& value) noexcept
+{
+    return f.read(&value, 8);
+}
+
+template<typename File>
+bool write_to_file(File& f, const i64 value) noexcept
+{
+    return f.write(&value, 8);
+}
+
+template<typename File>
+bool read_from_file(File& f, u8& value) noexcept
+{
+    return f.read(&value, 1);
+}
+
+template<typename File>
+bool write_to_file(File& f, const u8 value) noexcept
+{
+    return f.write(&value, 1);
+}
+
+template<typename File>
+bool read_from_file(File& f, u16& value) noexcept
+{
+    return f.read(&value, 2);
+}
+
+template<typename File>
+bool write_to_file(File& f, const u16 value) noexcept
+{
+    return f.write(&value, 2);
+}
+
+template<typename File>
+bool read_from_file(File& f, u32& value) noexcept
+{
+    return f.read(&value, 4);
+}
+
+template<typename File>
+bool write_to_file(File& f, const u32 value) noexcept
+{
+    return f.write(&value, 4);
+}
+
+template<typename File>
+bool read_from_file(File& f, u64& value) noexcept
+{
+    return f.read(&value, 8);
+}
+
+template<typename File>
+bool write_to_file(File& f, const u64 value) noexcept
+{
+
+    return f.write(&value, 8);
+}
+
+template<typename File>
+bool read_from_file(File& f, float& value) noexcept
+{
+    return f.read(reinterpret_cast<void*>(&value), 4);
+}
+
+template<typename File>
+bool write_to_file(File& f, const float value) noexcept
+{
+    return f.write(&value, 4);
+}
+
+template<typename File>
+bool read_from_file(File& f, double& value) noexcept
+{
+    return f.read(reinterpret_cast<void*>(&value), 8);
+}
+
+template<typename File>
+bool write_to_file(File& f, const double value) noexcept
+{
+    return f.write(&value, 8);
+}
+
+memory::memory(memory&& other) noexcept
+  : data(std::move(other.data))
+  , pos(other.pos)
+{
+    other.pos = 0;
+}
+
+memory& memory::operator=(memory&& other) noexcept
+{
+    data      = std::move(other.data);
+    pos       = other.pos;
+    other.pos = 0;
+
+    return *this;
+}
+
+bool memory::is_open() const noexcept { return data.capacity() == 0; }
+bool memory::is_eof() const noexcept
+{
+    return std::cmp_equal(pos, data.capacity());
+}
+
+i64 memory::length() const noexcept { return data.capacity(); }
+
+i64 memory::tell() const noexcept { return pos; }
+
+void memory::flush() const noexcept {}
+
+i64 memory::seek(i64 offset, seek_origin origin) noexcept
+{
+    switch (origin) {
+    case seek_origin::current:
+        pos += offset;
+        break;
+    case seek_origin::end:
+        pos = data.capacity() - offset;
+        break;
+    case seek_origin::set:
+        pos = offset;
+        break;
+    }
+
+    return pos;
+}
+
+void memory::rewind() noexcept { pos = 0; }
+
+bool memory::read(bool& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u32& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u64& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i8& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i16& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i32& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i64& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(float& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(double& value) noexcept
+{
+    return read(&value, sizeof(value));
+}
+
+bool memory::write(const bool value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const u8 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const u16 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const u32 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const u64 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const i8 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const i16 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const i32 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const i64 value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const float value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::write(const double value) noexcept
+{
+    return write(&value, sizeof(value));
+}
+
+bool memory::read(void* buffer, i64 length) noexcept
+{
+    debug::ensure(data.size() == data.capacity());
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
+
+    if (data.size() != data.capacity() or not buffer or length <= 0)
+        return false;
+
+    if (std::cmp_less_equal(pos + length, data.capacity())) {
+        std::copy_n(data.data() + pos, static_cast<size_t>(length),
+                    reinterpret_cast<u8*>(buffer));
+
+        pos += length;
+        return true;
+    }
+
+    return false;
+}
+
+bool memory::write(const void* buffer, i64 length) noexcept
+{
+    debug::ensure(data.size() == data.capacity());
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
+
+    if (data.size() != data.capacity() or not buffer or length <= 0)
+        return false;
+
+    if (std::cmp_less_equal(pos + length, data.capacity())) {
+        std::copy_n(reinterpret_cast<const u8*>(buffer),
+                    static_cast<size_t>(length), data.data() + pos);
+
+        pos += length;
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace irt

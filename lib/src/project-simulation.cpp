@@ -117,11 +117,13 @@ static status flush_to_irtb(const observer& obs,
                                                 .t_max  = vec[len - 1].t,
                                                 .mdl_id = obs.model() };
 
-              const auto begin = vec.begin() + cursor;
-              const auto end   = vec.end();
-              const auto span  = std::span<const resampled_sample>(begin, end);
+              if (std::fwrite(&header, sizeof(header), 1, out.to_file()) <= 1)
+                  return make_error(simulation_errc::file_eof_error);
 
-              if (not(out.write(header) and out.write(span)))
+              const auto begin = vec.begin() + cursor;
+              const auto nmemb = vec.size() - cursor;
+              if (std::fwrite(begin, sizeof(resampled_sample), nmemb,
+                              out.to_file()) <= 1)
                   return make_error(simulation_errc::file_eof_error);
           }
 
@@ -353,11 +355,11 @@ status project::simulation_init(const modeling& mod) noexcept
         if (files.has_error())
             return files.error();
 
-        m_json_irtb = std::move(files->json_file);
-        m_bin_irtb  = std::move(files->binary_file);
+        obs_files.json_irtb = std::move(files->json_file);
+        obs_files.bin_irtb  = std::move(files->binary_file);
 
         if (auto r = init_json_irtb(sim.observers, sim.current_time(),
-                                    m_json_irtb);
+                                    obs_files.json_irtb);
             r.has_error())
             return r.error();
     }
@@ -421,7 +423,7 @@ status project::simulation_new_model(const command::new_model_t& data) noexcept
 
     if (flags[simulation_flag::write_irtb] and is_defined(mdl.obs_id)) {
         if (auto r = new_json_irtb(sim.observers, mdl.obs_id,
-                                   sim.current_time(), m_json_irtb);
+                                   sim.current_time(), obs_files.json_irtb);
             r.has_error()) {
             log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
@@ -457,7 +459,7 @@ status project::simulation_free_model(
 
     if (flags[simulation_flag::write_irtb] and is_defined(mdl->obs_id)) {
         if (auto r = free_json_irtb(sim.observers, mdl->obs_id,
-                                    sim.current_time(), m_json_irtb);
+                                    sim.current_time(), obs_files.json_irtb);
             r.has_error()) {
             log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
@@ -524,7 +526,7 @@ status project::simulation_copy_model(
 
     if (flags[simulation_flag::write_irtb] and is_defined(dst_mdl.obs_id)) {
         if (auto r = new_json_irtb(sim.observers, dst_mdl.obs_id,
-                                   sim.current_time(), m_json_irtb);
+                                   sim.current_time(), obs_files.json_irtb);
             r.has_error()) {
             log(log_level::error, [&](auto& m) noexcept {
                 format(m, "Fail to write new model of type {}",
@@ -1038,16 +1040,16 @@ status project::simulation_finish(unordered_task_list& utl) noexcept
 
     if (flags[simulation_flag::write_irtb]) {
         auto guard = make_scope_exit([&]() noexcept {
-            m_json_irtb.close();
-            m_bin_irtb.close();
+            obs_files.json_irtb.close();
+            obs_files.bin_irtb.close();
         });
 
         return flush_to_irtb(sim.observers,
                              sim.observers.get<observer_history_cursor>(),
-                             m_bin_irtb)
+                             obs_files.bin_irtb)
           .and_then([&] {
               return finalize_json_irtb(sim.observers, sim.current_time(),
-                                        m_json_irtb);
+                                        obs_files.json_irtb);
           });
     }
 

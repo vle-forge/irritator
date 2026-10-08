@@ -1260,6 +1260,23 @@ void text_file_viewer::update(application&       app,
             return;
         }
 
+        auto file_size = std::uintmax_t{};
+
+        try {
+            auto       ec = std::error_code{};
+            const auto sv = filename->sv();
+
+            file_size = std::filesystem::file_size(sv, ec);
+
+            if (ec) {
+                log(log_level::error, [&](auto& msg) {
+                    format(msg, "text-file: {} access error", filename->sv());
+                });
+                return;
+            }
+        } catch (...) {
+        }
+
         auto file = file::open(*filename, file_mode{ file_open_options::read,
                                                      file_open_options::text });
 
@@ -1275,12 +1292,13 @@ void text_file_viewer::update(application&       app,
         const auto limit = app.config.vars.text_file_viewer_max_file_size
                              .load();
 
-        if (file->length() > limit) {
+        if (std::cmp_greater(file_size, limit)) {
             log(log_level::error, [&](auto& msg) {
                 format(msg,
                        "text-file: file {} is too big to be loaded ({} bytes)",
-                       filename->sv(), file->length());
+                       filename->sv(), file_size);
             });
+
             return;
         }
 

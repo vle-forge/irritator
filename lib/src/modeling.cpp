@@ -1389,8 +1389,9 @@ status modeling::save(const component_access& ids,
 
     if (dfile.has_value()) [[likely]] {
         const auto& str = ids.component_descriptions[id];
-        if (not str.empty())
-            dfile->write(str.sv());
+        if (not str.empty()) {
+            std::fwrite(str.data(), 1, str.size(), dfile->to_file());
+        }
     }
 
     return success();

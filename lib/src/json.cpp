@@ -4424,7 +4424,7 @@ struct json_dearchiver::impl {
 
             auto pj_opt = project::load(files, ids, f_id);
             if (pj_opt.has_value()) {
-                sim.pj = *pj_opt;
+                sim.pj = std::move(*pj_opt);
                 return true;
             } else {
                 has_missing_dependent_component = true;
@@ -5811,16 +5811,10 @@ static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
                              f.get_mode()[file_open_options::extended])))
         return error_code(std::errc::invalid_argument);
 
-    const auto len = f.length();
-    if (std::cmp_less(len, 2))
-        return error_code(std::errc::invalid_argument);
-
-    buffer.resize(len);
-    if (std::cmp_less(buffer.size(), len))
-        return error_code(std::errc::not_enough_memory);
-
-    if (not f.read(buffer.data(), len))
+    if (auto vec = f.read_entire_file(); vec.empty())
         return error_code(std::errc::io_error);
+    else
+        buffer = std::move(vec);
 
     return success();
 }

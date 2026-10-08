@@ -8,7 +8,9 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
-#include <filesystem>
+#include <optional>
+#include <span>
+#include <utility>
 
 #include <cstdio>
 
@@ -28,211 +30,94 @@ enum class file_open_options : u8 {
 
 using file_mode = bitflags<file_open_options>;
 
-enum class seek_origin : u8 { current, end, set };
-
+/// Owning handle on a @c std::FILE* (RAII).
+///
+/// The class opens files from an utf-8 @c path (on Windows too), applies the
+/// @c file_open_options and closes the file. The input and output
+/// operations are done by the caller on the handle returned by @c to_file()
+/// (rapidjson @c FileReadStream / @c FileWriteStream, @c fprintf, @c fputs,
+/// @c fwrite...). The class is move-only.
+///
+/// @code
+/// auto f = file::open(path("data.json"), file_mode(file_open_options::read));
+/// if (f) {
+///     char buffer[4096];
+///     rapidjson::FileReadStream is(f->to_file(), buffer, sizeof(buffer));
+///     ...
+/// }
+/// @endcode
 class file
 {
 public:
-    /// @brief Try to open a file.
+    /// Try to open a file.
     ///
-    /// @example
-    /// const auto filename = path("data.bin");
-    /// auto file =  file::open(filename, file::mode::read);
-    /// if (file) {
-    ///   int x, y, z;
-    ///   return file->read(x) && file->read(y) && file->read(z);
-    /// }
-    /// @endexample
-    ///
-    /// @param  filename File name in utf-8.
+    /// @param filename File name in utf-8.
     /// @return @c file if success @c error_code otherwise.
     static expected<file> open(const path&     filename,
                                const file_mode mode) noexcept;
 
     /// Try to open a file.
+    ///
     /// @param fillename The file name in utf-8.
     /// @return @c file if success or std::nullopt_t otherwise.
     static std::optional<file> try_open(const path&     filename,
                                         const file_mode mode) noexcept;
 
-    /**
-       Try to create a temporary @a file. This function neither returns a
-       nullptr. If an error occured, the unexpected value stores an @a
-       error_code.
-       On Win32, the file is build in the root temporary directory.
-     */
+    /// Try to create a temporary @a file opened in binary mode for reading and
+    /// writing (@c "w+b"). The file is removed when it is closed. This function
+    /// neither returns a nullptr. If an error occured, the unexpected value
+    /// stores an @a error_code.
+    ///
+    /// On Win32, the file is build in the root temporary directory.
+    ///
+    /// @return @c file if success @c error_code otherwise.
     static expected<file> open_tmp() noexcept;
 
     file() noexcept  = default;
     ~file() noexcept = default;
 
-    /** The file can be copied but the file descriptor remains closes.
-     *  @param other Unused parameter. */
-    file(const file& /*other*/) noexcept
-      : file_handle{ nullptr }
-    {}
-
-    /** The file can be copied but the file descriptor remains closes.
-     *  @param other Unused parameter. */
-    file& operator=(const file& /*other*/) noexcept { return *this; }
+    file(const file&)            = delete;
+    file& operator=(const file&) = delete;
 
     file(file&& other) noexcept;
     file& operator=(file&& other) noexcept;
 
-    void close() noexcept;
+    /// Close the file. Idempotent, @c to_file() returns @c nullptr after the
+    /// call even on error.
+    ///
+    /// The destructor closes the file but can not report an error: call this
+    /// function and check the result when the data must be written (the
+    /// buffered data are written by @c fclose and a full disk is only
+    /// reported there).
+    ///
+    /// @return false if the @c fclose failed.
+    bool close() noexcept;
+
     bool is_open() const noexcept;
-    bool is_eof() const noexcept;
 
-    i64  length() const noexcept;
-    i64  tell() const noexcept;
-    void flush() const noexcept;
-    i64  seek(i64 offset, seek_origin origin) noexcept;
-    void rewind() noexcept;
+    /// Flush the buffered output data.
+    ///
+    /// @return false if the file is closed or if the flush failed.
+    bool flush() const noexcept;
 
-    bool read(bool& value) noexcept;
-    bool read(u8& value) noexcept;
-    bool read(u16& value) noexcept;
-    bool read(u32& value) noexcept;
-    bool read(u64& value) noexcept;
-    bool read(i8& value) noexcept;
-    bool read(i16& value) noexcept;
-    bool read(i32& value) noexcept;
-    bool read(i64& value) noexcept;
-
-    bool read(float& value) noexcept;
-    bool read(double& value) noexcept;
-
-    template<typename EnumType>
-        requires(std::is_enum_v<EnumType>)
-    bool read(EnumType& value) noexcept
-    {
-        auto integer = ordinal(value);
-
-        irt_check(read(integer));
-        value = enum_cast<EnumType>(integer);
-
-        return true;
-    }
-
-    template<typename T>
-    bool read(T& t) noexcept
-    {
-        static_assert(std::is_standard_layout_v<T> and
-                        std::is_trivially_copyable_v<T>,
-                      "T must be trivially_copyable_v (for memcpy) and "
-                      "standard_layout_v (for other language)");
-
-        auto* ptr   = std::addressof(t);
-        auto* c_ptr = reinterpret_cast<void*>(ptr);
-        auto  size  = static_cast<i64>(sizeof(T));
-
-        return read(c_ptr, size);
-    }
-
-    template<typename T>
-    bool read(std::span<T> buffer) noexcept
-    {
-        static_assert(std::is_standard_layout_v<T> and
-                        std::is_trivially_copyable_v<T>,
-                      "T must be trivially_copyable_v (for memcpy) and "
-                      "standard_layout_v (for other language)");
-
-        auto* ptr   = buffer.data();
-        auto* c_ptr = reinterpret_cast<void*>(ptr);
-        auto  size  = buffer.size() * sizeof(T);
-
-        return read(c_ptr, static_cast<i64>(size));
-    }
-
-    /** Read the entire file and returns a buffer with the read data.
-     *  @return If the function fail, the @c vector<char> is empty. */
+    /// Read the entire file from the beginning (whatever the current
+    /// position) and returns a buffer with the read data. The position is
+    /// unspecified after the call.
+    ///
+    /// @return If the function fail or if the file is empty, the @c
+    /// vector<char> is empty. */
     irt::vector<char> read_entire_file() noexcept;
 
-    /**
-     *  Try to read the entire file from the beggining and fill the @c buffer.
-     *
-     *  @return Returns a @c span of the really read buffer. The returned buffer
-     * can be:
-     * - lower than @c buffer is the file length is lower the buffer.
-     * - equal to @c buffer is the file length is greater or equal to the
-     * buffer.
-     */
+    /// Try to read the entire file from the beggining and fill the @c buffer.
+    /// The result is always zero terminated, so at most @c buffer.size() - 1
+    /// characters are read.
+    ///
+    /// @return Returns a @c span of the really read buffer (without the
+    /// terminator). The returned buffer can be:
+    /// - lower than @c buffer.size() - 1 if the file length is lower.
+    /// - equal to @c buffer.size() - 1 if the file length is greater or equal.
+    /// - empty if @c buffer is empty or on error.
     std::span<char> read_entire_file(std::span<char> buffer) noexcept;
-
-    bool write(const bool value) noexcept;
-    bool write(const u8 value) noexcept;
-    bool write(const u16 value) noexcept;
-    bool write(const u32 value) noexcept;
-    bool write(const u64 value) noexcept;
-    bool write(const i8 value) noexcept;
-    bool write(const i16 value) noexcept;
-    bool write(const i32 value) noexcept;
-    bool write(const i64 value) noexcept;
-
-    bool write(const float value) noexcept;
-    bool write(const double value) noexcept;
-
-    template<typename EnumType>
-        requires(std::is_enum_v<EnumType>)
-    bool write(const EnumType value) noexcept
-    {
-        return write(ordinal(value));
-    }
-
-    template<typename T>
-    bool write(const std::span<const T> buffer) noexcept
-    {
-        static_assert(std::is_standard_layout_v<T> and
-                        std::is_trivially_copyable_v<T>,
-                      "T must be trivially_copyable_v (for memcpy) and "
-                      "standard_layout_v (for other language)");
-
-        const auto* ptr   = buffer.data();
-        const auto* c_ptr = reinterpret_cast<const void*>(ptr);
-        auto        size  = buffer.size() * sizeof(T);
-
-        return write(c_ptr, static_cast<i64>(size));
-    }
-
-    bool write(const std::string_view buffer) noexcept
-    {
-        if (buffer.size() > 0)
-            return write(buffer.data(), static_cast<i64>(buffer.size()));
-
-        return true;
-    }
-
-    //! Low level read function.
-    //! @param buffer A pointer to buffer (must be not null)
-    //! @param length The length of the buffer to read (must be greater than
-    //!     0).
-    //! @return false if failure, true otherwise.
-    bool read(void* buffer, i64 length) noexcept;
-
-    //! Low level write function.
-    //! @param  buffer A pointer to buffer (must be not null) with at least
-    //! @c
-    //!     length bytes available.
-    //! @param  length The length of the buffer to read (must be greater
-    //! than
-    //!     0).
-    //! @return false if failure, true otherwise.
-    bool write(const void* buffer, i64 length) noexcept;
-
-    template<typename T>
-    bool write(const T& t) noexcept
-    {
-        static_assert(std::is_standard_layout_v<T> and
-                        std::is_trivially_copyable_v<T>,
-                      "T must be trivially_copyable_v (for memcpy) and "
-                      "standard_layout_v (for other language)");
-
-        const auto* ptr   = std::addressof(t);
-        const auto* c_ptr = reinterpret_cast<const void*>(ptr);
-        const auto  size  = static_cast<i64>(sizeof(T));
-
-        return write(c_ptr, size);
-    }
 
     /// Get access to the underlying std::FILE handler (can be nullptr).
     std::FILE* to_file() const noexcept;
@@ -247,8 +132,10 @@ private:
     {}
 
     std_file  file_handle;
-    file_mode mode;
+    file_mode mode{};
 };
+
+enum class seek_origin : u8 { current, end, set };
 
 class memory
 {

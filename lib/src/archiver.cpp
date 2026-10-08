@@ -8,6 +8,8 @@
 
 namespace irt {
 
+#if 0
+
 struct file_header {
     enum class mode_type : u32 {
         none = 0,
@@ -759,5 +761,7 @@ void binary_archiver::clear_cache() noexcept
     to_text.data.clear();
     to_random.data.clear();
 }
+
+#endif
 
 } //  irt

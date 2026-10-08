@@ -1597,8 +1597,27 @@ private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
 
-    file m_json_irtb;
-    file m_bin_irtb;
+    struct observation_files {
+        file json_irtb;
+        file bin_irtb;
+
+        observation_files() noexcept = default;
+
+        observation_files(observation_files&&) noexcept            = default;
+        observation_files& operator=(observation_files&&) noexcept = default;
+
+        observation_files(const observation_files&) noexcept {}
+        observation_files& operator=(const observation_files&) noexcept
+        {
+            (void)json_irtb.close();
+            (void)bin_irtb.close();
+
+            return *this;
+        }
+    };
+
+    observation_files obs_files;
+
     u32  m_simulation_id  = 0;
     u32  m_simulation_run = 0;
 };
