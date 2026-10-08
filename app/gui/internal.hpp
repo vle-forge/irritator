@@ -180,13 +180,14 @@ inline bool InputFilename(const char*         label,
     ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackCharFilter |
                                 ImGuiInputTextFlags_EnterReturnsTrue;
 
-    char buffer[irt::file_path_str::capacity()];
+    constexpr auto capacity = irt::file_path_str::capacity();
+    auto           buffer   = irt::small_string<capacity>{};
 
-    if (not ImGui::InputText(label, std::data(buffer), std::size(buffer), flags,
+    if (not ImGui::InputText(label, buffer.data(), buffer.capacity(), flags,
                              irt::portable_filename_dirname_callback, nullptr))
         return false;
 
-    const auto buffer_len = std::strlen(buffer);
+    const auto buffer_len = std::strlen(buffer.c_str());
     if (buffer_len == 0 or buffer_len > irt::file_path_str::capacity())
         return false;
 
@@ -194,7 +195,7 @@ inline bool InputFilename(const char*         label,
 
     internal.resize_and_overwrite(buffer_len,
                                   [&](char* buf, std::size_t n) noexcept {
-                                      std::strncpy(buf, buffer, n);
+                                      std::strncpy(buf, buffer.c_str(), n);
                                       return n;
                                   });
 
@@ -216,13 +217,14 @@ inline bool InputDirname(const char*              label,
     ImGuiInputTextFlags flags = ImGuiInputTextFlags_CallbackCharFilter |
                                 ImGuiInputTextFlags_EnterReturnsTrue;
 
-    char buffer[irt::directory_path_str::capacity()];
+    constexpr auto capacity = irt::directory_path_str::capacity();
+    auto           buffer   = irt::small_string<capacity>{};
 
-    if (not ImGui::InputText(label, std::data(buffer), std::size(buffer), flags,
+    if (not ImGui::InputText(label, buffer.data(), buffer.capacity(), flags,
                              irt::portable_filename_dirname_callback, nullptr))
         return false;
 
-    const auto buffer_len = std::strlen(buffer);
+    const auto buffer_len = std::strlen(buffer.c_str());
     if (buffer_len == 0 or buffer_len > irt::directory_path_str::capacity())
         return false;
 
@@ -230,7 +232,7 @@ inline bool InputDirname(const char*              label,
 
     internal.resize_and_overwrite(buffer_len,
                                   [&](char* buf, std::size_t n) noexcept {
-                                      std::strncpy(buf, buffer, n);
+                                      std::strncpy(buf, buffer.c_str(), n);
                                       return n;
                                   });
 
