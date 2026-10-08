@@ -46,6 +46,8 @@ function(irritator_add_test test_name)
 endfunction()
 
 irritator_add_test(test-api public-api.cpp)
+irritator_add_test(test-binary-containers binary-containers-tests.cpp)
+irritator_add_test(test-binary binary-tests.cpp)
 irritator_add_test(test-container containers.cpp)
 irritator_add_test(test-dama dama.cpp)
 irritator_add_test(test-dot-parser dot-parser-test.cpp)
