@@ -110,42 +110,6 @@ public:
     void clear() noexcept;
 };
 
-class binary_archiver
-{
-public:
-    enum class error_code : u8 {
-        not_enough_memory = 1,
-        write_error,
-        read_error,
-        format_error,
-        header_error,
-        unknown_model_error,
-        unknown_model_port_error,
-    };
-
-    bool simulation_save(simulation& sim, file& io) noexcept;
-    bool simulation_save(simulation& sim, memory& io) noexcept;
-    bool simulation_load(simulation& sim, file& io) noexcept;
-    bool simulation_load(simulation& sim, memory& io) noexcept;
-
-    void clear_cache() noexcept;
-
-    error_code ec; //!< If main functions returns false, @c ec variable stores
-                   //!< the error code.
-
-private:
-    struct impl; //!< Get access to observation attributes without complex code.
-
-    bool report_error(error_code ec) noexcept;
-    bool report_error(error_code ec) const noexcept;
-
-    table<u32, model_id>              to_models;
-    table<u32, constant_source_id>    to_constant;
-    table<u32, binary_file_source_id> to_binary;
-    table<u32, text_file_source_id>   to_text;
-    table<u32, random_source_id>      to_random;
-};
-
 } // namespace irt
 
 #endif

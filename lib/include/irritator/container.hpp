@@ -51,6 +51,10 @@ struct reserve_tag_t {
 
 constexpr inline reserve_tag_t reserve_tag;
 
+/// Reaches the private members of the containers to dump them (see
+/// binary-containers.hpp).
+struct container_binary_access;
+
 /**
  * Returns true if the integer @c t is greater or equal to @c min_include and
  * less or equal to @c max_include.
@@ -1942,6 +1946,8 @@ private:
     static constexpr index_type get_key(Identifier id) noexcept;
 
 public:
+    friend struct container_binary_access;
+
     constexpr id_array() noexcept = default;
 
     constexpr id_array(const id_array& other) noexcept;
@@ -2365,6 +2371,8 @@ public:
     using const_iterator = typename identifier_container_type::const_iterator;
     using size_type      = typename identifier_container_type::size_type;
 
+    friend struct container_binary_access;
+
     id_data_array() noexcept = default;
     explicit id_data_array(std::integral auto capacity) noexcept;
 
@@ -2597,6 +2605,8 @@ public:
 
 public:
     static constexpr index_type none = std::numeric_limits<index_type>::max();
+
+    friend struct container_binary_access;
 
     constexpr data_array() noexcept = default;
     constexpr data_array(const data_array& other) noexcept;
