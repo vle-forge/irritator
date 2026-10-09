@@ -11,6 +11,7 @@
 #include "world.hpp"
 
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <memory>
 #include <random>
@@ -642,18 +643,40 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
             dispatch(a, [&]<typename Dyn>(const Dyn& da) {
                 const auto& db = get_dyn<Dyn>(*b);
-                Dyn ca = da, cb = db;
-#if defined(__has_builtin)
-#if __has_builtin(__builtin_clear_padding)
-                __builtin_clear_padding(&ca);
-                __builtin_clear_padding(&cb);
-                if constexpr (std::is_trivially_copyable_v<Dyn>)
-                    if (std::memcmp(&ca, &cb, sizeof(Dyn)) != 0)
+                // Padding, and what the constructor leaves uninitialized,
+                // differ between a construction in a storage filled with
+                // 0x00 and one filled with 0xFF: those bytes are not
+                // compared. Raw bytes: the copy constructors of the dynamics
+                // skip fields.
+                alignas(Dyn) unsigned char z0[sizeof(Dyn)], z1[sizeof(Dyn)];
+                std::memset(z0, 0x00, sizeof(Dyn));
+                std::memset(z1, 0xff, sizeof(Dyn));
+                new (z0) Dyn();
+                new (z1) Dyn();
+
+                const auto* pa = reinterpret_cast<const unsigned char*>(&da);
+                const auto* pb = reinterpret_cast<const unsigned char*>(&db);
+                // the span of a source points into the buffers of its own
+                // simulation: the addresses differ.
+                bool skip[sizeof(Dyn)] = {};
+                auto mark = [&](const auto& src) {
+                    const auto off = static_cast<std::size_t>(
+                      reinterpret_cast<const unsigned char*>(&src) -
+                      reinterpret_cast<const unsigned char*>(&da));
+                    for (std::size_t k = 0; k != sizeof(src.buffer); ++k)
+                        skip[off + k] = true;
+                };
+                if constexpr (requires { da.source_ta.buffer; })
+                    mark(da.source_ta);
+                if constexpr (requires { da.source_value.buffer; })
+                    mark(da.source_value);
+
+                for (std::size_t o = 0; o != sizeof(Dyn); ++o) {
+                    if (not skip[o] and z0[o] == z1[o] and pa[o] != pb[o]) {
                         ++different;
-#endif
-#endif
-                (void)ca;
-                (void)cb;
+                        break;
+                    }
+                }
             });
         }
 
