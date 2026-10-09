@@ -1,4 +1,4 @@
-// Copyright (c) 2026 INRAE Distributed under the Boost Software License,
+// Copyright (c) 2021 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -67,13 +67,21 @@ concept binary_enum =
 template<typename T>
 inline constexpr bool binary_raw_layout = false;
 
+/// Opt-out for a trivial type that must not be dumped as a block of bytes
+/// because not every bit pattern is a valid value (a string with its size, a
+/// type with an invariant) or because it holds bytes that are not part of the
+/// value. Such a type needs its own @c binary_serialize, see @c small_string
+/// in @c binary-containers.hpp.
+template<typename T>
+inline constexpr bool binary_no_raw = false;
+
 /// Types that can be dumped as a block of bytes (arrays of @c float, of ids,
 /// of trivial structures without padding...).
 template<typename T>
 concept binary_raw =
   binary_scalar<T> or binary_enum<T> or
   (std::is_class_v<T> and std::is_trivially_copyable_v<T> and
-   std::is_standard_layout_v<T> and
+   std::is_standard_layout_v<T> and not binary_no_raw<T> and
    (std::has_unique_object_representations_v<T> or binary_raw_layout<T>));
 
 /// Contiguous containers with a dynamic size (@c irt::vector).
@@ -103,6 +111,14 @@ bool resize_container(C& c, const std::size_t n) noexcept
         return false;
 
     return static_cast<bool>(c.resize(static_cast<size_type>(n)));
+}
+
+/// After a failed read: no half filled container.
+template<typename C>
+void clear_container(C& c) noexcept
+{
+    if constexpr (requires { c.clear(); })
+        c.clear();
 }
 
 } // namespace details
@@ -298,6 +314,18 @@ public:
         limit = bytes;
     }
 
+    /// An opaque pointer to the environment of the reader, for the types that
+    /// can not be rebuilt from their own bytes (a pointer to a buffer that
+    /// belongs to another object, see @c irt::source). The reader does not
+    /// own it and never uses it.
+    void set_context(void* p) noexcept { ctx = p; }
+
+    template<typename T>
+    T* context() const noexcept
+    {
+        return static_cast<T*>(ctx);
+    }
+
     /// Called by the containers before an allocation of @c bytes bytes.
     /// @return false and marks the reader as failed if the limit is exceeded.
     bool can_allocate(const std::size_t bytes) noexcept
@@ -408,6 +436,7 @@ private:
     std::span<const u8> in;
     std::size_t         pos    = 0;
     std::size_t         limit  = std::numeric_limits<std::size_t>::max();
+    void*               ctx    = nullptr;
     bool                failed = false;
 };
 
@@ -446,6 +475,22 @@ void binary_serialize(Ar& ar, std::array<T, N>& a) noexcept
     }
 }
 
+/// C arrays (@c input_port x[4]): like @c std::array, the elements without a
+/// count.
+template<typename Ar, typename T, std::size_t N>
+void binary_serialize(Ar& ar, T (&a)[N]) noexcept
+{
+    if constexpr (binary_raw<T>) {
+        if constexpr (Ar::is_writer)
+            ar.write_span(std::span<const T>(a, N));
+        else
+            ar.read_span(std::span<T>(a, N));
+    } else {
+        for (auto& element : a)
+            ar(element);
+    }
+}
+
 /// Dynamic arrays (irt::vector): the count, then the elements.
 ///
 /// - elements @c binary_raw: the header of @c write_array and one block.
@@ -476,22 +521,23 @@ void binary_serialize(Ar& ar, C& c) noexcept
             u64 count = 0;
             ar.read(count);
 
-            if (not ar.ok())
-                return;
-
-            if (count > ar.remaining()) {
+            if (not ar.ok() or count > ar.remaining()) {
                 ar.fail();
+                details::clear_container(c);
                 return;
             }
 
             size = static_cast<std::size_t>(count);
         }
 
-        if (not ar.ok())
+        if (not ar.ok()) {
+            details::clear_container(c);
             return;
+        }
 
-        if (not details::resize_container(c, size)) {
+        if (not details::resize_container(c, size)) { // a small_vector is full
             ar.fail();
+            details::clear_container(c);
             return;
         }
 
@@ -501,6 +547,9 @@ void binary_serialize(Ar& ar, C& c) noexcept
             for (std::size_t i = 0; i != size and ar.ok(); ++i)
                 ar(c.data()[i]);
         }
+
+        if (not ar.ok())
+            details::clear_container(c);
     }
 }
 

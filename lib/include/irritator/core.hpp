@@ -1447,6 +1447,8 @@ private:
 class observer
 {
 private:
+    friend struct binary_access;
+
     using history_type = shared_buffer<
       vector<resampled_sample>,
       append_only_merge_policy<vector<resampled_sample>>>;
@@ -1555,6 +1557,8 @@ private:
 class resampler
 {
 public:
+    friend struct binary_access;
+
     resampler() noexcept;
     resampler(const real dt, const interpolate_type order) noexcept;
 
@@ -1613,6 +1617,8 @@ public:
     };
 
 private:
+    friend struct binary_access;
+
     node* nodes{ nullptr };
     u32   m_size{ 0 };
     u32   max_size{ 0 };
@@ -1719,6 +1725,8 @@ public:
     using allocator_type = A;
 
 private:
+    friend struct binary_access;
+
     heap<A> m_heap;
 
 public:
@@ -2091,6 +2099,8 @@ public:
     time_limit limits;
 
 private:
+    friend struct binary_access;
+
     std::atomic<real> t = time_domain<time>::infinity;
 
     /**
@@ -11146,8 +11156,11 @@ constexpr void heap<A>::remove(handle elem) noexcept
         m_size--;
         const auto old_elem = elem;
         detach_subheap(elem);
-        elem = merge_subheaps(elem);
-        root = merge(root, elem);
+
+        if (nodes[elem].child != invalid_heap_handle) {
+            elem = merge_subheaps(elem);
+            root = merge(root, elem);
+        }
 
         nodes[old_elem].child = invalid_heap_handle;
         nodes[old_elem].prev  = invalid_heap_handle;

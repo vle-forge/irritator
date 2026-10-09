@@ -1,6 +1,10 @@
-// Copyright (c) 2026 INRAE Distributed under the Boost Software License,
+// Copyright (c) 2026 INRAE Distributed under the Boost Software License,//
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
+
+// Unit tests of the binary_serialize of id_array, data_array and
+// id_data_array: exact restore of the state (so the same identifiers are
+// produced after a rollback), format, truncations, hostile input.
 
 #include <boost/ut.hpp>
 
@@ -12,12 +16,19 @@
 #include <memory_resource>
 #include <set>
 #include <span>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
 namespace ctest {
 
 using alloc_t = irt::allocator<irt::new_delete_memory_resource>;
+
+enum class flag8 : irt::u8 { a, b, c };
+enum class flag16 : irt::u16 { a, b, top = 15 };
+enum class flag32 : irt::u32 { a, b, top = 31 };
+enum class flag64 : irt::u64 { a, b, top = 63 };
 
 enum class aid : irt::u32 {}; // key:u16 | index:u16
 enum class bid : irt::u64 {}; // key:u32 | index:u32
@@ -112,13 +123,13 @@ inline bool matches(const item& x, const irt::u64 v) noexcept
     return true;
 }
 
-using da_plain    = irt::data_array<plain, aid>;
-using da_item     = irt::data_array<item, bid>;
-using ia32        = irt::id_array<aid>;
-using ia64        = irt::id_array<bid>;
-using ida_void    = irt::id_data_array<void, aid, alloc_t, float, plain, item>;
-using ida_plain   = irt::id_data_array<plain, bid, alloc_t, float, item>;
-using ida_item    = irt::id_data_array<item, aid, alloc_t, plain>;
+using da_plain  = irt::data_array<plain, aid>;
+using da_item   = irt::data_array<item, bid>;
+using ia32      = irt::id_array<aid>;
+using ia64      = irt::id_array<bid>;
+using ida_void  = irt::id_data_array<void, aid, alloc_t, float, plain, item>;
+using ida_plain = irt::id_data_array<plain, bid, alloc_t, float, item>;
+using ida_item  = irt::id_data_array<item, aid, alloc_t, plain>;
 
 template<typename C>
 inline constexpr bool is_data_array = false;
@@ -138,8 +149,8 @@ inline constexpr bool is_ida<irt::id_data_array<T, I, A, Ts...>> = true;
 template<typename C, typename X>
 inline constexpr bool has_col = false;
 template<typename T, typename I, typename A, typename... Ts, typename X>
-inline constexpr bool has_col<irt::id_data_array<T, I, A, Ts...>, X> =
-  (std::is_same_v<Ts, X> or ...);
+inline constexpr bool has_col<irt::id_data_array<T, I, A, Ts...>,
+                              X> = (std::is_same_v<Ts, X> or ...);
 
 /// The same operations whatever the container.
 template<typename C>
@@ -331,7 +342,11 @@ struct model {
 };
 
 template<typename C>
-void churn(C& c, model& m, xorshift& rng, const int steps, const int max_alive) noexcept
+void churn(C&        c,
+           model&    m,
+           xorshift& rng,
+           const int steps,
+           const int max_alive) noexcept
 {
     using O = ops<C>;
 
@@ -436,9 +451,9 @@ std::vector<irt::u8> dump(C& c)
 
 /// The result of a restore: all the bytes must be used.
 template<typename C>
-bool load(C&                         c,
+bool load(C&                          c,
           const std::vector<irt::u8>& bytes,
-          const std::size_t          limit = static_cast<std::size_t>(-1))
+          const std::size_t           limit = static_cast<std::size_t>(-1))
 {
     irt::binary_reader r(bytes);
     r.set_allocation_limit(limit);
@@ -484,9 +499,9 @@ struct bytes_builder {
 
 } // namespace ctest
 
-namespace ut = boost::ut;
-
-ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
+int main()
+{
+    namespace ut = boost::ut;
     using namespace ut;
     using namespace ut::literals;
     using namespace ctest;
@@ -541,12 +556,12 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
         const auto i1 = d.alloc_id();
         const auto i2 = d.alloc_id();
 
-        d.get<float>(i0)  = 1.5f;
-        d.get<float>(i1)  = 2.5f;
-        d.get<float>(i2)  = 3.5f;
-        d.get<plain>(i0)  = plain{ 1, 2 };
-        d.get<plain>(i1)  = plain{ 3, 4 };
-        d.get<plain>(i2)  = plain{ 5, 6 };
+        d.get<float>(i0)    = 1.5f;
+        d.get<float>(i1)    = 2.5f;
+        d.get<float>(i2)    = 3.5f;
+        d.get<plain>(i0)    = plain{ 1, 2 };
+        d.get<plain>(i1)    = plain{ 3, 4 };
+        d.get<plain>(i2)    = plain{ 5, 6 };
         d.get<item>(i0).tag = 7;
         d.get<item>(i1).tag = 8;
         d.get<item>(i2).tag = 9;
@@ -558,9 +573,9 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
                  irt::u16{ 1 });
         expected(irt::u32{ 0x00010000u }, irt::u32{ 0x0000FFFFu },
                  irt::u32{ 0x00030002u });
-        expected(1.5f, 3.5f);             // the float column
+        expected(1.5f, 3.5f);                   // the float column
         expected(plain{ 1, 2 }, plain{ 5, 6 }); // the plain column
-        expected(d.get<item>(i0));        // the item column
+        expected(d.get<item>(i0));              // the item column
         expected(d.get<item>(i2));
 
         expect(dump(d) == copy_of(expected.bytes()));
@@ -634,7 +649,7 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
             using O = ops<C>;
 
             {
-                C c;
+                C          c;
                 const auto kept  = O::alloc(c, 1);
                 const auto freed = O::alloc(c, 2);
                 const auto last  = O::alloc(c, 3);
@@ -705,7 +720,7 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
 
                 // an empty container as a snapshot
 
-                C nothing;
+                C          nothing;
                 const auto nothing_snapshot = dump(nothing);
                 expect(load(big, nothing_snapshot)) << O::name();
                 expect(big.size() == 0u) << O::name();
@@ -733,11 +748,11 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
 
           // scribble over the dead slots
 
-          a.get<float>()[1]       = 1234.f;
-          a.get<float>()[4]       = -1.f;
-          a.get<plain>()[1]       = plain{ 9, 9 };
-          a.get<item>()[4].tag    = 77;
-          a.get<float>()[7]       = 5.f; // after max_used
+          a.get<float>()[1]    = 1234.f;
+          a.get<float>()[4]    = -1.f;
+          a.get<plain>()[1]    = plain{ 9, 9 };
+          a.get<item>()[4].tag = 77;
+          a.get<float>()[7]    = 5.f; // after max_used
 
           expect(dump(a) == clean) << "equal states, equal dumps";
       };
@@ -759,10 +774,10 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
                   bool all_failed = true;
                   bool all_clean  = true;
 
-                  for (std::size_t length = 0; length != full.size(); ++length) {
-                      const std::vector<irt::u8> prefix(full.begin(),
-                                                        full.begin() +
-                                                          static_cast<long>(length));
+                  for (std::size_t length = 0; length != full.size();
+                       ++length) {
+                      const std::vector<irt::u8> prefix(
+                        full.begin(), full.begin() + static_cast<long>(length));
 
                       // the destination has its own content, which is replaced
 
@@ -796,7 +811,8 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
                   expect(r.ok() and r.remaining() == 1u) << O::name();
               }
 
-              expect(item::live == 0) << O::name() << ": no leak after failures";
+              expect(item::live == 0)
+                << O::name() << ": no leak after failures";
           });
       };
 
@@ -840,17 +856,20 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
                         ++refused;
 
                     if (not ok and target.size() != 0u) {
-                        expect(false) << O::name() << ": cleared after a failure";
+                        expect(false)
+                          << O::name() << ": cleared after a failure";
                         break;
                     }
 
                     if (not usable(target)) {
-                        expect(false) << O::name() << ": usable after a restore";
+                        expect(false)
+                          << O::name() << ": usable after a restore";
                         break;
                     }
                 }
 
-                expect(refused > 0) << O::name() << ": some corruptions are seen";
+                expect(refused > 0)
+                  << O::name() << ": some corruptions are seen";
                 expect(accepted + refused == 3000);
             }
 
@@ -866,9 +885,9 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
 
         // the third element has an invalid tag
 
-        const auto ids = ops<da_item>::ids(d);
+        const auto ids                            = ops<da_item>::ids(d);
         d.get(ops<da_item>::from_raw(ids[2])).tag = 0xFFFFFFFFu;
-        const auto bytes = dump(d);
+        const auto bytes                          = dump(d);
 
         da_item target;
         for (irt::u64 i = 0; i != 4; ++i)
@@ -880,46 +899,46 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
 
         d.destroy();
         target.destroy();
-        expect(item::live == 0) << "the elements built before the refusal are destroyed";
+        expect(item::live == 0)
+          << "the elements built before the refusal are destroyed";
     };
 
     "restore: fields that contradict each other are refused"_test = [] {
         // id_array<aid>: capacity, max_size, max_used, next_key, free_head,
         // identifiers
-        const auto craft = [](irt::u32 capacity,
-                              irt::u32 max_size,
-                              irt::u32 max_used,
-                              irt::u32 next_key,
-                              irt::u32 free_head,
-                              std::vector<irt::u32> ids) {
+        const auto craft = [](irt::u32 capacity, irt::u32 max_size,
+                              irt::u32 max_used, irt::u32 next_key,
+                              irt::u32 free_head, std::vector<irt::u32> ids) {
             bytes_builder b;
-            b.u16(capacity).u16(max_size).u16(max_used).u16(next_key).u16(free_head);
+            b.u16(capacity).u16(max_size).u16(max_used).u16(next_key).u16(
+              free_head);
             for (const auto id : ids)
                 b.u32(id);
             return b.v;
         };
 
         const auto good = [&](const std::vector<irt::u8>& bytes) {
-            ia32 target;
+            ia32       target;
             const bool ok = load(target, bytes);
             return ok and usable(target);
         };
 
         // two elements alive (0 and 2), the slot 1 is dead
-        expect(good(craft(4, 2, 3, 4, 1,
-                          { 0x00010000u, 0x0000FFFFu, 0x00030002u })))
+        expect(
+          good(craft(4, 2, 3, 4, 1, { 0x00010000u, 0x0000FFFFu, 0x00030002u })))
           << "the reference is valid";
 
         // two dead slots separated by an alive one
-        expect(good(craft(4, 1, 3, 4, 0,
-                          { 0x00000002u, 0x00020001u, 0x0000FFFFu })))
+        expect(
+          good(craft(4, 1, 3, 4, 0, { 0x00000002u, 0x00020001u, 0x0000FFFFu })))
           << "a free list over two dead slots";
 
         const std::vector<std::pair<const char*, std::vector<irt::u8>>> bad = {
             { "capacity == none", craft(0xFFFF, 0, 0, 1, 0xFFFF, {}) },
             { "max_used > capacity",
               craft(2, 3, 3, 4, 0xFFFF, { 0x10000u, 0x20001u, 0x30002u }) },
-            { "max_size > max_used", craft(4, 3, 2, 4, 0xFFFF, { 0x10000u, 0x20001u }) },
+            { "max_size > max_used",
+              craft(4, 3, 2, 4, 0xFFFF, { 0x10000u, 0x20001u }) },
             { "next_key == 0",
               craft(4, 2, 2, 0, 0xFFFF, { 0x10000u, 0x20001u }) },
             { "free list with all the slots alive",
@@ -942,7 +961,8 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
               craft(4, 0, 2, 4, 0, { 0x00000001u, 0x00000000u }) },
             { "free list pointing out",
               craft(4, 0, 2, 4, 0, { 0x00000007u, 0x0000FFFFu }) },
-            { "truncated identifiers", craft(4, 2, 2, 4, 0xFFFF, { 0x10000u }) },
+            { "truncated identifiers",
+              craft(4, 2, 2, 4, 0xFFFF, { 0x10000u }) },
         };
 
         for (const auto& [name, bytes] : bad)
@@ -996,6 +1016,327 @@ ut::suite<"irt::binary_serialize of the containers"> container_suite = [] {
 
         expect(load(target_da, bytes_da) and usable(target_da));
         expect(load(target_ia, bytes_ia) and usable(target_ia));
+    };
+
+    "small_string: format, round trip, validation"_test = [] {
+        using str = irt::small_string<32>; // 30 characters
+
+        static_assert(not irt::binary_raw<str>);
+        static_assert(str::capacity() == 30);
+
+        // the format: the size (u32), the characters
+
+        {
+            bytes_builder expected;
+            expected.u32(5);
+            for (const char c : std::string_view("hello"))
+                expected.v.push_back(static_cast<irt::u8>(c));
+
+            str hello("hello");
+            expect(dump(hello) == expected.v);
+        }
+
+        // the stale bytes after the terminator are not part of the dump
+
+        {
+            str a("abcdefghij");
+            a.assign("xy");
+            const str b("xy");
+            expect(dump(a) == dump(b));
+        }
+
+        // round trip, in a string that held something longer
+
+        const std::string_view samples[] = {
+            "",
+            "a",
+            "hello",
+            "0123456789012345678901234567890",
+            "012345678901234567890123456789", // the capacity
+            std::string_view("a\0b", 3),      // a null character is a character
+        };
+
+        for (const auto sample : samples) {
+            const str  source(sample.substr(0, 30));
+            const auto bytes = dump(source);
+
+            str target("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz");
+            expect(load(target, bytes));
+            expect(target.sv() == source.sv()) << sample.size();
+            expect(target.c_str()[target.size()] == '\0') << "terminated";
+            expect(dump(target) == bytes);
+        }
+
+        // in a vector and in a column
+
+        {
+            irt::vector<str> v;
+            for (int i = 0; i != 50; ++i)
+                v.emplace_back(
+                  std::string(static_cast<std::size_t>(i % 31), 'a'));
+
+            irt::binary_writer w;
+            w(v);
+            const auto full = copy_of(w.bytes());
+
+            irt::vector<str>   out;
+            irt::binary_reader r(full);
+            r(out);
+            expect(r.ok() and out.size() == v.size());
+            bool same = out.size() == v.size();
+            for (std::size_t i = 0; same and i != v.size(); ++i)
+                same = out[i].sv() == v[i].sv();
+            expect(same);
+
+            // every truncation fails
+            bool all_failed = true;
+            for (std::size_t length = 0; length != full.size(); ++length) {
+                const std::vector<irt::u8> prefix(
+                  full.begin(), full.begin() + static_cast<long>(length));
+                irt::vector<str>   target;
+                irt::binary_reader pr(prefix);
+                pr(target);
+                all_failed = all_failed and not pr.ok();
+            }
+            expect(all_failed);
+        }
+
+        {
+            using names = irt::id_data_array<void, aid, alloc_t, str, float>;
+
+            names a;
+            expect(a.reserve(8));
+            const auto i0    = a.alloc_id();
+            const auto i1    = a.alloc_id();
+            const auto i2    = a.alloc_id();
+            a.get<str>(i0)   = "first";
+            a.get<str>(i1)   = "second";
+            a.get<str>(i2)   = "third";
+            a.get<float>(i2) = 3.f;
+            a.free(i1);
+
+            names b;
+            expect(load(b, dump(a)));
+            expect(b.exists(i0) and b.exists(i2) and not b.exists(i1));
+            expect(b.get<str>(i0).sv() == "first");
+            expect(b.get<str>(i2).sv() == "third");
+            expect(b.get<float>(i2) == 3.f);
+        }
+
+        // a size that is greater than the capacity, than the input, or
+        // missing characters, are refused and leave an empty string
+
+        const auto craft = [](const irt::u32         size,
+                              const std::string_view text) {
+            bytes_builder b;
+            b.u32(size);
+            for (const char c : text)
+                b.v.push_back(static_cast<irt::u8>(c));
+            return b.v;
+        };
+
+        const std::vector<std::pair<const char*, std::vector<irt::u8>>> bad = {
+            { "capacity + 1", craft(31, std::string(31, 'x')) },
+            { "255", craft(255, std::string(255, 'x')) },
+            { "huge", craft(0xFFFFFFFFu, "abc") },
+            { "missing characters", craft(5, "abc") },
+            { "no size", {} },
+        };
+
+        for (const auto& [name, bytes] : bad) {
+            str target("previous");
+            expect(not load(target, bytes)) << name;
+            expect(target.size() == 0u) << name;
+        }
+
+        str exact_capacity;
+        expect(load(exact_capacity, craft(30, std::string(30, 'x'))));
+        expect(exact_capacity.size() == 30u);
+    };
+
+    "bitflags: the width of the underlying type, every value valid"_test = [] {
+        static_assert(not irt::binary_raw<irt::bitflags<flag8>>);
+        static_assert(not irt::binary_raw<irt::bitflags<flag64>>);
+
+        {
+            irt::bitflags<flag8> f(flag8::a, flag8::c);
+            expect(dump(f) == std::vector<irt::u8>{ 0b00000101 });
+        }
+        {
+            irt::bitflags<flag16> f(flag16::b, flag16::top);
+            bytes_builder         expected;
+            expected.u16(0x8002u);
+            expect(dump(f) == expected.v);
+        }
+        {
+            irt::bitflags<flag32> f(flag32::b, flag32::top);
+            bytes_builder         expected;
+            expected.u32(0x80000002u);
+            expect(dump(f) == expected.v);
+        }
+        {
+            irt::bitflags<flag64> f(flag64::a, flag64::top);
+            bytes_builder         expected;
+            expected.u64(0x8000000000000001ull);
+            expect(dump(f) == expected.v);
+        }
+
+        // round trip in an object that held other flags, empty and full
+
+        for (const irt::u64 value :
+             { irt::u64{ 0 }, irt::u64{ 1 }, irt::u64{ 0x8000000000000000ull },
+               irt::u64{ 0xFFFFFFFFFFFFFFFFull },
+               irt::u64{ 0x123456789ABCDEFull } }) {
+            irt::bitflags<flag64> source(value);
+            irt::bitflags<flag64> target(flag64::b);
+
+            expect(load(target, dump(source)));
+            expect(target == source) << value;
+        }
+
+        irt::bitflags<flag8> small_target(flag8::b);
+        expect(load(small_target, std::vector<irt::u8>{ 0xFF }));
+        expect(small_target.to_unsigned() == 0xFFu);
+
+        // truncated
+
+        irt::bitflags<flag32> truncated(flag32::a);
+        expect(not load(truncated, std::vector<irt::u8>{ 1, 2, 3 }));
+
+        // in a vector (the elements are not a block)
+
+        irt::vector<irt::bitflags<flag16>> v;
+        v.emplace_back(flag16::a);
+        v.emplace_back(flag16::b, flag16::top);
+        irt::binary_writer w;
+        w(v);
+
+        irt::vector<irt::bitflags<flag16>> out;
+        irt::binary_reader                 r(w.bytes());
+        r(out);
+        expect(r.ok() and out.size() == 2u);
+        expect(out[0] == v[0] and out[1] == v[1]);
+    };
+
+    "small_vector: count checked against the capacity and the input"_test = [] {
+        using sv_u32  = irt::small_vector<irt::u32, 4>;
+        using sv_item = irt::small_vector<item, 3>;
+        using sv_str  = irt::small_vector<irt::small_string<16>, 3>;
+
+        static_assert(not irt::binary_raw<sv_u32>);
+
+        // round trips, in a vector which held other values
+
+        {
+            sv_u32 source;
+            for (irt::u32 i = 0; i != 4; ++i)
+                source.push_back(i * 7 + 1);
+
+            sv_u32 target;
+            target.push_back(99);
+            expect(load(target, dump(source)));
+            expect(target == source);
+
+            sv_u32 empty;
+            expect(load(target, dump(empty)));
+            expect(target.empty());
+        }
+
+        {
+            sv_str source;
+            source.push_back(irt::small_string<16>("one"));
+            source.push_back(irt::small_string<16>(""));
+            source.push_back(irt::small_string<16>("three"));
+
+            sv_str target;
+            expect(load(target, dump(source)));
+            expect(target.size() == 3u and target[0].sv() == "one" and
+                   target[1].sv().empty() and target[2].sv() == "three");
+        }
+
+        {
+            sv_item source;
+            for (irt::u64 i = 0; i != 3; ++i)
+                fill(*source.emplace_back(), i + 10);
+
+            sv_item target;
+            target.emplace_back();
+            expect(load(target, dump(source)));
+            expect(target.size() == 3u);
+            expect(matches(target[0], 10) and matches(target[2], 12));
+        }
+
+        expect(item::live == 0) << "no leak";
+
+        // a count which is greater than the capacity is refused, with an
+        // empty container; 4 is the capacity
+
+        const auto craft = [](const irt::u64 count, const irt::u32 size,
+                              const std::size_t payload) {
+            bytes_builder b;
+            b.u64(count).u32(size);
+            for (std::size_t i = 0; i != payload; ++i)
+                b.v.push_back(7);
+            return b.v;
+        };
+
+        {
+            sv_u32 target;
+            target.push_back(1);
+            expect(load(target, craft(4, 4, 16)));
+            expect(target.size() == 4u);
+
+            expect(not load(target, craft(5, 4, 20))) << "count > capacity";
+            expect(target.empty());
+        }
+        {
+            sv_u32 target;
+            expect(not load(target, craft(3, 4, 8))) << "count > input";
+            expect(target.empty());
+            expect(not load(target, craft(2, 8, 16))) << "wrong element size";
+            expect(target.empty());
+            expect(not load(target, craft(0xFFFFFFFFFFFFFFFFull, 4, 16)));
+            expect(target.empty());
+        }
+
+        // every truncation fails, a corrupted stream never breaks it
+
+        {
+            sv_item source;
+            for (irt::u64 i = 0; i != 3; ++i)
+                fill(*source.emplace_back(), i);
+            const auto full = dump(source);
+
+            bool all_failed = true;
+            for (std::size_t length = 0; length != full.size(); ++length) {
+                const std::vector<irt::u8> prefix(
+                  full.begin(), full.begin() + static_cast<long>(length));
+                sv_item target;
+                target.emplace_back();
+                all_failed = all_failed and not load(target, prefix) and
+                             target.empty();
+            }
+            expect(all_failed);
+
+            xorshift noise{ 99 };
+            for (int iteration = 0; iteration != 2000; ++iteration) {
+                auto bytes                         = full;
+                bytes[noise.next() % bytes.size()] = static_cast<irt::u8>(
+                  noise.next());
+
+                sv_item            target;
+                irt::binary_reader r(bytes);
+                r(target);
+
+                // a smaller count is valid (bytes remain), an error clears
+                if (r.ok())
+                    expect(target.size() <= 3u);
+                else
+                    expect(target.empty());
+            }
+        }
+
+        expect(item::live == 0) << "no leak after failures";
     };
 
     "restore: the allocation limit"_test = [] {

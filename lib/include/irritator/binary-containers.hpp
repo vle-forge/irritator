@@ -1,4 +1,4 @@
-// Copyright (c) 2026 INRAE Distributed under the Boost Software License,
+// Copyright (c) 2023 INRAE Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -50,7 +50,30 @@
 ///
 /// The element type of a @c data_array must be default constructible; an
 /// element which is not @c binary_raw needs its own @c binary_serialize.
+/// @c small_string is supported (see below).
 namespace irt {
+
+/// How the reader builds the element of a @c data_array before it fills it:
+/// the default constructor. Specialize it for a type that has no default
+/// constructor (the specialization must be visible where the container is
+/// read):
+/// @code
+/// template<> struct irt::binary_construct<observer> {
+///     static observer* make(observer* p) noexcept
+///     {
+///         return std::construct_at(p, undefined<model_id>());
+///     }
+/// };
+/// @endcode
+template<typename T>
+struct binary_construct {
+    static_assert(std::is_default_constructible_v<T>,
+                  "binary_serialize of data_array needs a default "
+                  "constructible element (the reader builds it, then fills "
+                  "it) or a specialization of binary_construct");
+
+    static T* make(T* p) noexcept { return std::construct_at(p); }
+};
 
 /// The friend of the containers (see the @c friend declarations in
 /// @c container.hpp), it reaches the private members.
@@ -181,11 +204,6 @@ struct container_binary_access {
         using array      = data_array<T, Identifier, A>;
         using index_type = typename array::index_type;
 
-        static_assert(std::is_default_constructible_v<T>,
-                      "binary_serialize of data_array needs a default "
-                      "constructible element: the reader builds it, then "
-                      "fills it");
-
         constexpr auto none = array::none;
 
         if constexpr (Ar::is_writer) {
@@ -238,7 +256,7 @@ struct container_binary_access {
                 }
 
                 if (alive) {
-                    std::construct_at(std::addressof(d.m_items[i].item));
+                    binary_construct<T>::make(std::addressof(d.m_items[i].item));
                     d.m_items[i].id = id;
                     d.m_max_used    = static_cast<index_type>(i + 1);
 
@@ -416,6 +434,61 @@ struct container_binary_access {
         }
     }
 };
+
+/// @c small_string<N>: the size (u32) then the characters, without the
+/// terminator and without the unused bytes of the buffer. A trivial type like
+/// @c small_string would be dumped as a block of N bytes, with the stale bytes
+/// after the terminator, and a corrupted size would be accepted.
+///
+/// The reader refuses a size that is greater than the capacity of the string
+/// (and of the input), and leaves an empty string after a failure.
+template<std::size_t N>
+inline constexpr bool binary_no_raw<small_string<N>> = true;
+
+template<typename Ar, std::size_t N>
+void binary_serialize(Ar& ar, small_string<N>& s) noexcept
+{
+    if constexpr (Ar::is_writer) {
+        ar.write(static_cast<u32>(s.size()));
+        ar.write_bytes(s.data(), s.size());
+    } else {
+        u32 size = 0;
+        ar.read(size);
+
+        if (not ar.ok() or size > s.capacity()) {
+            ar.fail();
+            s.clear();
+            return;
+        }
+
+        s.resize(size); // size and terminator
+        ar.read_bytes(s.data(), size);
+
+        if (not ar.ok())
+            s.clear();
+    }
+}
+
+/// @c bitflags<E>: its value as an unsigned integer of the width of the
+/// underlying type of @c E (u8, u16, u32 or u64). Every value is valid. A
+/// @c std::bitset has an implementation defined size, so it is not dumped as
+/// a block.
+template<typename E>
+inline constexpr bool binary_no_raw<bitflags<E>> = true;
+
+template<typename Ar, typename E>
+void binary_serialize(Ar& ar, bitflags<E>& f) noexcept
+{
+    using value_type = typename bitflags<E>::underlying_type;
+
+    if constexpr (Ar::is_writer) {
+        ar.write(static_cast<value_type>(f.to_unsigned()));
+    } else {
+        value_type value = 0;
+        ar.read(value);
+        f = bitflags<E>(static_cast<unsigned long long>(value));
+    }
+}
 
 template<typename Ar, typename Identifier, typename A>
 void binary_serialize(Ar& ar, id_array<Identifier, A>& d) noexcept

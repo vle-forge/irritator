@@ -1,6 +1,10 @@
-// Copyright (c) 2026 INRAE Distributed under the Boost Software License,
+// Copyright (c) 2021 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
+
+// Unit tests of irt::binary_writer / irt::binary_reader and of the
+// binary_serialize protocol: layout of the format, errors, hostile input,
+// snapshots and dumps in files.
 
 #include <boost/ut.hpp>
 
@@ -96,8 +100,8 @@ struct world {
 template<typename Ar>
 void binary_serialize(Ar& ar, world& w) noexcept
 {
-    ar(w.values, w.pairs, w.cells, w.inners, w.counters, w.step, w.time,
-       w.head, w.state, w.running);
+    ar(w.values, w.pairs, w.cells, w.inners, w.counters, w.step, w.time, w.head,
+       w.state, w.running);
 
     // validation of a value read in the stream
 
@@ -164,8 +168,9 @@ bool same_array(const irt::vector<T>& a, const irt::vector<T>& b)
 
 bool same(const world& a, const world& b)
 {
-    if (not same_array(a.values, b.values) or not same_array(a.pairs, b.pairs) or
-        not same_array(a.cells, b.cells) or a.inners.size() != b.inners.size())
+    if (not same_array(a.values, b.values) or
+        not same_array(a.pairs, b.pairs) or not same_array(a.cells, b.cells) or
+        a.inners.size() != b.inners.size())
         return false;
 
     for (irt::i32 i = 0; i != isize(a.inners); ++i)
@@ -222,9 +227,9 @@ struct xorshift {
 
 } // namespace binary_test
 
-namespace ut = boost::ut;
-
-ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
+int main()
+{
+    namespace ut = boost::ut;
     using namespace ut;
     using namespace ut::literals;
     using namespace binary_test;
@@ -232,14 +237,15 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
     "scalars, enumerations and booleans round trip"_test = [] {
         irt::binary_writer w;
 
-        w(irt::u8{ 250 }, irt::i8{ -2 }, irt::u16{ 65000 },
-          irt::i16{ -32000 }, irt::u32{ 4000000000u }, irt::i32{ -2000000000 },
+        w(irt::u8{ 250 }, irt::i8{ -2 }, irt::u16{ 65000 }, irt::i16{ -32000 },
+          irt::u32{ 4000000000u }, irt::i32{ -2000000000 },
           irt::u64{ 18000000000000000000ull },
           irt::i64{ -9000000000000000000ll }, 1.5f, -2.25, true, false,
           node_id{ 42 }, mode::stop);
 
         expect(w.ok());
-        expect(w.size() == 1 + 1 + 2 + 2 + 4 + 4 + 8 + 8 + 4 + 8 + 1 + 1 + 8 + 1);
+        expect(w.size() ==
+               1 + 1 + 2 + 2 + 4 + 4 + 8 + 8 + 4 + 8 + 1 + 1 + 8 + 1);
 
         irt::u8  u8v{};
         irt::i8  i8v{};
@@ -282,8 +288,7 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
 
         const auto b = w.bytes();
         expect(b.size() == 7u);
-        expect(b[0] == 0x04 and b[1] == 0x03 and b[2] == 0x02 and
-               b[3] == 0x01);
+        expect(b[0] == 0x04 and b[1] == 0x03 and b[2] == 0x02 and b[3] == 0x01);
         expect(b[4] == 0xFE and b[5] == 0xFF) << "-2 as i16";
         expect(b[6] == 1) << "true is 1";
     };
@@ -433,7 +438,7 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
         // the same for the containers of non trivial elements (a count of
         // elements that is greater than the remaining bytes)
 
-        const auto bytes2 = crafted(1000, 4, 10);
+        const auto         bytes2 = crafted(1000, 4, 10);
         irt::vector<inner> out2;
         irt::binary_reader r2(bytes2);
 
@@ -445,21 +450,66 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
         expect(out2.size() == 0);
     };
 
-    "a type described once: nested containers, enumerations, arrays"_test =
+    "a type described once: nested containers, enumerations, arrays"_test = [] {
+        const auto in = make_world(3);
+
+        irt::binary_writer w;
+        w(in);
+        expect(w.ok());
+
+        world              out;
+        irt::binary_reader r(w.bytes());
+        r(out);
+
+        expect(r.ok());
+        expect(r.remaining() == 0u);
+        expect(same(in, out));
+    };
+
+    "C arrays: same format as std::array, raw block or element by element"_test =
       [] {
-          const auto in = make_world(3);
+          struct port {
+              irt::u32 position;
+              irt::u16 size;
+              irt::u16 capacity;
+          };
+          static_assert(irt::binary_raw<port>);
+
+          const port   ports_in[3] = { { 1, 2, 3 }, { 4, 5, 6 }, { 7, 8, 9 } };
+          const double reals_in[2] = { 1.5, -2.25 };
+          const std::array<double, 2> reals_std = { 1.5, -2.25 };
+
+          port   ports_out[3] = {};
+          double reals_out[2] = {};
 
           irt::binary_writer w;
-          w(in);
+          w(ports_in, reals_in);
           expect(w.ok());
+          expect(w.size() == 3u * 8u + 2u * 8u); // no count, no padding
 
-          world out;
+          irt::binary_writer wstd;
+          wstd(reals_std);
+          expect(wstd.size() == 16u);
+          expect(std::memcmp(w.bytes().data() + 24, wstd.bytes().data(), 16) ==
+                 0);
+
           irt::binary_reader r(w.bytes());
-          r(out);
-
+          r(ports_out, reals_out);
           expect(r.ok());
           expect(r.remaining() == 0u);
-          expect(same(in, out));
+          for (int i = 0; i < 3; ++i) {
+              expect(ports_out[i].position == ports_in[i].position);
+              expect(ports_out[i].size == ports_in[i].size);
+              expect(ports_out[i].capacity == ports_in[i].capacity);
+          }
+          expect(reals_out[0] == 1.5 and reals_out[1] == -2.25);
+
+          // truncated: the outputs are zeroed and the reader fails.
+          irt::binary_reader cut(w.bytes().first(w.size() - 1u));
+          double             again[2] = { 9.0, 9.0 };
+          port               pp[3]    = {};
+          cut(pp, again);
+          expect(not cut.ok());
       };
 
     "a value rejected by the validation of the type is an error"_test = [] {
@@ -469,7 +519,7 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
         irt::binary_writer w;
         w(in);
 
-        world out;
+        world              out;
         irt::binary_reader r(w.bytes());
         r(out);
 
@@ -497,9 +547,8 @@ ut::suite<"irt::binary_writer / irt::binary_reader"> binary_suite = [] {
               // a block of exactly `len` bytes: a read after the end is
               // reported by the sanitizers
 
-              const std::vector<irt::u8> prefix(full.begin(),
-                                                full.begin() +
-                                                  static_cast<std::ptrdiff_t>(len));
+              const std::vector<irt::u8> prefix(
+                full.begin(), full.begin() + static_cast<std::ptrdiff_t>(len));
 
               irt::binary_reader r(prefix);
               world              out;
