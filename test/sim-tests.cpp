@@ -48,6 +48,27 @@ bool is_empty(const simulation& sim) noexcept
            sim.dated_messages.size() == 0 and sim.sched.empty();
 }
 
+
+// The compiler assumes that a pointer to an over-aligned type is aligned (it
+// folds @c address % alignment to 0): look at the address through a function
+// that only sees a @c void*.
+#if defined(_MSC_VER)
+__declspec(noinline)
+#else
+__attribute__((noinline))
+#endif
+bool is_aligned(const void* p, std::size_t alignment) noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(p) % alignment == 0;
+}
+
+
+struct alignas(64) over_aligned_column {
+    double value = 0.0;
+};
+
+enum class over_aligned_id : std::uint32_t;
+
 error_code error_of(const status& s) noexcept { return s.error(); }
 
 } // namespace
@@ -693,6 +714,52 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         expect(total > 0_i);
         expect(different == 0_i);
     };
+
+    "memory: the observers respect their alignment (shared_buffer is "
+    "aligned on 64 bytes)"_test = [] {
+        // Regression test: data_array allocated its items with the default
+        // alignment (16) and clang -O2 used aligned stores to build the
+        // observers.
+
+        for (const int capacity : { 8, 100, 1000, 5000 }) {
+            simulation sim;
+            expect(sim.observers.reserve(capacity));
+
+            int misaligned = 0;
+            for (int i = 0; i != 4; ++i) {
+                auto& mdl = sim.alloc<irt::constant>();
+                sim.observe(sim.models.get(sim.get_id(mdl)), 1.0);
+            }
+
+            for (const auto& obs : sim.observers)
+                if (not is_aligned(&obs, alignof(observer)))
+                    ++misaligned;
+
+            expect(misaligned == 0_i) << "capacity" << capacity;
+        }
+    };
+
+    "memory: the extra columns of an id_data_array respect their alignment"_test =
+      [] {
+          using array_type =
+            id_data_array<int,
+                          over_aligned_id,
+                          allocator<new_delete_memory_resource>,
+                          over_aligned_column>;
+
+          for (const int capacity : { 8, 100, 5000 }) {
+              array_type  array(capacity);
+              const void* base = array.get<over_aligned_column>().get();
+              expect(is_aligned(base, alignof(over_aligned_column)))
+                << "reserve" << capacity;
+
+              // growing reallocates the columns
+              expect(array.reserve(capacity * 2 + 1));
+              base = array.get<over_aligned_column>().get();
+              expect(is_aligned(base, alignof(over_aligned_column)))
+                << "grow" << capacity;
+          }
+      };
 };
 
 int main() {}

@@ -36,6 +36,22 @@ template<typename T>
 concept not_integral = not std::is_integral_v<T>;
 
 /**
+ * True if the memory returned by @c allocator<>::allocate with its default
+ * alignment (@c alignof(std::max_align_t)) is suitable for @c T.
+ *
+ * The containers that allocate a buffer of @c T without passing @c alignof(T)
+ * to the allocator (@c vector, @c ring_buffer, @c pool, @c dynamic_buffer)
+ * check it: an over-aligned @c T (for example one that contains a @c
+ * shared_buffer, @c alignas(64)) would be built in a misaligned buffer and a
+ * compiler is free to use aligned instructions on it. @c data_array and the
+ * extra columns of @c id_data_array pass @c alignof to the allocator and
+ * support over-aligned types.
+ */
+template<typename T>
+inline constexpr bool is_default_aligned_v = alignof(T) <=
+                                             alignof(std::max_align_t);
+
+/**
  *  tag to allow vector<T, A> and other container to reserve memory without
  *  resize in the constructor.
  *
@@ -846,6 +862,8 @@ public:
     static_assert(Size > 0);
     static_assert(std::is_default_constructible_v<T>,
                   "T must be default-constructible for dynamic_buffer");
+    static_assert(is_default_aligned_v<T>,
+                  "T is over-aligned: replace with alignof(T)");
 
     using size_type  = small_storage_size_t<Size>;
     using index_type = std::make_signed_t<size_type>;
@@ -1611,6 +1629,8 @@ public:
                   "T must be nothrow move constructible");
     static_assert(std::is_nothrow_destructible_v<T>,
                   "T must be nothrow destructible");
+    static_assert(is_default_aligned_v<T>,
+                  "T is over-aligned: replace with alignof(T)");
 
     using value_type             = T;
     using size_type              = std::size_t;
@@ -2245,7 +2265,8 @@ private:
         if (std::cmp_less(0, len) and
             std::cmp_less(len, std::numeric_limits<index_type>::max()))
             buffer.reset(
-              reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
+              reinterpret_cast<std::byte*>(
+                A::allocate(sizeof(SubT) * len, alignof(SubT))));
     }
 
     /**
@@ -2265,7 +2286,7 @@ private:
     {
         if (buffer.get()) {
             std::destroy_n(buffer.get(), len);
-            A::deallocate(buffer.get(), sizeof(SubT) * len);
+            A::deallocate(buffer.get(), sizeof(SubT) * len, alignof(SubT));
             buffer.reset(nullptr);
         }
     }
@@ -2338,7 +2359,7 @@ private:
                                buffer_view<SubT>& buffer) noexcept
     {
         auto* ptr = reinterpret_cast<std::byte*>(
-          A::allocate(sizeof(SubT) * req));
+          A::allocate(sizeof(SubT) * req, alignof(SubT)));
         auto* new_ptr = reinterpret_cast<SubT*>(ptr);
 
         if (buffer.get()) {
@@ -2349,7 +2370,7 @@ private:
             }
 
             std::destroy_n(buffer.get(), old);
-            A::deallocate(buffer.get(), sizeof(SubT) * old);
+            A::deallocate(buffer.get(), sizeof(SubT) * old, alignof(SubT));
             buffer.reset(nullptr);
         }
 
@@ -2879,6 +2900,8 @@ public:
     static_assert((std::is_nothrow_constructible_v<T> ||
                    std::is_nothrow_move_constructible_v<T>) &&
                   std::is_nothrow_destructible_v<T>);
+    static_assert(is_default_aligned_v<T>,
+                  "T is over-aligned: replace with alignof(T)");
 
 private:
     T*         buffer     = nullptr;
@@ -3550,6 +3573,9 @@ public:
     using value_type      = T;
     using reference       = T&;
     using const_reference = const T&;
+
+    static_assert(is_default_aligned_v<T>,
+                  "T is over-aligned: replace with alignof(T)");
 
     constexpr static inline index_type
       active = std::numeric_limits<index_type>::max();
@@ -4694,7 +4720,7 @@ constexpr data_array<T, Identifier, A>::data_array(
 {
     if (other.m_capacity > 0) {
         m_items = reinterpret_cast<item*>(
-          A::allocate(sizeof(item) * other.m_capacity));
+          A::allocate(sizeof(item) * other.m_capacity, alignof(item)));
         m_capacity = other.m_capacity;
 
         if constexpr (std::is_trivially_copyable_v<T>) {
@@ -4772,7 +4798,8 @@ constexpr data_array<T, Identifier, A>::data_array(
         debug::ensure(
           std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-        m_items = reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
+        m_items = reinterpret_cast<item*>(
+          A::allocate(sizeof(item) * capacity, alignof(item)));
         m_capacity = static_cast<index_type>(capacity);
     }
 
@@ -4788,7 +4815,7 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
     clear();
 
     if (m_items)
-        A::deallocate(m_items, sizeof(item) * m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity, alignof(item));
 }
 
 template<typename T, typename Identifier, typename A>
@@ -4823,7 +4850,7 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
         capacity = 8;
 
     item* new_buffer = reinterpret_cast<item*>(
-      A::allocate(sizeof(item) * capacity));
+      A::allocate(sizeof(item) * capacity, alignof(item)));
     if (new_buffer == nullptr)
         return false;
 
@@ -4859,7 +4886,7 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
     }
 
     if (m_items)
-        A::deallocate(m_items, sizeof(item) * m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity, alignof(item));
 
     m_items    = new_buffer;
     m_capacity = static_cast<index_type>(capacity);
@@ -4907,7 +4934,7 @@ void data_array<T, Identifier, A>::destroy() noexcept
     clear();
 
     if (m_items)
-        A::deallocate(m_items, sizeof(item) * m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity, alignof(item));
 
     m_items    = nullptr;
     m_capacity = 0;
