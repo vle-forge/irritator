@@ -287,7 +287,7 @@ static void show_simulation_action_buttons(application&    app,
 
         ImGui::SameLine();
 
-        ImGui::BeginDisabled(ed.pj.empty_snapshots());
+        // ImGui::BeginDisabled(ed.pj.empty_snapshots());
         if (EnhancedButton(app, "\ue0b3", small_button,
                            "Rewind into simulation states"))
             ed.pj.simulation_back();
@@ -297,7 +297,7 @@ static void show_simulation_action_buttons(application&    app,
         if (EnhancedButton(app, "\ue05c", small_button,
                            "Forward into simulation states"))
             ed.pj.simulation_advance();
-        ImGui::EndDisabled();
+        // ImGui::EndDisabled();
     }
 }
 

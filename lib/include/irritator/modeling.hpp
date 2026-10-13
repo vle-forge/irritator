@@ -1359,19 +1359,12 @@ public:
     }
 
     bool push(const command& cmd) noexcept;
-    bool empty_snapshots() const noexcept;
     bool empty_commands() const noexcept;
 
 private:
     /// spsc queue to store simulation commands. Only for live and debug mode.
     /// write by the main thread and read by the simulation thread.
     circular_buffer<command, command_buffer_size> commands;
-
-    /// spsc queue to store simulations snapshot. Only for debug mode.
-    simulation_snapshot_handler snaps{ 128 };
-
-    /// position into the @c snaps queue.
-    std::optional<std::int32_t> current_snap;
 
     void save_simulation_graph(const std::string_view file_name) noexcept;
 

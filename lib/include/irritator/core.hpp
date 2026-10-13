@@ -1901,28 +1901,6 @@ using observers_type = id_data_array<observer,
                                      observer_history_cursor,
                                      resampler>;
 
-/// Stores a copy main data simulation.
-///
-/// This class is used to dump a snapshot of the simulation keeping all
-/// identifiants.
-struct simulation_snapshot {
-
-    simulation_snapshot() noexcept = default;
-
-    explicit simulation_snapshot(const simulation& sim) noexcept;
-
-    /// Reuse the allocated snapshot and copy simulation data
-    simulation_snapshot& operator=(const simulation& sim) noexcept;
-
-    data_array<model, model_id>                              models;
-    observers_type                                           observers;
-    data_array<block_node, block_node_id>                    nodes;
-    data_array<output_port, output_port_id>                  output_ports;
-    data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
-    scheduller<allocator<new_delete_memory_resource>>        sched;
-    time                                                     t{};
-};
-
 enum class criteria_type {
     min_last, //!< Min value for the last observation value (one real).
     max_last, //!< Max value for the Last observation value (one real).
@@ -2135,15 +2113,6 @@ public:
 
     simulation(const simulation& other) noexcept;
     simulation& operator=(const simulation& other) noexcept;
-
-    /// Assign all data from the @a snap snapshot to this simulation.
-    ///
-    /// The current simulation data are destroyed before assignment. Mainly used
-    /// to restore a state of previous simulation run.
-    ///
-    /// @param snap The snapshot to restore.
-    /// @return self.
-    simulation& operator=(const simulation_snapshot& snap) noexcept;
 
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
@@ -11621,20 +11590,6 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     srcs                = other.srcs;
     limits              = other.limits;
     t                   = other.t.load(std::memory_order_acquire);
-
-    return *this;
-}
-
-inline simulation& simulation::operator=(
-  const simulation_snapshot& snap) noexcept
-{
-    models         = snap.models;
-    observers      = snap.observers;
-    nodes          = snap.nodes;
-    output_ports   = snap.output_ports;
-    dated_messages = snap.dated_messages;
-    sched          = snap.sched;
-    t              = snap.t;
 
     return *this;
 }

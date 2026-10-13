@@ -706,8 +706,6 @@ bool project::push(const command& cmd) noexcept
     return true;
 }
 
-bool project::empty_snapshots() const noexcept { return snaps.empty(); }
-
 bool project::empty_commands() const noexcept { return commands.empty(); }
 
 void project::simulation_observation_for_imm_observers(
@@ -1008,9 +1006,6 @@ status project::simulation_step() noexcept
                 return ret.error();
             }
 
-            if (current_time != sim.current_time())
-                snaps.emplace_back(sim);
-
             if (sim.current_time_expired()) {
                 simulation_state = simulation_status::finish_requiring;
                 return success();
@@ -1063,20 +1058,7 @@ void project::simulation_advance() noexcept
     debug::ensure(any_equal(simulation_state, simulation_status::initialized,
                             simulation_status::paused));
 
-    if (snaps.empty())
-        return;
-
-    if (not current_snap.has_value() or
-        snaps.ptr_from_index(*current_snap) == nullptr) {
-        sim          = *snaps.front();
-        current_snap = snaps.index_of(snaps.front());
-    }
-
-    const auto* snap = snaps.ptr_from_index(*current_snap);
-    if (snaps.previous(snap)) {
-        sim          = *snap;
-        current_snap = snaps.index_of(snap);
-    }
+    // TODO
 }
 
 void project::simulation_back() noexcept
@@ -1086,20 +1068,7 @@ void project::simulation_back() noexcept
     debug::ensure(any_equal(simulation_state, simulation_status::initialized,
                             simulation_status::paused));
 
-    if (snaps.empty())
-        return;
-
-    if (not current_snap.has_value() or
-        snaps.ptr_from_index(*current_snap) == nullptr) {
-        sim          = *snaps.back();
-        current_snap = snaps.index_of(snaps.back());
-    }
-
-    const auto* snap = snaps.ptr_from_index(*current_snap);
-    if (snaps.next(snap)) {
-        sim          = *snap;
-        current_snap = snaps.index_of(snap);
-    }
+    // TODO
 }
 
 } // namespace irt
