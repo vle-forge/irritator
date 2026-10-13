@@ -19,6 +19,7 @@ set(public_irritator_header
     include/irritator/modeling-helpers.hpp
     include/irritator/modeling.hpp
     include/irritator/random.hpp
+    include/irritator/simulation-player.hpp
     include/irritator/thread.hpp)
 
 set(private_irritator_sources
@@ -47,6 +48,7 @@ set(private_irritator_sources
     src/project.cpp
     src/project-simulation.cpp
     src/simulation.cpp
+    src/simulation-player.cpp
     src/thread.cpp
     src/variable-observer.cpp)
 
