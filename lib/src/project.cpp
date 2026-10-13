@@ -270,7 +270,9 @@ struct graph_component_cache {
 // using grid_cache_type  = table<grid_component_id, grid_component_cache>;
 // using graph_cache_type = table<graph_component_id, graph_component_cache>;
 
-struct project_to_simulation {
+class project_to_simulation
+{
+public:
     project_to_simulation(project& pj_) noexcept
       : pj{ pj_ }
     {}
@@ -299,19 +301,33 @@ struct project_to_simulation {
         return success();
     }
 
+    expected<hsm_id> get(const component_access& ids,
+                         const hsm_component_id  hsm_id) noexcept
+    {
+        auto* value = hsm_mod_to_sim.get(hsm_id);
+
+        debug::ensure(value != nullptr);
+
+        if (is_defined(*value))
+            return *value;
+
+        if (not pj.sim.hsms.can_alloc() and not pj.sim.hsms.grow<3, 2>(1))
+            return make_error(project_errc::memory_error);
+
+        const auto& modhsm  = ids.hsm_components.get(hsm_id);
+        auto&       sim_hsm = pj.sim.hsms.alloc(modhsm.machine);
+        sim_hsm.parent_id   = ordinal(ids.hsm_components.get_id(modhsm));
+
+        return pj.sim.hsms.get_id(sim_hsm);
+    }
+
     status make_sim_mod_to_sim(const component_access& ids) noexcept
     {
         sim_mod_to_sim.data.clear();
 
         for (const auto& modsim : ids.sim_components) {
-            if (not pj.sim.sims.can_alloc() and not pj.sim.sims.grow<3, 2>(1))
-                return make_error(project_errc::memory_error);
-
-            auto& sim_sim = pj.sim.sims.alloc();
-            modsim.copy_to(sim_sim);
-
             const auto sim_id  = ids.sim_components.get_id(modsim);
-            const auto ssim_id = pj.sim.sims.get_id(sim_sim);
+            const auto ssim_id = undefined<embedded_simulation_id>();
 
             sim_mod_to_sim.data.emplace_back(sim_id, ssim_id);
         }
@@ -319,6 +335,28 @@ struct project_to_simulation {
         sim_mod_to_sim.sort();
 
         return success();
+    }
+
+    expected<embedded_simulation_id> get(
+      const component_access& ids,
+      simulation_component_id sim_id) noexcept
+    {
+        auto* value = sim_mod_to_sim.get(sim_id);
+
+        debug::ensure(value != nullptr);
+
+        if (is_defined(*value))
+            return *value;
+
+        if (not pj.sim.sims.can_alloc() and not pj.sim.sims.grow<3, 2>(1))
+            return make_error(project_errc::memory_error);
+
+        const auto& modsim = ids.sim_components.get(sim_id);
+
+        auto& sim_sim = pj.sim.sims.alloc();
+        modsim.copy_to(sim_sim);
+
+        return pj.sim.sims.get_id(sim_sim);
     }
 
     /// For grid and graph components, build the names, children and connections
@@ -375,12 +413,14 @@ public:
     table<u64, text_file_source_id>   text_files;
     table<u64, random_source_id>      randoms;
 
-    table<hsm_component_id, hsm_id>                        hsm_mod_to_sim;
-    table<simulation_component_id, embedded_simulation_id> sim_mod_to_sim;
     table<component_id, vector<mod_to_sim_srcs>>           srcs_mod_to_sim;
 
     table<grid_component_id, grid_component_cache>   grid_caches;
     table<graph_component_id, graph_component_cache> graph_caches;
+
+private:
+    table<hsm_component_id, hsm_id>                        hsm_mod_to_sim;
+    table<simulation_component_id, embedded_simulation_id> sim_mod_to_sim;
 };
 
 static auto make_tree_recursive(project_to_simulation&  sc,
@@ -508,11 +548,11 @@ static auto get_outcoming_connection(const component_access& ids,
     return nb;
 }
 
-static auto make_tree_hsm_leaf(const project_to_simulation& sc,
-                               const component_access&      ids,
-                               const parameter&             mod_parameter,
-                               parameter&                   sim_parameter,
-                               hsm_wrapper& dyn) noexcept -> status
+static auto make_tree_hsm_leaf(project_to_simulation&  sc,
+                               const component_access& ids,
+                               const parameter&        mod_parameter,
+                               parameter&              sim_parameter,
+                               hsm_wrapper&            dyn) noexcept -> status
 {
     const auto id_param_0 = mod_parameter.integers[hsm_wrapper_tag::id];
     const auto compo_id   = enum_cast<component_id>(id_param_0);
@@ -532,8 +572,11 @@ static auto make_tree_hsm_leaf(const project_to_simulation& sc,
     const auto hsm_id = compo.id.hsm_id;
 
     debug::ensure(ids.hsm_components.try_to_get(hsm_id));
-    const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
-    const auto  shsm_id = *shsm;
+    const auto shsm = sc.get(ids, hsm_id);
+    if (shsm.has_error())
+        return shsm.error();
+
+    const auto shsm_id = *shsm;
 
     debug::ensure(sc.pj.sim.hsms.try_to_get(shsm_id));
     const auto shsm_ord = ordinal(shsm_id);
@@ -544,11 +587,11 @@ static auto make_tree_hsm_leaf(const project_to_simulation& sc,
     return success();
 }
 
-static auto make_tree_simulation_leaf(const project_to_simulation& sc,
-                                      const component_access&      ids,
-                                      const parameter&    mod_parameter,
-                                      parameter&          sim_parameter,
-                                      simulation_wrapper& dyn) noexcept
+static auto make_tree_simulation_leaf(project_to_simulation&  sc,
+                                      const component_access& ids,
+                                      const parameter&        mod_parameter,
+                                      parameter&              sim_parameter,
+                                      simulation_wrapper&     dyn) noexcept
   -> status
 {
     const auto id_param_0 = mod_parameter.integers[simulation_wrapper_tag::id];
@@ -572,9 +615,11 @@ static auto make_tree_simulation_leaf(const project_to_simulation& sc,
         return make_error(project_errc::component_unknown);
 
     debug::ensure(ids.sim_components.try_to_get(sim_id));
-    const auto* ssim    = sc.sim_mod_to_sim.get(sim_id);
-    const auto  ssim_id = *ssim;
+    const auto ssim = sc.get(ids, sim_id);
+    if (ssim.has_error())
+        return ssim.error();
 
+    const auto ssim_id = *ssim;
     debug::ensure(sc.pj.sim.sims.try_to_get(ssim_id));
     const auto ssim_ord = ordinal(ssim_id);
 
@@ -850,9 +895,9 @@ static status make_tree_recursive(project_to_simulation&  sc,
             }
         } else {
             const auto mdl_type = child.id.mdl_type;
-            auto mdl_id = make_tree_leaf(sc, ids, new_tree, src,
-                                         src.children_names[child_idx].sv(),
-                                         mdl_type, child_id, child);
+            auto       mdl_id   = make_tree_leaf(sc, ids, new_tree, src,
+                                                 src.children_names[child_idx].sv(),
+                                                 mdl_type, child_id, child);
 
             if (not mdl_id) {
                 log(log_level::error, [&](auto& m) noexcept {
@@ -952,7 +997,7 @@ static bool external_sources_reserve_add(const external_source_definition& src,
                                          external_source& dst) noexcept
 {
     std::array<unsigned, 4> more_reserve{};
-    const auto& srcs = src.data
+    const auto&             srcs = src.data
                          .get<external_source_definition::source_element>();
 
     for (const auto id : src.data)
@@ -2147,9 +2192,9 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     if (not com_hsm)
         return make_error(project_errc::component_unknown);
 
-    auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
-    if (not sim_hsm_id)
-        return make_error(project_errc::component_unknown);
+    const auto sim_hsm_id = sc.get(ids, compo.id.hsm_id);
+    if (sim_hsm_id.has_error())
+        return sim_hsm_id.error();
 
     auto* sim_hsm = sc.pj.sim.hsms.try_to_get(*sim_hsm_id);
     if (not sim_hsm)
@@ -2348,8 +2393,8 @@ auto project::get_target(const tree_node&        tn,
 
     const auto* from  = &tn;
     const sz    first = path.ids.size() -
-                        2; // Do not read the first child of the grid
-                           // component tree node. Use tn instead.
+                     2; // Do not read the first child of the grid
+                        // component tree node. Use tn instead.
 
     sz i = first;
     while (i >= 1) {
