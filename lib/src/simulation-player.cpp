@@ -61,33 +61,41 @@ status simulation_player::go_to(const step_type n) noexcept
 }
 
 status simulation_player::advance(
-  const std::chrono::nanoseconds budget) noexcept
+  const std::chrono::nanoseconds budget,
+  const step_type max_steps) noexcept
 {
-    const auto end = std::chrono::steady_clock::now() + budget;
+        const auto end = std::chrono::steady_clock::now() + budget;
 
-    do {
-        if (not m_started or finished())
-            break;
+        for (step_type i = 0; i < max_steps; ++i) {
+            if (not m_started or finished())
+                break;
 
-        irt_check(step_forward());
-    } while (std::chrono::steady_clock::now() < end);
+            irt_check(step_forward());
 
-    return success();
+            if (std::chrono::steady_clock::now() >= end)
+                break;
+        }
+
+        return success();
 }
 
 status simulation_player::retreat(
-  const std::chrono::nanoseconds budget) noexcept
+  const std::chrono::nanoseconds budget,
+  const step_type max_steps) noexcept
 {
-    const auto end = std::chrono::steady_clock::now() + budget;
+        const auto end = std::chrono::steady_clock::now() + budget;
 
-    do {
-        if (not m_started or m_step == 0)
-            break;
+        for (step_type i = 0; i < max_steps; ++i) {
+            if (not m_started or m_step == 0)
+                break;
 
-        irt_check(step_back());
-    } while (std::chrono::steady_clock::now() < end);
+            irt_check(step_back());
 
-    return success();
+            if (std::chrono::steady_clock::now() >= end)
+                break;
+        }
+
+        return success();
 }
 
 status simulation_player::forget_future() noexcept

@@ -185,6 +185,31 @@ int main()
         expect(same(dump(sim), reference_at(player.step()), "retreat"));
     };
 
+    "player: max_steps limits the speed of a playback"_test = [] {
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        simulation_player player(sim, { 8, 16 });
+        expect(player.start().has_value());
+
+        for (int i = 0; i != 5; ++i) {
+            const auto before = player.step();
+            expect(player.advance(std::chrono::seconds(1), 3).has_value());
+            expect(player.step() == before + 3);
+        }
+        expect(same(dump(sim), reference_at(player.step()), "advance 3"));
+
+        for (int i = 0; i != 4; ++i) {
+            const auto before = player.step();
+            expect(player.retreat(std::chrono::seconds(1), 2).has_value());
+            expect(player.step() == before - 2);
+        }
+        expect(same(dump(sim), reference_at(player.step()), "retreat 2"));
+
+        expect(player.retreat(std::chrono::seconds(1), 100).has_value());
+        expect(player.step() == 0_u);
+    };
+
     "player: forget the future after an edition"_test = [] {
         simulation sim;
         world      w;

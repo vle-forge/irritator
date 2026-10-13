@@ -82,14 +82,20 @@ public:
     /// stops at the end of the simulation.
     status go_to(const step_type n) noexcept;
 
-    /// Steps forward until the budget is spent or the simulation is
-    /// finished: call it at each frame of a "play" mode, with a budget
-    /// smaller than the duration of a frame.
-    status advance(const std::chrono::nanoseconds budget) noexcept;
+    /// Steps forward until the budget is spent, @c max_steps steps are done
+    /// or the simulation is finished: call it at each frame of a "play" mode,
+    /// with a budget smaller than the duration of a frame. Without
+    /// @c max_steps the player runs as fast as it can, which is too fast to
+    /// follow when a step is cheap: give a small @c max_steps (1 to 10) to
+    /// control the speed of the playback.
+    status advance(const std::chrono::nanoseconds budget,
+        const step_type max_steps = std::numeric_limits<step_type>::max()) noexcept;
 
-    /// Steps back until the budget is spent or the step 0 is reached: the
-    /// "play backward" mode.
-    status retreat(const std::chrono::nanoseconds budget) noexcept;
+    /// Steps back until the budget is spent, @c max_steps steps are done or
+    /// the step 0 is reached: the "play backward" mode (see @c advance() for
+    /// @c max_steps).
+    status retreat(const std::chrono::nanoseconds budget,
+        const step_type max_steps = std::numeric_limits<step_type>::max()) noexcept;
 
     /// Call it after an edition of the simulation at the current step: the
     /// steps after the current one are forgotten.

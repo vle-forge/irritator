@@ -200,6 +200,33 @@ static bool show_registred_obseravation_path(application&    app,
     return old_observation_dir != ed.pj.observation_dir;
 }
 
+template<class Fn>
+static bool submit(application&       app,
+                   unsigned           idx,
+                   player_controller& c,
+                   Fn                 fn) noexcept
+{
+    if (c.busy.test_and_set(std::memory_order_acquire))
+        return false;
+
+    app.add_simulation_task(idx, [&c, fn]() noexcept {
+        c.result = fn(c.player);
+
+        c.fresh.step      = c.player.step();
+        c.fresh.furthest  = c.player.furthest_step();
+        c.fresh.t         = c.player.current_time();
+        c.fresh.started   = c.player.started();
+        c.fresh.finished  = c.player.finished();
+        c.fresh.can_back  = c.player.can_step_back();
+        c.fresh.keyframes = c.player.keyframe_number();
+        c.fresh.bytes     = c.player.memory_usage();
+        c.has_result      = true;
+        c.busy.clear(std::memory_order_release);
+    });
+
+    return true;
+}
+
 static bool EnhancedButton(const application& app,
                            const char*        label,
                            const ImVec2       button_size,
@@ -213,6 +240,120 @@ static bool EnhancedButton(const application& app,
         ImGui::SetTooltip("%s", msg);
 
     return click;
+}
+
+static void show_simulation_player(application&       app,
+                                   const unsigned     idx,
+                                   player_controller& c) noexcept
+{
+    if (auto busy = c.busy.test(std::memory_order_acquire); not busy) {
+        if (c.has_result) {
+            c.has_result = false;
+            c.shown      = c.fresh;
+
+            if (c.result.has_error()) {
+                c.current = player_controller::mode::paused;
+
+                log(log_level::error, [&](auto& m) noexcept {
+                    format(m, "Simulation player error: {}", c.result.error());
+                });
+            }
+        }
+
+        if (c.current == player_controller::mode::play) {
+            if (c.shown.finished) {
+                c.current = player_controller::mode::paused;
+            } else {
+                submit(app, idx, c,
+                       [steps        = c.steps_per_frame,
+                        frame_budget = c.frame_budget](auto& p) {
+                           return p.advance(frame_budget, steps);
+                       });
+            }
+        }
+
+        if (c.current == player_controller::mode::reverse) {
+            if (c.shown.can_back) {
+                submit(app, idx, c,
+                       [steps        = c.steps_per_frame,
+                        frame_budget = c.frame_budget](auto& p) {
+                           return p.retreat(frame_budget, steps);
+                       });
+            } else {
+                c.current = player_controller::mode::paused;
+            }
+        }
+    }
+
+    const auto size = ImGui::ComputeButtonSize(5);
+
+    if (not c.shown.started) {
+        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
+            submit(app, idx, c, [](auto& p) { return p.start(); });
+        return;
+    }
+
+    const auto busy = c.busy.test(std::memory_order_acquire);
+    ImGui::BeginDisabled(busy);
+    if (EnhancedButton(app, "\ue0c5##c", size, "Beginning")) {
+        c.current = player_controller::mode::paused;
+        submit(app, idx, c, [](auto& p) { return p.go_to(0); });
+    }
+
+    ImGui::SameLine();
+
+    if (EnhancedButton(app, "\ue02f##c", size, "Back")) {
+        c.current = player_controller::mode::paused;
+        submit(app, idx, c, [](auto& p) { return p.step_back(); });
+    }
+
+    ImGui::SameLine();
+
+    if (EnhancedButton(app, "\ue030##c", size, "Forward")) {
+        c.current = player_controller::mode::paused;
+        submit(app, idx, c, [](auto& p) { return p.step_forward(); });
+    }
+    ImGui::EndDisabled();
+
+    ImGui::SameLine();
+
+    if (EnhancedButton(app,
+                       c.current == player_controller::mode::play ? "\ue09e##c"
+                                                                  : "\ue034##c",
+                       size, "Play"))
+        c.current = (c.current == player_controller::mode::play)
+                      ? player_controller::mode::paused
+                      : player_controller::mode::play;
+
+    ImGui::SameLine();
+
+    if (EnhancedButton(app,
+                       c.current == player_controller::mode::reverse
+                         ? "\ue09e##r"
+                         : "\ue033##r",
+                       size, "Reverse"))
+        c.current = (c.current == player_controller::mode::reverse)
+                      ? player_controller::mode::paused
+                      : player_controller::mode::reverse;
+
+    auto zero = static_cast<ImU64>(0);
+    auto last = static_cast<ImU64>(c.shown.furthest);
+
+    if (not c.dragging)
+        c.target = c.shown.step;
+
+    ImGui::SliderScalar("step", ImGuiDataType_U64, &c.target, &zero, &last);
+    c.dragging = ImGui::IsItemActive();
+    if (ImGui::IsItemDeactivatedAfterEdit() and
+        not c.busy.test(std::memory_order_acquire)) {
+        c.current = player_controller::mode::paused;
+        submit(app, idx, c,
+               [target = c.target](auto& p) { return p.go_to(target); });
+    }
+
+    ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
+    if (busy)
+        ImGui::TextFormat("Work in progress...");
 }
 
 static void show_simulation_action_buttons(application&    app,
@@ -269,8 +410,6 @@ static void show_simulation_action_buttons(application&    app,
     }
     ImGui::EndDisabled();
 
-    ImGui::SameLine();
-
     // ImGui::BeginDisabled(can_be_stopped);
     // if (EnhancedButton(
     //       app,
@@ -280,24 +419,10 @@ static void show_simulation_action_buttons(application&    app,
     //     ed.force_stop = true;
     // ImGui::EndDisabled();
 
-    if (ed.pj.flags[project::simulation_flag::debug] and can_be_restarted) {
-        if (EnhancedButton(app, "\ue0c6", small_button,
-                           "Advance simulation step by step"))
-            ed.pj.simulation_step();
-
-        ImGui::SameLine();
-
-        // ImGui::BeginDisabled(ed.pj.empty_snapshots());
-        if (EnhancedButton(app, "\ue0b3", small_button,
-                           "Rewind into simulation states"))
-            ed.pj.simulation_back();
-
-        ImGui::SameLine();
-
-        if (EnhancedButton(app, "\ue05c", small_button,
-                           "Forward into simulation states"))
-            ed.pj.simulation_advance();
-        // ImGui::EndDisabled();
+    if (ed.pj.flags[project::simulation_flag::debug] /* and not start */) {
+        ImGui::SeparatorText("Debug mode");
+        show_simulation_player(app, get_index(app.pjs.get_id(ed)),
+                               ed.sim_player);
     }
 }
 

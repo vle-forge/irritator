@@ -10,6 +10,7 @@
 #include <irritator/global.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/simulation-player.hpp>
 #include <irritator/thread.hpp>
 
 #include <filesystem>
@@ -1021,6 +1022,39 @@ private:
     bool           show_file_dialog = false;
 };
 
+struct player_view {
+    u64    step;
+    u64    furthest;
+    time   t;
+    size_t keyframes;
+    size_t bytes;
+    bool   started;
+    bool   finished;
+    bool   can_back;
+};
+
+struct player_controller {
+    enum class mode : u8 { paused, play, reverse };
+
+    simulation_player player;
+
+    std::atomic_flag busy; ///< raised by the main thread, lowered by the task
+
+    mode   current = mode::paused; ///< main thread only
+    status result;                 ///< write by task before busy.clear()
+
+    /// time given to the simulation by frame.
+    std::chrono::milliseconds frame_budget{ 8 };
+    u64                       target = 0;
+    u64 steps_per_frame = { 1 }; ///< speed of "play" and "play backward".
+
+    player_view fresh{}; /// write by the task before @c busy.clear()
+    player_view shown{}; /// main thread copy, displayed during busy
+
+    bool dragging   = false;
+    bool has_result = false;
+};
+
 struct project_editor {
     enum class visualization_mode { flat, tree };
 
@@ -1106,6 +1140,8 @@ struct project_editor {
     /// For each simulation, and according to the @a save_simulation_raw_data,
     /// an output stream to store all model state during simulation.
     file raw_ofs;
+
+    player_controller sim_player;
 
     /** A local @c graph_editor to display the simulation graph component editor
      * (without observation). */
