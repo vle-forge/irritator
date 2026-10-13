@@ -15,7 +15,6 @@
 #include <irritator/macros.hpp>
 #include <irritator/random.hpp>
 #include <irritator/thread.hpp>
-#include <irritator/timeline.hpp>
 
 #include <optional>
 

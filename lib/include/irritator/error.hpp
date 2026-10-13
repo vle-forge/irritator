@@ -45,8 +45,6 @@ enum class simulation_errc : std::int16_t {
     range_error,  /**< ERANGE error, A value is not within the range of allowed
                      values. */
 
-    timeline_apply_change_error,
-
     file_access_error, /**< Build from registered, directory and file name
                           error. */
     file_eof_error,    /**< End of file reach too quickly. */

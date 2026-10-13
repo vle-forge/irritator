@@ -11,7 +11,6 @@
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/thread.hpp>
-#include <irritator/timeline.hpp>
 
 #include <filesystem>
 
@@ -1072,8 +1071,6 @@ struct project_editor {
     raw_data_type save_simulation_raw_data = raw_data_type::none;
 
     bool is_dock_init = false;
-
-    // timeline tl;
 
     real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;
