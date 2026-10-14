@@ -280,8 +280,18 @@ bool graph_component_editor_data::show_graph(application& app,
                 const auto e = selected_nodes.size();
                 for (sz i = 0; i < e; ++i) {
                     for (sz j = i + 1; j < e; ++j) {
-                        data.g.alloc_edge(selected_nodes[i], selected_nodes[j]);
-                        ++update;
+                        if (const auto ret = data.g.alloc_edge(
+                              selected_nodes[i], selected_nodes[j]);
+                            ret.has_error()) {
+                            log(log_level::error, [ret](auto& m) {
+                                format(m,
+                                       "graph-editor: fail to add more edge {}",
+                                       ret.error());
+                            });
+                            break;
+                        } else {
+                            ++update;
+                        }
                     }
                 }
                 selected_nodes.clear();
@@ -611,9 +621,19 @@ bool graph_component_editor_data::show_scale_free_menu(
                 if (m_graph_2nd.try_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
-                        new_graph.g.init_scale_free_graph(
+                        auto            ret = new_graph.g.init_scale_free_graph(
                           m_graph.scale.alpha, m_graph.scale.beta,
                           m_graph.scale.id, m_graph.scale.nodes, new_graph.rng);
+
+                        if (ret.has_error()) {
+                            log(log_level::error, [ret](auto& m) {
+                                format(m,
+                                       "graph-editor: fail to generate scale "
+                                       "free graph {}",
+                                       ret.error());
+                            });
+                        }
+
                         new_graph.scale = m_graph.scale;
                         new_graph
                           .g_type = graph_component::graph_type::scale_free;
@@ -684,9 +704,18 @@ bool graph_component_editor_data::show_small_world_menu(
                 if (m_graph_2nd.try_request()) {
                     app.add_gui_task([this]() {
                         graph_component new_graph;
-                        new_graph.g.init_small_world_graph(
-                          m_graph.small.probability, m_graph.small.k,
-                          m_graph.small.id, m_graph.small.nodes, new_graph.rng);
+                        if (const auto ret = new_graph.g.init_small_world_graph(
+                              m_graph.small.probability, m_graph.small.k,
+                              m_graph.small.id, m_graph.small.nodes,
+                              new_graph.rng);
+                            ret.has_error()) {
+                            log(log_level::error, [ret](auto& m) {
+                                format(m,
+                                       "graph-editor: fail to generate small "
+                                       "world graph {}",
+                                       ret.error());
+                            });
+                        }
                         new_graph.small = m_graph.small;
                         new_graph
                           .g_type = graph_component::graph_type::small_world;

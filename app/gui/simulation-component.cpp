@@ -11,7 +11,6 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
-
 namespace irt {
 
 void project_editor::update_simulation_state(application& app) noexcept
@@ -32,12 +31,11 @@ void project_editor::update_simulation_state(application& app) noexcept
 
     if (required_run) {
         pj.simulation_state = simulation_status::run_requiring;
-        const auto pj_id = app.pjs.get_id(*this);
+        const auto pj_id    = app.pjs.get_id(*this);
 
         app.add_simulation_task(ordinal(pj_id), [&]() {
-            pj.simulation_run_for(app.get_unordered_task_list(),
-                                  simulation_task_duration,
-                                  force_pause);
+            (void)pj.simulation_run_for(app.get_unordered_task_list(),
+                                        simulation_task_duration, force_pause);
         });
     } else if (required_finish) {
         pj.simulation_state = simulation_status::finish_requiring;
@@ -105,10 +103,9 @@ void project_editor::run_bag_simulation(application& app) noexcept
 
 void project_editor::run_simulation(application& app) noexcept
 {
-    const auto can_run = any_equal(pj.simulation_state,
-                                   simulation_status::initialized,
-                                   simulation_status::run_requiring,
-                                   simulation_status::paused);
+    const auto can_run = any_equal(
+      pj.simulation_state, simulation_status::initialized,
+      simulation_status::run_requiring, simulation_status::paused);
 
     debug::ensure(can_run);
 
@@ -119,10 +116,9 @@ void project_editor::run_simulation(application& app) noexcept
             app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
                 force_pause = false;
 
-                (void)pj.simulation_live_run(app.get_unordered_task_list(),
-                                             one_simulation_time_duration,
-                                             simulation_task_duration,
-                                             force_pause);
+                (void)pj.simulation_live_run(
+                  app.get_unordered_task_list(), one_simulation_time_duration,
+                  simulation_task_duration, force_pause);
             });
         } else {
             app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
@@ -138,8 +134,8 @@ void project_editor::run_simulation(application& app) noexcept
 
 void project_editor::pause_simulation() noexcept
 {
-    const auto state =
-      any_equal(pj.simulation_state, simulation_status::running);
+    const auto state = any_equal(pj.simulation_state,
+                                 simulation_status::running);
 
     debug::ensure(state);
 
@@ -149,8 +145,8 @@ void project_editor::pause_simulation() noexcept
 
 void project_editor::finish_simulation(application& app) noexcept
 {
-    const auto state =
-      pj.simulation_state == simulation_status::finish_requiring;
+    const auto state = pj.simulation_state ==
+                       simulation_status::finish_requiring;
 
     debug::ensure(state);
 

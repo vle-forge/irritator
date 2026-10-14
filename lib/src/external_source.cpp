@@ -5,6 +5,7 @@
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/format.hpp>
 #include <irritator/random.hpp>
 
 #include <filesystem>
@@ -21,11 +22,11 @@ external_source_definition::alloc_constant_source(
     debug::ensure(data.can_alloc(1));
 
     const auto id = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type =
-      source_type::constant;
+    data.get<external_source_definition::source_element>(id)
+      .type                = source_type::constant;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).cst =
-      constant_source{};
+    data.get<external_source_definition::source_element>(id)
+      .cst = constant_source{};
 
     return data.get<external_source_definition::source_element>(id).cst;
 }
@@ -36,11 +37,11 @@ external_source_definition::alloc_binary_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type =
-      source_type::binary_file;
+    data.get<external_source_definition::source_element>(id)
+      .type                = source_type::binary_file;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).bin =
-      binary_source{};
+    data.get<external_source_definition::source_element>(id)
+      .bin = binary_source{};
 
     return data.get<external_source_definition::source_element>(id).bin;
 }
@@ -51,11 +52,11 @@ external_source_definition::alloc_text_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type =
-      source_type::text_file;
+    data.get<external_source_definition::source_element>(id)
+      .type                = source_type::text_file;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).txt =
-      text_source{};
+    data.get<external_source_definition::source_element>(id)
+      .txt = text_source{};
 
     return data.get<external_source_definition::source_element>(id).txt;
 }
@@ -66,11 +67,11 @@ external_source_definition::alloc_random_source(std::string_view name) noexcept
     debug::ensure(data.can_alloc(1));
 
     const auto id = data.alloc_id();
-    data.get<external_source_definition::source_element>(id).type =
-      source_type::random;
+    data.get<external_source_definition::source_element>(id)
+      .type                = source_type::random;
     data.get<name_str>(id) = name;
-    data.get<external_source_definition::source_element>(id).rnd =
-      random_source{};
+    data.get<external_source_definition::source_element>(id)
+      .rnd = random_source{};
 
     return data.get<external_source_definition::source_element>(id).rnd;
 }
@@ -79,14 +80,14 @@ constant_source::constant_source(const constant_source& other) noexcept
   : name(other.name)
   , length(other.length)
 {
-    std::copy_n(
-      std::data(other.buffer), std::size(other.buffer), std::data(buffer));
+    std::copy_n(std::data(other.buffer), std::size(other.buffer),
+                std::data(buffer));
 }
 
 constant_source::constant_source(std::span<const real> src) noexcept
 {
-    const auto len =
-      std::min(src.size(), static_cast<size_t>(external_source_chunk_size));
+    const auto len = std::min(src.size(),
+                              static_cast<size_t>(external_source_chunk_size));
 
     std::copy_n(src.data(), len, std::data(buffer));
     length = static_cast<u32>(len);
@@ -517,17 +518,17 @@ status random_source::update(source& src, source_data& data) noexcept
 
     switch (distribution) {
     case distribution_type::uniform_int:
-        data.chunk_real[0] =
-          std::uniform_int_distribution(ints[0], ints[1])(rng);
-        data.chunk_real[1] =
-          std::uniform_int_distribution(ints[0], ints[1])(rng);
+        data.chunk_real[0] = std::uniform_int_distribution(ints[0],
+                                                           ints[1])(rng);
+        data.chunk_real[1] = std::uniform_int_distribution(ints[0],
+                                                           ints[1])(rng);
         break;
 
     case distribution_type::uniform_real:
-        data.chunk_real[0] =
-          std::uniform_real_distribution(reals[0], reals[1])(rng);
-        data.chunk_real[1] =
-          std::uniform_real_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::uniform_real_distribution(reals[0],
+                                                            reals[1])(rng);
+        data.chunk_real[1] = std::uniform_real_distribution(reals[0],
+                                                            reals[1])(rng);
         break;
 
     case distribution_type::bernouilli:
@@ -541,10 +542,10 @@ status random_source::update(source& src, source_data& data) noexcept
         break;
 
     case distribution_type::negative_binomial:
-        data.chunk_real[0] =
-          std::negative_binomial_distribution(ints[0], reals[0])(rng);
-        data.chunk_real[0] =
-          std::negative_binomial_distribution(ints[0], reals[0])(rng);
+        data.chunk_real[0] = std::negative_binomial_distribution(ints[0],
+                                                                 reals[0])(rng);
+        data.chunk_real[0] = std::negative_binomial_distribution(ints[0],
+                                                                 reals[0])(rng);
         break;
 
     case distribution_type::geometric:
@@ -573,10 +574,10 @@ status random_source::update(source& src, source_data& data) noexcept
         break;
 
     case distribution_type::exterme_value:
-        data.chunk_real[0] =
-          std::extreme_value_distribution(reals[0], reals[1])(rng);
-        data.chunk_real[0] =
-          std::extreme_value_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::extreme_value_distribution(reals[0],
+                                                             reals[1])(rng);
+        data.chunk_real[0] = std::extreme_value_distribution(reals[0],
+                                                             reals[1])(rng);
         break;
 
     case distribution_type::normal:
@@ -585,10 +586,10 @@ status random_source::update(source& src, source_data& data) noexcept
         break;
 
     case distribution_type::lognormal:
-        data.chunk_real[0] =
-          std::lognormal_distribution(reals[0], reals[1])(rng);
-        data.chunk_real[0] =
-          std::lognormal_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::lognormal_distribution(reals[0],
+                                                         reals[1])(rng);
+        data.chunk_real[0] = std::lognormal_distribution(reals[0],
+                                                         reals[1])(rng);
         break;
 
     case distribution_type::chi_squared:
@@ -602,10 +603,10 @@ status random_source::update(source& src, source_data& data) noexcept
         break;
 
     case distribution_type::fisher_f:
-        data.chunk_real[0] =
-          std::fisher_f_distribution(reals[0], reals[1])(rng);
-        data.chunk_real[1] =
-          std::fisher_f_distribution(reals[0], reals[1])(rng);
+        data.chunk_real[0] = std::fisher_f_distribution(reals[0],
+                                                        reals[1])(rng);
+        data.chunk_real[1] = std::fisher_f_distribution(reals[0],
+                                                        reals[1])(rng);
         break;
 
     case distribution_type::student_t:
@@ -625,7 +626,15 @@ void random_source::fill(std::span<real>    buffer,
     source_data source_data{ data };
 
     for (sz i = 0u; i < buffer.size(); i += 2u) {
-        update(source_copy, source_data);
+        if (const auto ret = update(source_copy, source_data);
+            ret.has_error()) {
+            log(log_level::error, [&](auto& m) {
+                format(m, "Error while updating random source: {}",
+                       ret.error());
+            });
+
+            break;
+        }
 
         buffer[i]     = source_data.chunk_real[0];
         buffer[i + 1] = source_data.chunk_real[1];
@@ -698,14 +707,14 @@ static std::span<real> random_fill(const random_factor& f,
     switch (f.dist) {
     case distribution_type::uniform_int:
         for (sz i = 0, e = values.size(); i != e; ++i)
-            values[i] =
-              std::uniform_int_distribution(f.ints[0], f.ints[1])(rng);
+            values[i] = std::uniform_int_distribution(f.ints[0],
+                                                      f.ints[1])(rng);
 
         break;
     case distribution_type::uniform_real:
         for (sz i = 0, e = values.size(); i != e; ++i)
-            values[i] =
-              std::uniform_real_distribution(f.reals[0], f.reals[1])(rng);
+            values[i] = std::uniform_real_distribution(f.reals[0],
+                                                       f.reals[1])(rng);
 
         break;
     case distribution_type::bernouilli:
@@ -721,8 +730,8 @@ static std::span<real> random_fill(const random_factor& f,
         break;
     case distribution_type::negative_binomial:
         for (sz i = 0, e = values.size(); i != e; ++i)
-            values[i] =
-              std::negative_binomial_distribution(f.ints[0], f.reals[0])(rng);
+            values[i] = std::negative_binomial_distribution(f.ints[0],
+                                                            f.reals[0])(rng);
 
         break;
     case distribution_type::geometric:
@@ -752,8 +761,8 @@ static std::span<real> random_fill(const random_factor& f,
         break;
     case distribution_type::exterme_value:
         for (sz i = 0, e = values.size(); i != e; ++i)
-            values[i] =
-              std::extreme_value_distribution(f.reals[0], f.reals[1])(rng);
+            values[i] = std::extreme_value_distribution(f.reals[0],
+                                                        f.reals[1])(rng);
 
         break;
     case distribution_type::normal:
@@ -763,8 +772,8 @@ static std::span<real> random_fill(const random_factor& f,
         break;
     case distribution_type::lognormal:
         for (sz i = 0, e = values.size(); i != e; ++i)
-            values[i] =
-              std::lognormal_distribution(f.reals[0], f.reals[1])(rng);
+            values[i] = std::lognormal_distribution(f.reals[0],
+                                                    f.reals[1])(rng);
 
         break;
     case distribution_type::chi_squared:

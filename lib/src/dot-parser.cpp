@@ -417,8 +417,13 @@ public:
       , strings{ 64 }
       , is{ stream }
     {
-        if (start_fill_tokens)
-            fill_tokens();
+        if (start_fill_tokens) {
+            if (const auto ret = fill_tokens(); ret.has_error()) {
+                log(log_level::error, [&](auto& msg) {
+                    format(msg, "dot-parser: {}", ret.error());
+                });
+            }
+        }
     }
 
 private:
@@ -626,7 +631,7 @@ private:
     bool next_token_is(const element_type type) noexcept
     {
         if (tokens.empty())
-            fill_tokens();
+            (void)fill_tokens();
 
         if (tokens.empty())
             return error<msg_id::missing_token>(line);
@@ -639,7 +644,7 @@ private:
     bool next_token_is_string() noexcept
     {
         if (tokens.empty())
-            fill_tokens();
+            (void)fill_tokens();
 
         if (tokens.empty())
             return error<msg_id::missing_token>(line);
@@ -733,7 +738,7 @@ private:
         if (std::cmp_greater_equal(tokens.size(), nb))
             return true;
 
-        fill_tokens();
+        (void)fill_tokens();
 
         return std::cmp_greater_equal(tokens.size(), nb);
     }
@@ -1239,7 +1244,7 @@ private:
 public:
     expected<graph> parse() noexcept
     {
-        fill_tokens();
+        (void)fill_tokens();
 
         if (parse_graph())
             return std::move(g);

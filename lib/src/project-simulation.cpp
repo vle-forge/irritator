@@ -589,13 +589,14 @@ status project::simulation_new_observer(
         if (sim.observers.exists(mdl->obs_id))
             return success();
 
-        if (sim.observers.can_alloc(1) or sim.observers.grow<3, 2>(1)) {
-            sim.observe(*mdl);
-        } else {
+        if (const auto ret = sim.observe(*mdl); ret.has_error()) {
             log(log_level::error, [&](auto& m) noexcept {
-                format(m, "Failed to allocate observer. (capacity:{})",
-                       sim.observers.capacity());
+                format(m,
+                       "Failed to allocate observer. (error: {} capacity:{})",
+                       ret.error(), sim.observers.capacity());
             });
+
+            return ret.error();
         }
     } else {
         log(log_level::error, [&](auto& msg) noexcept {
@@ -657,40 +658,47 @@ status project::simulation_send_message(
 
 status project::simulation_apply_command() noexcept
 {
+    auto ret = success();
+
     commands.for_each([&](const command& cmd) noexcept {
+        auto r = success();
+
         switch (cmd.type) {
         case command_type::none:
             break;
         case command_type::new_model:
-            simulation_new_model(cmd.data.new_model);
+            r = simulation_new_model(cmd.data.new_model);
             break;
         case command_type::free_model:
-            simulation_free_model(cmd.data.free_model);
+            r = simulation_free_model(cmd.data.free_model);
             break;
         case command_type::copy_model:
-            simulation_copy_model(cmd.data.copy_model);
+            r = simulation_copy_model(cmd.data.copy_model);
             break;
         case command_type::new_connection:
-            simulation_new_connection(cmd.data.new_connection);
+            r = simulation_new_connection(cmd.data.new_connection);
             break;
         case command_type::free_connection:
-            simulation_free_connection(cmd.data.free_connection);
+            r = simulation_free_connection(cmd.data.free_connection);
             break;
         case command_type::new_observer:
-            simulation_new_observer(cmd.data.new_observer);
+            r = simulation_new_observer(cmd.data.new_observer);
             break;
         case command_type::free_observer:
-            simulation_free_observer(cmd.data.free_observer);
+            r = simulation_free_observer(cmd.data.free_observer);
             break;
         case command_type::send_message:
-            simulation_send_message(cmd.data.send_message);
+            r = simulation_send_message(cmd.data.send_message);
             break;
         }
+
+        if (r.has_error() and ret.has_error())
+            ret = r;
     });
 
     commands.clear();
 
-    return success();
+    return ret;
 }
 
 bool project::push(const command& cmd) noexcept

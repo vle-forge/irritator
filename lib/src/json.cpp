@@ -8751,7 +8751,7 @@ status json_archiver::operator()(project&                pj,
                                 rapidjson::kWriteNanAndInfFlag>
           w(rbuffer);
         w.SetIndent(' ', 2);
-        i.do_project_save(w, pj, files, ids, head_id);
+        irt_check(i.do_project_save(w, pj, files, ids, head_id));
     } break;
 
     case print_option::indent_2_one_line_array: {
@@ -8761,7 +8761,7 @@ status json_archiver::operator()(project&                pj,
           w(rbuffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        i.do_project_save(w, pj, files, ids, head_id);
+        irt_check(i.do_project_save(w, pj, files, ids, head_id));
     } break;
 
     default: {
@@ -8769,7 +8769,7 @@ status json_archiver::operator()(project&                pj,
                           rapidjson::UTF8<>, rapidjson::CrtAllocator,
                           rapidjson::kWriteNanAndInfFlag>
           w(rbuffer);
-        i.do_project_save(w, pj, files, ids, head_id);
+        irt_check(i.do_project_save(w, pj, files, ids, head_id));
     } break;
     }
 
