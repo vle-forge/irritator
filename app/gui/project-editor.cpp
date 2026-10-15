@@ -23,7 +23,7 @@ namespace irt {
 project_editor::project_editor(const std::string_view default_name,
                                project&&              project_) noexcept
   : pj(std::move(project_))
-  , sim_player{ .player{ pj.sim } }
+  , sim_player{ pj.sim }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {

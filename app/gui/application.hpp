@@ -1033,8 +1033,14 @@ struct player_view {
     bool   can_back;
 };
 
-struct player_controller {
+class player_controller
+{
+public:
     enum class mode : u8 { paused, play, reverse };
+
+    player_controller(simulation& sim) noexcept
+        : player(sim)
+    {}
 
     simulation_player player;
 
