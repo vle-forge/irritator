@@ -44,21 +44,17 @@ irt::expected<irt::vector<char>> irt_write_dot_buffer(const irt::modeling& mod,
 
 static auto get_connection_number(const irt::simulation& sim) noexcept
 {
-    const auto block_node_number =
-      std::accumulate(sim.nodes.begin(),
-                      sim.nodes.end(),
-                      std::size_t(0u),
-                      [](std::size_t acc, const irt::block_node& elem) {
-                          return acc + elem.nodes.size();
-                      });
+    const auto block_node_number = std::accumulate(
+      sim.nodes.begin(), sim.nodes.end(), std::size_t(0u),
+      [](std::size_t acc, const irt::block_node& elem) {
+          return acc + elem.nodes.size();
+      });
 
-    const auto output_port_number =
-      std::accumulate(sim.output_ports.begin(),
-                      sim.output_ports.end(),
-                      std::size_t(0u),
-                      [](std::size_t acc, const irt::output_port& port) {
-                          return acc + port.connections.size();
-                      });
+    const auto output_port_number = std::accumulate(
+      sim.output_ports.begin(), sim.output_ports.end(), std::size_t(0u),
+      [](std::size_t acc, const irt::output_port& port) {
+          return acc + port.connections.size();
+      });
 
     return block_node_number + output_port_number;
 }
@@ -137,10 +133,10 @@ static void simulation_component_tester(
 
         expect(fatal(fs.file_paths.can_alloc(3)));
 
-        gen_component_file_id = fs.alloc_file(
-          dir_id, "gen-compo.irt", irt::file_type::component_file);
-        project_file_id =
-          fs.alloc_file(dir_id, "project.pirt", irt::file_type::project_file);
+        gen_component_file_id = fs.alloc_file(dir_id, "gen-compo.irt",
+                                              irt::file_type::component_file);
+        project_file_id       = fs.alloc_file(dir_id, "project.pirt",
+                                              irt::file_type::project_file);
     });
 
     const auto gen_compo = mod.ids.write([&](auto& ids) {
@@ -167,20 +163,21 @@ static void simulation_component_tester(
         gen.children_parameters[cst_a_id].set_constant(-1.0, 0.5);
         gen.children_parameters[cst_b_id].set_constant(-1.0, 1.0);
 
-        gen.connect(cst_a,
-                    irt::connection::port{ .model = 0 },
-                    adder,
-                    irt::connection::port{ .model = 0 });
+        expect(fatal(gen
+                       .connect(cst_a, irt::connection::port{ .model = 0 },
+                                adder, irt::connection::port{ .model = 0 })
+                       .has_value()));
 
-        gen.connect(cst_b,
-                    irt::connection::port{ .model = 0 },
-                    adder,
-                    irt::connection::port{ .model = 1 });
+        expect(fatal(gen
+                       .connect(cst_b, irt::connection::port{ .model = 0 },
+                                adder, irt::connection::port{ .model = 1 })
+                       .has_value()));
 
         ids.component_file_paths[compo_id].file = gen_component_file_id;
 
-        mod.files.read(
-          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+        mod.files.read([&](const auto& fs, auto) {
+            expect(mod.save(ids, fs, compo_id).has_value());
+        });
 
         return compo_id;
     });
@@ -192,17 +189,16 @@ static void simulation_component_tester(
             pj.sim.limits.set_bound(0, 2);
 
             expect(pj.set(ids, fs, gen_compo).has_value());
-
             expect(pj.save(fs, ids).has_value());
         });
     });
 
     expect(fatal(mod.fill_components().has_value()));
 
-    irt::file_path_id simulation_component_file_id =
-      mod.files.write([&](auto& fs) {
-          return fs.alloc_file(
-            dir_id, "sim-compo.irt", irt::file_type::component_file);
+    irt::file_path_id simulation_component_file_id = mod.files.write(
+      [&](auto& fs) {
+          return fs.alloc_file(dir_id, "sim-compo.irt",
+                               irt::file_type::component_file);
       });
 
     const auto sim_compo = mod.ids.write([&](auto& ids) {
@@ -213,8 +209,7 @@ static void simulation_component_tester(
         mod.files.read([&](const auto& fs, auto) {
             auto exp_pj = irt::project::load(fs, ids, project_file_id);
             expect(fatal(exp_pj.has_value()));
-
-            sim.assign(std::move(*exp_pj));
+            expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
         });
 
         expect(fatal(eq(sim.factors.size(), 2u)));
@@ -256,8 +251,8 @@ static void simulation_component_tester(
         }();
 
         sim.selections.template get<irt::name_str>(plus) = "+";
-        sim.selections.template get<irt::criteria_type>(plus) =
-          irt::criteria_type::max;
+        sim.selections.template get<irt::criteria_type>(
+          plus) = irt::criteria_type::max;
 
         sim.objective.method                = irt::optimization_method::simple;
         sim.objective.type                  = irt::optimization_type::maximize;
@@ -267,18 +262,19 @@ static void simulation_component_tester(
 
         ids.component_file_paths[compo_id].file = simulation_component_file_id;
 
-        mod.files.read(
-          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+        });
 
         return compo_id;
     });
 
     expect(fatal(mod.fill_components().has_value()));
 
-    irt::file_path_id simulation_wrapper_file_id =
-      mod.files.write([&](auto& fs) {
-          return fs.alloc_file(
-            dir_id, "sim-wrapper.irt", irt::file_type::component_file);
+    irt::file_path_id simulation_wrapper_file_id = mod.files.write(
+      [&](auto& fs) {
+          return fs.alloc_file(dir_id, "sim-wrapper.irt",
+                               irt::file_type::component_file);
       });
 
     const auto sim_wrapper_compo = mod.ids.write([&](auto& ids) {
@@ -313,40 +309,31 @@ static void simulation_component_tester(
         gen.children_parameters[cst_run_id].set_constant(0.0, 1.0);
 
         gen.children_parameters[sim_w_id]
-          .integers[irt::simulation_wrapper_tag::run] =
-          ordinal(irt::simulation_wrapper::run_type::complete);
+          .integers[irt::simulation_wrapper_tag::run] = ordinal(
+          irt::simulation_wrapper::run_type::complete);
         gen.children_parameters[sim_w_id]
           .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
 
-        gen.connect(cst_init,
-                    irt::connection::port{ .model = 0 },
-                    sim_w,
-                    irt::connection::port{ .model = 0 });
+        (void)gen.connect(cst_init, irt::connection::port{ .model = 0 }, sim_w,
+                          irt::connection::port{ .model = 0 });
 
-        gen.connect(cst_run,
-                    irt::connection::port{ .model = 0 },
-                    sim_w,
-                    irt::connection::port{ .model = 1 });
+        (void)gen.connect(cst_run, irt::connection::port{ .model = 0 }, sim_w,
+                          irt::connection::port{ .model = 1 });
 
-        gen.connect(sim_w,
-                    irt::connection::port{ .model = 0 },
-                    cpt_1,
-                    irt::connection::port{ .model = 0 });
+        (void)gen.connect(sim_w, irt::connection::port{ .model = 0 }, cpt_1,
+                          irt::connection::port{ .model = 0 });
 
-        gen.connect(sim_w,
-                    irt::connection::port{ .model = 1 },
-                    cpt_2,
-                    irt::connection::port{ .model = 0 });
+        (void)gen.connect(sim_w, irt::connection::port{ .model = 1 }, cpt_2,
+                          irt::connection::port{ .model = 0 });
 
-        gen.connect(sim_w,
-                    irt::connection::port{ .model = 2 },
-                    cpt_3,
-                    irt::connection::port{ .model = 0 });
+        (void)gen.connect(sim_w, irt::connection::port{ .model = 2 }, cpt_3,
+                          irt::connection::port{ .model = 0 });
 
         ids.component_file_paths[compo_id].file = simulation_wrapper_file_id;
 
-        mod.files.read(
-          [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+        });
 
         return compo_id;
     });
@@ -398,11 +385,8 @@ static void simulation_component_tester(
         const auto& mdl = pj.sim.models.get(mdl_id);
         const auto& cpt = irt::get_dyn<irt::counter>(mdl);
 
-        fmt::print("{:6} {:6} {:6} {:6}\n",
-                   irt::get_index(mdl_id),
-                   cpt.event_number,
-                   cpt.last_value,
-                   cpt.sum_values);
+        fmt::print("{:6} {:6} {:6} {:6}\n", irt::get_index(mdl_id),
+                   cpt.event_number, cpt.last_value, cpt.sum_values);
 
         // @TODO use approx until observer interpolate-type for the qss1_sum_2
         // used in the generic component use the linear interpolate.
@@ -478,16 +462,16 @@ int main()
                 auto  component_id = ids.alloc_generic_component();
                 auto& component    = ids.components[component_id];
 
-                auto& generic =
-                  ids.generic_components.get(component.id.generic_id);
+                auto& generic = ids.generic_components.get(
+                  component.id.generic_id);
                 expect(fatal(generic.children.can_alloc(5) or
                              generic.children.reserve(5)));
 
                 auto& generator = generic.alloc(irt::dynamics_type::generator);
-                auto& priority_queue =
-                  generic.alloc(irt::dynamics_type::priority_queue);
-                auto& dynamic_queue =
-                  generic.alloc(irt::dynamics_type::dynamic_queue);
+                auto& priority_queue = generic.alloc(
+                  irt::dynamics_type::priority_queue);
+                auto& dynamic_queue = generic.alloc(
+                  irt::dynamics_type::dynamic_queue);
 
                 const auto gen_id = generic.children.get_id(generator);
                 const auto pri_id = generic.children.get_id(priority_queue);
@@ -500,42 +484,38 @@ int main()
                 const auto prio_src_id  = component.srcs.data.alloc_id();
                 const auto dyn_src_id   = component.srcs.data.alloc_id();
 
-                component.srcs.emplace(
-                  gen_src_1_id, irt::source_type::constant, "generator-1");
+                component.srcs.emplace(gen_src_1_id, irt::source_type::constant,
+                                       "generator-1");
 
-                component.srcs.emplace(
-                  gen_src_2_id, irt::source_type::constant, "generator-2");
+                component.srcs.emplace(gen_src_2_id, irt::source_type::constant,
+                                       "generator-2");
 
-                component.srcs.emplace(
-                  prio_src_id, irt::source_type::constant, "priority-queue");
+                component.srcs.emplace(prio_src_id, irt::source_type::constant,
+                                       "priority-queue");
 
-                component.srcs.emplace(
-                  dyn_src_id, irt::source_type::constant, "dynamic-queue");
+                component.srcs.emplace(dyn_src_id, irt::source_type::constant,
+                                       "dynamic-queue");
 
-                auto& gen_src_1 =
-                  component.srcs.data
-                    .template get<
-                      irt::external_source_definition::source_element>(
-                      gen_src_1_id)
-                    .cst;
-                auto& gen_src_2 =
-                  component.srcs.data
-                    .template get<
-                      irt::external_source_definition::source_element>(
-                      gen_src_2_id)
-                    .cst;
-                auto& prio_src =
-                  component.srcs.data
-                    .template get<
-                      irt::external_source_definition::source_element>(
-                      prio_src_id)
-                    .cst;
-                auto& dyn_src =
-                  component.srcs.data
-                    .template get<
-                      irt::external_source_definition::source_element>(
-                      dyn_src_id)
-                    .cst;
+                auto&
+                  gen_src_1 = component.srcs.data
+                                .template get<irt::external_source_definition::
+                                                source_element>(gen_src_1_id)
+                                .cst;
+                auto&
+                  gen_src_2 = component.srcs.data
+                                .template get<irt::external_source_definition::
+                                                source_element>(gen_src_2_id)
+                                .cst;
+                auto&
+                  prio_src = component.srcs.data
+                               .template get<irt::external_source_definition::
+                                               source_element>(prio_src_id)
+                               .cst;
+                auto&
+                  dyn_src = component.srcs.data
+                              .template get<irt::external_source_definition::
+                                              source_element>(dyn_src_id)
+                              .cst;
 
                 gen_src_1.data.resize(3, 1.0);
                 gen_src_2.data.resize(3, 2.0);
@@ -564,10 +544,9 @@ int main()
 
                     expect(fs.file_paths.can_alloc(1));
 
-                    auto file_id =
-                      fs.alloc_file(dir_id,
-                                    "external-source.irt",
-                                    irt::file_type::component_file);
+                    auto file_id = fs.alloc_file(
+                      dir_id, "external-source.irt",
+                      irt::file_type::component_file);
 
                     ids.component_file_paths[component_id].file = file_id;
                 });
@@ -609,17 +588,17 @@ int main()
                 expect(ge(ids.size(), 1u));
                 expect(ge(ids.generic_components.size(), 1u));
 
-                const auto p_id =
-                  mod.files.read([&](const irt::file_access& fs,
-                                     const auto /*vers*/) noexcept {
+                const auto p_id = mod.files.read(
+                  [&](const irt::file_access& fs,
+                      const auto /*vers*/) noexcept {
                       return fs.find_directory("test"sv);
                   });
 
                 expect(fatal(irt::is_defined(p_id)));
 
-                const auto f_id =
-                  mod.files.read([&](const irt::file_access& fs,
-                                     const auto /*vers*/) noexcept {
+                const auto f_id = mod.files.read(
+                  [&](const irt::file_access& fs,
+                      const auto /*vers*/) noexcept {
                       return fs.find_file_in_directory(p_id,
                                                        "external-source.irt");
                   });
@@ -638,8 +617,8 @@ int main()
 
                 expect(fatal(component.type == irt::component_type::generic));
 
-                auto& generic =
-                  ids.generic_components.get(component.id.generic_id);
+                auto& generic = ids.generic_components.get(
+                  component.id.generic_id);
                 expect(eq(generic.children.size(), 3u));
                 expect(eq(component.srcs.data.size(), 4u));
 
@@ -701,26 +680,24 @@ int main()
             auto& s1    = ids.generic_components.get(c1.id.generic_id);
             auto& ch1   = s1.alloc(irt::dynamics_type::counter);
             auto  p1_id = c1.get_or_add_x("in");
-            expect(!!s1.connect_input(
-              p1_id, ch1, irt::connection::port{ .model = 0 }));
+            expect(!!s1.connect_input(p1_id, ch1,
+                                      irt::connection::port{ .model = 0 }));
 
             auto  c2_id = ids.alloc_generic_component();
             auto& c2    = ids.components[c2_id];
             auto& s2    = ids.generic_components.get(c2.id.generic_id);
             auto& ch2   = s2.alloc(irt::dynamics_type::time_func);
             auto  p2_id = c2.get_or_add_y("out");
-            expect(!!s2.connect_output(
-              p2_id, ch2, irt::connection::port{ .model = 0 }));
+            expect(!!s2.connect_output(p2_id, ch2,
+                                       irt::connection::port{ .model = 0 }));
 
             c3_id      = ids.alloc_generic_component();
             auto& c3   = ids.components[c3_id];
             auto& s3   = ids.generic_components.get(c3.id.generic_id);
             auto& ch31 = s3.alloc(c2_id);
             auto& ch32 = s3.alloc(c1_id);
-            expect(!!s3.connect(ch31,
-                                irt::connection::port{ .compo = p2_id },
-                                ch32,
-                                irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect(ch31, irt::connection::port{ .compo = p2_id },
+                                ch32, irt::connection::port{ .compo = p1_id }));
 
             expect(eq(s1.children.ssize(), 1));
             expect(eq(s2.children.ssize(), 1));
@@ -830,8 +807,7 @@ int main()
             auto& ch31 = s3.alloc(c22_id);
             auto& ch32 = s3.alloc(c11_id);
 
-            expect(!!s3.connect(ch31,
-                                irt::connection::port{ .compo = p22_id },
+            expect(!!s3.connect(ch31, irt::connection::port{ .compo = p22_id },
                                 ch32,
                                 irt::connection::port{ .compo = p11_id }));
         });
@@ -942,10 +918,10 @@ int main()
             const auto port_in  = c.get_or_add_x("in");
             const auto port_out = c.get_or_add_y("out");
 
-            expect(!!s.connect_input(
-              port_in, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_output(
-              port_out, child, irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_output(port_out, child,
+                                      irt::connection::port{ .model = 0 }));
 
             cg_id         = ids.alloc_graph_component();
             auto& cg      = ids.components[cg_id];
@@ -990,14 +966,14 @@ int main()
             const auto port_out_m = c.get_or_add_y("m");
             const auto port_out_n = c.get_or_add_y("n");
 
-            expect(!!s.connect_input(
-              port_in_m, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_output(
-              port_out_m, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_output(
-              port_out_n, child, irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_output(port_out_m, child,
+                                      irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_output(port_out_n, child,
+                                      irt::connection::port{ .model = 1 }));
 
             cg_id         = ids.alloc_graph_component();
             auto& cg      = ids.components[cg_id];
@@ -1051,30 +1027,30 @@ int main()
             const auto port_out_m = c.get_or_add_y("m");
             const auto port_out_n = c.get_or_add_y("n");
 
-            expect(!!s.connect_input(
-              port_in_m, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_input(
-              port_in_m0, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n0, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_input(
-              port_in_m1, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n1, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_input(
-              port_in_m2, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n2, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_input(
-              port_in_m3, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_input(
-              port_in_n3, child, irt::connection::port{ .model = 1 }));
-            expect(!!s.connect_output(
-              port_out_m, child, irt::connection::port{ .model = 0 }));
-            expect(!!s.connect_output(
-              port_out_n, child, irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m0, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n0, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m1, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n1, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m2, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n2, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_input(port_in_m3, child,
+                                     irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_input(port_in_n3, child,
+                                     irt::connection::port{ .model = 1 }));
+            expect(!!s.connect_output(port_out_m, child,
+                                      irt::connection::port{ .model = 0 }));
+            expect(!!s.connect_output(port_out_n, child,
+                                      irt::connection::port{ .model = 1 }));
 
             cg_id         = ids.alloc_graph_component();
             auto& cg      = ids.components[cg_id];
@@ -1188,26 +1164,24 @@ int main()
             auto& s1    = ids.generic_components.get(c1.id.generic_id);
             auto& ch1   = s1.alloc(irt::dynamics_type::counter);
             auto  p1_id = c1.get_or_add_x("in");
-            expect(!!s1.connect_input(
-              p1_id, ch1, irt::connection::port{ .model = 0 }));
+            expect(!!s1.connect_input(p1_id, ch1,
+                                      irt::connection::port{ .model = 0 }));
 
             c2_id       = ids.alloc_generic_component();
             auto& c2    = ids.components[c2_id];
             auto& s2    = ids.generic_components.get(c2.id.generic_id);
             auto& ch2   = s2.alloc(irt::dynamics_type::time_func);
             auto  p2_id = c2.get_or_add_y("out");
-            expect(!!s2.connect_output(
-              p2_id, ch2, irt::connection::port{ .model = 0 }));
+            expect(!!s2.connect_output(p2_id, ch2,
+                                       irt::connection::port{ .model = 0 }));
 
             c3_id      = ids.alloc_generic_component();
             auto& c3   = ids.components[c3_id];
             auto& s3   = ids.generic_components.get(c3.id.generic_id);
             auto& ch31 = s3.alloc(c2_id);
             auto& ch32 = s3.alloc(c1_id);
-            expect(!!s3.connect(ch31,
-                                irt::connection::port{ .compo = p2_id },
-                                ch32,
-                                irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect(ch31, irt::connection::port{ .compo = p2_id },
+                                ch32, irt::connection::port{ .compo = p1_id }));
 
             cg_id    = ids.alloc_grid_component();
             auto& cg = ids.components[cg_id];
@@ -1267,10 +1241,7 @@ int main()
             mod.ids.read([&](const auto& ids, auto) noexcept {
                 irt::json_archiver j;
                 expect(
-                  j(pj,
-                    files,
-                    ids,
-                    buffer,
+                  j(pj, files, ids, buffer,
                     irt::json_archiver::print_option::indent_2_one_line_array)
                     .has_value());
             });
@@ -1390,10 +1361,9 @@ int main()
 
                         const auto filename = irt::format_n<64>(
                           "{}.irt", irt::internal_component_names[i]);
-                        auto f_id =
-                          fs.alloc_file(dir_id,
-                                        filename.sv(),
-                                        irt::file_type::component_file);
+                        auto f_id = fs.alloc_file(
+                          dir_id, filename.sv(),
+                          irt::file_type::component_file);
 
                         ids.component_file_paths[c_id].file = f_id;
 
@@ -1470,16 +1440,16 @@ int main()
             auto& ch1   = s1.alloc(irt::dynamics_type::counter);
 
             auto p1_id = c1.get_or_add_x("in");
-            expect(!!s1.connect_input(
-              p1_id, ch1, irt::connection::port{ .model = 0 }));
+            expect(!!s1.connect_input(p1_id, ch1,
+                                      irt::connection::port{ .model = 0 }));
 
             auto  c2_id = ids.alloc_generic_component();
             auto& c2    = ids.components[c2_id];
             auto& s2    = ids.generic_components.get(c2.id.generic_id);
             auto& ch2   = s2.alloc(irt::dynamics_type::time_func);
             auto  p2_id = c2.get_or_add_y("out");
-            expect(!!s2.connect_output(
-              p2_id, ch2, irt::connection::port{ .model = 0 }));
+            expect(!!s2.connect_output(p2_id, ch2,
+                                       irt::connection::port{ .model = 0 }));
 
             auto  c3_id  = ids.alloc_generic_component();
             auto& c3     = ids.components[c3_id];
@@ -1495,16 +1465,14 @@ int main()
             auto&      p       = s3.children_parameters[ch5_idx];
             p.reals[0]         = 0.0;
             p.reals[1]         = 0.0;
-            p.integers[0] =
-              ordinal(irt::constant::init_type::incoming_component_all);
+            p.integers[0]      = ordinal(
+              irt::constant::init_type::incoming_component_all);
             p.integers[1] = 0;
 
-            expect(!!s3.connect(ch3,
-                                irt::connection::port{ .compo = p2_id },
-                                ch4,
-                                irt::connection::port{ .compo = p1_id }));
-            expect(!!s3.connect_input(
-              p31_id, ch4, irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect(ch3, irt::connection::port{ .compo = p2_id },
+                                ch4, irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect_input(p31_id, ch4,
+                                      irt::connection::port{ .compo = p1_id }));
             expect(!!s3.connect_output(
               p32_id, ch3, irt::connection::port{ .compo = p2_id }));
 
@@ -1558,26 +1526,24 @@ int main()
             const auto cg_id = mod.ids.write([&](auto& ids) {
                 auto  compo_counter_id = ids.alloc_generic_component();
                 auto& compo_counter    = ids.components[compo_counter_id];
-                auto& gen_counter =
-                  ids.generic_components.get(compo_counter.id.generic_id);
-                auto& child_counter =
-                  gen_counter.alloc(irt::dynamics_type::counter);
+                auto& gen_counter      = ids.generic_components.get(
+                  compo_counter.id.generic_id);
+                auto& child_counter = gen_counter.alloc(
+                  irt::dynamics_type::counter);
                 auto compo_counter_in = compo_counter.get_or_add_x("in");
                 expect(!!gen_counter.connect_input(
-                  compo_counter_in,
-                  child_counter,
+                  compo_counter_in, child_counter,
                   irt::connection::port{ .model = 0 }));
 
                 auto  compo_timef_id = ids.alloc_generic_component();
                 auto& compo_timef    = ids.components[compo_timef_id];
-                auto& gen_timef =
-                  ids.generic_components.get(compo_timef.id.generic_id);
-                auto& child_timef =
-                  gen_timef.alloc(irt::dynamics_type::time_func);
+                auto& gen_timef      = ids.generic_components.get(
+                  compo_timef.id.generic_id);
+                auto& child_timef = gen_timef.alloc(
+                  irt::dynamics_type::time_func);
                 auto compo_timef_out = compo_timef.get_or_add_y("out");
                 expect(!!gen_timef.connect_output(
-                  compo_timef_out,
-                  child_timef,
+                  compo_timef_out, child_timef,
                   irt::connection::port{ .model = 0 }));
 
                 auto  c3_id  = ids.alloc_generic_component();
@@ -1599,23 +1565,19 @@ int main()
                 const auto ch5_id = s3.children.get_id(ch5);
                 auto&      p_ch5  = s3.children_parameters[ch5_id];
                 p_ch5.reals[0]    = 0.0;
-                p_ch5.integers[0] =
-                  ordinal(irt::constant::init_type::incoming_component_n);
+                p_ch5.integers[0] = ordinal(
+                  irt::constant::init_type::incoming_component_n);
                 p_ch5.integers[1] = ordinal(p31_id);
 
                 expect(!!s3.connect(
-                  ch3,
-                  irt::connection::port{ .compo = compo_timef_out },
-                  ch4,
+                  ch3, irt::connection::port{ .compo = compo_timef_out }, ch4,
                   irt::connection::port{ .compo = compo_counter_in }));
 
                 expect(!!s3.connect_input(
-                  p31_id,
-                  ch4,
+                  p31_id, ch4,
                   irt::connection::port{ .compo = compo_counter_in }));
                 expect(!!s3.connect_output(
-                  p32_id,
-                  ch3,
+                  p32_id, ch3,
                   irt::connection::port{ .compo = compo_timef_out }));
 
                 auto  cg_id = ids.alloc_grid_component();
@@ -1657,8 +1619,8 @@ int main()
     };
 
     "grid-3x3-constant-model-init-port-empty"_test = [] {
-        auto old_error_callback =
-          std::exchange(irt::on_error_callback, nullptr);
+        auto old_error_callback = std::exchange(irt::on_error_callback,
+                                                nullptr);
 
         irt::modeling mod;
         irt::project  pj;
@@ -1669,16 +1631,16 @@ int main()
             auto& s1    = ids.generic_components.get(c1.id.generic_id);
             auto& ch1   = s1.alloc(irt::dynamics_type::counter);
             auto  p1_id = c1.get_or_add_x("in");
-            expect(!!s1.connect_input(
-              p1_id, ch1, irt::connection::port{ .model = 0 }));
+            expect(!!s1.connect_input(p1_id, ch1,
+                                      irt::connection::port{ .model = 0 }));
 
             auto  c2_id = ids.alloc_generic_component();
             auto& c2    = ids.components[c2_id];
             auto& s2    = ids.generic_components.get(c2.id.generic_id);
             auto& ch2   = s2.alloc(irt::dynamics_type::time_func);
             auto  p2_id = c2.get_or_add_y("out");
-            expect(!!s2.connect_output(
-              p2_id, ch2, irt::connection::port{ .model = 0 }));
+            expect(!!s2.connect_output(p2_id, ch2,
+                                       irt::connection::port{ .model = 0 }));
 
             auto  c3_id = ids.alloc_generic_component();
             auto& c3    = ids.components[c3_id];
@@ -1690,15 +1652,13 @@ int main()
             const auto ch5_id = s3.children.get_id(ch5);
             auto&      p_ch5  = s3.children_parameters[ch5_id];
 
-            p_ch5.reals[0] = 0.0;
-            p_ch5.integers[0] =
-              ordinal(irt::constant::init_type::incoming_component_n);
+            p_ch5.reals[0]    = 0.0;
+            p_ch5.integers[0] = ordinal(
+              irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = 17; // Impossible port
 
-            expect(!!s3.connect(ch3,
-                                irt::connection::port{ .compo = p2_id },
-                                ch4,
-                                irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect(ch3, irt::connection::port{ .compo = p2_id },
+                                ch4, irt::connection::port{ .compo = p1_id }));
 
             auto  cg_id = ids.alloc_grid_component();
             auto& cg    = ids.components[cg_id];
@@ -1754,8 +1714,8 @@ int main()
             // @a sums. This change will add @a dynamics_type::qss3_sum4 and
             // connections.
 
-            compo.x.template get<irt::port_option>(p_in) =
-              irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_in) = irt::port_option::sum;
 
             expect(compo.x.template get<irt::port_option>(p_in) ==
                    irt::port_option::sum);
@@ -1766,8 +1726,8 @@ int main()
                 .has_value());
 
             expect(gen
-                     .connect_output(
-                       p_out, ch_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_out, ch_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
 
             auto  cg_id = ids.alloc_grid_component();
@@ -1845,8 +1805,8 @@ int main()
             // @a sums. This change will add @a dynamics_type::qss3_sum4 and
             // connections.
 
-            compo.x.template get<irt::port_option>(p_in) =
-              irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_in) = irt::port_option::sum;
 
             expect(compo.x.template get<irt::port_option>(p_in) ==
                    irt::port_option::sum);
@@ -1857,8 +1817,8 @@ int main()
                 .has_value());
 
             expect(gen
-                     .connect_output(
-                       p_out, ch_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_out, ch_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
 
             auto  cg_id = ids.alloc_grid_component();
@@ -1938,13 +1898,13 @@ int main()
                 p_out     = compo.get_or_add_y("out");
 
                 expect(gen
-                         .connect_input(
-                           p_in, ch_ct, irt::connection::port{ .model = 0 })
+                         .connect_input(p_in, ch_ct,
+                                        irt::connection::port{ .model = 0 })
                          .has_value());
 
                 expect(gen
-                         .connect_output(
-                           p_out, ch_cst, irt::connection::port{ .model = 0 })
+                         .connect_output(p_out, ch_cst,
+                                         irt::connection::port{ .model = 0 })
                          .has_value());
 
                 cg_id    = ids.alloc_grid_component();
@@ -1963,17 +1923,16 @@ int main()
                 auto& root     = ids.components[root_id];
                 auto& root_gen = ids.generic_components.get(root.id.generic_id);
 
-                auto& grid_child = root_gen.alloc(cg_id);
-                auto& counter_child =
-                  root_gen.alloc(irt::dynamics_type::counter);
+                auto& grid_child    = root_gen.alloc(cg_id);
+                auto& counter_child = root_gen.alloc(
+                  irt::dynamics_type::counter);
                 counter_child_id = root_gen.children.get_id(counter_child);
 
                 expect(root_gen
                          .connect(
                            grid_child,
                            irt::connection::port{ .compo = cg_output_port_id },
-                           counter_child,
-                           irt::connection::port{ .model = 0 })
+                           counter_child, irt::connection::port{ .model = 0 })
                          .has_value());
 
                 return root_id;
@@ -2084,8 +2043,8 @@ int main()
                 expect(cg.y.template get<irt::port_option>(cg_output_port_id) ==
                        irt::port_option::classic);
 
-                cg.y.template get<irt::port_option>(cg_output_port_id) =
-                  irt::port_option::sum;
+                cg.y.template get<irt::port_option>(
+                  cg_output_port_id) = irt::port_option::sum;
 
                 expect(cg.y.template get<irt::port_option>(cg_output_port_id) ==
                        irt::port_option::sum);
@@ -2170,21 +2129,21 @@ int main()
             auto p_n_out = compo.get_or_add_y("n");
 
             expect(gen
-                     .connect_input(
-                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_m_in, ch_m_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_input(
-                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_n_in, ch_n_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
 
             expect(gen
-                     .connect_output(
-                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_m_out, ch_m_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_output(
-                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_n_out, ch_n_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
 
             cg_id = ids.alloc_graph_component();
@@ -2269,27 +2228,27 @@ int main()
             auto p_n_in  = compo.get_or_add_x("n");
             auto p_n_out = compo.get_or_add_y("n");
 
-            compo.x.template get<irt::port_option>(p_m_in) =
-              irt::port_option::sum;
-            compo.x.template get<irt::port_option>(p_n_in) =
-              irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_m_in) = irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_n_in) = irt::port_option::sum;
 
             expect(gen
-                     .connect_input(
-                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_m_in, ch_m_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_input(
-                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_n_in, ch_n_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
 
             expect(gen
-                     .connect_output(
-                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_m_out, ch_m_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_output(
-                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_n_out, ch_n_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
 
             cg_id = ids.alloc_graph_component();
@@ -2419,27 +2378,27 @@ int main()
             auto p_n_in  = compo.get_or_add_x("n");
             auto p_n_out = compo.get_or_add_y("n");
 
-            compo.x.template get<irt::port_option>(p_m_in) =
-              irt::port_option::sum;
-            compo.x.template get<irt::port_option>(p_n_in) =
-              irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_m_in) = irt::port_option::sum;
+            compo.x.template get<irt::port_option>(
+              p_n_in) = irt::port_option::sum;
 
             expect(gen
-                     .connect_input(
-                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_m_in, ch_m_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_input(
-                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .connect_input(p_n_in, ch_n_ct,
+                                    irt::connection::port{ .model = 0 })
                      .has_value());
 
             expect(gen
-                     .connect_output(
-                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_m_out, ch_m_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
             expect(gen
-                     .connect_output(
-                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .connect_output(p_n_out, ch_n_cst,
+                                     irt::connection::port{ .model = 0 })
                      .has_value());
 
             cg_id    = ids.alloc_graph_component();
@@ -2505,8 +2464,7 @@ int main()
             expect(gen_head
                      .connect(ch_head_graph,
                               irt::connection::port{ .compo = p_cg_m_out },
-                              ch_head_cnt,
-                              irt::connection::port{ .model = 0 })
+                              ch_head_cnt, irt::connection::port{ .model = 0 })
                      .has_value());
 
             edge_size = g.g.edges.size();
@@ -2532,13 +2490,11 @@ int main()
 
     "simulation-component"_test = [] {
         simulation_component_tester(
-          std::array{ 0.0, 1.0, 2.0, 1.0 },
-          std::array{ 1.0, 2.0, 3.0, 4.0 },
+          std::array{ 0.0, 1.0, 2.0, 1.0 }, std::array{ 1.0, 2.0, 3.0, 4.0 },
           std::array{ 1.0, 6.0, 6.0, 1.0, 2.0, 2.0, 1.0, 4.0, 4.0 });
 
         simulation_component_tester(
-          std::array{ 0.0, 1.0, 2.0, 1.0 },
-          std::array{ 5.0, 2.0, 3.0, 3.0 },
+          std::array{ 0.0, 1.0, 2.0, 1.0 }, std::array{ 5.0, 2.0, 3.0, 3.0 },
           std::array{ 1.0, 7.0, 7.0, 1.0, 2.0, 2.0, 1.0, 5.0, 5.0 });
     };
 }

@@ -1493,8 +1493,6 @@ concept equality_comparable_values = requires(const T& a, const U& b) {
 
 } // namespace detail
 
-// operator!= is synthesized by C++20 from the operator== below.
-
 template<typename T, typename U>
     requires(!std::is_void_v<T> && !std::is_void_v<U> &&
              detail::equality_comparable_values<T, U>)

@@ -229,16 +229,16 @@ public:
         }
     }
 
-    void observation_initialize() noexcept
+    irt::status observation_initialize() noexcept
     {
         for (auto& o : pj.grid_observers)
-            o.init(pj, mod);
+            irt_check(o.init(pj, mod));
 
         for (auto& o : pj.graph_observers)
-            o.init(pj, mod);
+            irt_check(o.init(pj, mod));
 
         for (auto& o : pj.variable_observers)
-            o.init(pj);
+            irt_check(o.init(pj));
     }
 
     void observation_update() noexcept
@@ -258,7 +258,7 @@ public:
 
     irt::expected<void> run() noexcept
     {
-        observation_initialize();
+        irt_check(observation_initialize());
         irt_check(pj.sim.srcs.prepare());
         irt_check(pj.sim.initialize());
 

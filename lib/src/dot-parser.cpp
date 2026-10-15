@@ -1377,7 +1377,9 @@ graph::graph(graph&& other) noexcept
 graph& graph::operator=(const graph& other) noexcept
 {
     clear();
-    reserve(other.nodes.size(), other.edges.size());
+
+    if (not reserve(other.nodes.size(), other.edges.size()))
+        return *this;
 
     nodes           = other.nodes;
     edges           = other.edges;

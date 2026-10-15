@@ -354,7 +354,7 @@ public:
         const auto& modsim = ids.sim_components.get(sim_id);
 
         auto& sim_sim = pj.sim.sims.alloc();
-        modsim.copy_to(sim_sim);
+        irt_check(modsim.copy_to(sim_sim));
 
         return pj.sim.sims.get_id(sim_sim);
     }

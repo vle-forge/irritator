@@ -191,9 +191,10 @@ constexpr static bool is_line_intersects_box(ImVec2 p1,
 
     const auto sum    = corner_1 + corner_2 + corner_3 + corner_4;
     const auto a_miss = sum == 0 or sum == 4;
-    const bool b_miss =
-      (p1.x > bmax.x and p2.x > bmax.x) or (p1.x < bmin.x and p2.x < bmin.x) or
-      (p1.y > bmax.y and p2.y > bmax.y) or (p1.y < bmin.y and p2.y < bmin.y);
+    const bool b_miss = (p1.x > bmax.x and p2.x > bmax.x) or
+                        (p1.x < bmin.x and p2.x < bmin.x) or
+                        (p1.y > bmax.y and p2.y > bmax.y) or
+                        (p1.y < bmin.y and p2.y < bmin.y);
 
     return not(a_miss or b_miss);
 };
@@ -251,8 +252,7 @@ bool graph_editor::initialize_canvas(ImVec2 top_left,
 
     draw_list->AddRect(top_left, bottom_right, color);
 
-    ImGui::InvisibleButton("Canvas",
-                           canvas_sz,
+    ImGui::InvisibleButton("Canvas", canvas_sz,
                            ImGuiButtonFlags_MouseButtonLeft |
                              ImGuiButtonFlags_MouseButtonMiddle |
                              ImGuiButtonFlags_MouseButtonRight);
@@ -330,8 +330,7 @@ void graph_editor::draw_graph(const graph&          g,
             const auto t = std::clamp(o / d, 0.0, 1.0);
 
             draw_list->AddRectFilled(
-              p_min,
-              p_max,
+              p_min, p_max,
               ImPlot::SampleColormapU32(static_cast<float>(t), IMPLOT_AUTO));
         }
 
@@ -476,14 +475,12 @@ void graph_editor::draw_grid(ImVec2 top_left,
     for (float x = fmodf(scrolling.x, grid_step); x < canvas_sz.x;
          x += grid_step)
         draw_list->AddLine(ImVec2(top_left.x + x, top_left.y),
-                           ImVec2(top_left.x + x, bottom_right.y),
-                           color);
+                           ImVec2(top_left.x + x, bottom_right.y), color);
 
     for (float y = fmodf(scrolling.y, grid_step); y < canvas_sz.y;
          y += grid_step)
         draw_list->AddLine(ImVec2(top_left.x, top_left.y + y),
-                           ImVec2(bottom_right.x, top_left.y + y),
-                           color);
+                           ImVec2(bottom_right.x, top_left.y + y), color);
 }
 
 bool graph_editor::draw_popup(application& app,
@@ -598,12 +595,23 @@ bool graph_editor::draw_popup(application& app,
                 }
 
                 if (not selected_nodes.empty() and ImGui::MenuItem("Connect")) {
-                    const auto e = selected_nodes.size();
-                    for (sz i = 0; i < e; ++i) {
-                        for (sz j = i + 1; j < e; ++j) {
-                            g.alloc_edge(selected_nodes[i], selected_nodes[j]);
-                        }
+                    const auto e   = selected_nodes.size();
+                    const auto ret = [&]() -> status {
+                        for (sz i = 0; i < e; ++i)
+                            for (sz j = i + 1; j < e; ++j)
+                                irt_check(g.alloc_edge(selected_nodes[i],
+                                                       selected_nodes[j]));
+
+                        return success();
+                    }();
+
+                    if (ret.has_error()) {
+                        log(log_level::error, [ret](auto& m) {
+                            format(m, "Failed to add new edge: {}",
+                                   ret.error());
+                        });
                     }
+
                     selected_nodes.clear();
                 }
 
@@ -795,8 +803,8 @@ auto graph_editor::show(const char*     name,
                 edge_c         = to_ImU32(colors[style_color::edge]);
                 node_active_c  = to_ImU32(colors[style_color::node_active]);
                 edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-                background_selection_c =
-                  to_ImU32(colors[style_color::background_selection]);
+                background_selection_c = to_ImU32(
+                  colors[style_color::background_selection]);
             });
 
           if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
@@ -805,12 +813,10 @@ auto graph_editor::show(const char*     name,
           if (flags[option::show_grid])
               draw_grid(canvas_p0, canvas_p1, inner_border_c);
 
-          draw_graph(
-            graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
+          draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c,
+                     obs);
 
-          if (draw_popup(app,
-                         graph,
-                         canvas_p0,
+          if (draw_popup(app, graph, canvas_p0,
                          bitflags<popup_options>{
                            popup_options::show_make_project_global_window })) {
               if (app.graph_eds.can_alloc()) {
@@ -840,8 +846,8 @@ void graph_editor::show(application&    app,
                         project_editor& ed,
                         tree_node&      tn) noexcept
 {
-    const auto name = format_n<64>(
-      "{}##{}", ed.pj.name.sv(), get_index(ed.pj.tree_nodes.get_id(tn)));
+    const auto name = format_n<64>("{}##{}", ed.pj.name.sv(),
+                                   get_index(ed.pj.tree_nodes.get_id(tn)));
 
     if (not ImGui::BeginChild(name.c_str())) {
         ImGui::EndChild();
@@ -884,8 +890,8 @@ void graph_editor::show(application&    app,
               edge_c         = to_ImU32(colors[style_color::edge]);
               node_active_c  = to_ImU32(colors[style_color::node_active]);
               edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-              background_selection_c =
-                to_ImU32(colors[style_color::background_selection]);
+              background_selection_c = to_ImU32(
+                colors[style_color::background_selection]);
           });
 
         if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
@@ -955,8 +961,8 @@ void graph_editor::show(application&    app,
               edge_c         = to_ImU32(colors[style_color::edge]);
               node_active_c  = to_ImU32(colors[style_color::node_active]);
               edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-              background_selection_c =
-                to_ImU32(colors[style_color::background_selection]);
+              background_selection_c = to_ImU32(
+                colors[style_color::background_selection]);
           });
 
         if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
@@ -967,9 +973,7 @@ void graph_editor::show(application&    app,
 
         draw_graph(graph, canvas_p0, edge_c, node_active_c, edge_active_c, obs);
 
-        if (draw_popup(app,
-                       graph,
-                       canvas_p0,
+        if (draw_popup(app, graph, canvas_p0,
                        bitflags<popup_options>{
                          popup_options::show_make_project_global_window })) {
             if (app.graph_eds.can_alloc()) {
@@ -1022,13 +1026,13 @@ void graph_editor::show(application&       app,
 
     app.config.vars.colors.read(
       [&](const auto& colors, const auto /*v*/) noexcept {
-          outer_border_c = to_ImU32(colors[style_color::outer_border]);
-          inner_border_c = to_ImU32(colors[style_color::inner_border]);
-          edge_c         = to_ImU32(colors[style_color::edge]);
-          node_active_c  = to_ImU32(colors[style_color::node_active]);
-          edge_active_c  = to_ImU32(colors[style_color::edge_active]);
-          background_selection_c =
-            to_ImU32(colors[style_color::background_selection]);
+          outer_border_c         = to_ImU32(colors[style_color::outer_border]);
+          inner_border_c         = to_ImU32(colors[style_color::inner_border]);
+          edge_c                 = to_ImU32(colors[style_color::edge]);
+          node_active_c          = to_ImU32(colors[style_color::node_active]);
+          edge_active_c          = to_ImU32(colors[style_color::edge_active]);
+          background_selection_c = to_ImU32(
+            colors[style_color::background_selection]);
       });
 
     if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
@@ -1040,9 +1044,7 @@ void graph_editor::show(application&       app,
     draw_graph(g.g, canvas_p0, edge_c, node_active_c, edge_active_c, app);
 
     (void)draw_popup(
-      app,
-      g.g,
-      canvas_p0,
+      app, g.g, canvas_p0,
       bitflags<popup_options>{ popup_options::show_graph_modication });
 
     draw_selection(g.g, canvas_p0, background_selection_c);
@@ -1085,9 +1087,8 @@ void graph_editor::update(application& app, const graph& g) noexcept
 
             d.top_left     = { x[0], y[1], z[0] };
             d.bottom_right = { x[1], y[0], z[1] };
-            d.center       = { (x[1] - x[0]) / 2.f + x[0],
-                               (y[1] - y[0]) / 2.f + y[0],
-                               (z[1] - z[0]) / 2.f + z[0] };
+            d.center = { (x[1] - x[0]) / 2.f + x[0], (y[1] - y[0]) / 2.f + y[0],
+                         (z[1] - z[0]) / 2.f + z[0] };
 
             proj.update_matrices(proj.angles(), d.center);
 

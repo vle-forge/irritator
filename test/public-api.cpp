@@ -32,8 +32,8 @@ static irt::vector<char> read_entire_file(std::FILE* f) noexcept
 
     irt::vector<char> buffer(size);
 
-    const auto read_size =
-      std::fread(buffer.data(), 1, static_cast<size_t>(size), f);
+    const auto read_size = std::fread(buffer.data(), 1,
+                                      static_cast<size_t>(size), f);
     expect(static_cast<std::size_t>(read_size) == buffer.size()) << fatal;
 
     return buffer;
@@ -107,8 +107,7 @@ void* global_alloc(size_t size) noexcept
     global_allocator.allocation_size += size;
     global_allocator.allocation_number++;
 
-    fmt::print("global_alloc {} (global size: {}, number: {})\n",
-               size,
+    fmt::print("global_alloc {} (global size: {}, number: {})\n", size,
                global_allocator.allocation_size,
                global_allocator.allocation_number);
 
@@ -119,8 +118,8 @@ void global_free(void* ptr) noexcept
 {
     if (ptr) {
         global_deallocator.free_number++;
-        fmt::print(
-          "global_free {} (number: {})\n", ptr, global_deallocator.free_number);
+        fmt::print("global_free {} (number: {})\n", ptr,
+                   global_deallocator.free_number);
         std::free(ptr);
     }
 }
@@ -164,8 +163,8 @@ inline int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 
 inline int make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
-    fmt::print(
-      "make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
+    fmt::print("make_output_node_id({},{})\n", static_cast<irt::u64>(mdl),
+               port);
     boost::ut::expect(port >= 0 && port < 8);
 
     auto index = irt::get_index(mdl);
@@ -175,8 +174,9 @@ inline int make_output_node_id(const irt::model_id mdl, const int port) noexcept
     fmt::print("{0:32b} <- port\n", port);
     fmt::print("{0:32b} <- port + 8u\n", 8u + static_cast<unsigned>(port));
 
-    irt::u32 port_index =
-      static_cast<irt::u32>(8u + static_cast<unsigned>(port)) << 28u;
+    irt::u32 port_index = static_cast<irt::u32>(8u +
+                                                static_cast<unsigned>(port))
+                          << 28u;
     fmt::print("{0:32b} <- port_index\n", port_index);
 
     index |= port_index;
@@ -1339,8 +1339,7 @@ int main()
         expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
-          irt::hierarchical_state_machine::event_type::input_changed,
-          exec,
+          irt::hierarchical_state_machine::event_type::input_changed, exec,
           srcs);
         expect(!!processed);
         expect(processed.value() == true);
@@ -1358,8 +1357,9 @@ int main()
 
         expect(!!hsmw.set_state(1u, 0u));
 
-        hsmw.states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
+        hsmw.states[1u]
+          .condition
+          .type = irt::hierarchical_state_machine::condition_type::port;
         hsmw.states[1u].condition.set(3u, 7u);
         hsmw.states[1u].if_transition = 2u;
 
@@ -1381,8 +1381,7 @@ int main()
         expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
-          irt::hierarchical_state_machine::event_type::input_changed,
-          exec,
+          irt::hierarchical_state_machine::event_type::input_changed, exec,
           srcs);
         expect(!!processed);
         expect(processed.value() == true);
@@ -1739,10 +1738,10 @@ int main()
         auto& cnt = sim.alloc<irt::counter>();
         auto& gen = sim.alloc<irt::constant>();
 
-        get_p(sim, gen).reals[0] = 1.0;
-        get_p(sim, gen).reals[1] = 5.0;
-        get_p(sim, gen).integers[0] =
-          ordinal(irt::constant::init_type::constant);
+        get_p(sim, gen).reals[0]    = 1.0;
+        get_p(sim, gen).reals[1]    = 5.0;
+        get_p(sim, gen).integers[0] = ordinal(
+          irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1793,17 +1792,17 @@ int main()
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        auto& cnt                 = sim.alloc<irt::counter>();
-        auto& gen1                = sim.alloc<irt::constant>();
-        get_p(sim, gen1).reals[0] = 1.0;
-        get_p(sim, gen1).reals[1] = 5.0;
-        get_p(sim, gen1).integers[0] =
-          ordinal(irt::constant::init_type::constant);
-        auto& gen2                = sim.alloc<irt::constant>();
-        get_p(sim, gen2).reals[0] = 1.0;
-        get_p(sim, gen2).reals[1] = 12.0;
-        get_p(sim, gen2).integers[0] =
-          ordinal(irt::constant::init_type::constant);
+        auto& cnt                    = sim.alloc<irt::counter>();
+        auto& gen1                   = sim.alloc<irt::constant>();
+        get_p(sim, gen1).reals[0]    = 1.0;
+        get_p(sim, gen1).reals[1]    = 5.0;
+        get_p(sim, gen1).integers[0] = ordinal(
+          irt::constant::init_type::constant);
+        auto& gen2                   = sim.alloc<irt::constant>();
+        get_p(sim, gen2).reals[0]    = 1.0;
+        get_p(sim, gen2).reals[1]    = 12.0;
+        get_p(sim, gen2).integers[0] = ordinal(
+          irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1854,17 +1853,17 @@ int main()
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        auto& cnt                 = sim.alloc<irt::counter>();
-        auto& gen1                = sim.alloc<irt::constant>();
-        get_p(sim, gen1).reals[0] = 1.0;
-        get_p(sim, gen1).reals[1] = 5.0;
-        get_p(sim, gen1).integers[0] =
-          ordinal(irt::constant::init_type::constant);
-        auto& gen2                = sim.alloc<irt::constant>();
-        get_p(sim, gen2).reals[0] = 1.0;
-        get_p(sim, gen2).reals[1] = 12.0;
-        get_p(sim, gen2).integers[0] =
-          ordinal(irt::constant::init_type::constant);
+        auto& cnt                    = sim.alloc<irt::counter>();
+        auto& gen1                   = sim.alloc<irt::constant>();
+        get_p(sim, gen1).reals[0]    = 1.0;
+        get_p(sim, gen1).reals[1]    = 5.0;
+        get_p(sim, gen1).integers[0] = ordinal(
+          irt::constant::init_type::constant);
+        auto& gen2                   = sim.alloc<irt::constant>();
+        get_p(sim, gen2).reals[0]    = 1.0;
+        get_p(sim, gen2).reals[1]    = 12.0;
+        get_p(sim, gen2).integers[0] = ordinal(
+          irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1972,9 +1971,8 @@ int main()
         using hsm_t = irt::hierarchical_state_machine;
         using var   = hsm_t::variable;
 
-        auto run_variant = [](irt::i32 prefer_fine_flag,
-                              double   coarse_value,
-                              double   fine_value) {
+        auto run_variant = [](irt::i32 prefer_fine_flag, double coarse_value,
+                              double fine_value) {
             hsm_t                h;
             hsm_t::execution     exec;
             irt::external_source srcs;
@@ -2104,7 +2102,7 @@ int main()
         get_p(sim, l_or).integers[0] = false;
         get_p(sim, l_or).integers[1] = false;
 
-        sim.observe(irt::get_model(l_and));
+        expect(sim.observe(irt::get_model(l_and)).has_value());
         auto* obs = sim.observers.try_to_get(irt::get_model(l_and).obs_id);
 
         expect(fatal(obs != nullptr));
@@ -2148,9 +2146,9 @@ int main()
             c++;
         } while (not sim.current_time_expired());
 
-        const auto value =
-          (irt::real{ 2.0 } * sim.limits.duration() / timestep -
-           irt::real{ 1.0 });
+        const auto value = (irt::real{ 2.0 } * sim.limits.duration() /
+                              timestep -
+                            irt::real{ 1.0 });
         expect(eq(c, value));
     };
 
@@ -2184,9 +2182,8 @@ int main()
             c++;
         } while (not sim.current_time_expired());
 
-        expect(eq(c,
-                  (irt::real{ 2.0 } * sim.limits.duration() / timestep -
-                   irt::real{ 1.0 })));
+        expect(eq(c, (irt::real{ 2.0 } * sim.limits.duration() / timestep -
+                      irt::real{ 1.0 })));
     };
 
     "abstract_sin"_test = [] {
@@ -2196,9 +2193,12 @@ int main()
         irt::abstract_sin<3>&     d3  = sim.alloc<irt::abstract_sin<3>>();
         irt::abstract_wsum<3, 3>& sum = sim.alloc<irt::abstract_wsum<3, 3>>();
 
-        sim.connect(d1.y[0], sim.models.get_id(irt::get_model(sum)), 0);
-        sim.connect(d2.y[0], sim.models.get_id(irt::get_model(sum)), 1);
-        sim.connect(d3.y[0], sim.models.get_id(irt::get_model(sum)), 2);
+        expect(sim.connect(d1.y[0], sim.models.get_id(irt::get_model(sum)), 0)
+                 .has_value());
+        expect(sim.connect(d2.y[0], sim.models.get_id(irt::get_model(sum)), 1)
+                 .has_value());
+        expect(sim.connect(d3.y[0], sim.models.get_id(irt::get_model(sum)), 2)
+                 .has_value());
 
         d1.value[0] = std::numbers::pi / 4.0;
         d2.value[0] = std::numbers::pi / 4.0;
@@ -2246,10 +2246,7 @@ int main()
         std::default_random_engine gen(1234);
         std::poisson_distribution  dist(4.0);
 
-        irt::generate_random_file(ofs_b.value().to_file(),
-                                  gen,
-                                  dist,
-                                  1024,
+        irt::generate_random_file(ofs_b.value().to_file(), gen, dist, 1024,
                                   irt::random_file_type::binary);
 
         auto str_b = read_entire_file(ofs_b.value().to_file());
@@ -2257,10 +2254,7 @@ int main()
                static_cast<size_t>(1024) *
                  sizeof(std::poisson_distribution<>::result_type));
 
-        irt::generate_random_file(ofs_t.value().to_file(),
-                                  gen,
-                                  dist,
-                                  1024,
+        irt::generate_random_file(ofs_t.value().to_file(), gen, dist, 1024,
                                   irt::random_file_type::text);
 
         auto str_t = read_entire_file(ofs_t.value().to_file());
@@ -2377,12 +2371,9 @@ int main()
     "id_data_array"_test = [] {
         enum class my_id : irt::u32;
 
-        using my_data =
-          irt::id_data_array<void,
-                             my_id,
-                             irt::allocator<irt::new_delete_memory_resource>,
-                             int,
-                             double>;
+        using my_data = irt::id_data_array<
+          void, my_id, irt::allocator<irt::new_delete_memory_resource>, int,
+          double>;
 
         my_data m1;
         expect(fatal(m1.grow<2, 1>(5)));

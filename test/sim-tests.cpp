@@ -32,7 +32,9 @@ bool load_dump(simulation& sim, const bytes& b, std::size_t limit = 0) noexcept
     return read_simulation(r, sim).has_value();
 }
 
-bool load_snapshot(simulation& sim, const bytes& b, std::size_t limit = 0) noexcept
+bool load_snapshot(simulation&  sim,
+                   const bytes& b,
+                   std::size_t  limit = 0) noexcept
 {
     binary_reader r(b);
     if (limit != 0)
@@ -48,7 +50,6 @@ bool is_empty(const simulation& sim) noexcept
            sim.dated_messages.size() == 0 and sim.sched.empty();
 }
 
-
 // The compiler assumes that a pointer to an over-aligned type is aligned (it
 // folds @c address % alignment to 0): look at the address through a function
 // that only sees a @c void*.
@@ -61,7 +62,6 @@ bool is_aligned(const void* p, std::size_t alignment) noexcept
 {
     return reinterpret_cast<std::uintptr_t>(p) % alignment == 0;
 }
-
 
 struct alignas(64) over_aligned_column {
     double value = 0.0;
@@ -95,10 +95,12 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
           // the same simulation, back in time
 
           expect(load_snapshot(sim, at_100));
-          expect(same(snapshot(sim), at_100, "fixed point")) << "the snapshot is a fixed point";
+          expect(same(snapshot(sim), at_100, "fixed point"))
+            << "the snapshot is a fixed point";
 
           expect(run_steps(sim, 200));
-          expect(same(dump(sim), original, "rollback")) << "same models, same observers";
+          expect(same(dump(sim), original, "rollback"))
+            << "same models, same observers";
 
           // and again, from the same snapshot
 
@@ -107,26 +109,25 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
           expect(same(dump(sim), original, "rollback 2"));
       };
 
-    "snapshot: a simulation built the same way replays the same run"_test =
-      [] {
-          simulation a;
-          world      wa;
-          build_world(a, wa);
-          expect(start(a));
-          expect(run_steps(a, 100));
-          const auto at_100 = snapshot(a);
-          expect(run_steps(a, 200));
+    "snapshot: a simulation built the same way replays the same run"_test = [] {
+        simulation a;
+        world      wa;
+        build_world(a, wa);
+        expect(start(a));
+        expect(run_steps(a, 100));
+        const auto at_100 = snapshot(a);
+        expect(run_steps(a, 200));
 
-          simulation b;
-          world      wb;
-          build_world(b, wb);
-          expect(start(b));
-          expect(run_steps(b, 7)); // another time, other models state
+        simulation b;
+        world      wb;
+        build_world(b, wb);
+        expect(start(b));
+        expect(run_steps(b, 7)); // another time, other models state
 
-          expect(load_snapshot(b, at_100));
-          expect(run_steps(b, 200));
-          expect(same(dump(a), dump(b), "built the same way"));
-      };
+        expect(load_snapshot(b, at_100));
+        expect(run_steps(b, 200));
+        expect(same(dump(a), dump(b), "built the same way"));
+    };
 
     "dump: a new simulation replays the same run"_test = [] {
         simulation sim;
@@ -141,7 +142,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
         simulation fresh;
         expect(load_dump(fresh, at_100));
-        expect(same(dump(fresh), at_100, "dump fixed point")) << "the dump is a fixed point";
+        expect(same(dump(fresh), at_100, "dump fixed point"))
+          << "the dump is a fixed point";
         expect(fresh.current_time() == sim.limits.begin() or
                fresh.current_time() > 0.0);
 
@@ -187,7 +189,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
         expect(same(dump(a), dump(b), "identical runs"));
         expect(same(snapshot(a), snapshot(b), "identical runs, snapshot"));
-        expect(same(dump(a), dump(a), "twice")) << "writing does not change the simulation";
+        expect(same(dump(a), dump(a), "twice"))
+          << "writing does not change the simulation";
     };
 
     "dump: the buffers of the sources are bound again"_test = [] {
@@ -233,7 +236,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         expect(start(sim));
         expect(run_steps(sim, 80));
 
-        const auto tmp = std::filesystem::temp_directory_path();
+        const auto tmp    = std::filesystem::temp_directory_path();
         const auto name_p = (tmp / "irt-binary-simulation-test.bin").string();
         const path p(name_p);
         expect(save_simulation(p, sim).has_value());
@@ -247,8 +250,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         expect(not ret.has_value()) << "allocation limit";
         expect(is_empty(limited));
 
-        const auto name_m =
-          (tmp / "irt-binary-simulation-test-missing.bin").string();
+        const auto name_m = (tmp / "irt-binary-simulation-test-missing.bin")
+                              .string();
         const path missing(name_m);
         simulation nothing;
         expect(not load_simulation(missing, nothing).has_value());
@@ -287,7 +290,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
             // a model that references something that does not exist
 
-            auto& g     = get_dyn<generator>(*sim.models.try_to_get(w.gen_cst));
+            auto& g = get_dyn<generator>(*sim.models.try_to_get(w.gen_cst));
             const auto old = g.y[0];
             g.y[0]         = static_cast<output_port_id>(0x700000009ull);
             expect(dump(sim).empty());
@@ -308,7 +311,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
             sim.srcs.constant_sources.get(w.cst).length = 3;
             expect(not dump(sim).empty());
 
-            auto* mdl = sim.models.try_to_get(w.integ);
+            auto*      mdl  = sim.models.try_to_get(w.integ);
             const auto type = mdl->type;
             mdl->type       = static_cast<dynamics_type>(250);
             expect(dump(sim).empty());
@@ -331,10 +334,10 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
             simulation sim;
             expect(sim.nodes.can_alloc(1));
-            auto& block   = sim.nodes.alloc();
-            block.next    = sim.nodes.get_id(block);
-            auto& port    = sim.output_ports.alloc();
-            port.next     = sim.nodes.get_id(block);
+            auto& block = sim.nodes.alloc();
+            block.next  = sim.nodes.get_id(block);
+            auto& port  = sim.output_ports.alloc();
+            port.next   = sim.nodes.get_id(block);
             expect(dump(sim).empty());
 
             block.next = undefined<block_node_id>();
@@ -375,8 +378,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         });
 
         refused([](simulation& sim, world& w) {
-            sim.srcs.random_sources.get(w.rnd).distribution =
-              static_cast<distribution_type>(200);
+            sim.srcs.random_sources.get(w.rnd)
+              .distribution = static_cast<distribution_type>(200);
         });
 
         refused([](simulation& sim, world& w) {
@@ -610,8 +613,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
                 }
             } else if (k == 3 or k == 4) { // reintegrate
                 if (not detached.empty()) {
-                    const auto i  = rng() % detached.size();
-                    auto*      m  = sim.models.try_to_get(detached[i]);
+                    const auto i = rng() % detached.size();
+                    auto*      m = sim.models.try_to_get(detached[i]);
                     if (m) {
                         m->tn = dist(rng);
                         sim.sched.reintegrate(*m, m->tn);
@@ -665,7 +668,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         for (const model* pa = nullptr; sim.models.next(pa);) {
             const model& a  = *pa;
             const auto   id = sim.models.get_id(a);
-            const auto* b = fresh.models.try_to_get(id);
+            const auto*  b  = fresh.models.try_to_get(id);
             ++total;
             if (not b or a.type != b->type) {
                 ++different;
@@ -690,7 +693,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
                 // the span of a source points into the buffers of its own
                 // simulation: the addresses differ.
                 bool skip[sizeof(Dyn)] = {};
-                auto mark = [&](const auto& src) {
+                auto mark              = [&](const auto& src) {
                     const auto off = static_cast<std::size_t>(
                       reinterpret_cast<const unsigned char*>(&src) -
                       reinterpret_cast<const unsigned char*>(&da));
@@ -728,7 +731,8 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
             int misaligned = 0;
             for (int i = 0; i != 4; ++i) {
                 auto& mdl = sim.alloc<irt::constant>();
-                sim.observe(sim.models.get(sim.get_id(mdl)), 1.0);
+                expect(sim.observe(sim.models.get(sim.get_id(mdl)), 1.0)
+                         .has_value());
             }
 
             for (const auto& obs : sim.observers)
@@ -741,11 +745,9 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
     "memory: the extra columns of an id_data_array respect their alignment"_test =
       [] {
-          using array_type =
-            id_data_array<int,
-                          over_aligned_id,
-                          allocator<new_delete_memory_resource>,
-                          over_aligned_column>;
+          using array_type = id_data_array<
+            int, over_aligned_id, allocator<new_delete_memory_resource>,
+            over_aligned_column>;
 
           for (const int capacity : { 8, 100, 5000 }) {
               array_type  array(capacity);

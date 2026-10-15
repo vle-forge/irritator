@@ -65,7 +65,7 @@ static status run_complete(embedded_simulation& embed_sims) noexcept
 
         if (sim.current_time_expired()) {
             irt_check(sim.finalize());
-            copy_history(sim, sim_o);
+            irt_check(copy_history(sim, sim_o));
         }
     }
 
@@ -93,7 +93,7 @@ static status run_bag(embedded_simulation& embed_sims) noexcept
             irt_check(sim.finalize());
         }
 
-        copy_history(sim, sim_o);
+        irt_check(copy_history(sim, sim_o));
     }
 
     return success();
@@ -123,7 +123,7 @@ static status run_time(embedded_simulation& embed_sims) noexcept
             irt_check(sim.finalize());
         }
 
-        copy_history(sim, sim_o);
+        irt_check(copy_history(sim, sim_o));
     }
 
     return success();
@@ -153,7 +153,7 @@ static status run_until(embedded_simulation& embed_sims,
             irt_check(sim.finalize());
         }
 
-        copy_history(sim, sim_o);
+        irt_check(copy_history(sim, sim_o));
     }
 
     return success();
@@ -184,7 +184,7 @@ static status run_during(embedded_simulation& embed_sims,
             irt_check(sim.finalize());
         }
 
-        copy_history(sim, sim_o);
+        irt_check(copy_history(sim, sim_o));
     }
 
     return success();
@@ -416,7 +416,7 @@ static status embedded_sims_init(embedded_simulation& embed_sims) noexcept
             const auto mdl_id = embed_sims.selections.get<model_id>(sel_id);
             debug::ensure(sims[idx].models.exists(mdl_id));
 
-            sims[idx].observe(sims[idx].models.get(mdl_id));
+            irt_check(sims[idx].observe(sims[idx].models.get(mdl_id)));
         }
 
         if (sims[idx].srcs.prepare().has_error())

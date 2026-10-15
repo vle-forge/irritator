@@ -54,9 +54,9 @@ inline void build_world(simulation& sim, world& w) noexcept
 
     auto& h   = sim.hsms.alloc();
     w.machine = sim.hsms.get_id(h);
-    h.set_state(0, H::invalid_state_id, 1);
-    h.set_state(1, 0, H::invalid_state_id);
-    h.set_state(2, 0, H::invalid_state_id);
+    debug::ensure(h.set_state(0, H::invalid_state_id, 1).has_value());
+    debug::ensure(h.set_state(1, 0, H::invalid_state_id).has_value());
+    debug::ensure(h.set_state(2, 0, H::invalid_state_id).has_value());
     h.constants[0] = 0.5;
     h.states[1].enter_action.set_affect(H::variable::var_timer, 1.0f);
     h.states[1].condition.set_timer();
@@ -118,18 +118,18 @@ inline void build_world(simulation& sim, world& w) noexcept
     // connections
 
     [[maybe_unused]] auto s = sim.connect_dynamics(integ, 0, gain, 0);
-    s = sim.connect_dynamics(gain, 0, integ, 0);
-    s = sim.connect_dynamics(gr, 0, q, 0);
-    s = sim.connect_dynamics(q, 0, c1, 0);
-    s = sim.connect_dynamics(gc, 0, c2, 0);
-    s = sim.connect_dynamics(hw, 0, c3, 0);
+    s                       = sim.connect_dynamics(gain, 0, integ, 0);
+    s                       = sim.connect_dynamics(gr, 0, q, 0);
+    s                       = sim.connect_dynamics(q, 0, c1, 0);
+    s                       = sim.connect_dynamics(gc, 0, c2, 0);
+    s                       = sim.connect_dynamics(hw, 0, c3, 0);
 
     // observers
 
-    for (const auto id : { w.integ, w.gain, w.cnt_queue, w.cnt_cst,
-                           w.cnt_hsm }) {
+    for (const auto id :
+         { w.integ, w.gain, w.cnt_queue, w.cnt_cst, w.cnt_hsm }) {
         auto* mdl = sim.models.try_to_get(id);
-        sim.observe(*mdl, 0.05);
+        debug::ensure(sim.observe(*mdl, 0.05));
         sim.observers.get<observer_name>(mdl->obs_id) = "obs";
     }
 }
@@ -162,7 +162,9 @@ inline bool run_steps(simulation& sim, int n) noexcept
 using bytes = std::vector<u8>;
 
 /// Comparison without printing megabytes when it fails.
-inline bool same(const std::vector<u8>& a, const std::vector<u8>& b, const char* what = "")
+inline bool same(const std::vector<u8>& a,
+                 const std::vector<u8>& b,
+                 const char*            what = "")
 {
     if (a == b)
         return true;
@@ -176,7 +178,10 @@ inline bool same(const std::vector<u8>& a, const std::vector<u8>& b, const char*
     return false;
 }
 
-inline bytes copy_of(std::span<const u8> s) { return bytes(s.begin(), s.end()); }
+inline bytes copy_of(std::span<const u8> s)
+{
+    return bytes(s.begin(), s.end());
+}
 
 inline bytes dump(const simulation& sim)
 {

@@ -59,8 +59,22 @@ void project_editor::import_from_modeling(application& app) noexcept
         app.add_simulation_task(ordinal(pj_id), [&]() {
             force_pause = false;
 
-            pj.simulation_copy(app.mod);
-            pj.simulation_init(app.mod);
+            if (auto ret = pj.simulation_copy(app.mod); ret.has_error()) {
+                log(log_level::error, [&](auto& m) {
+                    format(m, "Simulation copy failed: {}", ret.error());
+                });
+
+                force_pause = true;
+            } else {
+                if (auto ret = pj.simulation_init(app.mod); ret.has_error()) {
+                    log(log_level::error, [&](auto& m) {
+                        format(m, "Simulation initialization failed: {}",
+                               ret.error());
+                    });
+
+                    force_pause = true;
+                }
+            }
         });
     }
 }
@@ -77,7 +91,14 @@ void project_editor::init_simulation(application& app) noexcept
         app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
             force_pause = false;
 
-            pj.simulation_init(app.mod);
+            if (auto ret = pj.simulation_init(app.mod); ret.has_error()) {
+                log(log_level::error, [&](auto& m) {
+                    format(m, "Simulation initialization failed: {}",
+                           ret.error());
+                });
+
+                force_pause = true;
+            }
         });
     }
 }
@@ -96,7 +117,13 @@ void project_editor::run_bag_simulation(application& app) noexcept
         app.add_simulation_task(ordinal(pj_id), [&]() noexcept {
             force_pause = false;
 
-            (void)pj.simulation_step();
+            if (auto ret = pj.simulation_step(); ret.has_error()) {
+                log(log_level::error, [&](auto& m) {
+                    format(m, "Simulation step failed: {}", ret.error());
+                });
+
+                force_pause = true;
+            }
         });
     }
 }

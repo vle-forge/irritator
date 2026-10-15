@@ -89,12 +89,15 @@ int main()
 
             gen.children_parameters[service_id].set_queue(2.0);
 
-            gen.connect(arrivals, { .model = 0 }, service, { .model = 0 });
-            gen.connect(service, { .model = 0 }, throughput, { .model = 0 });
+            (void)gen.connect(arrivals, { .model = 0 }, service,
+                              { .model = 0 });
+            (void)gen.connect(service, { .model = 0 }, throughput,
+                              { .model = 0 });
 
             ids.component_file_paths[compo_id].file = gen_component_file_id;
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(mod.save(ids, fs, compo_id).has_value());
+            });
             return compo_id;
         });
 
@@ -125,7 +128,7 @@ int main()
             mod.files.read([&](const auto& fs, auto) {
                 auto exp_pj = irt::project::load(fs, ids, project_file_id);
                 expect(fatal(exp_pj.has_value()));
-                sim.assign(std::move(*exp_pj));
+                expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
             });
 
             expect(fatal(eq(sim.factors.size(), 2u)));
@@ -172,8 +175,10 @@ int main()
             ids.component_file_paths[compo_id]
               .file = simulation_component_file_id;
 
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
+
             return compo_id;
         });
 
@@ -225,20 +230,23 @@ int main()
             gen.children_parameters[sim_w_id]
               .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
 
-            gen.connect(cst_init, { .model = 0 }, sim_w,
-                        { .model = 0 }); // x[0] init
-            gen.connect(cst_run, { .model = 0 }, sim_w,
-                        { .model = 1 }); // x[1] run
-            gen.connect(cst_lambda, { .model = 0 }, sim_w,
-                        { .model = 2 }); // x[2] lambda
+            expect(gen.connect(cst_init, { .model = 0 }, sim_w, { .model = 0 })
+                     .has_value()); // x[0] init
+            expect(gen.connect(cst_run, { .model = 0 }, sim_w, { .model = 1 })
+                     .has_value()); // x[1] run
+            expect(
+              gen.connect(cst_lambda, { .model = 0 }, sim_w, { .model = 2 })
+                .has_value()); // x[2] lambda
 
-            gen.connect(sim_w, { .model = 0 }, throughput,
-                        { .model = 0 }); // y[0]=throughput
+            expect(
+              gen.connect(sim_w, { .model = 0 }, throughput, { .model = 0 })
+                .has_value()); // y[0]=throughput
 
             ids.component_file_paths[compo_id]
               .file = simulation_wrapper_file_id;
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(mod.save(ids, fs, compo_id).has_value());
+            });
             return compo_id;
         });
 
@@ -336,12 +344,17 @@ int main()
 
             gen.children_parameters[service_id].set_queue(2.0);
 
-            gen.connect(arrivals, { .model = 0 }, service, { .model = 0 });
-            gen.connect(service, { .model = 0 }, throughput, { .model = 0 });
+            expect(fatal(
+              gen.connect(arrivals, { .model = 0 }, service, { .model = 0 })
+                .has_value()));
+            expect(fatal(
+              gen.connect(service, { .model = 0 }, throughput, { .model = 0 })
+                .has_value()));
 
             ids.component_file_paths[compo_id].file = gen_component_file_id;
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(mod.save(ids, fs, compo_id).has_value());
+            });
             return compo_id;
         });
 
@@ -375,7 +388,7 @@ int main()
             mod.files.read([&](const auto& fs, auto) {
                 auto exp_pj = irt::project::load(fs, ids, project_file_id);
                 expect(fatal(exp_pj.has_value()));
-                sim.assign(std::move(*exp_pj));
+                expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
             });
 
             expect(fatal(eq(sim.factors.size(), 2u)));
@@ -422,8 +435,9 @@ int main()
             ids.component_file_paths[compo_id]
               .file = simulation_component_file_id;
 
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
             return compo_id;
         });
 
@@ -485,8 +499,9 @@ int main()
             machine.states[5u].if_transition = 1u;
 
             ids.component_file_paths[compo_id].file = hsm_component_file_id;
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
             return compo_id;
         });
 
@@ -557,27 +572,40 @@ int main()
               .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
 
             // Wiring:
-            gen.connect(cst_init, { .model = 0 }, sim_w,
-                        { .model = 0 }); // x[0] init
-            gen.connect(cst_run, { .model = 0 }, sim_w,
-                        { .model = 1 }); // x[1] run
+            expect(
+              fatal(gen.connect(cst_init, { .model = 0 }, sim_w, { .model = 0 })
+                      .has_value())); // x[0] init
+            expect(
+              fatal(gen.connect(cst_run, { .model = 0 }, sim_w, { .model = 1 })
+                      .has_value())); // x[1] run
 
             // Observation dual-wired into hsmw (confirmed pattern).
-            gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 0 });
-            gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 1 });
+            expect(
+              fatal(gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 0 })
+                      .has_value()));
+            expect(
+              fatal(gen.connect(cst_obs, { .model = 0 }, hsmw, { .model = 1 })
+                      .has_value()));
 
             // Omega_B's revised belief feeds the lambda factor.
-            gen.connect(hsmw, { .model = 0 }, sim_w,
-                        { .model = 2 }); // x[2] lambda
+            expect(
+              fatal(gen.connect(hsmw, { .model = 0 }, sim_w, { .model = 2 })
+                      .has_value())); // x[2] lambda
 
             // Outputs: throughput (selection) and winning lambda (factor).
-            gen.connect(sim_w, { .model = 0 }, best_throughput, { .model = 0 });
-            gen.connect(sim_w, { .model = 1 }, win_lambda, { .model = 0 });
+            expect(fatal(
+              gen
+                .connect(sim_w, { .model = 0 }, best_throughput, { .model = 0 })
+                .has_value()));
+            expect(fatal(
+              gen.connect(sim_w, { .model = 1 }, win_lambda, { .model = 0 })
+                .has_value()));
 
             ids.component_file_paths[compo_id]
               .file = simulation_wrapper_file_id;
-            mod.files.read(
-              [&](const auto& fs, auto) { mod.save(ids, fs, compo_id); });
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
             return compo_id;
         });
 

@@ -28,7 +28,7 @@ status variable_observer::init(project& pj) noexcept
                     return make_error(
                       simulation_errc::observers_container_full);
 
-                pj.sim.observe(*mdl, timestep.to_double());
+                irt_check(pj.sim.observe(*mdl, timestep.to_double()));
             }
 
             subs.get<observer_id>(id) = mdl->obs_id;
