@@ -1025,7 +1025,11 @@ private:
 struct player_view {
     u64    step;
     u64    furthest;
+    u64    earliest;
     time   t;
+    time   target;
+    i64    lateness_ms;
+    u32    resyncs;
     size_t keyframes;
     size_t bytes;
     bool   started;
@@ -1036,31 +1040,49 @@ struct player_view {
 class player_controller
 {
 public:
-    enum class mode : u8 { paused, play, reverse };
+    enum class mode : u8 { paused, play, reverse, realtime };
 
     player_controller(simulation& sim) noexcept
-        : player(sim)
+      : player(sim)
     {}
 
     simulation_player player;
+    realtime_pacer    pacer;
+
+    u32 resyncs = 0;
 
     std::atomic_flag busy; ///< raised by the main thread, lowered by the task
 
     mode   current = mode::paused; ///< main thread only
     status result;                 ///< write by task before busy.clear()
 
+    /// millseconds per unit time of simulation
+    std::chrono::milliseconds unit_duration{ 1000 };
+
+    /// task budget
+    std::chrono::milliseconds task_duration{ 16 };
+
+    // over need resynchronisation
+    std::chrono::milliseconds max_lateness{ 1000 };
+
     /// time given to the simulation by frame.
     std::chrono::milliseconds frame_budget{ 8 };
-    u64                       target = 0;
+
+    u64 target          = 0;
     u64 steps_per_frame = { 1 }; ///< speed of "play" and "play backward".
 
-    player_view fresh{}; /// write by the task before @c busy.clear()
-    player_view shown{}; /// main thread copy, displayed during busy
+    player_view fresh{}; ///< write by the task before @c busy.clear()
+    player_view shown{}; ///< main thread copy, displayed during busy
 
     bool dragging   = false;
     bool has_result = false;
+    bool pace_reset = true;  ///< rebase clock to the next task (start, resume).
+    bool edited     = false; ///< Use modify the simulation: forget_history()
 };
 
+void schedule_player(application&       app,
+                     const unsigned     idx,
+                     player_controller& c) noexcept;
 struct project_editor {
     enum class visualization_mode { flat, tree };
 

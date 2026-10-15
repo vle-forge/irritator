@@ -60,42 +60,40 @@ status simulation_player::go_to(const step_type n) noexcept
     return success();
 }
 
-status simulation_player::advance(
-  const std::chrono::nanoseconds budget,
-  const step_type max_steps) noexcept
+status simulation_player::advance(const std::chrono::nanoseconds budget,
+                                  const step_type max_steps) noexcept
 {
-        const auto end = std::chrono::steady_clock::now() + budget;
+    const auto end = std::chrono::steady_clock::now() + budget;
 
-        for (step_type i = 0; i < max_steps; ++i) {
-            if (not m_started or finished())
-                break;
+    for (step_type i = 0; i < max_steps; ++i) {
+        if (not m_started or finished())
+            break;
 
-            irt_check(step_forward());
+        irt_check(step_forward());
 
-            if (std::chrono::steady_clock::now() >= end)
-                break;
-        }
+        if (std::chrono::steady_clock::now() >= end)
+            break;
+    }
 
-        return success();
+    return success();
 }
 
-status simulation_player::retreat(
-  const std::chrono::nanoseconds budget,
-  const step_type max_steps) noexcept
+status simulation_player::retreat(const std::chrono::nanoseconds budget,
+                                  const step_type max_steps) noexcept
 {
-        const auto end = std::chrono::steady_clock::now() + budget;
+    const auto end = std::chrono::steady_clock::now() + budget;
 
-        for (step_type i = 0; i < max_steps; ++i) {
-            if (not m_started or m_step == 0)
-                break;
+    for (step_type i = 0; i < max_steps; ++i) {
+        if (not m_started or m_step == 0)
+            break;
 
-            irt_check(step_back());
+        irt_check(step_back());
 
-            if (std::chrono::steady_clock::now() >= end)
-                break;
-        }
+        if (std::chrono::steady_clock::now() >= end)
+            break;
+    }
 
-        return success();
+    return success();
 }
 
 status simulation_player::forget_future() noexcept
@@ -111,6 +109,67 @@ status simulation_player::forget_future() noexcept
 
     if (not m_keyframes.empty() and m_keyframes.back().step == m_step)
         return snapshot_to(m_keyframes.back().data);
+
+    return push_keyframe();
+}
+
+time simulation_player::next_time() const noexcept
+{
+    if (not m_started or m_sim.sched.empty())
+        return time_domain<time>::infinity;
+
+    return std::min(m_sim.sched.tn(), m_sim.limits.end());
+}
+
+status simulation_player::advance_until(const time                     target,
+                                        const std::chrono::nanoseconds budget,
+                                        const step_type max_steps) noexcept
+{
+    const auto end  = std::chrono::steady_clock::now() + budget;
+    bool       idle = false; // nothing is due: the clock can move.
+
+    for (step_type i = 0; i < max_steps; ++i) {
+        if (not m_started or finished())
+            break;
+
+        const auto next = next_time();
+
+        if (time_domain<time>::is_infinity(next)) {
+            if (is_live())
+                idle = true; // wait for an edition
+            else
+                irt_check(step_forward()); // no more event: finishes
+            break;
+        }
+
+        if (next > target) {
+            idle = true;
+            break;
+        }
+
+        irt_check(step_forward());
+
+        if (std::chrono::steady_clock::now() >= end)
+            break;
+    }
+
+    // Nothing is due: the simulation is at the date `target`. The clock moves,
+    // so that an edition (model created, value changed) is dated `target`.
+    if (idle and not finished() and target > m_sim.current_time())
+        m_sim.current_time(target);
+
+    return success();
+}
+
+status simulation_player::forget_history() noexcept
+{
+    if (not m_started)
+        return success();
+
+    m_keyframes.clear();
+    m_window.clear();
+    m_floor    = m_step;
+    m_furthest = m_step;
 
     return push_keyframe();
 }

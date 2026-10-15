@@ -915,6 +915,10 @@ auto application::show() noexcept -> show_result_t
     if (settings_wnd.is_open)
         settings_wnd.show();
 
+    for (auto& ed : pjs)
+        if (ed.pj.flags[project::simulation_flag::debug])
+            schedule_player(*this, get_index(pjs.get_id(ed)), ed.sim_player);
+
     return ret;
 }
 

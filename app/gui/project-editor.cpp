@@ -40,9 +40,13 @@ void project_editor::set_title_name(const std::string_view name) noexcept
 
 project_editor::~project_editor() noexcept
 {
-    if (output_context) {
+    // Wait simulation-player tasks if it running
+
+    while (sim_player.busy.test(std::memory_order_acquire))
+        std::this_thread::yield();
+
+    if (output_context)
         ImPlot::DestroyContext(output_context);
-    }
 }
 
 bool project_editor::is_selected(tree_node_id id) const noexcept

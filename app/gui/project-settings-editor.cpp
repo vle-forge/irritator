@@ -209,19 +209,30 @@ static bool submit(application&       app,
     if (c.busy.test_and_set(std::memory_order_acquire))
         return false;
 
-    app.add_simulation_task(idx, [&c, fn]() noexcept {
-        c.result = fn(c.player);
+    app.add_simulation_task(idx, [&c, fn,
+                                  edited = std::exchange(c.edited,
+                                                         false)]() noexcept {
+        c.result = edited ? c.player.forget_history() : success();
+        if (not c.result.has_error())
+            c.result = fn(c.player);
 
-        c.fresh.step      = c.player.step();
-        c.fresh.furthest  = c.player.furthest_step();
-        c.fresh.t         = c.player.current_time();
-        c.fresh.started   = c.player.started();
+        c.fresh.step     = c.player.step();
+        c.fresh.furthest = c.player.furthest_step();
+        c.fresh.earliest = c.player.earliest_step();
+        c.fresh.t        = c.player.current_time();
+        c.fresh.target   = c.pacer.target();
+        c.fresh
+          .lateness_ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            c.pacer.lateness(c.player.next_time()))
+                            .count();
+        c.fresh.resyncs = c.resyncs;
+        c.fresh.started = c.player.started();
         c.fresh.finished  = c.player.finished();
         c.fresh.can_back  = c.player.can_step_back();
         c.fresh.keyframes = c.player.keyframe_number();
         c.fresh.bytes     = c.player.memory_usage();
         c.has_result      = true;
-        c.busy.clear(std::memory_order_release);
+        c.busy.clear(std::memory_order_release); // TOUJOURS en dernier
     });
 
     return true;
@@ -242,50 +253,95 @@ static bool EnhancedButton(const application& app,
     return click;
 }
 
+void schedule_player(application&       app,
+                     const unsigned     idx,
+                     player_controller& c) noexcept
+{
+    using mode = player_controller::mode;
+
+    if (c.busy.test(std::memory_order_acquire))
+        return;
+
+    if (c.has_result) {
+        c.has_result = false;
+        c.shown      = c.fresh;
+
+        if (c.result.has_error()) {
+            c.current = mode::paused;
+            log(log_level::error, [&](auto& m) noexcept {
+                format(m, "Simulation player error: {}", c.result.error());
+            });
+        }
+    }
+
+    switch (c.current) {
+    case mode::paused:
+        break;
+
+    case mode::play:
+        if (c.shown.finished)
+            c.current = mode::paused;
+        else
+            submit(app, idx, c,
+                   [steps = c.steps_per_frame, budget = c.frame_budget](
+                     auto& p) { return p.advance(budget, steps); });
+        break;
+
+    case mode::reverse:
+        if (not c.shown.can_back)
+            c.current = mode::paused;
+        else
+            submit(app, idx, c,
+                   [steps = c.steps_per_frame, budget = c.frame_budget](
+                     auto& p) { return p.retreat(budget, steps); });
+        break;
+
+    case mode::realtime:
+        if (c.shown.finished) {
+            c.current = mode::paused;
+            break;
+        }
+
+        submit(app, idx, c,
+               [&pacer = c.pacer, &resyncs = c.resyncs, unit = c.unit_duration,
+                budget = c.task_duration, max_late = c.max_lateness,
+                reset = std::exchange(c.pace_reset, false)](
+                 auto& p) noexcept -> status {
+                   const auto now = realtime_pacer::clock::now();
+
+                   if (reset)
+                       pacer.rebase(p.current_time(), now);
+
+                   if (pacer.unit_duration() != unit)
+                       pacer.set_unit_duration(unit, now);
+
+                   if (pacer.resync_if_late(p.next_time(), max_late, now))
+                       ++resyncs;
+
+                   return p.advance_until(pacer.target(now), budget);
+               });
+        break;
+    }
+}
+
 static void show_simulation_player(application&       app,
                                    const unsigned     idx,
                                    player_controller& c) noexcept
 {
-    if (auto busy = c.busy.test(std::memory_order_acquire); not busy) {
-        if (c.has_result) {
-            c.has_result = false;
-            c.shown      = c.fresh;
+    const auto size = ImGui::ComputeButtonSize(5);
 
-            if (c.result.has_error()) {
-                c.current = player_controller::mode::paused;
-
-                log(log_level::error, [&](auto& m) noexcept {
-                    format(m, "Simulation player error: {}", c.result.error());
-                });
-            }
-        }
-
-        if (c.current == player_controller::mode::play) {
-            if (c.shown.finished) {
-                c.current = player_controller::mode::paused;
-            } else {
-                submit(app, idx, c,
-                       [steps        = c.steps_per_frame,
-                        frame_budget = c.frame_budget](auto& p) {
-                           return p.advance(frame_budget, steps);
-                       });
-            }
-        }
-
-        if (c.current == player_controller::mode::reverse) {
-            if (c.shown.can_back) {
-                submit(app, idx, c,
-                       [steps        = c.steps_per_frame,
-                        frame_budget = c.frame_budget](auto& p) {
-                           return p.retreat(frame_budget, steps);
-                       });
-            } else {
-                c.current = player_controller::mode::paused;
-            }
+    if (EnhancedButton(app,
+                       c.current == player_controller::mode::realtime
+                         ? "\ue057##t"
+                         : "RT##t",
+                       size, "Real time")) {
+        if (c.current == player_controller::mode::realtime) {
+            c.current = player_controller::mode::paused;
+        } else {
+            c.current    = player_controller::mode::realtime;
+            c.pace_reset = true;
         }
     }
-
-    const auto size = ImGui::ComputeButtonSize(5);
 
     if (not c.shown.started) {
         if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
@@ -354,6 +410,13 @@ static void show_simulation_player(application&       app,
     ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
     if (busy)
         ImGui::TextFormat("Work in progress...");
+
+    if (c.current == player_controller::mode::realtime) {
+        ImGui::TextFormat("target {:.3f}, lateness {} ms, resync {}",
+                          c.shown.target, c.shown.lateness_ms, c.shown.resyncs);
+        if (c.shown.lateness_ms > 0)
+            ImGui::TextFormat("The simulation is slower than the real time.");
+    }
 }
 
 static void show_simulation_action_buttons(application&    app,
@@ -421,6 +484,9 @@ static void show_simulation_action_buttons(application&    app,
 
     if (ed.pj.flags[project::simulation_flag::debug] /* and not start */) {
         ImGui::SeparatorText("Debug mode");
+        ed.sim_player.unit_duration = ed.one_simulation_time_duration;
+        ed.sim_player.task_duration = ed.simulation_task_duration;
+
         show_simulation_player(app, get_index(app.pjs.get_id(ed)),
                                ed.sim_player);
     }
@@ -508,6 +574,10 @@ static bool show_project_simulation_settings(application&    app,
     {
         i64 value = ed.one_simulation_time_duration.count();
 
+        ImGui::BeginDisabled(
+          not(ed.pj.flags[project::simulation_flag::real_time] or
+              ed.pj.flags[project::simulation_flag::debug]));
+
         if (ImGui::InputScalar("ms/u.t.", ImGuiDataType_S64, &value)) {
             if (value > 1) {
                 ed.one_simulation_time_duration = std::chrono::milliseconds(
@@ -515,6 +585,8 @@ static bool show_project_simulation_settings(application&    app,
                 ++up;
             }
         }
+        ImGui::EndDisabled();
+
         ImGui::SameLine();
         HelpMarker("Duration in milliseconds per unit of simulation time. "
                    "Default is to "
