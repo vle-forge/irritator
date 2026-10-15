@@ -473,22 +473,6 @@ vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
     return ret;
 }
 
-static inline u64 get_tick_count_in_milliseconds() noexcept
-{
-    namespace sc = std::chrono;
-
-    return duration_cast<sc::milliseconds>(
-             sc::steady_clock::now().time_since_epoch())
-      .count();
-}
-
-static bool is_expired(const u64 creation_time, const u64 duration) noexcept
-{
-    const auto elapsed_time = get_tick_count_in_milliseconds() - creation_time;
-
-    return elapsed_time >= duration;
-}
-
 config_manager::config_manager() noexcept { do_build_default(vars); }
 
 config_manager::config_manager(const path& config_path) noexcept
