@@ -3128,7 +3128,14 @@ int main()
             vec data(sorted_vec.begin(), sorted_vec.end());
             vec other_data(data);
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wself-assign-overloaded"
+#endif
             other_data = other_data;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
             bool is_equal = std::equal(data.begin(), data.end(),
                                        other_data.begin());
@@ -3139,7 +3146,14 @@ int main()
             svec data(sorted_vec.begin(), sorted_vec.end());
             svec other_data(data);
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wself-assign-overloaded"
+#endif
             other_data = other_data;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
             bool is_equal = std::equal(data.begin(), data.end(),
                                        other_data.begin());
