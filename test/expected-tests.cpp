@@ -12,6 +12,7 @@
 #include <ios>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <type_traits>
 #include <utility>
@@ -230,6 +231,64 @@ constexpr bool constexpr_scenario()
 }
 
 static_assert(constexpr_scenario());
+
+// -- fail_if, require, status::transform, category_name in constant expressions
+// --
+
+template<typename E>
+concept can_fail_if = requires(E e) { irt::fail_if(true, e); };
+
+static_assert(irt::error_source<simulation_errc>);
+static_assert(irt::error_source<std::errc>);
+static_assert(!irt::error_source<int>);
+static_assert(can_fail_if<simulation_errc>);
+static_assert(can_fail_if<std::errc>);
+static_assert(!can_fail_if<int>);
+
+// make_error is not a constant expression (it can call a global hook): only
+// the successful paths are usable in constant expressions.
+static_assert(irt::fail_if(false, simulation_errc::range_error).has_value());
+
+constexpr int constexpr_value = 7;
+static_assert(
+  *irt::require(&constexpr_value, simulation_errc::range_error).value() == 7);
+
+static_assert(
+  std::is_same_v<decltype(irt::fail_if(true, simulation_errc::range_error)),
+                 irt::status>);
+static_assert(
+  std::is_same_v<decltype(irt::require(std::declval<int*>(),
+                                       simulation_errc::range_error)),
+                 irt::expected<int*>>);
+static_assert(
+  std::is_same_v<decltype(irt::require(std::declval<const int*>(),
+                                       simulation_errc::range_error)),
+                 irt::expected<const int*>>);
+
+// The result of require is a trivial type like any expected<pointer>.
+static_assert(std::is_trivially_copyable_v<irt::expected<int*>>);
+
+constexpr bool status_transform_scenario()
+{
+    irt::status s = irt::success();
+
+    const auto r = s.transform([]() noexcept { return 3; });
+    if (!r.has_value() || *r != 3)
+        return false;
+
+    const auto v = s.transform([]() noexcept {});
+    if (!v.has_value())
+        return false;
+
+    irt::status bad(range_err);
+    const auto  e = bad.transform([]() noexcept { return 3; });
+    return e.has_error() && e.error() == range_err;
+}
+
+static_assert(status_transform_scenario());
+
+// category_name is usable in constant expressions.
+static_assert(irt::category_name(irt::category::simulation) == "simulation");
 
 // -- helpers used by several tests -------------------------------------------
 
@@ -1005,6 +1064,247 @@ void test_irt_check()
     };
 }
 
+// -- irt_assign, fail_if, require --------------------------------------------
+
+int  lookup_table[3] = { 10, 20, 30 };
+int* lookup(int i) noexcept
+{
+    return (i >= 0 && i < 3) ? &lookup_table[i] : nullptr;
+}
+
+irt::expected<tracker> make_tracker(int v) noexcept
+{
+    if (v < 0)
+        return range_err;
+
+    return tracker(v);
+}
+
+irt::status assign_tracker(int v, int& alive_inside, int& value) noexcept
+{
+    irt_assign(t, make_tracker(v));
+
+    alive_inside = tracker::alive;
+    value        = t.v;
+    return irt::success();
+}
+
+// Two uses in the same scope and an error converted to another expected.
+irt::expected<std::string> assign_converted(int i) noexcept
+{
+    irt_assign(p, irt::require(lookup(i), simulation_errc::input_port_error));
+    irt_check(irt::fail_if(*p > 20, modeling_errc::file_error));
+    irt_assign(q, irt::require(lookup(0), simulation_errc::input_port_error));
+
+    return std::to_string(*p + *q);
+}
+
+irt::expected<int> assign_move_only(
+  irt::expected<std::unique_ptr<int>> e) noexcept
+{
+    irt_assign(p, e);
+
+    std::unique_ptr<int> mine = std::move(p);
+    return *mine;
+}
+
+void test_irt_assign()
+{
+    "irt_assign: declares the value or returns the error"_test = [] {
+        int alive = -1;
+        int value = -1;
+
+        tracker::alive = 0;
+        expect(assign_tracker(7, alive, value).has_value());
+        expect(eq(value, 7));
+        expect(eq(alive, 1)) << "the value must be referenced, not copied";
+        expect(eq(tracker::alive, 0));
+
+        alive = -1;
+        value = -1;
+
+        const auto bad = assign_tracker(-1, alive, value);
+        expect(bad.has_error() && bad.error() == range_err);
+        expect(eq(alive, -1)) << "the code after irt_assign must be skipped";
+        expect(eq(value, -1));
+    };
+
+    "irt_assign: the error is converted to the return type"_test = [] {
+        const auto a = assign_converted(0);
+        expect(a.has_value() && *a == "20");
+
+        const auto b = assign_converted(1);
+        expect(b.has_value() && *b == "30");
+
+        const auto c = assign_converted(2);
+        expect(c.has_error() && c.error() == file_err)
+          << "error of the irt_check between the two irt_assign";
+
+        const auto d = assign_converted(9);
+        expect(d.has_error() &&
+               d.error() == irt::error_code(simulation_errc::input_port_error));
+    };
+
+    "irt_assign: move-only value from an lvalue expected"_test = [] {
+        const auto a = assign_move_only(
+          irt::expected<std::unique_ptr<int>>(std::make_unique<int>(3)));
+        expect(a.has_value() && *a == 3);
+
+        const auto b = assign_move_only(
+          irt::expected<std::unique_ptr<int>>(range_err));
+        expect(b.has_error() && b.error() == range_err);
+    };
+}
+
+void test_fail_if_and_require()
+{
+    "fail_if: make_error is called on failure only"_test = [] {
+        irt::on_error_callback = &count_error;
+        error_calls            = 0;
+
+        const auto ok = irt::fail_if(false, simulation_errc::range_error);
+        expect(ok.has_value());
+        expect(eq(error_calls, 0)) << "no hook on the successful path";
+
+        const auto bad = irt::fail_if(true, simulation_errc::range_error);
+        expect(bad.has_error() && bad.error() == range_err);
+        expect(eq(error_calls, 1));
+
+        const auto sys = irt::fail_if(true, std::errc::invalid_argument);
+        expect(sys.has_error());
+        expect(sys.error().cat() == irt::category::generic);
+        expect(eq(error_calls, 2));
+
+        irt::on_error_callback = nullptr;
+    };
+
+    "fail_if: all error enumerations"_test = [] {
+        expect(irt::fail_if(true, modeling_errc::file_error).error() ==
+               file_err);
+        expect(irt::fail_if(true, project_errc::empty_project).error() ==
+               irt::error_code(project_errc::empty_project));
+    };
+
+    "require: a pointer becomes an expected<T*>"_test = [] {
+        irt::on_error_callback = &count_error;
+        error_calls            = 0;
+
+        int  x = 5;
+        auto r = irt::require(&x, simulation_errc::range_error);
+        expect(r.has_value());
+        expect(*r == &x) << "the same pointer";
+        expect(eq(error_calls, 0)) << "no hook on the successful path";
+
+        int* none = nullptr;
+        auto bad  = irt::require(none, simulation_errc::range_error);
+        expect(bad.has_error() && bad.error() == range_err);
+        expect(eq(error_calls, 1));
+
+        const int* cp = &x;
+        auto       rc = irt::require(cp, std::errc::invalid_argument);
+        static_assert(std::is_same_v<decltype(rc), irt::expected<const int*>>);
+        expect(rc.has_value() && **rc == 5);
+
+        irt::on_error_callback = nullptr;
+    };
+
+    "require: with a lookup function"_test = [] {
+        expect(**irt::require(lookup(1), simulation_errc::range_error) == 20);
+        expect(irt::require(lookup(3), simulation_errc::range_error).error() ==
+               range_err);
+        expect(
+          irt::require(lookup(-1), simulation_errc::range_error).has_error());
+    };
+}
+
+void test_status_transform()
+{
+    "status::transform: the result type follows the callback"_test = [] {
+        irt::status       ok  = irt::success();
+        const irt::status cok = irt::success();
+
+        const auto i = ok.transform([]() noexcept { return 42; });
+        static_assert(
+          std::is_same_v<std::remove_const_t<decltype(i)>, irt::expected<int>>);
+        expect(i.has_value() && *i == 42);
+
+        const auto s = cok.transform(
+          []() noexcept { return std::string(64, 'x'); });
+        static_assert(std::is_same_v<std::remove_const_t<decltype(s)>,
+                                     irt::expected<std::string>>);
+        expect(s.has_value() && s->size() == 64);
+
+        int calls = 0;
+
+        const auto v = ok.transform([&]() noexcept { ++calls; });
+        static_assert(
+          std::is_same_v<std::remove_const_t<decltype(v)>, irt::status>);
+        expect(v.has_value());
+        expect(eq(calls, 1));
+    };
+
+    "status::transform: an error skips the callback"_test = [] {
+        int         calls = 0;
+        irt::status bad(range_err);
+
+        const auto a = bad.transform([&]() noexcept {
+            ++calls;
+            return 1;
+        });
+        expect(a.has_error() && a.error() == range_err);
+
+        const auto b = bad.transform([&]() noexcept { ++calls; });
+        expect(b.has_error() && b.error() == range_err);
+
+        const auto c = std::move(bad).transform([&]() noexcept {
+            ++calls;
+            return 1;
+        });
+        expect(c.has_error() && c.error() == range_err);
+
+        expect(eq(calls, 0));
+    };
+
+    "status::transform: rvalue, map and chaining"_test = [] {
+        const auto r = irt::success().transform([]() noexcept { return 2; });
+        expect(r.has_value() && *r == 2);
+
+        irt::status ok = irt::success();
+        const auto  m  = ok.map([]() noexcept { return 5; });
+        expect(m.has_value() && *m == 5);
+
+        // status -> expected<int> -> expected<std::string>
+        const auto chained = step(1)
+                               .transform([]() noexcept { return 21; })
+                               .and_then([](int v) noexcept {
+                                   return irt::expected<std::string>(
+                                     std::to_string(v * 2));
+                               });
+        expect(chained.has_value() && *chained == "42");
+
+        const auto failed = step(-1)
+                              .transform([]() noexcept { return 21; })
+                              .and_then([](int v) noexcept {
+                                  return irt::expected<std::string>(
+                                    std::to_string(v));
+                              });
+        expect(failed.has_error() && failed.error() == range_err);
+    };
+}
+
+// -- category_name -----------------------------------------------------------
+
+void test_category_name()
+{
+    "category_name"_test = [] {
+        expect(irt::category_name(irt::category::generic) == "generic");
+        expect(irt::category_name(irt::category::modeling) == "modeling");
+        expect(irt::category_name(irt::category::project) == "project");
+        expect(irt::category_name(irt::category::simulation) == "simulation");
+        expect(irt::category_name(static_cast<irt::category>(99)) == "unknown");
+    };
+}
+
 } // namespace
 
 int main()
@@ -1018,4 +1318,8 @@ int main()
     test_expected_monadic();
     test_expected_comparison();
     test_irt_check();
+    test_irt_assign();
+    test_fail_if_and_require();
+    test_status_transform();
+    test_category_name();
 }

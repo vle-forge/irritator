@@ -324,6 +324,25 @@ inline error_code make_error(std::errc e) noexcept
     return error_code(e);
 }
 
+/**
+ * Name of a category: "generic", "modeling", "project" or "simulation".
+ */
+[[nodiscard]] constexpr std::string_view category_name(category cat) noexcept
+{
+    switch (cat) {
+    case category::generic:
+        return "generic";
+    case category::modeling:
+        return "modeling";
+    case category::project:
+        return "project";
+    case category::simulation:
+        return "simulation";
+    }
+
+    return "unknown";
+}
+
 template<typename T>
 class expected;
 
@@ -1136,6 +1155,27 @@ private:
     }
 
     template<typename Self, typename Fn>
+    static constexpr auto transform_impl(Self&& self, Fn&& f) noexcept
+    {
+        using U = std::remove_cvref_t<std::invoke_result_t<Fn>>;
+
+        // Written with U (and not expected<void>) in the void case, see
+        // expected<T>::transform_impl.
+        if constexpr (std::is_void_v<U>) {
+            if (self.has_value()) {
+                std::invoke(std::forward<Fn>(f));
+                return expected<U>();
+            }
+            return expected<U>(self.storage);
+        } else {
+            if (self.has_value())
+                return expected<U>(std::in_place,
+                                   std::invoke(std::forward<Fn>(f)));
+            return expected<U>(self.storage);
+        }
+    }
+
+    template<typename Self, typename Fn>
     static constexpr auto map_error_impl(Self&& self, Fn&& f) noexcept
     {
         using R = std::invoke_result_t<Fn, decltype(forward_error(
@@ -1296,6 +1336,60 @@ public:
     }
 
     /**
+     * Returns an expected<U> holding @a f() if there is no error, where U is
+     * the (decayed) result type of @a f, or a status if @a f returns void.
+     * Otherwise propagates the error: @a f is not called.
+     */
+    template<typename Fn>
+    [[nodiscard]] constexpr auto transform(Fn&& f) & noexcept
+    {
+        return transform_impl(*this, std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto transform(Fn&& f) const& noexcept
+    {
+        return transform_impl(*this, std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto transform(Fn&& f) && noexcept
+    {
+        return transform_impl(std::move(*this), std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto transform(Fn&& f) const&& noexcept
+    {
+        return transform_impl(std::move(*this), std::forward<Fn>(f));
+    }
+
+    // Same as transform, kept for source compatibility with expected<T>::map.
+    template<typename Fn>
+    [[nodiscard]] constexpr auto map(Fn&& f) & noexcept
+    {
+        return transform(std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto map(Fn&& f) const& noexcept
+    {
+        return transform(std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto map(Fn&& f) && noexcept
+    {
+        return std::move(*this).transform(std::forward<Fn>(f));
+    }
+
+    template<typename Fn>
+    [[nodiscard]] constexpr auto map(Fn&& f) const&& noexcept
+    {
+        return std::move(*this).transform(std::forward<Fn>(f));
+    }
+
+    /**
      * Calls @a f(error) when there is an error (does nothing otherwise).
      */
     template<typename Fn>
@@ -1335,6 +1429,52 @@ public:
  * @return status - that is always successful
  */
 constexpr inline expected<void> success() noexcept { return expected<void>(); }
+
+/**
+ * Anything @a make_error accepts as a single argument.
+ */
+template<typename E>
+concept error_source = error_enum<E> || std::same_as<E, std::errc>;
+
+/**
+ * Returns a failure (a status holding `make_error(e)`) if @a failed is true,
+ * otherwise a success.
+ *
+ * `make_error`, hence @a on_error_callback, is called only on failure: the
+ * successful path does not trigger the debugger hook.
+ *
+ * EXAMPLE:
+ *
+ *     irt_check(irt::fail_if(n <= 0, simulation_errc::range_error));
+ */
+template<error_source E>
+[[nodiscard]] constexpr expected<void> fail_if(bool failed, E e) noexcept
+{
+    if (failed)
+        return expected<void>(make_error(e));
+
+    return expected<void>();
+}
+
+/**
+ * Turns a pointer, typically the result of an id lookup that returns nullptr
+ * when nothing is found, into an expected<T*>: the pointer if it is not null,
+ * otherwise `make_error(e)` (called only in this case). Since an expected can
+ * not hold a reference, a pointer is the way to return an element.
+ *
+ * EXAMPLE:
+ *
+ *     irt_assign(mdl, irt::require(sim.models.try_to_get(id),
+ *                                  simulation_errc::models_container_full));
+ */
+template<typename T, error_source E>
+[[nodiscard]] constexpr expected<T*> require(T* ptr, E e) noexcept
+{
+    if (ptr)
+        return expected<T*>(ptr);
+
+    return expected<T*>(make_error(e));
+}
 
 template<typename T>
 constexpr void swap(expected<T>& lhs,
@@ -1411,5 +1551,32 @@ using status = expected<void>;
         if (not irt_check_result_)                                             \
             return irt_check_result_.error();                                  \
     } while (0)
+
+/**
+ * Declares @a var as a reference to the value held by the expected @a expr, or
+ * returns its error from the calling function (as irt_check does).
+ *
+ *     irt::status use(int i) noexcept
+ *     {
+ *         irt_assign(p, irt::require(find(i), simulation_errc::range_error));
+ *         irt_assign(s, parse(*p));
+ *         ...
+ *     }
+ *
+ * `var` refers to the value stored in a temporary that lives until the end of
+ * the enclosing scope: nothing is copied or moved (use std::move(var) to take a
+ * move-only value). The name of this temporary is built from `var`, so no
+ * __LINE__ or __COUNTER__ is needed and the macro can be used several times in
+ * a scope with different names.
+ *
+ * @attention The macro declares two variables in the current scope: it can not
+ * be the unbraced body of an `if`, `for`, etc. It is not usable with a status
+ * (it holds no value): use irt_check.
+ */
+#define irt_assign(var, expr)                                                  \
+    auto&& irt_result_##var = (expr);                                          \
+    if (not irt_result_##var)                                                  \
+        return irt_result_##var.error();                                       \
+    auto&& var = *irt_result_##var
 
 #endif
