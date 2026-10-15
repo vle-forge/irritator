@@ -150,28 +150,6 @@ constexpr static inline u32 id_mask{ ((1u << id_bits) - 1u) << id_shift };
     return output_component_port_tag == (static_cast<u32>(att) & type_mask);
 }
 
-[[nodiscard]] static inline bool is_input_child_model(const int att) noexcept
-{
-    return input_child_model_port_tag == (static_cast<u32>(att) & type_mask);
-}
-
-[[nodiscard]] static inline bool is_input_child_component(
-  const int att) noexcept
-{
-    return input_child_compo_port_tag == (static_cast<u32>(att) & type_mask);
-}
-
-[[nodiscard]] static inline bool is_output_child_model(const int att) noexcept
-{
-    return output_child_model_port_tag == (static_cast<u32>(att) & type_mask);
-}
-
-[[nodiscard]] static inline bool is_output_child_component(
-  const int att) noexcept
-{
-    return output_child_compo_port_tag == (static_cast<u32>(att) & type_mask);
-}
-
 [[nodiscard]] static inline int pack_X(const port_id port) noexcept
 {
     const auto idx = static_cast<u32>(get_index(port));
