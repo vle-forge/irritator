@@ -4884,7 +4884,6 @@ struct json_dearchiver::impl {
         name_str           reg_name;
         directory_path_str dir_path;
         file_path_str      file_path;
-        name_str           name;
 
         const auto read_project = for_each_member(
                                     val,

@@ -36,8 +36,7 @@ static bool can_delete_component(application& app, component_id id) noexcept
 static void show_component_popup_menu(application&            app,
                                       const component_access& ids,
                                       const file_access&      fs,
-                                      const component_id      compo_id,
-                                      const component&        sel) noexcept
+                                      const component_id      compo_id) noexcept
 {
     using namespace std::string_view_literals;
 
@@ -60,7 +59,7 @@ static void show_component_popup_menu(application&            app,
         ImGui::Separator();
 
         if (ImGui::MenuItem("Copy")) {
-            app.add_gui_task([&app, compo_id, name = sel.name]() noexcept {
+            app.add_gui_task([&app, compo_id]() noexcept {
                 app.mod.ids.write([&](auto& ids) noexcept {
                     if (not ids.can_alloc_component(1)) {
                         log(
@@ -231,7 +230,7 @@ void library_window::show_file_component(const file_access&      fs,
             app.component_ed.request_to_open(id);
     }
 
-    show_component_popup_menu(app, ids, fs, id, c);
+    show_component_popup_menu(app, ids, fs, id);
     ImGui::PopID();
 
     ImGui::PushStyleColor(ImGuiCol_Text,
@@ -300,7 +299,7 @@ void library_window::show_notsaved_content(
                 }
                 ImGui::PopID();
 
-                show_component_popup_menu(app, ids, fs, id, compo);
+                show_component_popup_menu(app, ids, fs, id);
             }
         }
     }

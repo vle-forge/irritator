@@ -950,7 +950,6 @@ int main()
 
     "mixed stress: writers, readers and try_readers"_test = [] {
         irt::shared_buffer<Counter> buffer(Counter(0));
-        std::atomic<bool>           stop{ false };
         std::atomic<int>            writers_done{ 0 };
         std::atomic<int>            ready{ 0 };
         std::atomic<irt::u64>       backwards{ 0 };

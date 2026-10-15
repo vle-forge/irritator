@@ -239,6 +239,8 @@ public:
 
         for (auto& o : pj.variable_observers)
             irt_check(o.init(pj));
+
+        return irt::success();
     }
 
     void observation_update() noexcept

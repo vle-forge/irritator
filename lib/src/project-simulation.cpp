@@ -1001,8 +1001,6 @@ status project::simulation_step() noexcept
         if (tree_nodes.try_to_get(tn_head())) {
             simulation_state = simulation_status::running;
 
-            const auto current_time = sim.current_time();
-
             if (auto ret = sim.run(); ret.has_error()) {
                 simulation_state = simulation_status::finish_requiring;
 
