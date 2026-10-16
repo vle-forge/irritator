@@ -808,7 +808,8 @@ void application::show_dock() noexcept
                 if (not opened) {
                     const auto next_key = pjs.next_key();
                     const auto label    = format_n<32>("project-{}", next_key);
-                    auto& pj = pjs.alloc(label.sv(), std::move(*pj_released));
+                    auto& pj = pjs.alloc(label.sv(), get_unordered_task_list(),
+                                         std::move(*pj_released));
                     const auto pj_id = pjs.get_id(pj);
                     output_ed.add_project(pj_id);
                 }

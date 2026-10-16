@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_SIMULATION_PLAYER_HPP
 
 #include <irritator/binary-simulation.hpp>
+#include <irritator/thread.hpp>
 
 #include <chrono>
 
@@ -56,8 +57,9 @@ public:
     using step_type = u64;
     using options   = simulation_player_options;
 
-    explicit simulation_player(simulation&   sim,
-                               const options opt = options{}) noexcept;
+    explicit simulation_player(simulation&          sim,
+                               unordered_task_list& utl,
+                               const options        opt = options{}) noexcept;
 
     simulation_player(const simulation_player&)            = delete;
     simulation_player& operator=(const simulation_player&) = delete;
@@ -196,7 +198,9 @@ private:
         vector<u8> data;
     };
 
-    simulation&        m_sim;
+    simulation&          m_sim;
+    unordered_task_list& m_utl;
+
     binary_writer      m_writer;    // reused: no allocation for a snapshot
     vector<keyframe>   m_keyframes; // sorted by step, the first is the step 0
     vector<vector<u8>> m_window;    // snapshots of the steps
@@ -213,6 +217,9 @@ private:
     status snapshot_to(vector<u8>& out) noexcept;
     status restore_from(const vector<u8>& data) noexcept;
     status push_keyframe() noexcept;
+
+    void tick_resamplers_imm() noexcept;
+    void tick_resamplers_all() noexcept;
 
     /// Takes a keyframe when the simulation goes beyond the last one (a
     /// replay of a known part of the history does not take any).

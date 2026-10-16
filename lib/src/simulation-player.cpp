@@ -6,9 +6,11 @@
 
 namespace irt {
 
-simulation_player::simulation_player(simulation&   sim,
-                                     const options opt) noexcept
+simulation_player::simulation_player(simulation&          sim,
+                                     unordered_task_list& utl,
+                                     const options        opt) noexcept
   : m_sim(sim)
+  , m_utl(utl)
   , m_interval(std::max<u32>(opt.keyframe_interval, 1u))
   , m_max_keyframes(std::max<u32>(opt.max_keyframes, 2u))
 {}
@@ -193,10 +195,91 @@ std::size_t simulation_player::memory_usage() const noexcept
     return ret;
 }
 
+void simulation_player::tick_resamplers_imm() noexcept
+{
+    std::size_t obs_max = m_sim.immediate_observers.size();
+    std::size_t current = 0;
+
+    while (obs_max > 0) {
+        const auto loop = std::min(obs_max, ordered_task_list::task_max);
+
+        for (std::size_t i = 0; i != loop; ++i) {
+            auto obs_id = m_sim.immediate_observers[i + current];
+
+            m_utl.add([&, obs_id]() noexcept {
+                if (auto* obs = m_sim.observers.try_to_get(obs_id)) {
+                    auto& res = m_sim.observers.get<resampler>(obs_id);
+
+                    res.tick(*obs, m_sim.current_time());
+                }
+            });
+        }
+
+        m_utl.submit();
+        m_utl.wait_completion();
+
+        current += loop;
+        if (obs_max > ordered_task_list::task_max)
+            obs_max -= ordered_task_list::task_max;
+        else
+            obs_max = 0;
+    }
+
+    if (current > 0) {
+        m_utl.submit();
+        m_utl.wait_completion();
+    }
+}
+
+void simulation_player::tick_resamplers_all() noexcept
+{
+    std::size_t obs_max = m_sim.observers.ssize();
+    std::size_t current = 0;
+
+    auto it = m_sim.observers.begin();
+    auto et = m_sim.observers.end();
+
+    while (it != et) {
+        const auto loop = std::min(obs_max, ordered_task_list::task_max);
+
+        for (std::size_t i = 0; i != loop; ++i) {
+            const auto obs_id = m_sim.observers.get_id(*it);
+
+            m_utl.add([&, obs_id]() noexcept {
+                if (auto* obs = m_sim.observers.try_to_get(obs_id)) {
+                    auto& res = m_sim.observers.get<resampler>(obs_id);
+
+                    res.tick(*obs, m_sim.current_time());
+                }
+            });
+
+            ++it;
+        }
+
+        m_utl.submit();
+        m_utl.wait_completion();
+
+        current += loop;
+        if (obs_max >= ordered_task_list::task_max)
+            obs_max -= ordered_task_list::task_max;
+        else
+            obs_max = 0;
+    }
+
+    if (current > 0) {
+        m_utl.submit();
+        m_utl.wait_completion();
+    }
+}
+
 status simulation_player::do_step() noexcept
 {
     irt_check(m_sim.run());
-    m_sim.tick_resamplers();
+
+    if (m_sim.current_time_expired())
+        tick_resamplers_all();
+    else if (not m_sim.immediate_observers.empty())
+        tick_resamplers_imm();
 
     ++m_step;
     m_furthest = std::max(m_furthest, m_step);
