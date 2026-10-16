@@ -1086,8 +1086,8 @@ void schedule_player(application&       app,
 struct project_editor {
     enum class visualization_mode { flat, tree };
 
-    project_editor(unordered_task_list&   utl,
-                   const std::string_view default_name,
+    project_editor(const std::string_view default_name,
+                   unordered_task_list&   utl,
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;

@@ -20,8 +20,8 @@
 
 namespace irt {
 
-project_editor::project_editor(unordered_task_list&   utl,
-                               const std::string_view default_name,
+project_editor::project_editor(const std::string_view default_name,
+                               unordered_task_list&   utl,
                                project&&              project_) noexcept
   : pj(std::move(project_))
   , sim_player{ pj.sim, utl }
