@@ -6,11 +6,15 @@
 
 namespace irt {
 
-simulation_player::simulation_player(simulation&   sim,
-                                     const options opt) noexcept
+simulation_player::simulation_player(simulation&          sim,
+                                     unordered_task_list* utl,
+                                     const options        opt) noexcept
   : m_sim(sim)
+  , m_utl(utl)
   , m_interval(std::max<u32>(opt.keyframe_interval, 1u))
   , m_max_keyframes(std::max<u32>(opt.max_keyframes, 2u))
+  , m_chunk(std::max<u32>(opt.observers_per_chunk, 1u))
+  , m_helpers(opt.max_helpers)
 {}
 
 status simulation_player::start() noexcept
@@ -18,8 +22,10 @@ status simulation_player::start() noexcept
     m_started = false;
     m_keyframes.clear();
     m_window.clear();
-    m_step     = 0;
-    m_furthest = 0;
+    m_window_first = 0;
+    m_step         = 0;
+    m_furthest     = 0;
+    m_floor        = 0;
 
     irt_check(m_sim.initialize());
     irt_check(push_keyframe());
@@ -30,7 +36,9 @@ status simulation_player::start() noexcept
 
 status simulation_player::step_forward() noexcept
 {
-    if (not m_started or finished())
+    // Not finished() only: a simulation without end and without event must
+    // not call run() (it would set the time to infinity).
+    if (not can_step_forward())
         return success();
 
     irt_check(do_step());
@@ -40,7 +48,7 @@ status simulation_player::step_forward() noexcept
 
 status simulation_player::step_back() noexcept
 {
-    if (not m_started or m_step == 0)
+    if (not can_step_back())
         return success();
 
     return rewind_to(m_step - 1, true);
@@ -52,9 +60,9 @@ status simulation_player::go_to(const step_type n) noexcept
         return success();
 
     if (n < m_step)
-        irt_check(rewind_to(n, false));
+        irt_check(rewind_to(std::max(n, m_floor), false));
 
-    while (m_step < n and not finished())
+    while (m_step < n and can_step_forward())
         irt_check(step_forward());
 
     return success();
@@ -66,7 +74,7 @@ status simulation_player::advance(const std::chrono::nanoseconds budget,
     const auto end = std::chrono::steady_clock::now() + budget;
 
     for (step_type i = 0; i < max_steps; ++i) {
-        if (not m_started or finished())
+        if (not can_step_forward())
             break;
 
         irt_check(step_forward());
@@ -84,7 +92,7 @@ status simulation_player::retreat(const std::chrono::nanoseconds budget,
     const auto end = std::chrono::steady_clock::now() + budget;
 
     for (step_type i = 0; i < max_steps; ++i) {
-        if (not m_started or m_step == 0)
+        if (not can_step_back())
             break;
 
         irt_check(step_back());
@@ -156,7 +164,7 @@ status simulation_player::advance_until(const time                     target,
     // Nothing is due: the simulation is at the date `target`. The clock moves,
     // so that an edition (model created, value changed) is dated `target`.
     if (idle and not finished() and target > m_sim.current_time())
-        m_sim.current_time(target);
+        m_sim.current_time(target); // no effect outside of the limits
 
     return success();
 }
@@ -193,10 +201,91 @@ std::size_t simulation_player::memory_usage() const noexcept
     return ret;
 }
 
+/*
+ * Observers
+ */
+
+void simulation_player::tick_job::work() noexcept
+{
+    for (;;) {
+        const auto i = next.fetch_add(1, std::memory_order_relaxed);
+        if (i >= chunk_count)
+            return;
+
+        const auto first = i * chunk;
+        const auto last  = std::min(count, first + chunk);
+
+        sim->tick_resamplers(
+          std::span<const observer_id>(ids + first, last - first));
+    }
+}
+
+bool simulation_player::parallel_tick(const std::size_t n) const noexcept
+{
+    return m_utl != nullptr and m_helpers > 0 and n >= 2u * m_chunk;
+}
+
+void simulation_player::tick_parallel(
+  const std::span<const observer_id> ids) noexcept
+{
+    tick_job job;
+    job.sim         = &m_sim;
+    job.ids         = ids.data();
+    job.count       = ids.size();
+    job.chunk       = m_chunk;
+    job.chunk_count = (ids.size() + m_chunk - 1u) / m_chunk;
+
+    const auto helpers = std::min<std::size_t>(m_helpers, job.chunk_count - 1u);
+    std::size_t added  = 0;
+
+    for (std::size_t i = 0; i != helpers; ++i)
+        if (m_utl->add([p = &job]() noexcept { p->work(); }))
+            ++added; // refused (list stopping): the caller works alone
+
+    if (added > 0)
+        m_utl->submit();
+
+    job.work(); // the calling thread does its share, or all of it
+
+    // The batch is over when all the helpers are over: job can be destroyed.
+    // They have nothing left to claim (or they finish the chunk they claimed).
+    if (added > 0)
+        m_utl->wait_completion();
+}
+
+void simulation_player::tick_observers() noexcept
+{
+    if (m_sim.current_time_expired()) {
+        const auto n = static_cast<std::size_t>(m_sim.observers.size());
+
+        if (not parallel_tick(n))
+            return m_sim.tick_resamplers();
+
+        m_obs_ids.clear();
+        for (const auto& obs : m_sim.observers)
+            m_obs_ids.emplace_back(m_sim.observers.get_id(obs));
+
+        tick_parallel(
+          std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()));
+    } else if (not m_sim.immediate_observers.empty()) {
+        const auto ids = std::span<const observer_id>(
+          m_sim.immediate_observers.data(),
+          static_cast<std::size_t>(m_sim.immediate_observers.size()));
+
+        if (not parallel_tick(ids.size()))
+            return m_sim.tick_resamplers(ids);
+
+        // The identifiers of immediate_observers are unique: two chunks never
+        // tick the same observer, and the vector is not changed during the tick.
+        tick_parallel(ids);
+    }
+}
+
 status simulation_player::do_step() noexcept
 {
     irt_check(m_sim.run());
-    m_sim.tick_resamplers();
+
+    tick_observers();
 
     ++m_step;
     m_furthest = std::max(m_furthest, m_step);

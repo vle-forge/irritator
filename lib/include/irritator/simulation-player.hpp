@@ -6,10 +6,36 @@
 #define ORG_VLEPROJECT_IRRITATOR_SIMULATION_PLAYER_HPP
 
 #include <irritator/binary-simulation.hpp>
+#include <irritator/thread.hpp>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <limits>
+#include <span>
+#include <thread>
 
 namespace irt {
+
+/// The observers part of a step, sequential version: after @c simulation::run(),
+/// the observers whose raw buffer is nearly full are resampled
+/// (@c simulation::immediate_observers) and, at the end of the simulation, all
+/// the observers.
+///
+/// The @c simulation_player does the same thing (in parallel if it can), so
+/// use this function to build a reference with a plain @c run() loop: a
+/// loop of @c sim.run() + @c sim.tick_resamplers() (all the observers at each
+/// step) does not give the same histories.
+inline void tick_resamplers_after_run(simulation& sim) noexcept
+{
+    if (sim.current_time_expired()) {
+        sim.tick_resamplers();
+    } else if (not sim.immediate_observers.empty()) {
+        sim.tick_resamplers(std::span<const observer_id>(
+          sim.immediate_observers.data(),
+          static_cast<std::size_t>(sim.immediate_observers.size())));
+    }
+}
 
 /// Options of the @c simulation_player.
 struct simulation_player_options {
@@ -18,6 +44,16 @@ struct simulation_player_options {
 
     /// Maximum number of keyframes (at least 2).
     u32 max_keyframes = 256;
+
+    /// Minimum number of observers in a chunk of work for the parallel tick.
+    /// The tick is parallel only if there are at least two chunks: with fewer
+    /// observers, the cost of a round trip in the task list is higher than
+    /// the work.
+    u32 observers_per_chunk = 512;
+
+    /// Maximum number of helper tasks added in the @c unordered_task_list by
+    /// tick (the calling thread works too). 0 disables the parallel tick.
+    u32 max_helpers = 7;
 };
 
 /// Moves a simulation forward and backward in "steps" (one call of
@@ -40,11 +76,19 @@ struct simulation_player_options {
 /// - The player does not own the simulation and is not thread safe: call it
 ///   from the thread that owns the simulation.
 /// - The simulation must only be changed by the player. If the user edits the
-///   simulation (value, model or connection) at the current step, call
-///   @c forget_future() after the edit: the steps after this one are no more
-///   valid. The keyframes before are kept, and a replay from them uses the
-///   edited simulation (the past that is shown after a rollback is the past
-///   "as if" the edit had been there).
+///   simulation (value, model, connection or event) at the current step, call
+///   @c forget_history() after the edit: the edition is not part of the replay
+///   (it is not a step), so the steps before can not be replayed any more.
+///   @c forget_future() only forgets the steps after the current one.
+/// - The observers are resampled after each @c run() as
+///   @c tick_resamplers_after_run() does. With a @c unordered_task_list and
+///   enough observers the work is shared between the calling thread and the
+///   workers of the list. The list works in batch (@c add(), @c submit(),
+///   @c wait_completion()) for one producer: it must be used by this player
+///   only (the helpers live on the stack of the tick, which waits for them),
+///   and the player must never be called from a task of its own list (the
+///   helpers could never start: deadlock). The task manager must not be shut
+///   down during a tick.
 ///
 /// @TODO
 /// - Simulations with @c simulation_wrapper are not supported (see
@@ -56,8 +100,17 @@ public:
     using step_type = u64;
     using options   = simulation_player_options;
 
-    explicit simulation_player(simulation&   sim,
-                               const options opt = options{}) noexcept;
+    /// @param utl The task list used to resample the observers in parallel,
+    /// @c nullptr for a sequential tick (the list must outlive the player).
+    explicit simulation_player(simulation&          sim,
+                               unordered_task_list* utl = nullptr,
+                               const options        opt = options{}) noexcept;
+
+    explicit simulation_player(simulation&          sim,
+                               unordered_task_list& utl,
+                               const options        opt = options{}) noexcept
+      : simulation_player(sim, &utl, opt)
+    {}
 
     simulation_player(const simulation_player&)            = delete;
     simulation_player& operator=(const simulation_player&) = delete;
@@ -147,8 +200,8 @@ public:
     /// Return true iff simulation started.
     bool started() const noexcept { return m_started; }
 
-    /// Return the current step [0..furthest_step]: The user can go to it with
-    /// @c got_to().
+    /// Return the current step [earliest_step..furthest_step]: The user can go
+    /// to it with @c go_to().
     step_type step() const noexcept { return m_step; }
 
     /// The last step that was reached: the user can go forward to it with
@@ -159,9 +212,9 @@ public:
     /// @c forget_history().
     step_type earliest_step() const noexcept { return m_floor; }
 
-    /// True if @c step_forward() can do a step: started, not finished and,
-    /// for a simulation without end, something to run.
-    bool can_step_back() const noexcept { return m_started and m_step != 0; }
+    /// True if @c step_back() can go back: started and after the first step
+    /// that can be reached (@c earliest_step()).
+    bool can_step_back() const noexcept { return m_started and m_step > m_floor; }
 
     /// True if the simulation is at its end (time limit or no more events).
     bool finished() const noexcept;
@@ -196,7 +249,9 @@ private:
         vector<u8> data;
     };
 
-    simulation&        m_sim;
+    simulation&           m_sim;
+    unordered_task_list* m_utl;
+
     binary_writer      m_writer;    // reused: no allocation for a snapshot
     vector<keyframe>   m_keyframes; // sorted by step, the first is the step 0
     vector<vector<u8>> m_window;    // snapshots of the steps
@@ -204,15 +259,42 @@ private:
     step_type m_window_first = 0;
     step_type m_step         = 0;
     step_type m_furthest     = 0;
-    step_type m_floor        = 0;
+    step_type m_floor        = 0; // first reachable step (forget_history)
     u32       m_interval;
     u32       m_max_keyframes;
+    u32       m_chunk;
+    u32       m_helpers;
     bool      m_started = false;
+
+    vector<observer_id> m_obs_ids; // work buffer of the parallel tick
+
+    /// The work of one parallel tick, shared between the calling thread and
+    /// the helpers: each one claims chunks until there is none. It lives on
+    /// the stack of the tick, which waits for the end of the helpers.
+    struct tick_job {
+        simulation*              sim         = nullptr;
+        const observer_id*       ids         = nullptr;
+        std::size_t              count       = 0;
+        std::size_t              chunk       = 1;
+        std::size_t              chunk_count = 0;
+        std::atomic<std::size_t> next{ 0 }; // next chunk to claim
+
+        void work() noexcept;
+    };
 
     status do_step() noexcept;
     status snapshot_to(vector<u8>& out) noexcept;
     status restore_from(const vector<u8>& data) noexcept;
     status push_keyframe() noexcept;
+
+    /// After @c run(): see @c tick_resamplers_after_run().
+    void tick_observers() noexcept;
+
+    /// True if the tick of @c n observers is worth the task list.
+    bool parallel_tick(const std::size_t n) const noexcept;
+
+    /// Resamples @c ids (without duplicates) with the task list.
+    void tick_parallel(const std::span<const observer_id> ids) noexcept;
 
     /// Takes a keyframe when the simulation goes beyond the last one (a
     /// replay of a known part of the history does not take any).

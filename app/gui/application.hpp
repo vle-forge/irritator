@@ -1042,8 +1042,8 @@ class player_controller
 public:
     enum class mode : u8 { paused, play, reverse, realtime };
 
-    player_controller(simulation& sim) noexcept
-      : player(sim)
+    player_controller(simulation& sim, unordered_task_list& utl) noexcept
+      : player(sim, utl)
     {}
 
     simulation_player player;
@@ -1087,6 +1087,7 @@ struct project_editor {
     enum class visualization_mode { flat, tree };
 
     project_editor(const std::string_view default_name,
+                   unordered_task_list&   utl,
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;
