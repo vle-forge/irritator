@@ -374,8 +374,10 @@ int main()
         // Updated before wait_empty() returns.
         expect(eq(tm.wordered_tasks_completed(0), irt::u64{ 3 }));
         // The execution time (ms) was the number of tasks before the fix.
-        expect(ge(tm.wordered_execution_time(0), irt::u64{ 6 }));
-        expect(tm.wordered_execution_time(0) < irt::u64{ 5000 });
+        expect(
+          ge(tm.wordered_execution_time(0), std::chrono::milliseconds{ 6 }));
+        expect(tm.wordered_execution_time(0) <
+               std::chrono::milliseconds{ 5000 });
         tm.shutdown();
     };
 
@@ -516,7 +518,7 @@ int main()
 
         // Per-worker statistics are up to date when wait_completion returns.
         irt::u64 total = 0;
-        for (std::size_t w = 0; w < tm.wunordered_size(); ++w)
+        for (std::size_t w = 0; w < tm.unordered_worker_size(); ++w)
             total += tm.wunordered_tasks_completed(w);
         expect(eq(total, irt::u64{ n }));
         tm.shutdown();
@@ -739,23 +741,20 @@ int main()
 
     "manager: number of workers"_test = [] {
         irt::task_manager a(mono_tm);
-        expect(eq(a.ordered_size(), std::size_t{ 1 }));
-        expect(eq(a.unordered_size(), std::size_t{ 1 }));
-        expect(eq(a.wordered_size(), std::size_t{ 1 }));
-        expect(ge(a.wunordered_size(), std::size_t{ 1 }));
+        expect(eq(a.list_size(), std::size_t{ 1 }));
+        expect(eq(a.ordered_worker_size(), std::size_t{ 1 }));
+        expect(ge(a.unordered_worker_size(), std::size_t{ 1 }));
 
         irt::task_manager b(double_tm);
-        expect(eq(b.ordered_size(), std::size_t{ 2 }));
-        expect(eq(b.unordered_size(), std::size_t{ 2 }));
-        expect(eq(b.wordered_size(), std::size_t{ 2 }));
-        expect(ge(b.wunordered_size(), std::size_t{ 1 }));
+        expect(eq(b.list_size(), std::size_t{ 2 }));
+        expect(eq(b.ordered_worker_size(), std::size_t{ 2 }));
+        expect(ge(b.unordered_worker_size(), std::size_t{ 1 }));
 
         irt::task_manager c(
           irt::task_manager_options{ .list_count = 2, .worker_count = 4 });
-        expect(eq(c.ordered_size(), std::size_t{ 2 }));
-        expect(eq(c.unordered_size(), std::size_t{ 2 }));
-        expect(eq(c.wordered_size(), std::size_t{ 2 }));
-        expect(ge(c.wunordered_size(), std::size_t{ 4 }));
+        expect(eq(c.list_size(), std::size_t{ 2 }));
+        expect(eq(c.ordered_worker_size(), std::size_t{ 2 }));
+        expect(ge(c.unordered_worker_size(), std::size_t{ 4 }));
     };
 
     "manager: start and shutdown cycles"_test = [] {

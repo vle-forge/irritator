@@ -9,6 +9,7 @@
 #include <irritator/ext.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -372,14 +373,16 @@ public:
         return m_tasks_completed.load(std::memory_order_relaxed);
     }
 
-    u64 execution_time_in_ns() const noexcept
+    std::chrono::nanoseconds execution_time_in_ns() const noexcept
     {
-        return m_execution_time_ns.load(std::memory_order_relaxed);
+        return std::chrono::nanoseconds(
+          m_execution_time_ns.load(std::memory_order_relaxed));
     }
 
-    u64 execution_time_in_ms() const noexcept
+    std::chrono::milliseconds execution_time_in_ms() const noexcept
     {
-        return execution_time_in_ns() / 1'000'000u;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+          execution_time_in_ns());
     }
 
     bool initialized() const noexcept
@@ -493,14 +496,16 @@ public:
         return m_tasks_completed.load(std::memory_order_relaxed);
     }
 
-    u64 execution_time_in_ns() const noexcept
+    std::chrono::nanoseconds execution_time_in_ns() const noexcept
     {
-        return m_execution_time_ns.load(std::memory_order_relaxed);
+        return std::chrono::nanoseconds(
+          m_execution_time_ns.load(std::memory_order_relaxed));
     }
 
-    u64 execution_time_in_ms() const noexcept
+    std::chrono::milliseconds execution_time_in_ms() const noexcept
     {
-        return execution_time_in_ns() / 1'000'000u;
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+          execution_time_in_ns());
     }
 
     bool initialized() const noexcept
@@ -560,17 +565,19 @@ public:
     ordered_task_list&   ordered(std::integral auto i) noexcept;
     unordered_task_list& unordered(std::integral auto i) noexcept;
 
-    size_t ordered_size() const noexcept;
-    size_t unordered_size() const noexcept;
-    size_t wordered_size() const noexcept;
-    size_t wunordered_size() const noexcept;
+    /// Get the number of pair of ordered and unordered lists.
+    size_t list_size() const noexcept;
+
+    size_t ordered_worker_size() const noexcept;
+    size_t unordered_worker_size() const noexcept;
 
     u64 wordered_tasks_completed(std::integral auto i) const noexcept;
     u64 wunordered_tasks_completed(std::integral auto i) const noexcept;
 
-    //! Execution time in milliseconds.
-    u64 wordered_execution_time(std::integral auto i) const noexcept;
-    u64 wunordered_execution_time(std::integral auto i) const noexcept;
+    std::chrono::milliseconds wordered_execution_time(
+      std::integral auto i) const noexcept;
+    std::chrono::milliseconds wunordered_execution_time(
+      std::integral auto i) const noexcept;
 
 private:
     worker_signal m_signal; // before the lists and workers: used by both
@@ -593,22 +600,17 @@ inline unordered_task_list& task_manager::unordered(
     return m_unordered_lists[i];
 }
 
-inline size_t task_manager::ordered_size() const noexcept
+inline size_t task_manager::list_size() const noexcept
 {
     return m_ordered_lists.size();
 }
 
-inline size_t task_manager::unordered_size() const noexcept
-{
-    return m_unordered_lists.size();
-}
-
-inline size_t task_manager::wordered_size() const noexcept
+inline size_t task_manager::ordered_worker_size() const noexcept
 {
     return m_ordered_workers.size();
 }
 
-inline size_t task_manager::wunordered_size() const noexcept
+inline size_t task_manager::unordered_worker_size() const noexcept
 {
     return m_unordered_workers.size();
 }
@@ -625,13 +627,13 @@ inline u64 task_manager::wunordered_tasks_completed(
     return m_unordered_workers[i].tasks_completed();
 }
 
-inline u64 task_manager::wordered_execution_time(
+inline std::chrono::milliseconds task_manager::wordered_execution_time(
   std::integral auto i) const noexcept
 {
     return m_ordered_workers[i].execution_time_in_ms();
 }
 
-inline u64 task_manager::wunordered_execution_time(
+inline std::chrono::milliseconds task_manager::wunordered_execution_time(
   std::integral auto i) const noexcept
 {
     return m_unordered_workers[i].execution_time_in_ms();

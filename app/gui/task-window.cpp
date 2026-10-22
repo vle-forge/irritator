@@ -5,15 +5,15 @@
 #include "application.hpp"
 #include "internal.hpp"
 
+#include <fmt/chrono.h>
 #include <fmt/core.h>
 #include <fmt/format.h>
 
 namespace irt {
 
-constexpr static inline std::string_view main_task_strings[] = { "simulation-0",
-                                                                 "simulation-1",
-                                                                 "simulation-2",
-                                                                 "Gui" };
+constexpr static inline std::string_view main_task_strings[] = {
+    "simulation-0", "simulation-1", "simulation-2", "Gui"
+};
 
 void task_window::show_widgets() noexcept
 {
@@ -29,7 +29,9 @@ void task_window::show_widgets() noexcept
             ImGui::TableSetupColumn("finished tasks");
             ImGui::TableHeadersRow();
 
-            for (sz i = 0, e = app.task_mgr.ordered_size(); i < e; ++i) {
+            const auto size = app.task_mgr.list_size();
+
+            for (sz i = 0; i < size; ++i) {
                 const auto& lst = app.task_mgr.ordered(i);
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -40,7 +42,7 @@ void task_window::show_widgets() noexcept
                 ImGui::TextFormat("{}", lst.tasks_completed());
             }
 
-            for (sz i = 0, e = app.task_mgr.unordered_size(); i < e; ++i) {
+            for (sz i = 0; i < size; ++i) {
                 const auto& lst = app.task_mgr.unordered(i);
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
@@ -64,7 +66,7 @@ void task_window::show_widgets() noexcept
             ImGui::TableSetupColumn("execution duration");
             ImGui::TableHeadersRow();
 
-            for (sz i = 0, e = app.task_mgr.wordered_size(); i < e; ++i) {
+            for (sz i = 0, e = app.task_mgr.ordered_worker_size(); i < e; ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("ordered {}", i);
@@ -72,13 +74,13 @@ void task_window::show_widgets() noexcept
                 ImGui::TextFormat("{}",
                                   app.task_mgr.wordered_tasks_completed(i));
                 ImGui::TableNextColumn();
-                ImGui::TextFormat(
-                  "{}",
-                  human_readable_time(app.task_mgr.wordered_execution_time(i)));
+                ImGui::TextFormat("{}",
+                                  app.task_mgr.wordered_execution_time(i));
                 ImGui::TableNextColumn();
             }
 
-            for (sz i = 0, e = app.task_mgr.wunordered_size(); i < e; ++i) {
+            for (sz i = 0, e = app.task_mgr.unordered_worker_size(); i < e;
+                 ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("ordered {}", i);
@@ -87,8 +89,7 @@ void task_window::show_widgets() noexcept
                                   app.task_mgr.wunordered_tasks_completed(i));
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}",
-                                  human_readable_time(
-                                    app.task_mgr.wunordered_execution_time(i)));
+                                  app.task_mgr.wunordered_execution_time(i));
                 ImGui::TableNextColumn();
             }
 
@@ -112,8 +113,8 @@ void task_window::show_widgets() noexcept
             ImGui::TableNextRow();
 
             {
-                const auto [allocated, deallocated] =
-                  simalloc::get_memory_usage();
+                const auto [allocated,
+                            deallocated] = simalloc::get_memory_usage();
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("global");
                 ImGui::TableNextColumn();
@@ -128,8 +129,8 @@ void task_window::show_widgets() noexcept
             ImGui::TableNextRow();
 
             {
-                const auto [allocated, deallocated] =
-                  th1alloc::get_memory_usage();
+                const auto [allocated,
+                            deallocated] = th1alloc::get_memory_usage();
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("thread-1");
                 ImGui::TableNextColumn();
@@ -144,8 +145,8 @@ void task_window::show_widgets() noexcept
             ImGui::TableNextRow();
 
             {
-                const auto [allocated, deallocated] =
-                  th2alloc::get_memory_usage();
+                const auto [allocated,
+                            deallocated] = th2alloc::get_memory_usage();
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("thread-2");
                 ImGui::TableNextColumn();

@@ -1791,7 +1791,7 @@ path get_imgui_filename() noexcept;
 template<typename Fn>
 void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept
 {
-    const auto index = id % task_mgr.ordered_size();
+    const auto index = id % task_mgr.list_size();
 
     task_mgr.ordered(index).add(std::forward<Fn>(fn));
 }

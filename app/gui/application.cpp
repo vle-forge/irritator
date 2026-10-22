@@ -480,11 +480,9 @@ application::application(log_history& jn_) noexcept
     journal_scope j;
 
     log(log_level::info, [&](auto& m) noexcept {
-        format(m,
-               "Starting with {} ordered list {} unordered list and {} "
-               "threads\n",
-               task_mgr.ordered_size(), task_mgr.unordered_size(),
-               task_mgr.ordered_size() + task_mgr.unordered_size());
+        format(m, "Starting with {} list and {} - {} threads\n",
+               task_mgr.list_size(), task_mgr.ordered_worker_size(),
+               task_mgr.unordered_worker_size());
     });
 }
 
