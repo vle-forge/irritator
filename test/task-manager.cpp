@@ -18,6 +18,11 @@ using namespace std::chrono_literals;
 
 using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
+constexpr auto mono_tm   = irt::task_manager_options{ .list_count   = 1,
+                                                      .worker_count = 4 };
+constexpr auto double_tm = irt::task_manager_options{ .list_count   = 2,
+                                                      .worker_count = 4 };
+
 static void function_1(std::atomic_int& counter) noexcept
 {
     counter.fetch_add(1, std::memory_order_acq_rel);
@@ -169,7 +174,7 @@ int main()
     // -----------------------------------------------------------------------
 
     "ordered: tasks run once, in submission order"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::vector<int> order; // written by the worker only, read after wait
@@ -190,7 +195,7 @@ int main()
     };
 
     "ordered: wait_empty on an idle list returns immediately"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
         tm.ordered(0).wait_empty();
         tm.ordered(0).wait_empty();
@@ -199,7 +204,7 @@ int main()
     };
 
     "ordered: add / wait_empty cycles"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::atomic_int counter = 0;
@@ -217,7 +222,7 @@ int main()
     // The queue holds up to 200 tasks (< task_max) that the worker has not
     // started yet: add() must wake the worker without any submit().
     "ordered: bursts close to the capacity of the queue"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         constexpr int burst = 200;
@@ -236,7 +241,7 @@ int main()
     };
 
     "ordered: add refuses a task when the queue is full"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::atomic<bool> running{ false };
@@ -276,7 +281,7 @@ int main()
     };
 
     "ordered: concurrent producers"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         constexpr int            producers = 3;
@@ -311,7 +316,7 @@ int main()
     };
 
     "ordered: two lists run independently and in parallel"_test = [] {
-        irt::task_manager tm(2, 0, 1);
+        irt::task_manager tm(double_tm);
         tm.start();
 
         // Each task waits for the other one: this only terminates if the two
@@ -339,7 +344,7 @@ int main()
     };
 
     "ordered: two lists, balanced +1 / -1"_test = [] {
-        irt::task_manager tm(2, 0, 1);
+        irt::task_manager tm(double_tm);
         std::atomic_int   buffer = 0;
         tm.start();
 
@@ -359,7 +364,7 @@ int main()
     };
 
     "ordered: worker statistics"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         for (int i = 0; i < 3; ++i)
@@ -379,7 +384,7 @@ int main()
     // counter instead of sleeping on the condition variable, to catch the few
     // nanoseconds between the two updates.
     "ordered: statistics are published before the completion"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         int stale = 0;
@@ -396,7 +401,7 @@ int main()
     };
 
     "ordered: statistics can be read while the worker runs"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::atomic<bool>     stop{ false };
@@ -432,7 +437,7 @@ int main()
     };
 
     "ordered: shutdown wakes wait_empty"_test = [] {
-        irt::task_manager tm(1, 0, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::atomic<bool> running{ false };
@@ -466,7 +471,7 @@ int main()
 
     "ordered: shutdown drains the accepted tasks, then refuses new ones"_test =
       [] {
-          irt::task_manager tm(1, 0, 1);
+          irt::task_manager tm(mono_tm);
           tm.start();
 
           std::atomic_int counter = 0;
@@ -487,7 +492,7 @@ int main()
     // -----------------------------------------------------------------------
 
     "unordered: every task of a batch runs exactly once"_test = [] {
-        irt::task_manager tm(0, 1, 2);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         constexpr int                n = 1000;
@@ -518,7 +523,7 @@ int main()
     };
 
     "unordered: the workers run in parallel"_test = [] {
-        irt::task_manager tm(0, 1, 2);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         // Each of the two tasks waits for the other one: sequential execution
@@ -540,7 +545,7 @@ int main()
     };
 
     "unordered: many small batches"_test = [] {
-        irt::task_manager tm(0, 1, 2);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         for (int x = 0; x < 100; ++x) {
@@ -566,7 +571,9 @@ int main()
     // that the next submit() races with the worker going back to sleep. The
     // worker statistics must be published before the completion.
     "unordered: no lost wake-up, statistics published first"_test = [] {
-        irt::task_manager tm(0, 1, 1);
+        auto              opt = irt::task_manager_options{ .list_count   = 1,
+                                                           .worker_count = 1 };
+        irt::task_manager tm(opt);
         tm.start();
 
         std::atomic_int counter = 0;
@@ -590,7 +597,7 @@ int main()
     };
 
     "unordered: large batches"_test = [] {
-        irt::task_manager tm(1, 1, 2);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         for (int n = 0; n < 10; ++n) {
@@ -608,7 +615,7 @@ int main()
     };
 
     "unordered: empty batch and wait_completion without submit"_test = [] {
-        irt::task_manager tm(0, 1, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         tm.unordered(0).wait_completion();
@@ -626,7 +633,7 @@ int main()
     };
 
     "unordered: tasks_completed counts finished tasks only"_test = [] {
-        irt::task_manager tm(0, 1, 1);
+        irt::task_manager tm(mono_tm);
         tm.start();
 
         std::atomic<bool> running{ false };
@@ -654,7 +661,7 @@ int main()
 
     "unordered: a task added during a batch is kept for the next one"_test =
       [] {
-          irt::task_manager tm(0, 1, 1);
+          irt::task_manager tm(mono_tm);
           tm.start();
 
           std::atomic<bool> running{ false };
@@ -686,7 +693,9 @@ int main()
 
     "unordered: shutdown wakes wait_completion and abandons the queue"_test =
       [] {
-          irt::task_manager tm(0, 1, 1);
+          auto opt = irt::task_manager_options{ .list_count   = 1,
+                                                .worker_count = 1 };
+          irt::task_manager tm(opt);
           tm.start();
 
           std::atomic<bool> running{ false };
@@ -729,21 +738,29 @@ int main()
     // -----------------------------------------------------------------------
 
     "manager: number of workers"_test = [] {
-        irt::task_manager a(1, 1, 3);
+        irt::task_manager a(mono_tm);
+        expect(eq(a.ordered_size(), std::size_t{ 1 }));
+        expect(eq(a.unordered_size(), std::size_t{ 1 }));
         expect(eq(a.wordered_size(), std::size_t{ 1 }));
-        expect(eq(a.wunordered_size(), std::size_t{ 3 }));
+        expect(ge(a.wunordered_size(), std::size_t{ 1 }));
 
-        irt::task_manager b(1, 1, 0); // 0 means one worker
-        expect(eq(b.wunordered_size(), std::size_t{ 1 }));
+        irt::task_manager b(double_tm);
+        expect(eq(b.ordered_size(), std::size_t{ 2 }));
+        expect(eq(b.unordered_size(), std::size_t{ 2 }));
+        expect(eq(b.wordered_size(), std::size_t{ 2 }));
+        expect(ge(b.wunordered_size(), std::size_t{ 1 }));
 
-        irt::task_manager c(2, 0, 4); // no list: no thread to create
+        irt::task_manager c(
+          irt::task_manager_options{ .list_count = 2, .worker_count = 4 });
+        expect(eq(c.ordered_size(), std::size_t{ 2 }));
+        expect(eq(c.unordered_size(), std::size_t{ 2 }));
         expect(eq(c.wordered_size(), std::size_t{ 2 }));
-        expect(eq(c.wunordered_size(), std::size_t{ 0 }));
+        expect(ge(c.wunordered_size(), std::size_t{ 4 }));
     };
 
     "manager: start and shutdown cycles"_test = [] {
         for (int i = 0; i < 10; ++i) {
-            irt::task_manager tm(1, 1, 2);
+            irt::task_manager tm(mono_tm);
             tm.start();
             tm.start(); // idempotent
 
@@ -762,7 +779,7 @@ int main()
     "manager: destructor joins the workers"_test = [] {
         std::atomic_int counter = 0;
         {
-            irt::task_manager tm(1, 1, 2);
+            irt::task_manager tm(mono_tm);
             tm.start();
             for (int i = 0; i < 50; ++i)
                 tm.ordered(0).add([&counter] { ++counter; });
@@ -772,7 +789,7 @@ int main()
     };
 
     "manager: shutdown before start does not hang"_test = [] {
-        irt::task_manager tm(1, 1, 1);
+        irt::task_manager tm(mono_tm);
         tm.shutdown();
         expect(tm.ordered(0).stopping());
         expect(tm.unordered(0).stopping());
@@ -783,7 +800,7 @@ int main()
     // -----------------------------------------------------------------------
 
     "shared_buffer: readers and a writer in the task manager"_test = [] {
-        irt::task_manager tm(2, 0, 1);
+        irt::task_manager tm(double_tm);
         tm.start();
 
         irt::shared_buffer<irt::small_vector<int, 16>> buffer;

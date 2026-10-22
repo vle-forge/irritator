@@ -461,7 +461,7 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 }
 
 application::application(log_history& jn_) noexcept
-  : task_mgr{ 4, 1 }
+  : task_mgr{ task_manager_options{ .list_count = 4, .worker_count = 0 } }
   , config(get_config_home(true))
   , jn{ jn_ }
   , pjs(16)

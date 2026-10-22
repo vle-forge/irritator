@@ -292,17 +292,21 @@ void unordered_worker::join() noexcept
         m_thread.join();
 }
 
-task_manager::task_manager(size_t ordered_count,
-                           size_t unordered_count,
-                           size_t unordered_worker_count) noexcept
-  : m_ordered_lists(ordered_count)
-  , m_ordered_workers(ordered_count, reserve_tag)
-  , m_unordered_lists(unordered_count)
-  , m_unordered_workers(unordered_count == 0          ? 0
-                        : unordered_worker_count == 0 ? 1
-                                                      : unordered_worker_count,
-                        reserve_tag)
+task_manager::task_manager(const options opt) noexcept
 {
+    const auto list_count = opt.list_count == 0 ? 1 : opt.list_count;
+    const auto max_worker = opt.worker_count == 0
+                              ? std::thread::hardware_concurrency() == 0
+                                  ? list_count
+                                  : std::thread::hardware_concurrency()
+                              : opt.worker_count;
+
+    m_ordered_lists.resize(list_count);
+    m_unordered_lists.resize(list_count);
+
+    m_ordered_workers.reserve(list_count);
+    m_unordered_workers.reserve(max_worker);
+
     for (auto& l : m_ordered_lists)
         m_ordered_workers.emplace_back(l);
 

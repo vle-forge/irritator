@@ -518,6 +518,17 @@ private:
     std::atomic<bool> m_initialized{ false };
 };
 
+/// Options of the @c task_manager. The default values are reasonable for most
+/// use cases in command line applications.
+struct task_manager_options {
+    /// Number of pair of ordered and unordered lists to create. Must be > 0.
+    u32 list_count = 1;
+
+    /// Number of workers (@c std::thread) used for all lists combined. 0 means
+    /// the number of hardware threads.
+    u32 worker_count = 0;
+};
+
 /** Owns the lists and the worker threads.
  *
  * The destructor calls @c shutdown(): forgetting it no longer ends in
@@ -529,15 +540,12 @@ private:
 class task_manager
 {
 public:
-    /**
-     * @param unordered_worker_count Number of threads for the unordered
-     * lists (0 means 1). No unordered thread is created if
-     * @c unordered_count is 0.
-     */
-    task_manager(size_t ordered_count,
-                 size_t unordered_count,
-                 size_t unordered_worker_count =
-                   std::thread::hardware_concurrency()) noexcept;
+    using options = task_manager_options;
+
+    /// Constructs a task manager with the specified options. Number of lists
+    /// and workers are fixed at construction time. The lists and workers are
+    /// created but not started.
+    task_manager(const options opt = options{}) noexcept;
 
     ~task_manager() noexcept;
 

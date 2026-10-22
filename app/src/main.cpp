@@ -200,7 +200,8 @@ class main_parameters
 
 public:
     main_parameters(int ac, const char* av[])
-      : task_mgr(1, 1)
+      : task_mgr(
+          irt::task_manager_options{ .list_count = 1, .worker_count = 0 })
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {

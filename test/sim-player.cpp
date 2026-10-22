@@ -23,7 +23,9 @@ namespace {
 /// nobody to wake up.
 unordered_task_list& test_list() noexcept
 {
-    static task_manager tm(1, 1, 3);
+    constexpr task_manager_options opt{ .list_count = 1, .worker_count = 0 };
+
+    static task_manager tm(opt);
     static const bool   started = (tm.start(), true);
     (void)started;
 
