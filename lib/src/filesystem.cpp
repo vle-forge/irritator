@@ -271,26 +271,28 @@ expected<path> get_system_component_dir() noexcept
 #if defined(IRT_DATAROOTDIR)
 expected<path> get_system_prefix_component_dir() noexcept
 {
+    using namespace std::string_view_literals;
+
     auto       ret         = path{ IRT_DATAROOTDIR };
     const auto irt_dirname = "irritator-" irritator_to_string(
       VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-    const auto compo_dirname = "components";
+    const auto compo_dirname = "components"sv;
 
     if (not ret.can_append(irt_dirname))
-        return make_error(fs_errc::executable_access_fail);
+        return make_error(simulation_errc::executable_access_fail);
 
     ret /= irt_dirname;
 
-    if (not ret.can_append(compo_dirname.sv()))
-        return make_error(fs_errc::executable_access_fail);
+    if (not ret.can_append(compo_dirname))
+        return make_error(simulation_errc::executable_access_fail);
 
-    ret /= "components";
+    ret /= compo_dirname;
 
     const auto      std_path = ret.to_std_path();
     std::error_code ec;
 
     if (not std::filesystem::exists(std_path, ec))
-        return make_error(fs_errc::executable_access_fail);
+        return make_error(simulation_errc::executable_access_fail);
 
     return ret;
 }
