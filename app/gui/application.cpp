@@ -497,6 +497,21 @@ application::~application() noexcept
     log(log_level::info, "Application shutdown\n"sv);
 }
 
+unordered_task_list& application::get_simulation_task_list(
+  const unsigned id) noexcept
+{
+    const auto index = id % (task_mgr.list_size() - 1);
+
+    return task_mgr.unordered(index);
+}
+
+unordered_task_list& application::get_gui_task_list() noexcept
+{
+    const auto index = task_mgr.list_size() - 1;
+
+    return task_mgr.unordered(index);
+}
+
 unordered_task_list& application::get_unordered_task_list() noexcept
 {
     return task_mgr.unordered(0);

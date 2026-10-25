@@ -44,7 +44,6 @@ enum class graph_editor_id : u32;
 enum class text_file_viewer_id : u32;
 
 enum class task_status : u8 { not_started, started, finished };
-enum class main_task : u8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
 enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 
@@ -1680,29 +1679,24 @@ public:
     bool          init() noexcept;
     show_result_t show() noexcept;
 
-    /**
-     * Helpers function to add a @c simulation_task into an @c
-     * ordered_task_list. The task list used depends on the @c get_index or
-     * the
-     * @c project_id. Task is added at tail of the @c ring_buffer and ensure
-     * linear operation.
-     *
-     * @param id A value used to select the ordered-task-list the @a
-     * task_manager::ordered_task_lists.
-     * @param fn The function to run.
-     */
+    /// Helper function to add a @c task into a @c ordered_task_list. The task
+    /// list used depends on the @c get_index of the @c project_id.
+    ///
+    /// @param id A value used to select the ordered-task-list.
+    /// @param fn The function to run.
     template<typename Fn>
     void add_simulation_task(const unsigned id, Fn&& fn) noexcept;
 
-    /**
-     * Helpers function to add a @c gui_task into the @c ordered_task_list
-     * gui. Task is added at tail of the @c ring_buffer and ensure linear
-     * operation.
-     *
-     * @param fn The function to run.
-     */
+    /// Helper function to add a @c task into the GUI @c ordered_task_list.
     template<typename Fn>
     void add_gui_task(Fn&& fn) noexcept;
+
+    /// Helper function to get the @c unordered_task_list according to the @c
+    /// project_id.
+    unordered_task_list& get_simulation_task_list(const unsigned id) noexcept;
+
+    /// Helper function to get the @c unordered_task_list used for GUI tasks.
+    unordered_task_list& get_gui_task_list() noexcept;
 
     /**
      * Helpers function to get the current instance of the @a
@@ -1791,7 +1785,7 @@ path get_imgui_filename() noexcept;
 template<typename Fn>
 void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept
 {
-    const auto index = id % task_mgr.list_size();
+    const auto index = id % (task_mgr.list_size() - 1);
 
     task_mgr.ordered(index).add(std::forward<Fn>(fn));
 }
@@ -1799,7 +1793,9 @@ void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept
 template<typename Fn>
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    task_mgr.ordered(ordinal(main_task::gui)).add(std::forward<Fn>(fn));
+    const auto index = task_mgr.list_size() - 1;
+
+    task_mgr.ordered(index).add(std::forward<Fn>(fn));
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
