@@ -262,7 +262,7 @@ int main()
         expect(pj.simulation_init(mod).has_value());
 
         do {
-            expect(pj.simulation_step().has_value());
+            expect(pj.sim.run().has_value());
         } while (not pj.sim.current_time_expired());
 
         expect(pj.sim.finalize().has_value());
@@ -623,7 +623,7 @@ int main()
         expect(pj.simulation_init(mod).has_value());
 
         do {
-            expect(pj.simulation_step().has_value());
+            expect(pj.sim.run().has_value());
         } while (not pj.sim.current_time_expired());
 
         expect(pj.sim.finalize().has_value());

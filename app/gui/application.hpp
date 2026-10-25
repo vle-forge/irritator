@@ -1111,15 +1111,9 @@ struct project_editor {
     void display_subwindows(application& app) noexcept;
     void close_subwindows(application& app) noexcept;
 
-    void update_simulation_state(application& app) noexcept;
     void import_from_modeling(application& app) noexcept;
     void init_simulation(application& app) noexcept;
-    void run_bag_simulation(application& app) noexcept;
-    void run_simulation(application& app) noexcept;
-    void pause_simulation() noexcept;
     void finish_simulation(application& app) noexcept;
-    void advance_simulation(application& app) noexcept;
-    void back_simulation(application& app) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;

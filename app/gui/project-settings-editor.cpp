@@ -443,35 +443,36 @@ static void show_simulation_action_buttons(application&    app,
     const bool can_be_restarted = ed.pj.simulation_state ==
                                   simulation_status::paused;
 
-    ImGui::BeginDisabled(not can_be_initialized);
-    if (EnhancedButton(app, "\ue0c8", button,
-                       "Initialize simulation models and data."))
-        ed.init_simulation(app);
-    ImGui::EndDisabled();
+    // ImGui::BeginDisabled(not can_be_initialized);
+    // if (EnhancedButton(app, "\ue0c8", button,
+    //                    "Initialize simulation models and data."))
+    //     ed.init_simulation(app);
+    // ImGui::EndDisabled();
 
-    ImGui::SameLine();
+    // ImGui::SameLine();
 
-    ImGui::BeginDisabled(not can_be_started);
-    if (EnhancedButton(app, "\ue0a9", button, "Start and run the simulation"))
-        ed.run_simulation(app);
-    ImGui::EndDisabled();
+    // ImGui::BeginDisabled(not can_be_started);
+    // if (EnhancedButton(app, "\ue0a9", button, "Start and run the
+    // simulation"))
+    //     ed.run_simulation(app);
+    // ImGui::EndDisabled();
 
-    ImGui::SameLine();
+    // ImGui::SameLine();
 
-    ImGui::BeginDisabled(not can_be_paused);
-    if (EnhancedButton(app, "\ue09e", button, "Pause the simulation"))
-        ed.pause_simulation();
-    ImGui::EndDisabled();
+    // ImGui::BeginDisabled(not can_be_paused);
+    // if (EnhancedButton(app, "\ue09e", button, "Pause the simulation"))
+    //     ed.pause_simulation();
+    // ImGui::EndDisabled();
 
-    ImGui::SameLine();
+    // ImGui::SameLine();
 
-    ImGui::BeginDisabled(not can_be_restarted);
-    if (EnhancedButton(app, "\ue030", button,
-                       "Restart the simulation after pause")) {
-        ed.pj.simulation_state = simulation_status::run_requiring;
-        ed.force_pause         = false;
-    }
-    ImGui::EndDisabled();
+    // ImGui::BeginDisabled(not can_be_restarted);
+    // if (EnhancedButton(app, "\ue030", button,
+    //                    "Restart the simulation after pause")) {
+    //     ed.pj.simulation_state = simulation_status::run_requiring;
+    //     ed.force_pause         = false;
+    // }
+    // ImGui::EndDisabled();
 
     // ImGui::BeginDisabled(can_be_stopped);
     // if (EnhancedButton(

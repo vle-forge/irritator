@@ -1375,22 +1375,7 @@ public:
     status simulation_init_observation(const modeling& mod) noexcept;
     status simulation_init(const modeling& mod) noexcept;
 
-    status simulation_step() noexcept;
-    void   simulation_back() noexcept;
-    void   simulation_advance() noexcept;
     status simulation_apply_command() noexcept;
-
-    status simulation_run_for(unordered_task_list&            utl,
-                              const std::chrono::milliseconds task_duration,
-                              std::atomic_bool& force_pause) noexcept;
-
-    status simulation_complete_run(unordered_task_list& utl) noexcept;
-
-    status simulation_live_run(
-      unordered_task_list&            utl,
-      const std::chrono::milliseconds one_simulation_time_duration,
-      const std::chrono::milliseconds task_duration,
-      std::atomic_bool&               force_pause) noexcept;
 
     status simulation_finish(unordered_task_list& utl) noexcept;
 
@@ -1610,8 +1595,8 @@ private:
 
     observation_files obs_files;
 
-    u32  m_simulation_id  = 0;
-    u32  m_simulation_run = 0;
+    u32 m_simulation_id  = 0;
+    u32 m_simulation_run = 0;
 };
 
 class grid_observer

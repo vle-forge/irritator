@@ -375,7 +375,7 @@ static void simulation_component_tester(
     expect(irt::is_defined(sim_wrapper_id));
 
     do {
-        expect(pj.simulation_step().has_value());
+        expect(pj.sim.run().has_value());
     } while (not pj.sim.current_time_expired());
 
     expect(pj.sim.finalize().has_value());
