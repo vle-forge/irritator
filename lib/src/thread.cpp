@@ -292,20 +292,35 @@ void unordered_worker::join() noexcept
         m_thread.join();
 }
 
+/// Number of unordered workers when the user does not choose. Heuristic: a
+/// worker of an ordered list that runs a simulation uses a core, and at most
+/// a quarter of the hardware threads (and at most one by list) are supposed to
+/// run a simulation at the same time; the other threads serve the parallel
+/// tick of the observers. Always at least one worker.
+static constexpr u32 default_worker_count(const u32 list_count,
+                                          const u32 hardware_threads) noexcept
+{
+    const u32 hw       = std::max(1u, hardware_threads);
+    const u32 lists    = std::max(1u, list_count);
+    const u32 reserved = std::min(lists, std::max(1u, hw / 4u));
+
+    return hw > reserved ? hw - reserved : 1u;
+}
+
 task_manager::task_manager(const options opt) noexcept
 {
-    const auto list_count = opt.list_count == 0 ? 1 : opt.list_count;
-    const auto max_worker = opt.worker_count == 0
-                              ? std::thread::hardware_concurrency() == 0
-                                  ? list_count
-                                  : std::thread::hardware_concurrency()
-                              : opt.worker_count;
+    const auto list_count   = std::max<u32>(opt.list_count, 1u);
+    const auto hw           = std::thread::hardware_concurrency();
+    const auto worker_count = opt.worker_count != 0
+                                ? opt.worker_count
+                                : default_worker_count(
+                                    list_count, hw == 0 ? list_count : hw);
 
     m_ordered_lists.resize(list_count);
     m_unordered_lists.resize(list_count);
 
     m_ordered_workers.reserve(list_count);
-    m_unordered_workers.reserve(max_worker);
+    m_unordered_workers.reserve(worker_count);
 
     for (auto& l : m_ordered_lists)
         m_ordered_workers.emplace_back(l);
@@ -316,7 +331,7 @@ task_manager::task_manager(const options opt) noexcept
     const auto span = std::span<unordered_task_list>(m_unordered_lists.data(),
                                                      m_unordered_lists.size());
 
-    for (sz i = 0, e = m_unordered_workers.capacity(); i < e; ++i)
+    for (u32 i = 0; i != worker_count; ++i)
         m_unordered_workers.emplace_back(span, m_signal);
 }
 

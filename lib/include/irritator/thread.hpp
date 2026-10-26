@@ -530,7 +530,7 @@ struct task_manager_options {
     u32 list_count = 1;
 
     /// Number of workers (@c std::thread) used for all lists combined. 0 means
-    /// the number of hardware threads.
+    /// the use of an heuristic otherwise the value is used without constraint.
     u32 worker_count = 0;
 };
 
@@ -550,6 +550,17 @@ public:
     /// Constructs a task manager with the specified options. Number of lists
     /// and workers are fixed at construction time. The lists and workers are
     /// created but not started.
+    ///
+    /// To compute unordered_worker number based on HW threads:
+    ///
+    /// | HW Threads | list_count=1 | list_count=4 | list_count=8 |
+    /// | ---------- | ------------ | ------------ | ------------ |
+    /// | 1          | 1            | 1            | 1            |
+    /// | 2          | 1            | 1            | 1            |
+    /// | 4          | 3            | 3            | 3            |
+    /// | 8          | 7            | 6            | 6            |
+    /// | 16         | 15           | 12           | 12           |
+    /// | 32         | 31           | 28           | 24           |
     task_manager(const options opt = options{}) noexcept;
 
     ~task_manager() noexcept;

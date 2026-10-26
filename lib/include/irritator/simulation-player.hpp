@@ -53,7 +53,8 @@ struct simulation_player_options {
 
     /// Maximum number of helper tasks added in the @c unordered_task_list by
     /// tick (the calling thread works too). 0 disables the parallel tick.
-    u32 max_helpers = 7;
+    u32 max_helpers = 7; /// @TODO remove this varaibuel and use the
+                         /// unordered_worker_size().
 };
 
 /// Moves a simulation forward and backward in "steps" (one call of
