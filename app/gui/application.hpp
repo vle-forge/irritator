@@ -1026,8 +1026,11 @@ struct player_view {
     u64    furthest;
     u64    earliest;
     time   t;
+    time   begin; ///< limits of the simulation (progress bar)
+    time   end;
     time   target;
     i64    lateness_ms;
+    i64    work_ms; ///< computation time of the complete run
     u32    resyncs;
     size_t keyframes;
     size_t bytes;
@@ -1039,7 +1042,15 @@ struct player_view {
 class player_controller
 {
 public:
-    enum class mode : u8 { paused, play, reverse, realtime };
+    /// What the player does now (schedule_player).
+    enum class mode : u8 { paused, play, reverse, realtime, complete };
+
+    /// How the user runs the simulation (show_simulation_player).
+    enum class kind : u8 {
+        debug,    ///< step forward, step back, play, reverse
+        realtime, ///< one unit of simulation time lasts @c unit_duration
+        complete  ///< to the end, as fast as possible, without history
+    };
 
     player_controller(simulation& sim, task_manager& tm, sz index) noexcept
       : player(sim, tm, index)
@@ -1053,6 +1064,7 @@ public:
     std::atomic_flag busy; ///< raised by the main thread, lowered by the task
 
     mode   current = mode::paused; ///< main thread only
+    kind   view    = kind::debug;  ///< main thread only
     status result;                 ///< write by task before busy.clear()
 
     /// millseconds per unit time of simulation
@@ -1060,6 +1072,11 @@ public:
 
     /// task budget
     std::chrono::milliseconds task_duration{ 16 };
+
+    /// task budget of the complete mode: long, because the GUI gives the
+    /// next task only at the next frame (the idle time between two tasks is
+    /// one frame), and the pause button answers in one task at most.
+    std::chrono::milliseconds complete_budget{ 200 };
 
     /// over need resynchronisation
     std::chrono::milliseconds max_lateness{ 1000 };
@@ -1070,18 +1087,24 @@ public:
     u64 target          = 0;
     u64 steps_per_frame = { 1 }; ///< speed of "play" and "play backward".
 
+    /// Computation time of the complete run: write by the task before
+    /// busy.clear(), read by the task only (the GUI reads fresh.work_ms).
+    std::chrono::nanoseconds work{};
+
     player_view fresh{}; ///< write by the task before @c busy.clear()
     player_view shown{}; ///< main thread copy, displayed during busy
 
     bool dragging   = false;
     bool has_result = false;
     bool pace_reset = true;  ///< rebase clock to the next task (start, resume).
+    bool need_start = false; ///< the next complete task (re)starts the player.
     bool edited     = false; ///< Use modify the simulation: forget_history()
 };
 
 void schedule_player(application&       app,
                      const unsigned     idx,
                      player_controller& c) noexcept;
+
 struct project_editor {
     enum class visualization_mode { flat, tree };
 
@@ -1686,20 +1709,26 @@ public:
     template<typename Fn>
     void add_gui_task(Fn&& fn) noexcept;
 
-    /// Helper function to get the @c unordered_task_list according to the @c
-    /// project_id.
-    unordered_task_list& get_simulation_task_list(const unsigned id) noexcept;
+    /// Get the ordered/unordered list from an identifier or a integer.
+    ///
+    /// @code
+    /// get_task_manager_list(pjs.get_id(pj));
+    /// get_task_manager_list(pjs.next_key());
+    /// @endcode
 
-    /// Helper function to get the @c unordered_task_list used for GUI tasks.
-    unordered_task_list& get_gui_task_list() noexcept;
+    template<typename T>
+        requires(std::is_integral_v<T> || is_identifier_type<T>)
+    std::size_t get_task_manager_list(T id) const noexcept
+    {
+        // unordered_task_list(0) is for the GUI
 
-    /**
-     * Helpers function to get the current instance of the @a
-     * unordered_task_list.
-     *
-     * @return The reference to the @a unordered_task_list
-     */
-    unordered_task_list& get_unordered_task_list() noexcept;
+        if constexpr (is_identifier_type<T>) {
+            const auto uid = static_cast<std::size_t>(get_index(id));
+            return 1u + (uid % (task_mgr.list_size() - 1u));
+        } else {
+            return 1u + (id % (task_mgr.list_size() - 1u));
+        }
+    }
 
     /// Allocate a new @c project_editor and read the file @c file_path_id.
     void start_load_project(const project_id f_id) noexcept;

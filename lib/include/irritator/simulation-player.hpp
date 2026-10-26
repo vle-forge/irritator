@@ -119,7 +119,11 @@ public:
      * * * * * * * */
 
     /// Initializes the simulation (@c simulation::initialize()) and goes to
-    /// the step 0. Use it again to restart.
+    /// the step 0. Use it again to restart: the restart is as exact as
+    /// @c simulation::initialize() is, which must reset everything a run
+    /// changes, the state of the resamplers included. To come back to the
+    /// initial state for sure, use @c go_to(0) (a snapshot) while the history
+    /// is kept.
     status start() noexcept;
 
     /// One step forward. Nothing happens when the simulation is finished.
@@ -188,6 +192,22 @@ public:
     /// @c earliest_step() equals @c step().
     status forget_history() noexcept;
 
+    /// "Complete simulation" mode: with @c false the following steps do not
+    /// take any keyframe, so the memory does not grow with the length of the
+    /// simulation (the only snapshot kept is the one of the current step).
+    /// There is no way back: @c earliest_step() follows @c step(), so
+    /// @c can_step_back() is false, @c go_to() does nothing backward, and
+    /// @c start() is the way to run again.
+    ///
+    /// With @c true (default), the current step becomes the beginning of the
+    /// history, as after @c forget_history(). The change costs one snapshot at
+    /// most, and nothing if there is nothing to forget. Call it from the thread
+    /// that owns the simulation, as the other functions.
+    status keep_history(const bool value) noexcept;
+
+    /// True (default) if the steps take keyframes, see @c keep_history().
+    bool keeps_history() const noexcept { return m_keep_history; }
+
     /* * * * * * * *
      *
      * observers
@@ -217,6 +237,10 @@ public:
     bool finished() const noexcept;
 
     time current_time() const noexcept { return m_sim.current_time(); }
+
+    /// Limits of the simulation (a progress bar: end is infinite if is_live()).
+    time begin_time() const noexcept { return m_sim.limits.begin(); }
+    time end_time() const noexcept { return m_sim.limits.end(); }
 
     std::size_t keyframe_number() const noexcept
     {
@@ -262,6 +286,7 @@ private:
     u32       m_chunk;
     u32       m_helpers = 0; // unordered workers of the task manager
     bool      m_started = false;
+    bool      m_keep_history = true; // false: no keyframe, see keep_history()
 
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
 

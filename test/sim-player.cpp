@@ -284,6 +284,168 @@ int main()
         expect(player.memory_usage() < 200u * 1024u);
     };
 
+    "no history: no keyframe and no way back"_test = [] {
+        auto&      tm = test_tm();
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        simulation_player player(sim, tm, 0, { 8, 16 });
+        expect(player.start().has_value());
+        expect(player.keeps_history());
+
+        // At the step 0 there is nothing to forget: no new snapshot.
+        expect(player.keep_history(false).has_value());
+        expect(not player.keeps_history());
+        expect(player.keyframe_number() == 1_u);
+
+        const auto bytes0 = player.memory_usage();
+
+        for (int i = 1; i <= 300; ++i) {
+            expect(player.step_forward().has_value());
+            expect(player.keyframe_number() == 1_u);
+            expect(player.earliest_step() == player.step());
+            expect(not player.can_step_back());
+        }
+
+        expect(same(dump(sim), ref[300], "300 steps without history"));
+        expect(player.memory_usage() == bytes0);
+
+        // no way back: nothing happens, the state is not touched
+        expect(player.step_back().has_value());
+        expect(player.step() == 300_u);
+        expect(player.go_to(10).has_value());
+        expect(player.step() == 300_u);
+        expect(player.retreat(10ms).has_value());
+        expect(player.step() == 300_u);
+        expect(same(dump(sim), ref[300], "still the step 300"));
+
+        // start() goes to the step 0 again, the player still has no history
+        expect(player.start().has_value());
+        expect(player.step() == 0_u);
+        expect(player.keyframe_number() == 1_u);
+        expect(player.go_to(20).has_value());
+        expect(player.step() == 20_u);
+        expect(player.keyframe_number() == 1_u);
+        expect(not player.can_step_back());
+    };
+
+    "no history: the complete run gives the state of the plain run"_test = [] {
+        auto& tm = test_tm();
+
+        // Many observers and small chunks: the parallel tick is used.
+        auto build = [](simulation& sim) {
+            world w;
+            build_world(sim, w);
+            sim.limits.set_bound(0.0, 0.3);
+
+            for (int i = 0; i != 120; ++i) {
+                auto& c = sim.alloc<counter>();
+                c.type  = counter::observation_type::event_number;
+
+                const auto id = sim.get_id(c);
+                sim.parameters[get_index(id)].copy_from(
+                  *sim.models.try_to_get(id));
+                expect(
+                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
+            }
+        };
+
+        simulation ref_sim;
+        build(ref_sim);
+        expect(start(ref_sim));
+        u64 n = 0;
+        while (not ref_sim.current_time_expired() and n < 10000) {
+            expect(plain_steps(ref_sim, 1));
+            ++n;
+        }
+        expect(n > 10_u);
+        const auto expected = dump(ref_sim);
+
+        simulation_player_options opt{ 8, 16 };
+        opt.observers_per_chunk = 8;
+
+        simulation sim;
+        build(sim);
+        simulation_player player(sim, tm, 0, opt);
+        expect(player.start().has_value());
+
+        // as the GUI does: the same calls in every slice, a short budget
+        u64 slices = 0;
+        while (not player.finished() and slices < 100000) {
+            expect(player.keep_history(false).has_value());
+            expect(player.advance(50us, 7).has_value());
+            ++slices;
+        }
+
+        expect(player.finished());
+        expect(player.step() == n);
+        expect(player.keyframe_number() == 1_u);
+        expect(not player.can_step_back());
+        expect(same(dump(sim), expected, "complete run"));
+    };
+
+    "no history: the history restarts where it is enabled again"_test = [] {
+        auto&      tm = test_tm();
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        simulation_player player(sim, tm, 0, { 8, 64 });
+        expect(player.start().has_value());
+
+        // From a session with a history: it is dropped, one snapshot is kept.
+        expect(player.go_to(120).has_value());
+        expect(player.keyframe_number() > 5_u);
+        const auto before = player.memory_usage();
+
+        expect(player.keep_history(false).has_value());
+        expect(player.keyframe_number() == 1_u);
+        expect(player.earliest_step() == 120_u);
+        expect(player.step() == 120_u);
+        expect(player.memory_usage() < before);
+        expect(same(dump(sim), ref[120], "120"));
+
+        expect(player.go_to(170).has_value());
+        expect(player.keyframe_number() == 1_u);
+        expect(same(dump(sim), ref[170], "170 without history"));
+
+        // The step 170 is the new beginning of the history.
+        expect(player.keep_history(true).has_value());
+        expect(player.keeps_history());
+        expect(player.earliest_step() == 170_u);
+        expect(player.keyframe_number() == 1_u);
+
+        expect(player.go_to(210).has_value());
+        expect(player.keyframe_number() > 3_u);
+        expect(same(dump(sim), ref[210], "210"));
+
+        for (int i = 0; i != 25; ++i)
+            expect(player.step_back().has_value());
+        expect(player.step() == 185_u);
+        expect(same(dump(sim), ref[185], "185"));
+
+        // before the floor: the floor
+        expect(player.go_to(50).has_value());
+        expect(player.step() == 170_u);
+        expect(same(dump(sim), ref[170], "the floor"));
+        expect(not player.can_step_back());
+
+        expect(player.go_to(300).has_value());
+        expect(same(dump(sim), ref[300], "300"));
+    };
+
+    "no history: the limits for a progress bar"_test = [] {
+        auto&      tm = test_tm();
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        sim.limits.set_bound(1.0, 3.0);
+        simulation_player player(sim, tm, 0);
+
+        expect(player.begin_time() == 1.0_d);
+        expect(player.end_time() == 3.0_d);
+        expect(not player.is_live());
+    };
+
     // realtime_pacer
 
     "pacer: target follows the wall clock"_test = [] {

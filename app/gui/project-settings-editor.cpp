@@ -209,31 +209,46 @@ static bool submit(application&       app,
     if (c.busy.test_and_set(std::memory_order_acquire))
         return false;
 
-    app.add_simulation_task(idx, [&c, fn,
-                                  edited = std::exchange(c.edited,
-                                                         false)]() noexcept {
-        c.result = edited ? c.player.forget_history() : success();
-        if (not c.result.has_error())
-            c.result = fn(c.player);
+    app.add_simulation_task(
+      idx, [&c, fn, edited = std::exchange(c.edited, false),
+            history = c.view != player_controller::kind::complete]() noexcept {
+          const auto t0 = std::chrono::steady_clock::now();
 
-        c.fresh.step     = c.player.step();
-        c.fresh.furthest = c.player.furthest_step();
-        c.fresh.earliest = c.player.earliest_step();
-        c.fresh.t        = c.player.current_time();
-        c.fresh.target   = c.pacer.target();
-        c.fresh
-          .lateness_ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
-                            c.pacer.lateness(c.player.next_time()))
-                            .count();
-        c.fresh.resyncs = c.resyncs;
-        c.fresh.started = c.player.started();
-        c.fresh.finished  = c.player.finished();
-        c.fresh.can_back  = c.player.can_step_back();
-        c.fresh.keyframes = c.player.keyframe_number();
-        c.fresh.bytes     = c.player.memory_usage();
-        c.has_result      = true;
-        c.busy.clear(std::memory_order_release); // TOUJOURS en dernier
-    });
+          // The complete mode keeps no keyframe, the others keep them. It is
+          // a no-op when the player is already in the right mode.
+
+          c.result = edited ? c.player.forget_history() : success();
+          if (not c.result.has_error())
+              c.result = c.player.keep_history(history);
+          if (not c.result.has_error())
+              c.result = fn(c.player);
+
+          c.work += std::chrono::steady_clock::now() - t0;
+
+          c.fresh.step        = c.player.step();
+          c.fresh.furthest    = c.player.furthest_step();
+          c.fresh.earliest    = c.player.earliest_step();
+          c.fresh.t           = c.player.current_time();
+          c.fresh.begin       = c.player.begin_time();
+          c.fresh.end         = c.player.end_time();
+          c.fresh.target      = c.pacer.target();
+          c.fresh.lateness_ms = std::chrono::duration_cast<
+                                  std::chrono::milliseconds>(
+                                  c.pacer.lateness(c.player.next_time()))
+                                  .count();
+          c.fresh
+            .work_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                         c.work)
+                         .count();
+          c.fresh.resyncs   = c.resyncs;
+          c.fresh.started   = c.player.started();
+          c.fresh.finished  = c.player.finished();
+          c.fresh.can_back  = c.player.can_step_back();
+          c.fresh.keyframes = c.player.keyframe_number();
+          c.fresh.bytes     = c.player.memory_usage();
+          c.has_result      = true;
+          c.busy.clear(std::memory_order_release); // always last instruction
+      });
 
     return true;
 }
@@ -242,14 +257,13 @@ static bool EnhancedButton(const application& app,
                            const char*        label,
                            const ImVec2       button_size,
                            const char*        msg) noexcept
+
 {
     ImGui::PushFont(app.icons);
     const auto click = ImGui::Button(label, button_size);
     ImGui::PopFont();
-
     if (msg and ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("%s", msg);
-
     return click;
 }
 
@@ -321,27 +335,38 @@ void schedule_player(application&       app,
                    return p.advance_until(pacer.target(now), budget);
                });
         break;
+
+    case mode::complete:
+        // need_start: the user asks for a new run, even if the last one is
+        // finished (shown.finished is the state of the last run).
+        if (c.shown.finished and not c.need_start) {
+            c.current = mode::paused;
+            break;
+        }
+
+        submit(app, idx, c,
+               [&work = c.work, budget = c.complete_budget,
+                restart = std::exchange(c.need_start, false)](
+                 auto& p) noexcept -> status {
+                   if (restart) {
+                       work = std::chrono::nanoseconds::zero();
+
+                       if (auto ret = p.start(); ret.has_error())
+                           return ret;
+                   }
+
+                   return p.advance(budget);
+               });
+        break;
     }
 }
 
-static void show_simulation_player(application&       app,
-                                   const unsigned     idx,
-                                   player_controller& c) noexcept
+/// Debug mode: the player is a "video player" of the simulation.
+static void show_debug_player(application&       app,
+                              const unsigned     idx,
+                              player_controller& c) noexcept
 {
-    const auto size = ImGui::ComputeButtonSize(5);
-
-    if (EnhancedButton(app,
-                       c.current == player_controller::mode::realtime
-                         ? "\ue057##t"
-                         : "RT##t",
-                       size, "Real time")) {
-        if (c.current == player_controller::mode::realtime) {
-            c.current = player_controller::mode::paused;
-        } else {
-            c.current    = player_controller::mode::realtime;
-            c.pace_reset = true;
-        }
-    }
+    using mode = player_controller::mode;
 
     if (not c.shown.started) {
         if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
@@ -349,48 +374,41 @@ static void show_simulation_player(application&       app,
         return;
     }
 
+    const auto size = ImGui::ComputeButtonSize(5);
     const auto busy = c.busy.test(std::memory_order_acquire);
+
     ImGui::BeginDisabled(busy);
-    if (EnhancedButton(app, "\ue0c5##c", size, "Beginning")) {
-        c.current = player_controller::mode::paused;
+    if (EnhancedButton(app, "##c", size, "Beginning")) {
+        c.current = mode::paused;
         submit(app, idx, c, [](auto& p) { return p.go_to(0); });
     }
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, "\ue02f##c", size, "Back")) {
-        c.current = player_controller::mode::paused;
+    if (EnhancedButton(app, "##c", size, "Back")) {
+        c.current = mode::paused;
         submit(app, idx, c, [](auto& p) { return p.step_back(); });
     }
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, "\ue030##c", size, "Forward")) {
-        c.current = player_controller::mode::paused;
+    if (EnhancedButton(app, "##c", size, "Forward")) {
+        c.current = mode::paused;
         submit(app, idx, c, [](auto& p) { return p.step_forward(); });
     }
     ImGui::EndDisabled();
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app,
-                       c.current == player_controller::mode::play ? "\ue09e##c"
-                                                                  : "\ue034##c",
-                       size, "Play"))
-        c.current = (c.current == player_controller::mode::play)
-                      ? player_controller::mode::paused
-                      : player_controller::mode::play;
+    if (EnhancedButton(app, c.current == mode::play ? "##c" : "##c", size,
+                       "Play"))
+        c.current = (c.current == mode::play) ? mode::paused : mode::play;
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app,
-                       c.current == player_controller::mode::reverse
-                         ? "\ue09e##r"
-                         : "\ue033##r",
+    if (EnhancedButton(app, c.current == mode::reverse ? "##r" : "##r",
                        size, "Reverse"))
-        c.current = (c.current == player_controller::mode::reverse)
-                      ? player_controller::mode::paused
-                      : player_controller::mode::reverse;
+        c.current = (c.current == mode::reverse) ? mode::paused : mode::reverse;
 
     auto zero = static_cast<ImU64>(0);
     auto last = static_cast<ImU64>(c.shown.furthest);
@@ -402,7 +420,7 @@ static void show_simulation_player(application&       app,
     c.dragging = ImGui::IsItemActive();
     if (ImGui::IsItemDeactivatedAfterEdit() and
         not c.busy.test(std::memory_order_acquire)) {
-        c.current = player_controller::mode::paused;
+        c.current = mode::paused;
         submit(app, idx, c,
                [target = c.target](auto& p) { return p.go_to(target); });
     }
@@ -410,8 +428,36 @@ static void show_simulation_player(application&       app,
     ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
     if (busy)
         ImGui::TextFormat("Work in progress...");
+}
 
-    if (c.current == player_controller::mode::realtime) {
+/// Real time mode: one unit of simulation time lasts unit_duration.
+static void show_realtime_player(application&       app,
+                                 const unsigned     idx,
+                                 player_controller& c) noexcept
+{
+    using mode = player_controller::mode;
+
+    if (not c.shown.started) {
+        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
+            submit(app, idx, c, [](auto& p) { return p.start(); });
+        return;
+    }
+
+    const auto size = ImGui::ComputeButtonSize(5);
+
+    if (EnhancedButton(app, c.current == mode::realtime ? "##t" : "RT##t",
+                       size, "Real time")) {
+        if (c.current == mode::realtime) {
+            c.current = mode::paused;
+        } else {
+            c.current    = mode::realtime;
+            c.pace_reset = true;
+        }
+    }
+
+    ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
+
+    if (c.current == mode::realtime) {
         ImGui::TextFormat("target {:.3f}, lateness {} ms, resync {}",
                           c.shown.target, c.shown.lateness_ms, c.shown.resyncs);
         if (c.shown.lateness_ms > 0)
@@ -419,77 +465,92 @@ static void show_simulation_player(application&       app,
     }
 }
 
-static void show_simulation_action_buttons(application&    app,
-                                           project_editor& ed) noexcept
+/// Complete mode: from the beginning to the end, as fast as possible, without
+/// any keyframe (the memory does not depend on the length of the simulation).
+/// The pause button stops after the current task (complete_budget at most).
+static void show_complete_player(application&       app,
+                                 player_controller& c) noexcept
 {
-    const auto item_x         = ImGui::GetStyle().ItemSpacing.x;
-    const auto region_x       = ImGui::GetContentRegionAvail().x;
-    const auto button_x       = (region_x - 4.f * item_x) / 5.f;
-    const auto small_button_x = (region_x - 2.f * item_x) / 3.f;
-    const auto button         = ImVec2{ button_x, 0.f };
-    const auto small_button   = ImVec2{ small_button_x, 0.f };
+    using mode = player_controller::mode;
 
-    const bool can_be_initialized = any_equal(
-      ed.pj.simulation_state, simulation_status::not_started,
-      simulation_status::initialized, simulation_status::paused,
-      simulation_status::finished);
+    const auto size     = ImGui::ComputeButtonSize(2);
+    const auto running  = c.current == mode::complete;
+    const auto finished = c.shown.started and c.shown.finished;
+    const auto resume   = c.shown.started and not finished;
 
-    const bool can_be_started = ed.pj.simulation_state ==
-                                simulation_status::initialized;
+    if (running) {
+        if (EnhancedButton(app, "##full", size, "Pause"))
+            c.current = mode::paused;
+    } else {
+        if (EnhancedButton(app, "##full", size, resume ? "Resume" : "Run")) {
+            c.need_start = not resume;
+            c.current    = mode::complete;
+        }
+    }
 
-    const bool can_be_paused = ed.pj.simulation_state ==
-                               simulation_status::running;
+    ImGui::SameLine();
 
-    const bool can_be_restarted = ed.pj.simulation_state ==
-                                  simulation_status::paused;
+    ImGui::BeginDisabled(not c.shown.started);
+    if (EnhancedButton(app, "##full", size, "Restart")) {
+        c.need_start = true;
+        c.current    = mode::complete;
+    }
+    ImGui::EndDisabled();
 
-    // ImGui::BeginDisabled(not can_be_initialized);
-    // if (EnhancedButton(app, "\ue0c8", button,
-    //                    "Initialize simulation models and data."))
-    //     ed.init_simulation(app);
-    // ImGui::EndDisabled();
+    if (std::isfinite(c.shown.end) and c.shown.end > c.shown.begin) {
+        const auto ratio = (c.shown.t - c.shown.begin) /
+                           (c.shown.end - c.shown.begin);
 
-    // ImGui::SameLine();
+        ImGui::ProgressBar(static_cast<float>(std::clamp(ratio, 0.0, 1.0)),
+                           ImVec2{ -FLT_MIN, 0.f });
+    }
 
-    // ImGui::BeginDisabled(not can_be_started);
-    // if (EnhancedButton(app, "\ue0a9", button, "Start and run the
-    // simulation"))
-    //     ed.run_simulation(app);
-    // ImGui::EndDisabled();
+    ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
 
-    // ImGui::SameLine();
+    if (c.shown.work_ms > 0) {
+        const auto seconds = static_cast<double>(c.shown.work_ms) / 1000.0;
 
-    // ImGui::BeginDisabled(not can_be_paused);
-    // if (EnhancedButton(app, "\ue09e", button, "Pause the simulation"))
-    //     ed.pause_simulation();
-    // ImGui::EndDisabled();
+        ImGui::TextFormat("{:.2f} s, {:.0f} steps/s", seconds,
+                          static_cast<double>(c.shown.step) / seconds);
+    }
 
-    // ImGui::SameLine();
+    if (finished)
+        ImGui::TextUnformatted("The simulation is finished.");
+}
 
-    // ImGui::BeginDisabled(not can_be_restarted);
-    // if (EnhancedButton(app, "\ue030", button,
-    //                    "Restart the simulation after pause")) {
-    //     ed.pj.simulation_state = simulation_status::run_requiring;
-    //     ed.force_pause         = false;
-    // }
-    // ImGui::EndDisabled();
+static void show_simulation_player(application&       app,
+                                   const unsigned     idx,
+                                   player_controller& c) noexcept
+{
+    using kind = player_controller::kind;
 
-    // ImGui::BeginDisabled(can_be_stopped);
-    // if (EnhancedButton(
-    //       app,
-    //       "\ue0cb",
-    //       button,
-    //       "Stop the simulation (can not be restart at the same state"))
-    //     ed.force_stop = true;
-    // ImGui::EndDisabled();
+    static constexpr const char* names[] = { "Debug", "Real time", "Complete" };
 
-    if (ed.pj.flags[project::simulation_flag::debug] /* and not start */) {
-        ImGui::SeparatorText("Debug mode");
-        ed.sim_player.unit_duration = ed.one_simulation_time_duration;
-        ed.sim_player.task_duration = ed.simulation_task_duration;
+    auto selected = static_cast<int>(c.view);
+    for (auto i = 0; i != 3; ++i) {
+        if (i != 0)
+            ImGui::SameLine();
 
-        show_simulation_player(app, get_index(app.pjs.get_id(ed)),
-                               ed.sim_player);
+        ImGui::RadioButton(names[i], &selected, i);
+    }
+
+    if (selected != static_cast<int>(c.view)) {
+        c.view    = enum_cast<kind>(selected);
+        c.current = player_controller::mode::paused;
+    }
+
+    switch (c.view) {
+    case kind::debug:
+        show_debug_player(app, idx, c);
+        break;
+
+    case kind::realtime:
+        show_realtime_player(app, idx, c);
+        break;
+
+    case kind::complete:
+        show_complete_player(app, c);
+        break;
     }
 }
 
@@ -571,13 +632,10 @@ static bool show_project_simulation_settings(application&    app,
         ed.pj.sim.limits.set_bound(begin, end);
     ImGui::EndDisabled();
 
-    ImGui::BeginDisabled(not ed.pj.flags[project::simulation_flag::real_time]);
+    ImGui::BeginDisabled(ed.sim_player.view !=
+                         player_controller::kind::realtime);
     {
         i64 value = ed.one_simulation_time_duration.count();
-
-        ImGui::BeginDisabled(
-          not(ed.pj.flags[project::simulation_flag::real_time] or
-              ed.pj.flags[project::simulation_flag::debug]));
 
         if (ImGui::InputScalar("ms/u.t.", ImGuiDataType_S64, &value)) {
             if (value > 1) {
@@ -586,13 +644,13 @@ static bool show_project_simulation_settings(application&    app,
                 ++up;
             }
         }
-        ImGui::EndDisabled();
 
         ImGui::SameLine();
         HelpMarker("Duration in milliseconds per unit of simulation time. "
                    "Default is to "
                    "run 1 unit time of simulation in one second.");
     }
+
     ImGui::EndDisabled();
 
     {
@@ -609,23 +667,11 @@ static bool show_project_simulation_settings(application&    app,
                    "value may increase CPU load.");
     }
 
-    const auto started = any_equal(ed.pj.simulation_state,
-                                   simulation_status::not_started,
-                                   simulation_status::initialized);
-
     auto flags     = ed.pj.flags;
-    auto debug     = ed.pj.flags[project::simulation_flag::debug];
-    auto real_time = ed.pj.flags[project::simulation_flag::real_time];
     auto write_irb = ed.pj.flags[project::simulation_flag::write_irtb];
 
-    ImGui::BeginDisabled(not started);
-    if (ImGui::Checkbox("Debug", &debug))
-        flags.set(project::simulation_flag::debug, debug);
-    if (ImGui::Checkbox("Real time", &real_time))
-        flags.set(project::simulation_flag::real_time, real_time);
     if (ImGui::Checkbox("Write on disk", &write_irb))
         flags.set(project::simulation_flag::write_irtb, write_irb);
-    ImGui::EndDisabled();
 
     if (flags != ed.pj.flags) {
         ed.pj.flags            = flags; /* Disable start button */
@@ -642,7 +688,9 @@ static bool show_project_simulation_settings(application&    app,
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 
-    show_simulation_action_buttons(app, ed);
+    ed.sim_player.unit_duration = ed.one_simulation_time_duration;
+    ed.sim_player.task_duration = ed.simulation_task_duration;
+    show_simulation_player(app, get_index(app.pjs.get_id(ed)), ed.sim_player);
 
     ImGui::SeparatorText("Observation");
 
@@ -665,16 +713,12 @@ static bool show_project_simulation_settings(application&    app,
     }
 
     ImGui::SameLine();
-    HelpMarker(
-      "None: do nothing.\n"
-      "Graph: writes the simulation graph using a dot format into the "
-      "observation directory path defined above"
-      "Binary or Text: writes graph and all transition for all models "
-      "during "
-      "the simulation. A csv file format is used and the file is opened "
-      "into "
-      "the observation directroy defined above.\nPlease note, the file "
-      "may be large.");
+    HelpMarker("None: do nothing.\n Graph: writes the simulation graph using a "
+               " dot format into the  observation directory path defined "
+               "above.\n Binary or Text: writes graph  and all transition for "
+               "all models during the simulation. A csv file  format is used "
+               "and the file is opened  into the observation directroy  "
+               "defined above.\nPlease note, the file may be large.");
 
     app.sim_to_cpp.show(std::as_const(ed));
 

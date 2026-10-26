@@ -68,8 +68,13 @@ status simulation_player::go_to(const step_type n) noexcept
     if (not m_started)
         return success();
 
-    if (n < m_step)
-        irt_check(rewind_to(std::max(n, m_floor), false));
+    if (n < m_step) {
+        // Nothing to rewind when the floor is the current step (no history).
+        const auto target = std::max(n, m_floor);
+
+        if (target < m_step)
+            irt_check(rewind_to(target, false));
+    }
 
     while (m_step < n and can_step_forward())
         irt_check(step_forward());
@@ -189,6 +194,27 @@ status simulation_player::forget_history() noexcept
     m_furthest = m_step;
 
     return push_keyframe();
+}
+
+status simulation_player::keep_history(const bool value) noexcept
+{
+    if (value == m_keep_history)
+        return success();
+
+    m_keep_history = value;
+
+    if (not m_started)
+        return success();
+
+    // Nothing to forget: a single keyframe, the one of the current step.
+    if (m_keyframes.size() == 1u and m_keyframes.back().step == m_step) {
+        m_window.clear();
+        m_floor    = m_step;
+        m_furthest = m_step;
+        return success();
+    }
+
+    return forget_history();
 }
 
 bool simulation_player::finished() const noexcept
@@ -340,6 +366,11 @@ status simulation_player::push_keyframe() noexcept
 
 status simulation_player::keyframe_if_needed() noexcept
 {
+    if (not m_keep_history) {
+        m_floor = m_step; // nothing to go back to
+        return success();
+    }
+
     if (m_step <= m_keyframes.back().step or m_step % m_interval != 0)
         return success();
 

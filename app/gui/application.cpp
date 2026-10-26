@@ -480,7 +480,8 @@ application::application(log_history& jn_) noexcept
     journal_scope j;
 
     log(log_level::info, [&](auto& m) noexcept {
-        format(m, "Starting with {} list and {} - {} threads\n",
+        format(m,
+               "Starting with {} list and {} ordered - {} unordered threads\n",
                task_mgr.list_size(), task_mgr.ordered_worker_size(),
                task_mgr.unordered_worker_size());
     });
@@ -495,26 +496,6 @@ application::~application() noexcept
     task_mgr.shutdown();
 
     log(log_level::info, "Application shutdown\n"sv);
-}
-
-unordered_task_list& application::get_simulation_task_list(
-  const unsigned id) noexcept
-{
-    const auto index = id % (task_mgr.list_size() - 1);
-
-    return task_mgr.unordered(index);
-}
-
-unordered_task_list& application::get_gui_task_list() noexcept
-{
-    const auto index = task_mgr.list_size() - 1;
-
-    return task_mgr.unordered(index);
-}
-
-unordered_task_list& application::get_unordered_task_list() noexcept
-{
-    return task_mgr.unordered(0);
 }
 
 void application::try_set_component_as_project(const file_access& /*files*/,
@@ -932,8 +913,7 @@ auto application::show() noexcept -> show_result_t
         settings_wnd.show();
 
     for (auto& ed : pjs)
-        if (ed.pj.flags[project::simulation_flag::debug])
-            schedule_player(*this, get_index(pjs.get_id(ed)), ed.sim_player);
+        schedule_player(*this, get_index(pjs.get_id(ed)), ed.sim_player);
 
     return ret;
 }

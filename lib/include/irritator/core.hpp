@@ -1570,6 +1570,11 @@ public:
     /// resampled points to obs.write_history() in a single batched call.
     void tick(observer& obs, const real now) noexcept;
 
+    /// Forgets the pending point, the anchor and the batch (the series is
+    /// restarted); keeps the parameters (dt, interpolation). Use it when the
+    /// simulation is initialized again.
+    void reset() noexcept;
+
 private:
     void ingest(const raw_sample& s) noexcept;
     void commit_pending() noexcept;
@@ -12192,6 +12197,7 @@ inline status simulation::initialize() noexcept
 
     for (auto& obs : observers) {
         obs.reset();
+        observers.get<resampler>(observers.get_id(obs)).reset();
 
         if (auto* mdl = models.try_to_get(obs.model())) {
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {

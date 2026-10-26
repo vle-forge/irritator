@@ -57,6 +57,18 @@ void resampler::tick(observer& obs, const real now) noexcept
     flush_batch(obs);
 }
 
+void resampler::reset() noexcept
+{
+    m_batch.clear();
+    m_next_sample_time  = 0.0;
+    m_last_pushed_value = 0.0;
+    m_pending           = raw_sample{};
+    m_prev              = raw_sample{};
+    m_has_pending       = false;
+    m_has_prev          = false;
+    m_has_last_pushed   = false;
+}
+
 void resampler::ingest(const raw_sample& s) noexcept
 {
     if (m_has_pending && s.t == m_pending.t) {
