@@ -18,21 +18,17 @@ using namespace wtest;
 
 namespace {
 
-/// A list of tasks served by real threads (one task_manager for the tests): a
-/// bare `unordered_task_list` is not attached to workers, `submit()` has
-/// nobody to wake up.
-unordered_task_list& test_list() noexcept
+/// The task manager of the tests: one simulation (one pair of lists) and 3
+/// unordered workers. A bare `unordered_task_list` is not attached to workers,
+/// `submit()` has nobody to wake up.
+task_manager& test_tm() noexcept
 {
-    constexpr task_manager_options opt{ .list_count = 1, .worker_count = 0 };
-
-    static task_manager tm(opt);
+    static task_manager tm(task_manager_options{ 1, 3 });
     static const bool   started = (tm.start(), true);
     (void)started;
 
-    return tm.unordered(0);
+    return tm;
 }
-
-unordered_task_list* utl_ptr() noexcept { return &test_list(); }
 
 /// A plain loop of steps, with the observers policy of the player.
 bool plain_steps(simulation& sim, const int n) noexcept
@@ -50,7 +46,7 @@ bool plain_steps(simulation& sim, const int n) noexcept
 /// What a plain run gives at each step: the reference.
 std::vector<bytes> reference(const int steps)
 {
-    simulation sim;
+    simulation          sim;
     world      w;
     build_world(sim, w);
 
@@ -71,7 +67,7 @@ std::vector<bytes> reference(const int steps)
 /// The state after @c n steps of a plain run.
 bytes reference_at(const std::size_t n)
 {
-    simulation sim;
+    simulation          sim;
     world      w;
     build_world(sim, w);
 
@@ -97,11 +93,11 @@ int main()
     static const auto ref = reference(300);
 
     "player: step forward, then step back one by one"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
 
         expect(player.start().has_value());
         expect(same(dump(sim), ref[0], "step 0"));
@@ -132,14 +128,14 @@ int main()
     };
 
     "player: random access, with sparse keyframes"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
 
         // 300 steps, a keyframe every 4 steps, at most 8: the history is
         // thinned several times.
-        simulation_player player(sim, utl, { 4, 8 });
+        simulation_player player(sim, tm, 0, { 4, 8 });
         expect(player.start().has_value());
         expect(player.go_to(300).has_value());
         expect(same(dump(sim), ref[300], "300"));
@@ -155,11 +151,11 @@ int main()
     };
 
     "player: step back after a jump, window and keyframes"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 16, 64 });
+        simulation_player player(sim, tm, 0, { 16, 64 });
         expect(player.start().has_value());
 
         expect(player.go_to(150).has_value());
@@ -177,14 +173,14 @@ int main()
     };
 
     "player: the end of the simulation"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
         // The time of this world reaches 1.0 after about 100 steps: the
         // simulation ends before the 300 steps of the reference.
         sim.limits.set_bound(0.0, 0.5);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
         expect(not player.finished());
 
@@ -210,11 +206,11 @@ int main()
     };
 
     "player: advance and retreat with a time budget"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         expect(player.advance(std::chrono::milliseconds(5)).has_value());
@@ -228,11 +224,11 @@ int main()
     };
 
     "player: max_steps limits the speed of a playback"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         for (int i = 0; i != 5; ++i) {
@@ -254,11 +250,11 @@ int main()
     };
 
     "player: forget the future after an edition"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
         expect(player.go_to(60).has_value());
         expect(player.go_to(20).has_value());
@@ -276,11 +272,11 @@ int main()
     };
 
     "player: the memory is bounded"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 2, 10 });
+        simulation_player player(sim, tm, 0, { 2, 10 });
         expect(player.start().has_value());
         expect(player.go_to(300).has_value());
 
@@ -344,11 +340,11 @@ int main()
     };
 
     "player: advance_until runs the due events, only"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         expect(player.next_time() >= player.current_time());
@@ -378,11 +374,11 @@ int main()
     };
 
     "player: advance_until gives the state of the plain run"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
         expect(player.advance_until(0.4, 1s).has_value());
 
@@ -404,11 +400,11 @@ int main()
     };
 
     "player: max_steps and the budget limit advance_until"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         expect(player.advance_until(0.9, 1s, 3).has_value());
@@ -420,12 +416,12 @@ int main()
     };
 
     "player: the end of the simulation in real time"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
         sim.limits.set_bound(0.0, 0.5);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         expect(player.advance_until(0.4, 1s).has_value());
@@ -442,13 +438,13 @@ int main()
     };
 
     "real time: the simulation never goes faster than the clock"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
         sim.limits.set_bound(0.0, 0.5);
 
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         // one unit of simulation time = 100 ms: 50 ms for the whole run
@@ -474,11 +470,11 @@ int main()
     };
 
     "real time: pause and resume without catch-up"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         const auto     t0 = clock::now();
@@ -502,11 +498,11 @@ int main()
     };
 
     "live: an empty simulation without end waits, the clock goes on"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
 
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
         expect(player.is_live());
         expect(not player.finished());
@@ -536,11 +532,11 @@ int main()
 
     "live: models added while the simulation waits are taken in charge"_test =
       [] {
-          auto&      utl = test_list();
-          simulation sim;
+          auto& tm = test_tm();
+          simulation          sim;
           sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
 
-          simulation_player player(sim, utl, { 8, 16 });
+          simulation_player player(sim, tm, 0, { 8, 16 });
           expect(player.start().has_value());
 
           auto add_constant = [&sim](const double offset) {
@@ -597,11 +593,11 @@ int main()
                 .has_value());
         };
 
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         world      w;
         build_world(sim, w);
-        simulation_player player(sim, utl, { 4, 8 });
+        simulation_player player(sim, tm, 0, { 4, 8 });
         expect(player.start().has_value());
         expect(player.go_to(20).has_value());
 
@@ -631,10 +627,10 @@ int main()
     };
 
     "real time: a live simulation follows the clock and waits"_test = [] {
-        auto&      utl = test_list();
-        simulation sim;
+        auto& tm = test_tm();
+        simulation          sim;
         sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
-        simulation_player player(sim, utl, { 8, 16 });
+        simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
 
         realtime_pacer pacer(10ms);
@@ -687,9 +683,8 @@ int main()
 
             simulation_player_options opt{ 8, 16 };
             opt.observers_per_chunk = 1;
-            opt.max_helpers         = 3;
-
-            simulation_player player(sim, utl_ptr(), opt);
+    
+            simulation_player player(sim, test_tm(), 0, opt);
             expect(player.start().has_value());
 
             for (std::size_t i = 1; i < plain.size(); ++i) {
@@ -733,8 +728,7 @@ int main()
                   *sim.models.try_to_get(id));
 
                 expect(sim.connect_dynamics(tf, 0, c, 0).has_value());
-                expect(
-                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
+                sim.observe(*sim.models.try_to_get(id), 0.05);
             }
         };
 
@@ -757,9 +751,8 @@ int main()
 
         simulation_player_options opt{ 16, 16 };
         opt.observers_per_chunk = 16; // 13 chunks
-        opt.max_helpers         = 3;
 
-        simulation_player player(sim, utl_ptr(), opt);
+        simulation_player player(sim, test_tm(), 0, opt);
         expect(player.start().has_value());
 
         int    big_steps = 0;
@@ -795,8 +788,7 @@ int main()
                 const auto id = sim.get_id(c);
                 sim.parameters[get_index(id)].copy_from(
                   *sim.models.try_to_get(id));
-                expect(
-                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
+                sim.observe(*sim.models.try_to_get(id), 0.05);
             }
         };
 
@@ -818,9 +810,8 @@ int main()
 
         simulation_player_options opt{ 8, 16 };
         opt.observers_per_chunk = 16; // 19 chunks
-        opt.max_helpers         = 3;
 
-        simulation_player player(sim, utl_ptr(), opt);
+        simulation_player player(sim, test_tm(), 0, opt);
         expect(player.start().has_value());
         expect(player.go_to(static_cast<u64>(n)).has_value());
         expect(player.step() == static_cast<u64>(n));
@@ -852,16 +843,14 @@ int main()
                 const auto id = sim.get_id(c);
                 sim.parameters[get_index(id)].copy_from(
                   *sim.models.try_to_get(id));
-                expect(sim
-                         .make_initialize(*sim.models.try_to_get(id),
-                                          sim.current_time())
+                expect(sim.make_initialize(*sim.models.try_to_get(id),
+                                           sim.current_time())
                          .has_value());
-                expect(
-                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
+                sim.observe(*sim.models.try_to_get(id), 0.05);
             }
         };
 
-        auto run = [&](unordered_task_list* list) {
+        auto run = [&](const bool parallel) {
             simulation sim;
             world      w;
             build_world(sim, w);
@@ -870,7 +859,9 @@ int main()
             simulation_player_options opt{ 8, 16 };
             opt.observers_per_chunk = 16;
 
-            simulation_player player(sim, list, opt);
+            simulation_player player = parallel
+                                         ? simulation_player(sim, test_tm(), 0, opt)
+                                         : simulation_player(sim, opt);
             expect(player.start().has_value());
             expect(player.go_to(10).has_value());
 
@@ -882,6 +873,55 @@ int main()
             return dump(sim);
         };
 
-        expect(same(run(utl_ptr()), run(nullptr), "parallel = sequential"));
+        expect(same(run(true), run(false), "parallel = sequential"));
+    };
+
+    "parallel tick: one worker, the second pair of lists"_test = [] {
+        // Two simulations (two pairs of lists) and a single unordered worker:
+        // the player uses the list of its index, and one helper at most.
+        task_manager tm2(task_manager_options{ 2, 1 });
+        tm2.start();
+        expect(tm2.list_size() == 2_u);
+        expect(tm2.unordered_worker_size() == 1_u);
+
+        auto build = [](simulation& sim) {
+            world w;
+            build_world(sim, w);
+            sim.limits.set_bound(0.0, 0.3);
+
+            for (int i = 0; i != 120; ++i) {
+                auto& c = sim.alloc<counter>();
+                c.type  = counter::observation_type::event_number;
+
+                const auto id = sim.get_id(c);
+                sim.parameters[get_index(id)].copy_from(
+                  *sim.models.try_to_get(id));
+                sim.observe(*sim.models.try_to_get(id), 0.05);
+            }
+        };
+
+        simulation ref_sim;
+        build(ref_sim);
+        expect(start(ref_sim));
+        u64 n = 0;
+        while (not ref_sim.current_time_expired() and n < 10000) {
+            expect(plain_steps(ref_sim, 1));
+            ++n;
+        }
+        const auto expected = dump(ref_sim);
+
+        simulation_player_options opt{ 8, 16 };
+        opt.observers_per_chunk = 8;
+
+        for (const size_t index : { size_t{ 0 }, size_t{ 1 }, size_t{ 2 } }) {
+            // index 2 is out of range: sequential tick
+            simulation sim;
+            build(sim);
+
+            simulation_player player(sim, tm2, index, opt);
+            expect(player.start().has_value());
+            expect(player.go_to(n).has_value());
+            expect(same(dump(sim), expected, "list index"));
+        }
     };
 }

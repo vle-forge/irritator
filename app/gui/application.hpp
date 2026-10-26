@@ -1041,8 +1041,8 @@ class player_controller
 public:
     enum class mode : u8 { paused, play, reverse, realtime };
 
-    player_controller(simulation& sim, unordered_task_list& utl) noexcept
-      : player(sim, utl)
+    player_controller(simulation& sim, task_manager& tm, sz index) noexcept
+      : player(sim, tm, index)
     {}
 
     simulation_player player;
@@ -1061,7 +1061,7 @@ public:
     /// task budget
     std::chrono::milliseconds task_duration{ 16 };
 
-    // over need resynchronisation
+    /// over need resynchronisation
     std::chrono::milliseconds max_lateness{ 1000 };
 
     /// time given to the simulation by frame.
@@ -1086,7 +1086,8 @@ struct project_editor {
     enum class visualization_mode { flat, tree };
 
     project_editor(const std::string_view default_name,
-                   unordered_task_list&   utl,
+                   task_manager&          tm,
+                   std::size_t            index,
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;

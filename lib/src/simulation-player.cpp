@@ -6,16 +6,25 @@
 
 namespace irt {
 
-simulation_player::simulation_player(simulation&          sim,
-                                     unordered_task_list* utl,
-                                     const options        opt) noexcept
+simulation_player::simulation_player(simulation&   sim,
+                                     const options opt) noexcept
   : m_sim(sim)
-  , m_utl(utl)
   , m_interval(std::max<u32>(opt.keyframe_interval, 1u))
   , m_max_keyframes(std::max<u32>(opt.max_keyframes, 2u))
   , m_chunk(std::max<u32>(opt.observers_per_chunk, 1u))
-  , m_helpers(opt.max_helpers)
 {}
+
+simulation_player::simulation_player(simulation&   sim,
+                                     task_manager& tm,
+                                     const size_t  list_index,
+                                     const options opt) noexcept
+  : simulation_player(sim, opt)
+{
+    if (list_index < tm.list_size()) {
+        m_utl     = &tm.unordered(list_index);
+        m_helpers = static_cast<u32>(tm.unordered_worker_size());
+    }
+}
 
 status simulation_player::start() noexcept
 {

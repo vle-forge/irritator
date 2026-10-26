@@ -21,10 +21,11 @@
 namespace irt {
 
 project_editor::project_editor(const std::string_view default_name,
-                               unordered_task_list&   utl,
+                               task_manager&          tm,
+                               std::size_t            index,
                                project&&              project_) noexcept
   : pj(std::move(project_))
-  , sim_player{ pj.sim, utl }
+  , sim_player{ pj.sim, tm, index }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {

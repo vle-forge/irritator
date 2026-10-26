@@ -50,11 +50,6 @@ struct simulation_player_options {
     /// observers, the cost of a round trip in the task list is higher than
     /// the work.
     u32 observers_per_chunk = 512;
-
-    /// Maximum number of helper tasks added in the @c unordered_task_list by
-    /// tick (the calling thread works too). 0 disables the parallel tick.
-    u32 max_helpers = 7; /// @TODO remove this varaibuel and use the
-                         /// unordered_worker_size().
 };
 
 /// Moves a simulation forward and backward in "steps" (one call of
@@ -82,14 +77,14 @@ struct simulation_player_options {
 ///   (it is not a step), so the steps before can not be replayed any more.
 ///   @c forget_future() only forgets the steps after the current one.
 /// - The observers are resampled after each @c run() as
-///   @c tick_resamplers_after_run() does. With a @c unordered_task_list and
-///   enough observers the work is shared between the calling thread and the
-///   workers of the list. The list works in batch (@c add(), @c submit(),
-///   @c wait_completion()) for one producer: it must be used by this player
-///   only (the helpers live on the stack of the tick, which waits for them),
-///   and the player must never be called from a task of its own list (the
-///   helpers could never start: deadlock). The task manager must not be shut
-///   down during a tick.
+///   @c tick_resamplers_after_run() does. With a @c task_manager and enough
+///   observers the work is shared between the calling thread and the unordered
+///   workers (one helper task by worker at most). The unordered list works in
+///   batch (@c add(), @c submit(), @c wait_completion()) for one producer: it
+///   must be used by this player only (the helpers live on the stack of the
+///   tick, which waits for them), and the player must never be called from a
+///   task of its own list (the helpers could never start: deadlock). The task
+///   manager must outlive the player and must not be shut down during a tick.
 ///
 /// @TODO
 /// - Simulations with @c simulation_wrapper are not supported (see
@@ -101,17 +96,18 @@ public:
     using step_type = u64;
     using options   = simulation_player_options;
 
-    /// @param utl The task list used to resample the observers in parallel,
-    /// @c nullptr for a sequential tick (the list must outlive the player).
-    explicit simulation_player(simulation&          sim,
-                               unordered_task_list* utl = nullptr,
-                               const options        opt = options{}) noexcept;
+    /// Sequential player: the observers are resampled by the calling thread.
+    explicit simulation_player(simulation&   sim,
+                               const options opt = options{}) noexcept;
 
-    explicit simulation_player(simulation&          sim,
-                               unordered_task_list& utl,
-                               const options        opt = options{}) noexcept
-      : simulation_player(sim, &utl, opt)
-    {}
+    /// The observers can be resampled in parallel by the unordered workers of
+    /// the task manager @c tm, using the unordered list @c list_index (the
+    /// list of this simulation only, see the rules above). If @c list_index is
+    /// out of range, the tick is sequential.
+    simulation_player(simulation&   sim,
+                      task_manager& tm,
+                      const size_t  list_index,
+                      const options opt = options{}) noexcept;
 
     simulation_player(const simulation_player&)            = delete;
     simulation_player& operator=(const simulation_player&) = delete;
@@ -250,8 +246,8 @@ private:
         vector<u8> data;
     };
 
-    simulation&           m_sim;
-    unordered_task_list* m_utl;
+    simulation&          m_sim;
+    unordered_task_list* m_utl = nullptr; // nullptr: sequential tick
 
     binary_writer      m_writer;    // reused: no allocation for a snapshot
     vector<keyframe>   m_keyframes; // sorted by step, the first is the step 0
@@ -264,7 +260,7 @@ private:
     u32       m_interval;
     u32       m_max_keyframes;
     u32       m_chunk;
-    u32       m_helpers;
+    u32       m_helpers = 0; // unordered workers of the task manager
     bool      m_started = false;
 
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
