@@ -46,7 +46,7 @@ bool plain_steps(simulation& sim, const int n) noexcept
 /// What a plain run gives at each step: the reference.
 std::vector<bytes> reference(const int steps)
 {
-    simulation          sim;
+    simulation sim;
     world      w;
     build_world(sim, w);
 
@@ -67,7 +67,7 @@ std::vector<bytes> reference(const int steps)
 /// The state after @c n steps of a plain run.
 bytes reference_at(const std::size_t n)
 {
-    simulation          sim;
+    simulation sim;
     world      w;
     build_world(sim, w);
 
@@ -93,8 +93,8 @@ int main()
     static const auto ref = reference(300);
 
     "player: step forward, then step back one by one"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -128,8 +128,8 @@ int main()
     };
 
     "player: random access, with sparse keyframes"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
 
@@ -151,8 +151,8 @@ int main()
     };
 
     "player: step back after a jump, window and keyframes"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 16, 64 });
@@ -173,8 +173,8 @@ int main()
     };
 
     "player: the end of the simulation"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         // The time of this world reaches 1.0 after about 100 steps: the
@@ -206,8 +206,8 @@ int main()
     };
 
     "player: advance and retreat with a time budget"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -224,8 +224,8 @@ int main()
     };
 
     "player: max_steps limits the speed of a playback"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -250,8 +250,8 @@ int main()
     };
 
     "player: forget the future after an edition"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -272,8 +272,8 @@ int main()
     };
 
     "player: the memory is bounded"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 2, 10 });
@@ -340,8 +340,8 @@ int main()
     };
 
     "player: advance_until runs the due events, only"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -374,8 +374,8 @@ int main()
     };
 
     "player: advance_until gives the state of the plain run"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -400,8 +400,8 @@ int main()
     };
 
     "player: max_steps and the budget limit advance_until"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -416,8 +416,8 @@ int main()
     };
 
     "player: the end of the simulation in real time"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         sim.limits.set_bound(0.0, 0.5);
@@ -438,8 +438,8 @@ int main()
     };
 
     "real time: the simulation never goes faster than the clock"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         sim.limits.set_bound(0.0, 0.5);
@@ -470,8 +470,8 @@ int main()
     };
 
     "real time: pause and resume without catch-up"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -498,8 +498,8 @@ int main()
     };
 
     "live: an empty simulation without end waits, the clock goes on"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
 
         simulation_player player(sim, tm, 0, { 8, 16 });
@@ -532,8 +532,8 @@ int main()
 
     "live: models added while the simulation waits are taken in charge"_test =
       [] {
-          auto& tm = test_tm();
-          simulation          sim;
+          auto&      tm = test_tm();
+          simulation sim;
           sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
 
           simulation_player player(sim, tm, 0, { 8, 16 });
@@ -593,8 +593,8 @@ int main()
                 .has_value());
         };
 
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 4, 8 });
@@ -627,8 +627,8 @@ int main()
     };
 
     "real time: a live simulation follows the clock and waits"_test = [] {
-        auto& tm = test_tm();
-        simulation          sim;
+        auto&      tm = test_tm();
+        simulation sim;
         sim.limits.set_bound(0.0, irt::time_domain<irt::time>::infinity);
         simulation_player player(sim, tm, 0, { 8, 16 });
         expect(player.start().has_value());
@@ -683,7 +683,7 @@ int main()
 
             simulation_player_options opt{ 8, 16 };
             opt.observers_per_chunk = 1;
-    
+
             simulation_player player(sim, test_tm(), 0, opt);
             expect(player.start().has_value());
 
@@ -728,7 +728,8 @@ int main()
                   *sim.models.try_to_get(id));
 
                 expect(sim.connect_dynamics(tf, 0, c, 0).has_value());
-                sim.observe(*sim.models.try_to_get(id), 0.05);
+                expect(
+                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
             }
         };
 
@@ -788,7 +789,8 @@ int main()
                 const auto id = sim.get_id(c);
                 sim.parameters[get_index(id)].copy_from(
                   *sim.models.try_to_get(id));
-                sim.observe(*sim.models.try_to_get(id), 0.05);
+                expect(
+                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
             }
         };
 
@@ -843,10 +845,12 @@ int main()
                 const auto id = sim.get_id(c);
                 sim.parameters[get_index(id)].copy_from(
                   *sim.models.try_to_get(id));
-                expect(sim.make_initialize(*sim.models.try_to_get(id),
-                                           sim.current_time())
+                expect(sim
+                         .make_initialize(*sim.models.try_to_get(id),
+                                          sim.current_time())
                          .has_value());
-                sim.observe(*sim.models.try_to_get(id), 0.05);
+                expect(
+                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
             }
         };
 
@@ -859,9 +863,9 @@ int main()
             simulation_player_options opt{ 8, 16 };
             opt.observers_per_chunk = 16;
 
-            simulation_player player = parallel
-                                         ? simulation_player(sim, test_tm(), 0, opt)
-                                         : simulation_player(sim, opt);
+            simulation_player player = parallel ? simulation_player(
+                                                    sim, test_tm(), 0, opt)
+                                                : simulation_player(sim, opt);
             expect(player.start().has_value());
             expect(player.go_to(10).has_value());
 
@@ -896,7 +900,8 @@ int main()
                 const auto id = sim.get_id(c);
                 sim.parameters[get_index(id)].copy_from(
                   *sim.models.try_to_get(id));
-                sim.observe(*sim.models.try_to_get(id), 0.05);
+                expect(
+                  sim.observe(*sim.models.try_to_get(id), 0.05).has_value());
             }
         };
 
