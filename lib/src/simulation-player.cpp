@@ -28,7 +28,16 @@ simulation_player::simulation_player(simulation&   sim,
 
 status simulation_player::start() noexcept
 {
-    m_started = false;
+    // simulation::finalize() empties the sources of the models (a constant
+    // source forgets its definition): initialize() can not start again from a
+    // finalized state. The first keyframe is a state before finalize, with the
+    // sources of the models: it is the way back to a simulation that can start.
+    if (m_finalized and not m_keyframes.empty() and
+        not m_keyframes.front().finalized)
+        irt_check(restore_from(m_keyframes.front().data));
+
+    m_started   = false;
+    m_finalized = false;
     m_keyframes.clear();
     m_window.clear();
     m_window_first = 0;
@@ -40,7 +49,9 @@ status simulation_player::start() noexcept
     irt_check(push_keyframe());
 
     m_started = true;
-    return success();
+
+    // A simulation can be finished at the beginning (end <= begin).
+    return finalize_if_finished();
 }
 
 status simulation_player::step_forward() noexcept
@@ -51,8 +62,9 @@ status simulation_player::step_forward() noexcept
         return success();
 
     irt_check(do_step());
+    irt_check(keyframe_if_needed()); // before finalize: keyframes are replayable
 
-    return keyframe_if_needed();
+    return finalize_if_finished();
 }
 
 status simulation_player::step_back() noexcept
@@ -129,8 +141,10 @@ status simulation_player::forget_future() noexcept
     m_window.clear();
     m_furthest = m_step;
 
-    if (not m_keyframes.empty() and m_keyframes.back().step == m_step)
+    if (not m_keyframes.empty() and m_keyframes.back().step == m_step) {
+        m_keyframes.back().finalized = m_finalized;
         return snapshot_to(m_keyframes.back().data);
+    }
 
     return push_keyframe();
 }
@@ -219,7 +233,7 @@ status simulation_player::keep_history(const bool value) noexcept
 
 bool simulation_player::finished() const noexcept
 {
-    return not m_started or
+    return not m_started or m_finalized or
            time_domain<time>::is_infinity(m_sim.current_time()) or
            m_sim.current_time_expired();
 }
@@ -288,20 +302,31 @@ void simulation_player::tick_parallel(
         m_utl->wait_completion();
 }
 
+void simulation_player::tick_all_observers() noexcept
+{
+    const auto n = static_cast<std::size_t>(m_sim.observers.size());
+
+    if (not parallel_tick(n))
+        return m_sim.tick_resamplers();
+
+    m_obs_ids.clear();
+    for (const auto& obs : m_sim.observers)
+        m_obs_ids.emplace_back(m_sim.observers.get_id(obs));
+
+    tick_parallel(
+      std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()));
+}
+
+void simulation_player::flush_observers() noexcept
+{
+    if (m_started)
+        tick_all_observers();
+}
+
 void simulation_player::tick_observers() noexcept
 {
     if (m_sim.current_time_expired()) {
-        const auto n = static_cast<std::size_t>(m_sim.observers.size());
-
-        if (not parallel_tick(n))
-            return m_sim.tick_resamplers();
-
-        m_obs_ids.clear();
-        for (const auto& obs : m_sim.observers)
-            m_obs_ids.emplace_back(m_sim.observers.get_id(obs));
-
-        tick_parallel(
-          std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()));
+        tick_all_observers();
     } else if (not m_sim.immediate_observers.empty()) {
         const auto ids = std::span<const observer_id>(
           m_sim.immediate_observers.data(),
@@ -324,6 +349,32 @@ status simulation_player::do_step() noexcept
 
     ++m_step;
     m_furthest = std::max(m_furthest, m_step);
+
+    return success();
+}
+
+status simulation_player::finalize_if_finished() noexcept
+{
+    if (not m_started or m_finalized or not finished())
+        return success();
+
+    // Whatever happens, never finalize twice: the first call may have cleaned
+    // a part of the simulation.
+    m_finalized = true;
+
+    // Without any more event the date is infinite, and simulation::finalize()
+    // needs a date: the date of the last event.
+    if (time_domain<time>::is_infinity(m_sim.current_time())) {
+        m_sim.current_time(m_sim.last_time()); // no effect outside of the limits
+
+        if (time_domain<time>::is_infinity(m_sim.current_time()))
+            return success();
+    }
+
+    irt_check(m_sim.finalize());
+
+    // The final observations (and the near full observers) go to the history.
+    tick_observers();
 
     return success();
 }
@@ -354,7 +405,8 @@ status simulation_player::push_keyframe() noexcept
     if (m_keyframes.emplace_back() == nullptr)
         return make_error(simulation_errc::memory_error);
 
-    m_keyframes.back().step = m_step;
+    m_keyframes.back().step      = m_step;
+    m_keyframes.back().finalized = m_finalized;
 
     if (auto ret = snapshot_to(m_keyframes.back().data); ret.has_error()) {
         m_keyframes.pop_back();
@@ -407,8 +459,10 @@ status simulation_player::rewind_to(const step_type n,
     if (fill_window and n >= m_window_first and
         n - m_window_first < m_window.size()) {
         irt_check(restore_from(m_window[n - m_window_first]));
-        m_step = n;
-        return success();
+        m_step      = n;
+        m_finalized = false; // the window only has states before finalize
+
+        return finalize_if_finished();
     }
 
     auto k = static_cast<std::size_t>(m_keyframes.size());
@@ -417,7 +471,8 @@ status simulation_player::rewind_to(const step_type n,
 
     const auto& kf = m_keyframes[k - 1];
     irt_check(restore_from(kf.data));
-    m_step = kf.step;
+    m_step      = kf.step;
+    m_finalized = kf.finalized;
 
     m_window.clear();
     m_window_first = kf.step;
@@ -438,7 +493,7 @@ status simulation_player::rewind_to(const step_type n,
         }
     }
 
-    return success();
+    return finalize_if_finished();
 }
 
 } // namespace irt

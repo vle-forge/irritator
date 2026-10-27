@@ -124,9 +124,16 @@ public:
     /// changes, the state of the resamplers included. To come back to the
     /// initial state for sure, use @c go_to(0) (a snapshot) while the history
     /// is kept.
+    ///
+    /// After the end of the simulation (see @c finalized()), the sources of
+    /// the models were emptied by @c simulation::finalize(): @c start() first
+    /// restores the first keyframe, a state before finalize. Only a state
+    /// finalized by @c forget_history() at the end can not start again: build
+    /// the simulation again from its definition.
     status start() noexcept;
 
-    /// One step forward. Nothing happens when the simulation is finished.
+    /// One step forward. Nothing happens when the simulation is finished. The
+    /// step that finishes the simulation also finalizes it, see @c finalized().
     status step_forward() noexcept;
 
     /// One step back (nothing at the step 0).
@@ -214,6 +221,18 @@ public:
      *
      * * * * * * * */
 
+    /// Moves the raw samples of all the observers to their history (the
+    /// curves). The steps do it lazily, for speed: an observer is resampled
+    /// only when its raw buffer is nearly full, or at the end of the
+    /// simulation. That is too late for an interactive use (debug, real time):
+    /// a model that emits a sample from time to time shows its curve after
+    /// hundreds of steps. Call it at the end of each slice of work (a frame)
+    /// in these modes. It does not change the simulation, only the moment
+    /// when the history receives the points, so the states of the player
+    /// (keyframes, rewinds) stay valid. The tick is parallel like the
+    /// other ticks. Nothing happens if the player is not started.
+    void flush_observers() noexcept;
+
     /// Return true iff simulation started.
     bool started() const noexcept { return m_started; }
 
@@ -235,6 +254,14 @@ public:
 
     /// True if the simulation is at its end (time limit or no more events).
     bool finished() const noexcept;
+
+    /// True if @c simulation::finalize() was called for the current state. The
+    /// player calls it itself, once, as soon as the simulation is finished (a
+    /// step forward, or a rewind or a jump that lands on the last step). A
+    /// finalized simulation does not run any more; going back restores a state
+    /// that is not finalized, and the next arrival at the end finalizes it
+    /// again. Do not call @c simulation::finalize() yourself.
+    bool finalized() const noexcept { return m_finalized; }
 
     time current_time() const noexcept { return m_sim.current_time(); }
 
@@ -266,7 +293,8 @@ public:
 
 private:
     struct keyframe {
-        step_type  step = 0;
+        step_type  step      = 0;
+        bool       finalized = false; // the snapshot is a finalized state
         vector<u8> data;
     };
 
@@ -287,6 +315,7 @@ private:
     u32       m_helpers = 0; // unordered workers of the task manager
     bool      m_started = false;
     bool      m_keep_history = true; // false: no keyframe, see keep_history()
+    bool      m_finalized    = false; // simulation::finalize() done, see above
 
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
 
@@ -305,12 +334,18 @@ private:
     };
 
     status do_step() noexcept;
+
+    /// Finalizes the simulation once, if it is finished.
+    status finalize_if_finished() noexcept;
     status snapshot_to(vector<u8>& out) noexcept;
     status restore_from(const vector<u8>& data) noexcept;
     status push_keyframe() noexcept;
 
     /// After @c run(): see @c tick_resamplers_after_run().
     void tick_observers() noexcept;
+
+    /// Resamples all the observers (parallel if there are enough).
+    void tick_all_observers() noexcept;
 
     /// True if the tick of @c n observers is worth the task list.
     bool parallel_tick(const std::size_t n) const noexcept;

@@ -222,6 +222,8 @@ static bool submit(application&       app,
               c.result = c.player.keep_history(history);
           if (not c.result.has_error())
               c.result = fn(c.player);
+          if (history and not c.result.has_error())
+              c.player.flush_observers();
 
           c.work += std::chrono::steady_clock::now() - t0;
 
@@ -362,15 +364,19 @@ void schedule_player(application&       app,
 }
 
 /// Debug mode: the player is a "video player" of the simulation.
-static void show_debug_player(application&       app,
-                              const unsigned     idx,
-                              player_controller& c) noexcept
+static void show_debug_player(application&    app,
+                              project_editor& ed,
+                              const unsigned  idx) noexcept
 {
     using mode = player_controller::mode;
 
+    auto& c = ed.sim_player;
+
     if (not c.shown.started) {
-        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
-            submit(app, idx, c, [](auto& p) { return p.start(); });
+        if (EnhancedButton(app, "start", ImVec2{}, "Start the player")) {
+            if (ed.pj.simulation_init(app.mod).has_value())
+                submit(app, idx, c, [](auto& p) { return p.start(); });
+        }
         return;
     }
 
@@ -431,15 +437,18 @@ static void show_debug_player(application&       app,
 }
 
 /// Real time mode: one unit of simulation time lasts unit_duration.
-static void show_realtime_player(application&       app,
-                                 const unsigned     idx,
-                                 player_controller& c) noexcept
+static void show_realtime_player(application&    app,
+                                 project_editor& ed,
+                                 const unsigned  idx) noexcept
 {
     using mode = player_controller::mode;
 
+    auto& c = ed.sim_player;
+
     if (not c.shown.started) {
         if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
-            submit(app, idx, c, [](auto& p) { return p.start(); });
+            if (ed.pj.simulation_init(app.mod).has_value())
+                submit(app, idx, c, [](auto& p) { return p.start(); });
         return;
     }
 
@@ -468,10 +477,11 @@ static void show_realtime_player(application&       app,
 /// Complete mode: from the beginning to the end, as fast as possible, without
 /// any keyframe (the memory does not depend on the length of the simulation).
 /// The pause button stops after the current task (complete_budget at most).
-static void show_complete_player(application&       app,
-                                 player_controller& c) noexcept
+static void show_complete_player(application& app, project_editor& ed) noexcept
 {
     using mode = player_controller::mode;
+
+    auto& c = ed.sim_player;
 
     const auto size     = ImGui::ComputeButtonSize(2);
     const auto running  = c.current == mode::complete;
@@ -483,8 +493,10 @@ static void show_complete_player(application&       app,
             c.current = mode::paused;
     } else {
         if (EnhancedButton(app, "##full", size, resume ? "Resume" : "Run")) {
-            c.need_start = not resume;
-            c.current    = mode::complete;
+            if (ed.pj.simulation_init(app.mod).has_value()) {
+                c.need_start = not resume;
+                c.current    = mode::complete;
+            }
         }
     }
 
@@ -518,15 +530,15 @@ static void show_complete_player(application&       app,
         ImGui::TextUnformatted("The simulation is finished.");
 }
 
-static void show_simulation_player(application&       app,
-                                   const unsigned     idx,
-                                   player_controller& c) noexcept
+static void show_simulation_player(application&    app,
+                                   project_editor& ed,
+                                   const unsigned  idx) noexcept
 {
     using kind = player_controller::kind;
 
     static constexpr const char* names[] = { "Debug", "Real time", "Complete" };
 
-    auto selected = static_cast<int>(c.view);
+    auto selected = static_cast<int>(ed.sim_player.view);
     for (auto i = 0; i != 3; ++i) {
         if (i != 0)
             ImGui::SameLine();
@@ -534,22 +546,22 @@ static void show_simulation_player(application&       app,
         ImGui::RadioButton(names[i], &selected, i);
     }
 
-    if (selected != static_cast<int>(c.view)) {
-        c.view    = enum_cast<kind>(selected);
-        c.current = player_controller::mode::paused;
+    if (selected != static_cast<int>(ed.sim_player.view)) {
+        ed.sim_player.view    = enum_cast<kind>(selected);
+        ed.sim_player.current = player_controller::mode::paused;
     }
 
-    switch (c.view) {
+    switch (ed.sim_player.view) {
     case kind::debug:
-        show_debug_player(app, idx, c);
+        show_debug_player(app, ed, idx);
         break;
 
     case kind::realtime:
-        show_realtime_player(app, idx, c);
+        show_realtime_player(app, ed, idx);
         break;
 
     case kind::complete:
-        show_complete_player(app, c);
+        show_complete_player(app, ed);
         break;
     }
 }
@@ -690,7 +702,7 @@ static bool show_project_simulation_settings(application&    app,
 
     ed.sim_player.unit_duration = ed.one_simulation_time_duration;
     ed.sim_player.task_duration = ed.simulation_task_duration;
-    show_simulation_player(app, get_index(app.pjs.get_id(ed)), ed.sim_player);
+    show_simulation_player(app, ed, get_index(app.pjs.get_id(ed)));
 
     ImGui::SeparatorText("Observation");
 
