@@ -210,10 +210,12 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         auto& rnd = get_dyn<generator>(*gr);
         auto& cst = get_dyn<generator>(*gc);
 
-        expect(rnd.source_ta.buffer.data() == rnd.src_data.chunk_real.data());
+        // each source of the generator owns its state
+        expect(rnd.source_ta.buffer.data() ==
+               rnd.src_data_ta.chunk_real.data());
         expect(rnd.source_ta.buffer.size() == 2u);
         expect(rnd.source_value.buffer.data() ==
-               rnd.src_data.chunk_real.data());
+               rnd.src_data_value.chunk_real.data());
 
         const auto* c = fresh.srcs.constant_sources.try_to_get(w.cst);
         expect(c != nullptr);
@@ -224,9 +226,9 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
 
         auto& orig = get_dyn<generator>(*sim.models.try_to_get(w.gen_cst));
         expect(cst.source_ta.index == orig.source_ta.index);
-        expect(rnd.src_data.chunk_id ==
-               get_dyn<generator>(*sim.models.try_to_get(w.gen_rnd))
-                 .src_data.chunk_id);
+        auto& orig_rnd = get_dyn<generator>(*sim.models.try_to_get(w.gen_rnd));
+        expect(rnd.src_data_ta.chunk_id == orig_rnd.src_data_ta.chunk_id);
+        expect(rnd.src_data_value.chunk_id == orig_rnd.src_data_value.chunk_id);
     };
 
     "dump: file"_test = [] {

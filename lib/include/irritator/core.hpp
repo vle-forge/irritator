@@ -701,7 +701,7 @@ public:
     static constexpr u32 default_length = 8u; // default length of the buffer.
 
     name_str   name;
-    chunk_type buffer;
+    chunk_type buffer{};
     u32        length = default_length;
 
     constant_source() noexcept = default;
@@ -721,19 +721,25 @@ public:
 
 //! Use a file with a set of double real in binary mode (little endian) to
 //! produce external data. This external source can be shared between @c
-//! max_clients sources. Each client read a @c external_source_chunk_size
-//! real of the set.
+//! max_clients sources. The file is cut in chunks of @c
+//! external_source_chunk_size reals: the client @c i reads the chunks @c i, @c
+//! i + max_clients, @c i + 2 * max_clients etc.
 //!
 //! source::chunk_id[0] is used to store the client identifier.
-//! source::chunk_id[1] is used to store the current position in the file.
+//! source::chunk_id[1] is used to store the position (in real) of the chunk
+//! currently in the buffer of the client.
 class binary_file_source
 {
 public:
     name_str           name;
     vector<chunk_type> buffers; // buffer, size is defined by max_clients
     vector<u64>        offsets; // offset, size is defined by max_clients
-    u32                max_clients = 1; // number of source max (must be >= 1).
-    u64                max_reals   = 0; // number of real in the file.
+
+    //! Number of clients. If zero, @c init() computes the number of clients
+    //! from the size of the file (one client by chunk with a maximum of @c
+    //! default_max_client_number).
+    u32 max_clients = 1;
+    u64 max_reals   = 0; // number of real in the file.
 
     path          file_path;
     std::ifstream ifs;
@@ -764,14 +770,20 @@ public:
 //! Use a file with a set of double real in ascii text file to produce
 //! external data. This external source can not be shared between @c source.
 //!
-//! source::chunk_id[0] is used to store the current position in the file to
-//! simplify restore operation.
+//! source::chunk_id[0] is used to store the position in the file of the chunk
+//! currently in the buffer to simplify restore operation. The last chunk of
+//! the file can be incomplete.
 class text_file_source
 {
 public:
+    //! The @c offset value when no chunk is read.
+    static constexpr u64 no_chunk = ~static_cast<u64>(0);
+
     name_str   name;
-    chunk_type buffer;
-    u64        offset = 0u;
+    chunk_type buffer{};
+    u64        offset = no_chunk; // position in the file of the current chunk.
+    u32        length = 0u;       // number of real in the current chunk.
+    bool       in_use = false;    // a source already uses this text file.
 
     path          file_path;
     std::ifstream ifs;
@@ -792,7 +804,10 @@ public:
     status restore(source& src, source_data& data) noexcept;
     status finalize(source& src, source_data& data) noexcept;
 
-    bool read_chunk() noexcept;
+    //! Read at most @c external_source_chunk_size reals at the current
+    //! position of the stream.
+    //! @return The number of reals read.
+    u32 read_chunk() noexcept;
 };
 
 //! Use a prng to produce set of double real. This external source can be
@@ -824,8 +839,13 @@ public:
 
     status init() noexcept;
     void   finalize() noexcept;
+    //! Initialize the PRNG state of @a data from the seed of the
+    //! simulation, the identifier of the model and the @a stream number (to
+    //! get independent sequences for the sources of the same model) and
+    //! fill the buffer.
     status init(const u64      sim_seed,
                 const model_id mdl_id,
+                const u64      stream,
                 source&        src,
                 source_data&   data) noexcept;
     status update(source& src, source_data& data) noexcept;
@@ -950,11 +970,14 @@ public:
     status prepare() noexcept;
 
     //! To be used in model declaration to initialize a source instance
-    //! according to the type of the external source.
+    //! according to the type of the external source. The @a stream number
+    //! must be different for each source of a model: it gives independent
+    //! random sequences.
     template<typename Dynamics>
     inline status initialize_source(Dynamics&    dyn,
                                     source&      src,
-                                    source_data& data) noexcept;
+                                    source_data& data,
+                                    u64          stream = 0) noexcept;
 
     //! To be used in model declaration to get a new real from a source instance
     //! according to the type of the external source.
@@ -4716,7 +4739,8 @@ struct generator {
     time ta    = one;
     real value = zero;
 
-    source_data src_data;
+    source_data src_data_ta;    // state of the @c source_ta.
+    source_data src_data_value; // state of the @c source_value.
     source      source_ta;
     source      source_value;
 
@@ -4742,12 +4766,15 @@ struct generator {
         if (flags[option::ta_use_source]) {
             sigma = time_domain<time>::infinity;
 
-            if (sim.srcs.initialize_source(*this, source_ta, src_data)
+            if (sim.srcs.initialize_source(*this, source_ta, src_data_ta)
                   .has_error())
                 return make_error(
                   simulation_errc::generator_ta_initialization_error);
 
             sigma = source_ta.next();
+
+            if (not std::isfinite(sigma) or std::signbit(sigma))
+                return make_error(simulation_errc::ta_abnormal);
         } else {
             if (not std::isfinite(ta) or std::signbit(ta))
                 return make_error(simulation_errc::ta_abnormal);
@@ -4758,7 +4785,8 @@ struct generator {
         if (flags[option::value_use_source]) {
             value = zero;
 
-            if (sim.srcs.initialize_source(*this, source_value, src_data)
+            if (sim.srcs
+                  .initialize_source(*this, source_value, src_data_value, 1)
                   .has_error())
                 return make_error(
                   simulation_errc::generator_source_initialization_error);
@@ -4772,10 +4800,10 @@ struct generator {
     status finalize(simulation& sim) noexcept
     {
         if (flags[option::ta_use_source])
-            irt_check(sim.srcs.finalize_source(source_ta, src_data));
+            irt_check(sim.srcs.finalize_source(source_ta, src_data_ta));
 
         if (flags[option::value_use_source])
-            irt_check(sim.srcs.finalize_source(source_value, src_data));
+            irt_check(sim.srcs.finalize_source(source_value, src_data_value));
 
         return success();
     }
@@ -4798,7 +4826,7 @@ struct generator {
                 not update_source_by_input_port) {
                 if (source_value.is_empty()) {
                     if (const auto ret = sim.srcs.update_source(source_value,
-                                                                src_data);
+                                                                src_data_value);
                         ret.has_error())
                         return ret.error();
                 }
@@ -4809,7 +4837,7 @@ struct generator {
             if (flags[option::ta_use_source]) {
                 if (source_ta.is_empty()) {
                     if (const auto ret = sim.srcs.update_source(source_ta,
-                                                                src_data);
+                                                                src_data_ta);
                         ret.has_error())
                         return ret.error();
                 }
@@ -4819,7 +4847,7 @@ struct generator {
                 if (not std::isfinite(sigma) or std::signbit(sigma))
                     return make_error(simulation_errc::ta_abnormal);
             } else {
-                sigma += ta;
+                sigma = ta;
             }
         }
 
@@ -8321,27 +8349,13 @@ struct queue {
 
     status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
 
-    status lambda(simulation& sim) noexcept
-    {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
-            if (not ar->empty()) {
-                auto       it = ar->head();
-                auto       et = ar->end();
-                const auto t  = it->data()[0];
-
-                while (it != et and it->data()[0] == t) {
-                    irt_check(send_message(sim, y[0], it->data()[1],
-                                           it->data()[2], it->data()[3]));
-
-                    ++it;
-                }
-            }
-        }
-
-        return success();
-    }
+    //! Sends the head of the @c fifo: the message with the smallest date.
+    status lambda(simulation& sim) noexcept;
 };
 
+//! A FIFO queue: the messages leave in the order of arrival. The delay of each
+//! message is read in the @c source_ta and a message leaves at the date
+//! max(arrival + delay, date of the previous message).
 struct dynamic_queue {
     input_port       x[1] = {};
     output_port_id   y[1] = {};
@@ -8384,22 +8398,13 @@ struct dynamic_queue {
 
     status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
 
-    status lambda(simulation& sim) noexcept
-    {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-            auto       it  = ar->begin();
-            auto       end = ar->end();
-            const auto t   = it->data()[0];
-
-            for (; it != end && it->data()[0] <= t; ++it)
-                irt_check(send_message(sim, y[0], it->data()[1], it->data()[2],
-                                       it->data()[3]));
-        }
-
-        return success();
-    }
+    //! Sends the head of the @c fifo: the message with the smallest date.
+    status lambda(simulation& sim) noexcept;
 };
 
+//! A queue ordered by date: a message leaves at the date arrival + delay where
+//! the delay is read in the @c source_ta. The messages with the same date
+//! leave in the order of arrival.
 struct priority_queue {
     input_port       x[1] = {};
     output_port_id   y[1] = {};
@@ -8419,12 +8424,6 @@ struct priority_queue {
       , source_ta(other.source_ta)
     {}
 
-private:
-    status try_to_insert(simulation&    sim,
-                         const time     t,
-                         const message& msg) noexcept;
-
-public:
     status initialize(simulation& sim) noexcept
     {
         irt_check(sim.srcs.initialize_source(*this, source_ta, src_data));
@@ -8450,20 +8449,8 @@ public:
 
     status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
 
-    status lambda(simulation& sim) noexcept
-    {
-        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-            auto       it  = ar->begin();
-            auto       end = ar->end();
-            const auto t   = it->data()[0];
-
-            for (; it != end && it->data()[0] <= t; ++it)
-                irt_check(send_message(sim, y[0], it->data()[1], it->data()[2],
-                                       it->data()[3]));
-        }
-
-        return success();
-    }
+    //! Sends the head of the @c fifo: the message with the smallest date.
+    status lambda(simulation& sim) noexcept;
 };
 
 constexpr sz max(sz a) { return a; }
@@ -10499,7 +10486,8 @@ inline bool is_ports_compatible(const model& mdl_src,
 template<typename Dynamics>
 inline status external_source::initialize_source(Dynamics&    dyn,
                                                  source&      src,
-                                                 source_data& data) noexcept
+                                                 source_data& data,
+                                                 const u64    stream) noexcept
 {
 
     switch (src.type) {
@@ -10523,7 +10511,8 @@ inline status external_source::initialize_source(Dynamics&    dyn,
 
         if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return rnd_src->init(sim.srcs.seed,
-                                 sim.models.get_id(get_model(dyn)), src, data);
+                                 sim.models.get_id(get_model(dyn)), stream, src,
+                                 data);
 
         return make_error(simulation_errc::external_source_random_unknown);
 
@@ -12566,50 +12555,113 @@ inline bool is_ports_compatible(const model& mdl_src,
 ///
 /// Model implementation
 
+/// Gets the @c fifo of a queue, allocates it if it does not exist and grows it
+/// if it is full.
+inline ring_buffer<dated_message>* get_queue_fifo(
+  simulation&       sim,
+  dated_message_id& fifo) noexcept
+{
+    if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
+        if (ar->full() and not ar->reserve(ar->capacity() * 2))
+            return nullptr;
+
+        return ar;
+    }
+
+    if (not sim.dated_messages.can_alloc(1) and
+        not sim.dated_messages.grow<2, 1>())
+        return nullptr;
+
+    auto& ar = sim.dated_messages.alloc(32);
+    fifo     = sim.dated_messages.get_id(ar);
+
+    return &ar;
+}
+
+/// Removes the message sent by the @c lambda: the head of the @c fifo if its
+/// date is lower or equal to @a t.
+inline void queue_remove_sent_message(simulation&            sim,
+                                      const dated_message_id fifo,
+                                      const time             t) noexcept
+{
+    if (auto* ar = sim.dated_messages.try_to_get(fifo))
+        if (not ar->empty() and ar->front()[0] <= t)
+            ar->pop_head();
+}
+
+/// @return The time advance to the date of the head of the @c fifo.
+inline time queue_time_advance(simulation&            sim,
+                               const dated_message_id fifo,
+                               const time             t) noexcept
+{
+    if (auto* ar = sim.dated_messages.try_to_get(fifo);
+        ar and not ar->empty()) {
+        const auto next = ar->front()[0] - t;
+        return next <= time_domain<time>::zero ? time_domain<time>::zero : next;
+    }
+
+    return time_domain<time>::infinity;
+}
+
+/// Sends the head of the @c fifo. An output port stores one message: the
+/// messages with the same date leave one by one with a time advance of zero.
+inline status queue_send_head_message(simulation&            sim,
+                                      const dated_message_id fifo,
+                                      const output_port_id   port) noexcept
+{
+    if (auto* ar = sim.dated_messages.try_to_get(fifo);
+        ar and not ar->empty()) {
+        const auto& msg = ar->front();
+        return send_message(sim, port, msg[1], msg[2], msg[3]);
+    }
+
+    return success();
+}
+
+/// Reads the next delay of a queue in its source.
+inline expected<time> queue_next_ta(simulation&  sim,
+                                    source&      src,
+                                    source_data& data) noexcept
+{
+    if (src.is_empty())
+        irt_check(sim.srcs.update_source(src, data));
+
+    const auto ta = src.next();
+    if (not std::isfinite(ta) or std::signbit(ta))
+        return make_error(simulation_errc::ta_abnormal);
+
+    return ta;
+}
+
+inline status queue::lambda(simulation& sim) noexcept
+{
+    return queue_send_head_message(sim, fifo, y[0]);
+}
+
 inline status queue::transition(simulation& sim,
                                 time        t,
                                 time /*e*/,
                                 time /*r*/) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo))
-        while (not ar->empty() and ar->head()->data()[0] <= t)
-            ar->pop_head();
+    queue_remove_sent_message(sim, fifo, t);
 
-    const auto lst = get_message(sim, x[0]);
-    if (not lst.empty()) {
-        auto* ar = sim.dated_messages.try_to_get(fifo);
+    // The time advance is constant: the dates of the fifo are sorted.
+    for (const auto& msg : get_message(sim, x[0])) {
+        auto* ar = get_queue_fifo(sim, fifo);
+        if (not ar)
+            return make_error(simulation_errc::dated_messages_container_full);
 
-        if (not ar) {
-            if (not sim.dated_messages.can_alloc(1) and
-                not sim.dated_messages.grow<2, 1>())
-                return make_error(simulation_errc::queue_fifo_error);
-
-            auto& new_ar = sim.dated_messages.alloc(32);
-            fifo         = sim.dated_messages.get_id(new_ar);
-            ar           = &new_ar;
-        }
-
-        for (const auto& msg : lst) {
-            const auto success = ar->push_tail(
-              { irt::real(t + ta), msg[0], msg[1], msg[2] });
-
-            if (not success)
-                log(log_level::alert, [](auto& m) {
-                    m = "simulation: queue::transition: failed to push message "
-                        "to fifo";
-                });
-        }
+        ar->push_tail({ t + ta, msg[0], msg[1], msg[2] });
     }
 
-    sigma = time_domain<time>::infinity;
-    if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
-        if (not ar->empty()) {
-            const auto next_ta = ar->head()->data()[0] - t;
-            sigma = next_ta <= zero ? time_domain<time>::zero : next_ta;
-        }
-    }
+    sigma = queue_time_advance(sim, fifo, t);
 
     return success();
+}
+
+inline status dynamic_queue::lambda(simulation& sim) noexcept
+{
+    return queue_send_head_message(sim, fifo, y[0]);
 }
 
 inline status dynamic_queue::transition(simulation& sim,
@@ -12617,56 +12669,34 @@ inline status dynamic_queue::transition(simulation& sim,
                                         time /*e*/,
                                         time /*r*/) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (not ar->empty() and ar->tail()->data()[0] <= t)
-            ar->pop_tail();
+    queue_remove_sent_message(sim, fifo, t);
 
-        const auto lst = get_message(sim, x[0]);
+    const auto lst = get_message(sim, x[0]);
 
-        if (not lst.empty()) {
-            for (const auto& msg : lst) {
-                if (!sim.dated_messages.can_alloc(1))
-                    return make_error(
-                      simulation_errc::dated_messages_container_full);
+    for (const auto& msg : lst) {
+        auto* ar = get_queue_fifo(sim, fifo);
+        if (not ar)
+            return make_error(simulation_errc::dated_messages_container_full);
 
-                if (source_ta.is_empty())
-                    irt_check(sim.srcs.update_source(source_ta, src_data));
+        auto ta = queue_next_ta(sim, source_ta, src_data);
+        if (not ta)
+            return ta.error();
 
-                const auto ta = source_ta.next();
+        // FIFO: a message never leaves before the previous one.
+        const auto date = ar->empty() ? t + *ta
+                                      : std::max(t + *ta, ar->back()[0]);
 
-                ar->push_head({ t + ta, msg[0], msg[1], msg[2] });
-            }
-        }
-
-        if (not lst.empty()) {
-            sigma = lst.front().data()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
-        }
-    } else {
-        sigma = time_domain<time>::infinity;
+        ar->push_tail({ date, msg[0], msg[1], msg[2] });
     }
+
+    sigma = queue_time_advance(sim, fifo, t);
 
     return success();
 }
 
-inline status priority_queue::try_to_insert(simulation&    sim,
-                                            const time     t,
-                                            const message& msg) noexcept
+inline status priority_queue::lambda(simulation& sim) noexcept
 {
-    if (not sim.dated_messages.can_alloc(1))
-        return make_error(simulation_errc::dated_messages_container_full);
-
-    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        ar->push_head({ irt::real(t), msg[0], msg[1], msg[2] });
-        ar->sort([](auto& l, auto& r) noexcept -> bool {
-            return l.data()[0] < r.data()[0];
-        });
-    }
-
-    return success();
+    return queue_send_head_message(sim, fifo, y[0]);
 }
 
 inline status priority_queue::transition(simulation& sim,
@@ -12674,38 +12704,40 @@ inline status priority_queue::transition(simulation& sim,
                                          time /*e*/,
                                          time /*r*/) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (not ar->empty() and ar->tail()->data()[0] <= t)
-            ar->pop_tail();
+    queue_remove_sent_message(sim, fifo, t);
 
-        const auto lst = get_message(sim, x[0]);
+    const auto lst = get_message(sim, x[0]);
 
-        if (not lst.empty()) {
-            for (const auto& msg : lst) {
+    for (const auto& msg : lst) {
+        auto* ar = get_queue_fifo(sim, fifo);
+        if (not ar)
+            return make_error(simulation_errc::dated_messages_container_full);
 
-                if (source_ta.is_empty())
-                    irt_check(sim.srcs.update_source(source_ta, src_data));
+        auto ta = queue_next_ta(sim, source_ta, src_data);
+        if (not ta)
+            return ta.error();
 
-                real value = source_ta.next();
+        ar->push_tail({ t + *ta, msg[0], msg[1], msg[2] });
 
-                if (auto ret = try_to_insert(sim, static_cast<real>(value) + t,
-                                             msg);
-                    !ret)
-                    return make_error(
-                      simulation_errc::dated_messages_container_full);
-            }
+        // Keeps the fifo sorted by date: the new message moves before the
+        // messages with a greater date only (the order of arrival is kept
+        // for the same date).
+        const auto head = ar->head();
+        auto       it   = ar->tail();
+        while (it != head) {
+            auto prev = it;
+            --prev;
+
+            if (not((*it)[0] < (*prev)[0]))
+                break;
+
+            using std::swap;
+            swap(*it, *prev);
+            it = prev;
         }
-
-        if (not lst.empty()) {
-            sigma = lst.front()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
-        }
-    } else {
-        sigma = time_domain<time>::infinity;
     }
+
+    sigma = queue_time_advance(sim, fifo, t);
 
     return success();
 }
@@ -12771,7 +12803,6 @@ inline source& source::operator=(source&& src) noexcept
 {
     if (&src != this) {
         buffer = std::exchange(src.buffer, std::span<double>());
-        std::copy_n(src.buffer.data(), src.buffer.size(), buffer.data());
         type  = std::exchange(src.type, source_type::constant);
         index = std::exchange(src.index, 0);
         id    = std::exchange(src.id, undefined<constant_source_id>());
@@ -12796,7 +12827,9 @@ inline void source::reset(const i64 param) noexcept
     const auto p_type = left(static_cast<u64>(param));
     const auto p_id   = right(static_cast<u64>(param));
 
-    type = p_type <= 4 ? enum_cast<source_type>(p_type) : source_type::constant;
+    type = p_type <= ordinal(source_type::random)
+             ? enum_cast<source_type>(p_type)
+             : source_type::constant;
 
     switch (type) {
     case source_type::constant:

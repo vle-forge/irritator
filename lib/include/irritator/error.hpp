@@ -66,6 +66,7 @@ enum class simulation_errc : std::int16_t {
     external_source_binary_file_size_error,
     external_source_binary_file_eof_error,
     external_source_constant_unknown,
+    external_source_constant_size_error,
     external_source_random_unknown,
     external_source_text_file_unknown,
     external_source_text_file_access_error,

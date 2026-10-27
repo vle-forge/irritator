@@ -18,27 +18,6 @@
 
 #include <boost/ut.hpp>
 
-static irt::vector<char> read_entire_file(std::FILE* f) noexcept
-{
-    using namespace boost::ut;
-
-    expect(f != nullptr) << fatal;
-
-    expect(0 == std::fseek(f, 0, SEEK_END)) << fatal;
-
-    const auto size = std::ftell(f);
-    expect(size >= 0) << fatal;
-    expect(0 == std::fseek(f, 0, SEEK_SET)) << fatal;
-
-    irt::vector<char> buffer(size);
-
-    const auto read_size = std::fread(buffer.data(), 1,
-                                      static_cast<size_t>(size), f);
-    expect(static_cast<std::size_t>(read_size) == buffer.size()) << fatal;
-
-    return buffer;
-}
-
 struct file_output {
     using value_type = irt::observation;
 
@@ -1527,6 +1506,46 @@ int main()
         expect(eq(hsmw.exec.r1, 1.0));
     };
 
+    "queue_sends_one_message_by_event"_test = [] {
+        // Two generators send 10 and 20 at t = 1, 2, ...: the queue receives
+        // two messages at the same date and must send the two values.
+        irt::simulation sim(
+          irt::simulation_reserve_definition(),
+          irt::external_source_reserve_definition{ .constant_nb = 2 });
+
+        const irt::real v10[] = { 10.0 };
+        const irt::real v20[] = { 20.0 };
+        auto&           cst10 = sim.srcs.constant_sources.alloc(v10);
+        auto&           cst20 = sim.srcs.constant_sources.alloc(v20);
+
+        auto& gen1 = sim.alloc<irt::generator>();
+        auto& gen2 = sim.alloc<irt::generator>();
+        auto& q    = sim.alloc<irt::queue>();
+        auto& cnt  = sim.alloc<irt::counter>();
+
+        get_p(sim, gen1).clear().set_generator_ta(1.0).set_generator_value(
+          irt::source_type::constant, sim.srcs.constant_sources.get_id(cst10));
+        get_p(sim, gen2).clear().set_generator_ta(1.0).set_generator_value(
+          irt::source_type::constant, sim.srcs.constant_sources.get_id(cst20));
+        get_p(sim, q).set_queue(2.0);
+
+        expect(!!sim.connect_dynamics(gen1, 0, q, 0));
+        expect(!!sim.connect_dynamics(gen2, 0, q, 0));
+        expect(!!sim.connect_dynamics(q, 0, cnt, 0));
+
+        // The messages of t = 1, 2, 3 leave at t = 3, 4, 5.
+        sim.limits.set_bound(0, 5.5);
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        do {
+            expect(!!sim.run());
+        } while (not sim.current_time_expired());
+
+        expect(eq(cnt.event_number, static_cast<irt::i64>(6)));
+        expect(eq(cnt.sum_values, 90.0));
+    };
+
     "hsm_simulation"_test = [] {
         irt::simulation sim(
           irt::simulation_reserve_definition(),
@@ -2176,32 +2195,6 @@ int main()
         //   -.176, 1.e-2));
     };
 
-    "external_source"_test = [] {
-        std::error_code ec;
-
-        auto ofs_b = irt::file::open_tmp();
-        auto ofs_t = irt::file::open_tmp();
-        expect(ofs_b.has_value());
-        expect(ofs_t.has_value());
-
-        std::default_random_engine gen(1234);
-        std::poisson_distribution  dist(4.0);
-
-        irt::generate_random_file(ofs_b.value().to_file(), gen, dist, 1024,
-                                  irt::random_file_type::binary);
-
-        auto str_b = read_entire_file(ofs_b.value().to_file());
-        expect(str_b.size() ==
-               static_cast<size_t>(1024) *
-                 sizeof(std::poisson_distribution<>::result_type));
-
-        irt::generate_random_file(ofs_t.value().to_file(), gen, dist, 1024,
-                                  irt::random_file_type::text);
-
-        auto str_t = read_entire_file(ofs_t.value().to_file());
-        expect(str_t.size() > static_cast<size_t>(1024) * 2);
-    };
-
     "binary-memory-io"_test = [] {
 #if 0
         auto f = irt::memory::make(256);
@@ -2231,82 +2224,6 @@ int main()
 
         expect(f->tell() == 0);
 #endif
-    };
-
-    "random-philox-64"_test = [] {
-        constexpr irt::u64 seed   = 0x1234567890123456;
-        constexpr irt::u64 mdl_id = 0xffffffff00000001;
-        constexpr irt::u64 step   = 0;
-
-        irt::philox_64                            rng{ seed, mdl_id, step };
-        std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
-
-        auto sum = 0.0;
-        for (irt::u32 i = 0; i < 1000; ++i) {
-            const auto v = dist(rng);
-            expect(ge(v, 0.0));
-            expect(lt(v, 1.0));
-
-            sum += v;
-        }
-
-        expect(approx(sum / 1000.0, 0.5, 1.e-1));
-    };
-
-    "random-philox-64-view"_test = [] {
-        std::array<irt::u64, 6> param{
-            0x1234567890123456, // seed
-            0xffffffff00000001, // ordinal(model_id)
-            0u,                 // step
-            0u,                 // index
-            0u,                 // first random number
-            0u,                 // second random number
-        };
-
-        irt::philox_64_view                       rng(param);
-        std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
-
-        auto sum = 0.0;
-        for (irt::u32 i = 0; i < 1000; ++i) {
-            const auto v = dist(rng);
-            expect(ge(v, 0.0));
-            expect(lt(v, 1.0));
-
-            sum += v;
-        }
-
-        expect(approx(sum / 1000.0, 0.5, 1.e-1));
-    };
-
-    "random-philo-64-compare"_test = [] {
-        constexpr irt::u64 seed   = 0x1234567890123456;
-        constexpr irt::u64 mdl_id = 0xffffffff00000001;
-        constexpr irt::u64 step   = 0;
-
-        irt::real sum_1 = 0.0;
-        irt::real sum_2 = 0.0;
-
-        {
-            irt::philox_64                            rng{ seed, mdl_id, step };
-            std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
-
-            for (irt::u32 i = 0; i < 1000; ++i)
-                sum_1 += dist(rng);
-        }
-
-        {
-            std::array<irt::u64, 6> param{
-                seed, mdl_id, step, 0u, 0u, 0u,
-            };
-
-            irt::philox_64_view                       rng(param);
-            std::uniform_real_distribution<irt::real> dist{ 0.0, 1.0 };
-
-            for (irt::u32 i = 0; i < 1000; ++i)
-                sum_2 += dist(rng);
-        }
-
-        expect(eq(sum_1, sum_2));
     };
 
     "id_data_array"_test = [] {

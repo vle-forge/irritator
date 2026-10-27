@@ -318,11 +318,12 @@ void binary_serialize(Ar& ar, source_data& d) noexcept
 template<typename Dynamics, typename Fn>
 void for_each_source(Dynamics& dyn, Fn&& fn) noexcept
 {
-    if constexpr (requires { dyn.source_ta; })
+    if constexpr (std::is_same_v<std::remove_const_t<Dynamics>, generator>) {
+        fn(dyn.source_ta, dyn.src_data_ta);
+        fn(dyn.source_value, dyn.src_data_value);
+    } else if constexpr (requires { dyn.source_ta; }) {
         fn(dyn.source_ta, dyn.src_data);
-
-    if constexpr (requires { dyn.source_value; })
-        fn(dyn.source_value, dyn.src_data);
+    }
 
     if constexpr (std::is_same_v<std::remove_const_t<Dynamics>, hsm_wrapper>)
         fn(dyn.exec.source_value, dyn.exec.src_data);
@@ -740,10 +741,11 @@ void binary_serialize(Ar& ar, counter& d) noexcept
 template<typename Ar>
 void binary_serialize(Ar& ar, generator& d) noexcept
 {
-    auto& [x, y, sigma, ta, value, src_data, source_ta, source_value, flags] = d;
-    ar(x, y, sigma, ta, value, src_data);
-    io_source(ar, source_ta, src_data);
-    io_source(ar, source_value, src_data);
+    auto& [x, y, sigma, ta, value, src_data_ta, src_data_value, source_ta,
+           source_value, flags] = d;
+    ar(x, y, sigma, ta, value, src_data_ta, src_data_value);
+    io_source(ar, source_ta, src_data_ta);
+    io_source(ar, source_value, src_data_value);
     ar(flags);
 }
 
