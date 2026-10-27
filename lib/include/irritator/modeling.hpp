@@ -1522,9 +1522,6 @@ public:
                   show_in_output>
       observables;
 
-    /// Experimental frames replicas
-    vector<u64> seeds;
-
     /**
        @brief Alloc a new variable observer and assign a name.
        @return The new instance. Be carreful, use `can_alloc()` before
