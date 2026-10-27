@@ -1336,12 +1336,6 @@ public:
     static constexpr std::size_t command_buffer_size = 32;
 
     enum class simulation_flag : u8 {
-        debug, /**< enable the debug mode (stores simulation in @c snaps. Stores
-                  simulation into @c snaps and @c current_snap. Use can use @c
-                  advance() and @c back() function to navigate into simulation.
-                */
-        real_time,  /**< real time simulation. Makes a link between simulation
-                       time and real time. */
         write_irtb, /**< flush observation into @c irb file. */
     };
 
