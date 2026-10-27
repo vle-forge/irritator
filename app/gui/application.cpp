@@ -913,7 +913,7 @@ auto application::show() noexcept -> show_result_t
         settings_wnd.show();
 
     for (auto& ed : pjs)
-        schedule_player(*this, get_index(pjs.get_id(ed)), ed.sim_player);
+        ed.schedule_player(*this);
 
     return ret;
 }

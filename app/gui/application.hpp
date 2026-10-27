@@ -1101,10 +1101,6 @@ public:
     bool edited     = false; ///< Use modify the simulation: forget_history()
 };
 
-void schedule_player(application&       app,
-                     const unsigned     idx,
-                     player_controller& c) noexcept;
-
 class project_editor
 {
 public:
@@ -1131,6 +1127,9 @@ public:
      * @return project_editor next status enumeration: keep the window open or
      * try to close it. */
     show_result_t show(application& app) noexcept;
+
+    /** Add simulation task iff necessary. */
+    void schedule_player(application& app) noexcept;
 
     /** Display the settings and simulation hierarchy in a @c
      * ImGui::BeginTabBar/End widget. */

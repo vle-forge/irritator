@@ -269,59 +269,67 @@ static bool EnhancedButton(const application& app,
     return click;
 }
 
-void schedule_player(application&       app,
-                     const unsigned     idx,
-                     player_controller& c) noexcept
+void project_editor::schedule_player(application& app) noexcept
 {
     using mode = player_controller::mode;
 
-    if (c.busy.test(std::memory_order_acquire))
+    const auto id  = app.pjs.get_id(*this);
+    const auto idx = app.get_task_manager_list(id);
+
+    if (sim_player.busy.test(std::memory_order_acquire))
         return;
 
-    if (c.has_result) {
-        c.has_result = false;
-        c.shown      = c.fresh;
+    if (sim_player.has_result) {
+        sim_player.has_result = false;
+        sim_player.shown      = sim_player.fresh;
 
-        if (c.result.has_error()) {
-            c.current = mode::paused;
+        if (sim_player.result.has_error()) {
+            sim_player.current = mode::paused;
             log(log_level::error, [&](auto& m) noexcept {
-                format(m, "Simulation player error: {}", c.result.error());
+                format(m, "Simulation player error: {}",
+                       sim_player.result.error());
             });
         }
     }
 
-    switch (c.current) {
+    switch (sim_player.current) {
     case mode::paused:
         break;
 
     case mode::play:
-        if (c.shown.finished)
-            c.current = mode::paused;
+        if (sim_player.shown.finished)
+            sim_player.current = mode::paused;
         else
-            submit(app, idx, c,
-                   [steps = c.steps_per_frame, budget = c.frame_budget](
-                     auto& p) { return p.advance(budget, steps); });
+            submit(app, idx, sim_player,
+                   [steps  = sim_player.steps_per_frame,
+                    budget = sim_player.frame_budget](auto& p) {
+                       return p.advance(budget, steps);
+                   });
         break;
 
     case mode::reverse:
-        if (not c.shown.can_back)
-            c.current = mode::paused;
+        if (not sim_player.shown.can_back)
+            sim_player.current = mode::paused;
         else
-            submit(app, idx, c,
-                   [steps = c.steps_per_frame, budget = c.frame_budget](
-                     auto& p) { return p.retreat(budget, steps); });
+            submit(app, idx, sim_player,
+                   [steps  = sim_player.steps_per_frame,
+                    budget = sim_player.frame_budget](auto& p) {
+                       return p.retreat(budget, steps);
+                   });
         break;
 
     case mode::realtime:
-        if (c.shown.finished) {
-            c.current = mode::paused;
+        if (sim_player.shown.finished) {
+            sim_player.current = mode::paused;
             break;
         }
 
-        submit(app, idx, c,
-               [&pacer = c.pacer, &resyncs = c.resyncs, unit = c.unit_duration,
-                budget = c.task_duration, max_late = c.max_lateness,
-                reset = std::exchange(c.pace_reset, false)](
+        submit(app, idx, sim_player,
+               [&pacer = sim_player.pacer, &resyncs = sim_player.resyncs,
+                unit     = sim_player.unit_duration,
+                budget   = sim_player.task_duration,
+                max_late = sim_player.max_lateness,
+                reset    = std::exchange(sim_player.pace_reset, false)](
                  auto& p) noexcept -> status {
                    const auto now = realtime_pacer::clock::now();
 
@@ -341,14 +349,14 @@ void schedule_player(application&       app,
     case mode::complete:
         // need_start: the user asks for a new run, even if the last one is
         // finished (shown.finished is the state of the last run).
-        if (c.shown.finished and not c.need_start) {
-            c.current = mode::paused;
+        if (sim_player.shown.finished and not sim_player.need_start) {
+            sim_player.current = mode::paused;
             break;
         }
 
-        submit(app, idx, c,
-               [&work = c.work, budget = c.complete_budget,
-                restart = std::exchange(c.need_start, false)](
+        submit(app, idx, sim_player,
+               [&work = sim_player.work, budget = sim_player.complete_budget,
+                restart = std::exchange(sim_player.need_start, false)](
                  auto& p) noexcept -> status {
                    if (restart) {
                        work = std::chrono::nanoseconds::zero();
