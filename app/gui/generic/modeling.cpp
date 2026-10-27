@@ -91,15 +91,6 @@ constexpr static inline unsigned node_type_mask{ (1u << node_type_bits) - 1u };
                             ordinal(i_node_type::input));
 }
 
-[[nodiscard]] constexpr u32 unpack_node_X(const int node) noexcept
-{
-    const auto [value, type] = unpack_node(node);
-
-    fatal::ensure(type == i_node_type::input);
-
-    return value;
-}
-
 [[nodiscard]] constexpr int pack_node_Y(const port_id port) noexcept
 {
     const auto idx = static_cast<u32>(get_index(port));
@@ -108,15 +99,6 @@ constexpr static inline unsigned node_type_mask{ (1u << node_type_bits) - 1u };
 
     return static_cast<int>((idx << node_value_shift) |
                             ordinal(i_node_type::output));
-}
-
-[[nodiscard]] constexpr u32 unpack_node_Y(const int node) noexcept
-{
-    const auto [value, type] = unpack_node(node);
-
-    fatal::ensure(type == i_node_type::output);
-
-    return value;
 }
 
 constexpr static inline unsigned long input_component_port_tag{ 1 };
@@ -1865,21 +1847,6 @@ bool generic_component_editor_data::show_selected_nodes(
     }
 
     return false;
-}
-
-bool generic_component_editor_data::need_show_selected_nodes(
-  component_editor& /*ed*/) noexcept
-{
-    return not selected_nodes.empty();
-}
-
-void generic_component_editor_data::clear_selected_nodes() noexcept
-{
-    ImNodes::ClearNodeSelection();
-    ImNodes::ClearLinkSelection();
-
-    selected_links.clear();
-    selected_nodes.clear();
 }
 
 void generic_component_editor_data::read(application& app,

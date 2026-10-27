@@ -76,8 +76,6 @@ struct json_dearchiver::impl {
     bool has_error                       = false;
     bool has_missing_dependent_component = false;
 
-    bool have_error() const noexcept { return has_error; }
-
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
@@ -118,18 +116,6 @@ struct json_dearchiver::impl {
         has_error = true;
 
         return false;
-    }
-
-    void clear() noexcept
-    {
-        temp_i64    = 0;
-        temp_u64    = 0;
-        temp_double = 0.0;
-        temp_bool   = false;
-        temp_string.clear();
-        stack.clear();
-        has_error                       = false;
-        has_missing_dependent_component = false;
     }
 
     simulation& sim() const noexcept
@@ -309,16 +295,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_bool(const rapidjson::Value& val, i64& i) noexcept
-    {
-        if (not read_temp_bool(val))
-            return false;
-
-        i = temp_bool;
-
-        return true;
-    }
-
     bool read_temp_u64(const rapidjson::Value& val) noexcept
     {
         if (!val.IsUint64())
@@ -327,16 +303,6 @@ struct json_dearchiver::impl {
         temp_u64 = val.GetUint64();
 
         return true;
-    }
-
-    bool read_u64(const rapidjson::Value& val, u64& integer) noexcept
-    {
-        if (val.IsUint64()) {
-            integer = val.GetUint64();
-            return true;
-        }
-
-        return error("missing u64");
     }
 
     bool read_real(const rapidjson::Value& val, double& r) noexcept
@@ -419,16 +385,6 @@ struct json_dearchiver::impl {
         return error("bad distribution type {}", temp_string_sv());
     }
 
-    bool copy_string_to(dynamics_type& dst) noexcept
-    {
-        if (auto opt = get_dynamics_type(temp_string_sv()); opt.has_value()) {
-            dst = opt.value();
-            return true;
-        }
-
-        return error("bad dynamics type {}", temp_string_sv());
-    }
-
     bool copy_string_to(child_type& dst_1, dynamics_type& dst_2) noexcept
     {
         if (string_equal_to("component"sv)) {
@@ -503,13 +459,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_bool_to(bool& dst) const noexcept
-    {
-        dst = temp_bool;
-
-        return true;
-    }
-
     bool copy_real_to(double& dst) const noexcept
     {
         dst = temp_double;
@@ -530,26 +479,6 @@ struct json_dearchiver::impl {
             return error("not a 32 bits integer: {}", temp_i64);
 
         dst = static_cast<i32>(temp_i64);
-
-        return true;
-    }
-
-    bool copy_u64_to(u32& dst) noexcept
-    {
-        if (temp_u64 >= UINT32_MAX)
-            return error("not a 32 bits unsigned integer: {}", temp_u64);
-
-        dst = static_cast<u8>(temp_u64);
-
-        return true;
-    }
-
-    bool copy_i64_to(i8& dst) noexcept
-    {
-        if (!(0 <= temp_i64 && temp_i64 <= INT8_MAX))
-            return error("not a 8 bits integer: {}", temp_i64);
-
-        dst = static_cast<i8>(temp_i64);
 
         return true;
     }
@@ -597,20 +526,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_string_to(time_func::function_type& fn) noexcept
-    {
-        if (string_equal_to("time"sv))
-            fn = time_func::function_type::linear;
-        else if (string_equal_to("square"sv))
-            fn = time_func::function_type::square;
-        else if (string_equal_to("sin"sv))
-            fn = time_func::function_type::sine;
-        else
-            return error("bad function type: {}", temp_string_sv());
-
-        return true;
-    }
-
     template<typename T>
     bool optional_has_value(const std::optional<T>& v) noexcept
     {
@@ -618,36 +533,6 @@ struct json_dearchiver::impl {
             return true;
 
         return false;
-    }
-
-    bool copy_u64_to(u64& dst) const noexcept
-    {
-        dst = temp_u64;
-        return true;
-    }
-
-    bool copy_u64_to(i64& dst) const noexcept
-    {
-        if (dst > INT64_MAX)
-            return false;
-
-        dst = static_cast<i64>(temp_u64);
-        return true;
-    }
-
-    bool copy_i64_to(u64& dst) const noexcept
-    {
-        if (temp_i64 < 0)
-            return false;
-
-        dst = static_cast<u64>(temp_i64);
-        return true;
-    }
-
-    bool copy_bool_to(i64& dst) const noexcept
-    {
-        dst = temp_bool;
-        return true;
     }
 
     bool copy_real_to(std::optional<double>& dst) noexcept
@@ -665,27 +550,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_u64_to(std::optional<u32>& dst) noexcept
-    {
-        if (not is_numeric_castable<u32>(temp_u64))
-            return error("bad 32 bits unsigned integer: {}", temp_u64);
-
-        dst = static_cast<u32>(temp_u64);
-        return true;
-    }
-
     bool copy_u64_to(std::optional<u64>& dst) noexcept
     {
         dst = temp_u64;
-        return true;
-    }
-
-    bool copy_i64_to(std::optional<i8>& dst) noexcept
-    {
-        if (!(INT8_MIN <= temp_i64 && temp_i64 <= INT8_MAX))
-            return error("bad 8 bits integer: {}", temp_i64);
-
-        dst = static_cast<i8>(temp_i64);
         return true;
     }
 
@@ -698,32 +565,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_string_to(std::optional<vector<char>>& dst) noexcept
-    {
-        dst = temp_string;
-        return true;
-    }
-
     bool copy_real_to(float& dst) const noexcept
     {
         dst = static_cast<float>(temp_double);
-        return true;
-    }
-
-    bool copy_i64_to(std::optional<source_type>& dst) noexcept
-    {
-        if (0 <= temp_i64 and temp_i64 < 5) {
-            dst = enum_cast<source_type>(temp_i64);
-            return true;
-        }
-
-        return error("fail to convert integer {} to source_type", temp_i64);
-    }
-
-    bool copy_i64_to(std::optional<i64>& dst) noexcept
-    {
-        dst = temp_i64;
-
         return true;
     }
 
@@ -1924,62 +1768,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_hsm_state(
-      const rapidjson::Value& val,
-      std::array<hierarchical_state_machine::state,
-                 hierarchical_state_machine::max_number_of_state>&
-        states) noexcept
-    {
-        auto_stack a(this, "dynamics hsm state");
-
-        std::optional<int>                id;
-        hierarchical_state_machine::state s;
-
-        if (not for_each_member(
-              val,
-              [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("id"sv == name)
-                      return read_temp_i64(value) and copy_i64_to(id);
-
-                  if ("enter"sv == name)
-                      return read_hsm_state_action(value, s.enter_action);
-
-                  if ("exit"sv == name)
-                      return read_hsm_state_action(value, s.exit_action);
-
-                  if ("if"sv == name)
-                      return read_hsm_state_action(value, s.if_action);
-
-                  if ("else"sv == name)
-                      return read_hsm_state_action(value, s.else_action);
-
-                  if ("condition"sv == name)
-                      return read_hsm_condition_action(value, s.condition);
-
-                  if ("if-transition"sv == name)
-                      return read_temp_u64(value) &&
-                             copy_u64_to(s.if_transition);
-
-                  if ("else-transition"sv == name)
-                      return read_temp_u64(value) &&
-                             copy_u64_to(s.else_transition);
-
-                  if ("super-id"sv == name)
-                      return read_temp_u64(value) && copy_u64_to(s.super_id);
-
-                  if ("sub-id"sv == name)
-                      return read_temp_u64(value) && copy_u64_to(s.sub_id);
-
-                  return error("unknown element");
-              }) or
-            not id.has_value())
-            return false;
-
-        states[*id] = s;
-
-        return true;
-    }
-
     bool read_hsm_states(
       const rapidjson::Value&                                      val,
       std::array<hierarchical_state_machine::state,
@@ -1994,20 +1782,6 @@ struct json_dearchiver::impl {
         return for_each_array(
           val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
               return read_hsm_state(value, states, names, positions);
-          });
-    }
-
-    bool read_hsm_states(
-      const rapidjson::Value& val,
-      std::array<hierarchical_state_machine::state,
-                 hierarchical_state_machine::max_number_of_state>&
-        states) noexcept
-    {
-        auto_stack a(this, "dynamics hsm states");
-
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              return read_hsm_state(value, states);
           });
     }
 
@@ -2206,60 +1980,6 @@ struct json_dearchiver::impl {
         return error("integer convertion error");
     }
 
-    template<typename T>
-    bool copy(const u64 from, T& id) noexcept
-    {
-        if constexpr (std::is_enum_v<T>) {
-            id = enum_cast<T>(from);
-            return true;
-        }
-
-        if constexpr (std::is_integral_v<T>) {
-            if (is_numeric_castable<T>(id)) {
-                id = numeric_cast<T>(id);
-                return true;
-            }
-
-            return error("integer convertion error from {}", from);
-        }
-
-        if constexpr (std::is_same_v<T, std::optional<u64>>) {
-            id = from;
-            return true;
-        }
-
-        return error("integer convertion error {}", from);
-    }
-
-    template<typename T>
-    bool copy(const T from, u64& id) noexcept
-    {
-        if constexpr (std::is_enum_v<T>) {
-            id = ordinal(from);
-            return true;
-        }
-
-        if constexpr (std::is_integral_v<T>) {
-            if (is_numeric_castable<u64>(id)) {
-                id = numeric_cast<u64>(id);
-                return true;
-            }
-
-            return error("integer convertion error from {}", from);
-        }
-
-        if constexpr (std::is_same_v<T, std::optional<u64>>) {
-            if (from.has_value()) {
-                id = *from;
-                return true;
-            }
-
-            return error("integer convertion error from {}", from);
-        }
-
-        return error("integer convertion error from {}", from);
-    }
-
     bool fix_child_name(generic_component&        generic,
                         generic_component::child& c) noexcept
     {
@@ -2364,16 +2084,6 @@ struct json_dearchiver::impl {
         c.id.mdl_type = type;
 
         return read_child_model_dynamics(val, files, ids, compo, gen, c);
-    }
-
-    auto search_component(const component_access& ids,
-                          std::string_view name) const noexcept -> component_id
-    {
-        for (const auto id : ids)
-            if (ids.components[id].name == name)
-                return id;
-
-        return undefined<component_id>();
     }
 
     bool read_child_simple_or_grid_component(const rapidjson::Value& val,
@@ -2533,50 +2243,6 @@ struct json_dearchiver::impl {
 
         return read_children_array(val, files, ids, compo, generic) &&
                cache_model_mapping_sort();
-    }
-
-    bool constant_sources_can_alloc(external_source&   srcs,
-                                    std::integral auto i) noexcept
-    {
-        if (srcs.constant_sources.can_alloc(i) or
-            srcs.constant_sources.grow<2, 1>())
-            return true;
-
-        return error("can not allocate more constant source ({})",
-                     srcs.constant_sources.capacity());
-    }
-
-    bool text_file_sources_can_alloc(external_source&   srcs,
-                                     std::integral auto i) noexcept
-    {
-        if (srcs.text_file_sources.can_alloc(i) or
-            srcs.text_file_sources.grow<2, 1>())
-            return true;
-
-        return error("can not allocate more text file source ({})",
-                     srcs.text_file_sources.capacity());
-    }
-
-    bool binary_file_sources_can_alloc(external_source&   srcs,
-                                       std::integral auto i) noexcept
-    {
-        if (srcs.binary_file_sources.can_alloc(i) or
-            srcs.binary_file_sources.grow<2, 1>())
-            return true;
-
-        return error("can not allocate more binary file source ({})",
-                     srcs.binary_file_sources.capacity());
-    }
-
-    bool random_sources_can_alloc(external_source&   srcs,
-                                  std::integral auto i) noexcept
-    {
-        if (srcs.random_sources.can_alloc(i) or
-            srcs.random_sources.grow<2, 1>())
-            return true;
-
-        return error("can not allocate more random source ({})",
-                     srcs.random_sources.capacity());
     }
 
     bool constant_buffer_size_can_alloc(std::integral auto i) noexcept
@@ -3707,16 +3373,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool graph_children_add(graph_component& graph, component_id c_id) noexcept
-    {
-        const auto id  = graph.g.nodes.alloc();
-        const auto idx = get_index(id);
-
-        graph.g.node_components[idx] = c_id;
-
-        return true;
-    }
-
     bool read_grid_children(const rapidjson::Value& val,
                             const file_access&      files,
                             const component_access& ids,
@@ -3858,17 +3514,6 @@ struct json_dearchiver::impl {
 
               return true;
           });
-    }
-
-    bool reserve_graph_node(graph_component& compo, i64 len)
-    {
-        compo.g.nodes.reserve(len);
-        compo.g.node_areas.resize(len);
-        compo.g.node_components.resize(len);
-        compo.g.node_names.resize(len);
-        compo.g.node_positions.resize(len);
-
-        return true;
     }
 
     bool read_graph_children(const rapidjson::Value& val,
@@ -5187,19 +4832,6 @@ struct json_dearchiver::impl {
                project_set(ids, files, c_id);
     }
 
-    template<typename T>
-    bool vector_add(vector<T>& vec, const T t) noexcept
-    {
-        vec.emplace_back(t);
-        return true;
-    }
-
-    template<typename T>
-    bool vector_not_empty(const vector<T>& vec) noexcept
-    {
-        return !vec.empty();
-    }
-
     bool read_real_parameter(const rapidjson::Value& val,
                              std::array<real, 4>&    reals) noexcept
     {
@@ -5374,21 +5006,6 @@ struct json_dearchiver::impl {
         return error("fail to convert access to tree node and model ids");
     }
 
-    bool convert_to_tn_model_ids(const unique_id_path& path,
-                                 vector<tree_node_id>& parent_id,
-                                 vector<model_id>&     mdl_id) noexcept
-    {
-        auto_stack s(this, "project convert to tn model ids");
-
-        if (auto ret_opt = pj().get_model_path(path); ret_opt.has_value()) {
-            parent_id.emplace_back(ret_opt->first);
-            mdl_id.emplace_back(ret_opt->second);
-            return true;
-        }
-
-        return error("fail to convert access to tree node and model ids");
-    }
-
     bool convert_to_tn_id(const unique_id_path&        path,
                           std::optional<tree_node_id>& tn_id) noexcept
     {
@@ -5496,17 +5113,6 @@ struct json_dearchiver::impl {
                optional_has_value(parent_id) and optional_has_value(mdl_id) and
                plot_observation_init(plot, *parent_id, *mdl_id, c, t, str.sv());
         return false;
-    }
-
-    bool copy_string_to(plot_type_options& type) noexcept
-    {
-        if (string_equal_to("line"))
-            type = plot_type_options::line;
-
-        if (string_equal_to("dash"))
-            type = plot_type_options::dash;
-
-        return error("unknown element {}", temp_string_sv());
     }
 
     bool read_project_plot_observation_children(
@@ -8425,15 +8031,6 @@ struct json_archiver::impl {
     }
 };
 
-void json_dearchiver::destroy() noexcept
-{
-    buffer.destroy();
-    stack.destroy();
-
-    model_mapping.data.destroy();
-    srcs_mapping.data.destroy();
-}
-
 void json_dearchiver::clear() noexcept
 {
     buffer.clear();
@@ -8441,18 +8038,6 @@ void json_dearchiver::clear() noexcept
 
     model_mapping.data.clear();
     srcs_mapping.data.clear();
-}
-
-status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
-{
-    if (std::cmp_less(buffer.capacity(), buffer_size)) {
-        buffer.resize(buffer_size);
-
-        if (std::cmp_less(buffer.capacity(), buffer_size))
-            return make_error(std::errc::not_enough_memory);
-    }
-
-    return success();
 }
 
 status json_dearchiver::operator()(const file_access& files,
@@ -8779,14 +8364,6 @@ status json_archiver::operator()(project&                pj,
     out.back() = '\0';
 
     return success();
-}
-
-void json_archiver::destroy() noexcept
-{
-    buffer.destroy();
-
-    model_mapping.data.destroy();
-    srcs_mapping.data.destroy();
 }
 
 void json_archiver::clear() noexcept

@@ -309,18 +309,6 @@ struct color_copy {
         std::swap(color.x, color.z);
         return *this;
     }
-
-    color_copy& invert_blue_green() noexcept
-    {
-        std::swap(color.y, color.z);
-        return *this;
-    }
-
-    color_copy& invert_red_blue() noexcept
-    {
-        std::swap(color.x, color.y);
-        return *this;
-    }
 };
 
 static color_copy ccopy(const ImVec4& color) { return color_copy{ color }; }

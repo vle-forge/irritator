@@ -1428,16 +1428,6 @@ void show_output_attribute(const Dynamics& dyn, const model_id id) noexcept
     }
 }
 
-template<typename Dynamics>
-void show_node_values(project_editor& ed, Dynamics& dyn) noexcept
-{
-    ImGui::PushID(0);
-    ImGui::PushItemWidth(120.0f);
-    show_dynamics_values(ed, dyn);
-    ImGui::PopItemWidth();
-    ImGui::PopID();
-}
-
 void generic_simulation_editor::show_nodes(application&    app,
                                            project_editor& pj_ed) noexcept
 {
@@ -1601,17 +1591,6 @@ void generic_simulation_editor::start_rebuild_task(
         enable_show = true;
         rebuild_wip = false;
     });
-}
-
-void generic_simulation_editor::reinit(application&    app,
-                                       project_editor& pj_ed) noexcept
-{
-    if (rebuild_wip)
-        return;
-
-    rebuild_wip = true;
-    enable_show = false;
-    start_rebuild_task(app, pj_ed);
 }
 
 bool generic_simulation_editor::display(application&    app,

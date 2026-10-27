@@ -710,16 +710,6 @@ static bool show_state_condition(hsm_t::condition_action& condition) noexcept
     return old_condition != condition;
 }
 
-void hsm_component_editor_data::clear() noexcept
-{
-    m_selected_links.clear();
-    m_selected_nodes.clear();
-    m_enabled.fill(false);
-    m_enabled[0] = true;
-
-    m_hsm.clear();
-}
-
 void hsm_component_editor_data::show_hsm() noexcept
 {
     ImNodes::BeginNode(make_state(0));
@@ -1192,20 +1182,6 @@ bool hsm_component_editor_data::show_selected_nodes(
     }
 
     return u > 0;
-}
-
-bool hsm_component_editor_data::need_show_selected_nodes(
-  component_editor& /*ed*/) noexcept
-{
-    return not m_selected_nodes.empty();
-}
-
-void hsm_component_editor_data::clear_selected_nodes() noexcept
-{
-    ImNodes::ClearLinkSelection();
-    ImNodes::ClearNodeSelection();
-    m_selected_nodes.clear();
-    m_selected_links.clear();
 }
 
 void hsm_component_editor_data::read(application& app,

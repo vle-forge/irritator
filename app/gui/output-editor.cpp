@@ -603,22 +603,6 @@ void output_editor::show() noexcept
     }
 }
 
-void output_editor::save_obs(const project_id                pj_id,
-                             const variable_observer_id      vobs,
-                             const variable_observer::sub_id svobs) noexcept
-{
-    m_pj_id     = pj_id;
-    m_vobs_id   = vobs;
-    m_sub_id    = svobs;
-    m_need_save = save_option::obs;
-}
-
-void output_editor::save_copy(const plot_copy_id id) noexcept
-{
-    m_copy_id   = id;
-    m_need_save = save_option::copy;
-}
-
 void output_editor::add_project(const project_id id) noexcept
 {
     debug::ensure(container_of(this, &application::output_ed).pjs.exists(id));

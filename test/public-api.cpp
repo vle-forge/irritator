@@ -73,16 +73,10 @@ struct file_output {
 
 bool function_ref_called = false;
 
-void function_ref_f() { function_ref_called = true; }
-
 struct function_ref_class {
     bool baz_called = false;
 
-    void baz() { baz_called = true; }
-
     bool qux_called = false;
-
-    void qux() { qux_called = true; }
 };
 
 struct function_ref_multiple_operator {
@@ -102,37 +96,9 @@ struct global_deallocator_t {
     int free_number = 0;
 } global_deallocator;
 
-void* global_alloc(size_t size) noexcept
-{
-    global_allocator.allocation_size += size;
-    global_allocator.allocation_number++;
-
-    fmt::print("global_alloc {} (global size: {}, number: {})\n", size,
-               global_allocator.allocation_size,
-               global_allocator.allocation_number);
-
-    return std::malloc(size);
-}
-
-void global_free(void* ptr) noexcept
-{
-    if (ptr) {
-        global_deallocator.free_number++;
-        fmt::print("global_free {} (number: {})\n", ptr,
-                   global_deallocator.free_number);
-        std::free(ptr);
-    }
-}
-
 struct struct_with_static_member {
     static int i;
     static int j;
-
-    static void clear() noexcept
-    {
-        i = 0;
-        j = 0;
-    }
 
     struct_with_static_member() noexcept { ++i; }
     ~struct_with_static_member() noexcept { ++j; }
@@ -230,31 +196,6 @@ inline std::pair<irt::u32, irt::u32> get_model_output_port(
 
     fmt::print("index: {} port: {}\n", index, port);
     return std::make_pair(index, port);
-}
-
-template<typename Data>
-static bool check_data_array_loop(const Data& d) noexcept
-{
-    using value_type = typename Data::value_type;
-
-    irt::small_vector<const value_type*, 16> test_vec;
-
-    if (test_vec.capacity() < d.ssize())
-        return false;
-
-    const value_type* ptr = nullptr;
-    while (d.next(ptr))
-        test_vec.emplace_back(ptr);
-
-    int i = 0;
-    for (const auto& elem : d) {
-        if (test_vec[i] != &elem)
-            return false;
-
-        ++i;
-    }
-
-    return true;
 }
 
 template<typename Dynamics>

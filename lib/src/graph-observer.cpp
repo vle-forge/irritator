@@ -110,12 +110,6 @@ status graph_observer::init(project& pj, const modeling& mod) noexcept
     });
 }
 
-void graph_observer::clear() noexcept
-{
-    observers.clear();
-    values.clear();
-}
-
 void graph_observer::update(const project& pj) noexcept
 {
     if (values.size() == observers.size()) {

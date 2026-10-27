@@ -453,26 +453,6 @@ static std::error_code do_load(const path& filename, variables& vars) noexcept
     return do_load(file.get(), vars);
 }
 
-vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
-{
-    vector<recorded_path_id> ret(recs.size(), reserve_tag);
-
-    if (recs.capacity() >= recs.size()) {
-        for (auto id : recs)
-            ret.emplace_back(id);
-
-        std::ranges::sort(ret, [&](const auto a, const auto b) noexcept {
-            const auto& priorities = recs.template get<i8>();
-            const auto  idx_a      = get_index(a);
-            const auto  idx_b      = get_index(b);
-
-            return priorities[idx_a] < priorities[idx_b];
-        });
-    }
-
-    return ret;
-}
-
 config_manager::config_manager() noexcept { do_build_default(vars); }
 
 config_manager::config_manager(const path& config_path) noexcept
@@ -491,11 +471,6 @@ config_manager::config_manager(const path& config_path) noexcept
 std::error_code config_manager::save() noexcept
 {
     return do_save(m_path, vars);
-}
-
-std::error_code config_manager::load() noexcept
-{
-    return do_load(m_path.c_str(), vars);
 }
 
 } // namespace irt

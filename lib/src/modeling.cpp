@@ -150,23 +150,6 @@ modeling::modeling(const modeling_reserve_definition& res) noexcept
   , files(res.regs.value(), res.dirs.value(), res.files.value())
 {}
 
-dir_path_id registred_path::search(
-  const data_array<dir_path, dir_path_id>& data,
-  const std::string_view                   dir_name) noexcept
-{
-    for (const auto& elem : data)
-        if (elem.path.sv() == dir_name)
-            return data.get_id(elem);
-
-    return undefined<dir_path_id>();
-}
-
-bool registred_path::exists(const data_array<dir_path, dir_path_id>& data,
-                            const std::string_view dir_name) noexcept
-{
-    return search(data, dir_name) != undefined<dir_path_id>();
-}
-
 static status browse_directory(file_access&          fs,
                                registred_path&       reg_dir,
                                dir_path&             dir,
@@ -506,74 +489,6 @@ status modeling::fill_components() noexcept
     return success();
 }
 
-void modeling::browse_file_system() noexcept
-{
-    files.write([&](file_access& fs) { fs.browse_registreds(); });
-}
-
-void file_access::remove(const file_path_id id) noexcept
-{
-    if (auto* f = file_paths.try_to_get(id)) {
-        if (auto* d = dir_paths.try_to_get(f->parent)) {
-            if (auto* r = registred_paths.try_to_get(d->parent)) {
-                if (const auto opt = make_file(*r, *d, *f); opt.has_value()) {
-                    const auto std_path = opt->to_std_path();
-                    auto       ec       = std::error_code{};
-
-                    std::filesystem::remove(std_path, ec);
-
-                    file_paths.free(*f);
-
-                    auto it = std::ranges::find(d->children, id);
-                    if (it != std::ranges::end(d->children))
-                        d->children.erase(it);
-                }
-            }
-        }
-    }
-}
-
-void file_access::refresh(const dir_path_id id) noexcept
-{
-    if (auto* d = dir_paths.try_to_get(id)) {
-        if (auto* r = registred_paths.try_to_get(d->parent)) {
-            try {
-                std::error_code       ec;
-                std::filesystem::path dir{ r->path.sv() };
-                dir /= d->path.sv();
-
-                if (std::filesystem::is_directory(dir, ec)) {
-                    auto it = std::filesystem::directory_iterator{ dir, ec };
-                    auto et = std::filesystem::directory_iterator{};
-
-                    while (it != et) {
-                        if (it->is_regular_file()) {
-                            const auto type = get_extension(
-                              it->path().filename().string());
-                            if (type != file_type::undefined_file) {
-                                const auto f = find_file_in_directory(
-                                  id, it->path().string());
-                                if (is_undefined(f)) {
-                                    const auto new_file = alloc_file(
-                                      id, it->path().filename().string(), type);
-
-                                    d->children.push_back(new_file);
-                                }
-                            }
-                        }
-
-                        it = it.increment(ec);
-                    }
-                } else {
-                    d->flags.set(fs_flag::access_error);
-                }
-            } catch (const std::exception& /*e*/) {
-                d->flags.set(fs_flag::access_error);
-            }
-        }
-    }
-}
-
 auto file_access::find_file_in_directory(const dir_path_id      id,
                                          const std::string_view filename,
                                          const file_type type) const noexcept
@@ -711,39 +626,6 @@ registred_path_id file_access::alloc_registred(const std::string_view name,
     return undefined<registred_path_id>();
 }
 
-bool file_access::exists(const registred_path_id id) const noexcept
-{
-    if (auto* reg = registred_paths.try_to_get(id)) {
-        try {
-            std::error_code       ec;
-            std::filesystem::path p{ reg->path.sv() };
-            return std::filesystem::exists(p, ec);
-        } catch (...) {
-        }
-    }
-
-    return false;
-}
-
-bool file_access::exists(const dir_path_id id) const noexcept
-{
-    if (const auto* d = dir_paths.try_to_get(id)) {
-        if (const auto* r = registred_paths.try_to_get(d->parent)) {
-            try {
-                std::error_code       ec;
-                std::filesystem::path p{ r->path.sv() };
-                if (std::filesystem::exists(p, ec)) {
-                    p /= d->path.sv();
-                    return std::filesystem::exists(p, ec);
-                }
-            } catch (...) {
-            }
-        }
-    }
-
-    return false;
-}
-
 bool file_access::create_directories(const registred_path_id id) const noexcept
 {
     if (auto* reg = registred_paths.try_to_get(id)) {
@@ -807,34 +689,6 @@ void file_access::remove_directory(const dir_path_id id) noexcept
     }
 }
 
-void file_access::remove_files(const dir_path_id id) noexcept
-{
-    if (auto* d = dir_paths.try_to_get(id)) {
-        if (d->path.empty())
-            return;
-
-        if (const auto* r = registred_paths.try_to_get(d->parent)) {
-            try {
-                std::filesystem::path p(r->path.sv());
-                p /= d->path.sv();
-
-                for (const auto f_id : d->children) {
-                    if (auto* f = file_paths.try_to_get(f_id)) {
-                        const auto file = p / f->path.sv();
-
-                        std::error_code ec;
-                        if (std::filesystem::exists(file, ec))
-                            std::filesystem::remove(file, ec);
-                    }
-                }
-            } catch (...) {
-            }
-        }
-
-        d->children.clear();
-    }
-}
-
 void file_access::remove_file(const file_path_id id) noexcept
 {
     if (const auto* f = file_paths.try_to_get(id)) {
@@ -868,54 +722,6 @@ void file_access::remove_file(const file_path_id id) noexcept
     }
 }
 
-void file_access::move_file(const dir_path_id  to,
-                            const file_path_id id) noexcept
-{
-    if (auto* f = file_paths.try_to_get(id)) {
-        if (to != f->parent) {
-            const auto old_id = f->parent;
-
-            if (auto* new_d = dir_paths.try_to_get(to)) {
-                f->parent = to;
-                new_d->children.emplace_back(file_paths.get_id(*f));
-
-                if (auto* old_d = dir_paths.try_to_get(old_id)) {
-                    const auto to_del = std::ranges::remove_if(
-                      old_d->children,
-                      [&](const auto fid) { return id == fid; });
-
-                    if (to_del.begin() != to_del.end())
-                        old_d->children.erase(to_del.begin(), to_del.end());
-                }
-            }
-        }
-    }
-}
-
-void file_access::free(const file_path_id file) noexcept
-{
-    file_paths.free(file);
-}
-
-void file_access::free(const dir_path_id dir) noexcept
-{
-    if (auto* d = dir_paths.try_to_get(dir))
-        for (const auto f_id : d->children)
-            if (auto* f = file_paths.try_to_get(f_id))
-                f->parent = undefined<dir_path_id>();
-
-    dir_paths.free(dir);
-}
-
-void file_access::free(const registred_path_id reg_dir) noexcept
-{
-    if (auto* r = registred_paths.try_to_get(reg_dir))
-        for (const auto d_id : r->children)
-            free(d_id);
-
-    registred_paths.free(reg_dir);
-}
-
 expected<path> file_access::get_fs_path(const file_path_id id) const noexcept
 {
     try {
@@ -932,36 +738,6 @@ expected<path> file_access::get_fs_path(const file_path_id id) const noexcept
             return make_error(modeling_errc::directory_error);
         }
         return make_error(modeling_errc::file_error);
-    } catch (...) {
-        return make_error(modeling_errc::file_error);
-    }
-}
-
-expected<path> file_access::get_fs_path(const dir_path_id id) const noexcept
-{
-    try {
-        if (auto* dir = dir_paths.try_to_get(id)) {
-            if (auto* reg = registred_paths.try_to_get(dir->parent)) {
-                path p{ reg->path.sv() };
-                p /= dir->path.sv();
-                return p;
-            }
-            return make_error(modeling_errc::recorded_directory_error);
-        }
-        return make_error(modeling_errc::directory_error);
-    } catch (...) {
-        return make_error(modeling_errc::file_error);
-    }
-}
-
-expected<path> file_access::get_fs_path(
-  const registred_path_id id) const noexcept
-{
-    try {
-        if (auto* reg = registred_paths.try_to_get(id)) {
-            return path{ reg->path.sv() };
-        }
-        return make_error(modeling_errc::recorded_directory_error);
     } catch (...) {
         return make_error(modeling_errc::file_error);
     }

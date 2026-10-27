@@ -1959,17 +1959,6 @@ static auto make_tree_from(project_to_simulation&  sc,
 
 expected<project> project::load(const file_access&      fs,
                                 const component_access& cs,
-                                const std::span<char>   buffer) noexcept
-{
-    json_dearchiver dearc;
-    project         pj{};
-    const auto      ret = dearc(pj, fs, cs, buffer);
-
-    return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
-}
-
-expected<project> project::load(const file_access&      fs,
-                                const component_access& cs,
                                 const file_path_id      file_id) noexcept
 {
     const auto filename = make_file(fs, file_id);
@@ -2025,18 +2014,6 @@ status project::save(const file_access&      fs,
     }
 
     return make_error(project_errc::file_access_error);
-}
-
-std::optional<path> project::get_observation_dir(
-  const irt::modeling& mod) const noexcept
-{
-    return mod.files.read(
-      [&](const auto& fs, const auto /*vers*/) -> std::optional<path> {
-          if (const auto* dir = fs.registred_paths.try_to_get(observation_dir))
-              return dir->path.sv();
-
-          return std::nullopt;
-      });
 }
 
 struct required_data {
@@ -2273,12 +2250,6 @@ status project::set(const component_access& ids,
     return success();
 }
 
-status project::rebuild(const component_access& ids,
-                        const file_access&      fs) noexcept
-{
-    return ids.exists(head()) ? set(ids, fs, head()) : success();
-}
-
 void project::clear() noexcept
 {
     sim.clear();
@@ -2361,16 +2332,6 @@ auto project::build_relative_path(const tree_node& from,
     }
 
     return ret;
-}
-
-auto project::get_model(const relative_id_path& path) noexcept
-  -> std::pair<tree_node_id, model_id>
-{
-    const auto* tn = tree_nodes.try_to_get(path.tn);
-
-    return tn
-             ? get_model(*tn, path)
-             : std::make_pair(undefined<tree_node_id>(), undefined<model_id>());
 }
 
 auto project::get_model(const tree_node&        tn,
@@ -2464,20 +2425,6 @@ void project::build_unique_id_path(const tree_node& model_unique_id_parent,
              ? project_build_unique_id_path(model_unique_id, out)
              : project_build_unique_id_path(model_unique_id_parent,
                                             model_unique_id, out);
-}
-
-auto project::get_model_path(const std::string_view id) const noexcept
-  -> std::optional<std::pair<tree_node_id, model_id>>
-{
-    if (auto* head = tree_nodes.try_to_get(m_tn_head)) {
-        auto model_id_opt = head->get_model_id(id);
-
-        return model_id_opt.has_value()
-                 ? std::make_optional(std::make_pair(m_tn_head, *model_id_opt))
-                 : std::nullopt;
-    }
-
-    return std::nullopt;
 }
 
 auto project::get_model_path(const unique_id_path& path) const noexcept
@@ -2617,177 +2564,6 @@ graph_observer& project::alloc_graph_observer() noexcept
     auto& obs = graph_observers.alloc();
     assign_name(graph_observers, obs.name);
     return obs;
-}
-
-template<typename Child>
-static status import_in_generic(
-  generic_component&                           gen,
-  const data_array<Child, child_id>&           children,
-  const data_array<connection, connection_id>& connections,
-  const std::span<position>  positions  = std::span<position>{},
-  const std::span<name_str>  names      = std::span<name_str>{},
-  const std::span<parameter> parameters = std::span<parameter>{}) noexcept
-{
-    table<child_id, child_id> src_to_this;
-
-    if (not gen.children.can_alloc(children.size())) {
-        gen.children.reserve(children.size());
-        if (not gen.children.can_alloc(children.size()))
-            return make_error(modeling_errc::generic_children_container_full);
-    }
-
-    for (const auto& c : children) {
-        auto new_c_id = undefined<child_id>();
-
-        if constexpr (std::is_same_v<std::decay_t<Child>,
-                                     generic_component::child>) {
-            auto& new_c = c.type == child_type::component
-                            ? gen.children.alloc(c.id.compo_id)
-                            : gen.children.alloc(c.id.mdl_type);
-            new_c_id    = gen.children.get_id(new_c);
-        } else {
-            auto& new_c = gen.children.alloc(c.compo_id);
-            new_c_id    = gen.children.get_id(new_c);
-        }
-
-        src_to_this.data.emplace_back(children.get_id(c), new_c_id);
-    }
-
-    src_to_this.sort();
-
-    for (const auto& con : connections) {
-        if (auto* child_src = src_to_this.get(con.src); child_src) {
-            if (auto* child_dst = src_to_this.get(con.dst); child_dst) {
-                gen.connections.alloc(*child_src, con.index_src, *child_dst,
-                                      con.index_dst);
-            }
-        }
-    }
-
-    if (gen.children_positions.size() <= positions.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_positions[dst_idx] = positions[src_idx];
-            }
-        }
-    }
-
-    if (gen.children_names.size() <= names.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_names[dst_idx] = gen.exists_child(
-                                                names[src_idx].sv())
-                                                ? gen.make_unique_name_id(
-                                                    pair.value)
-                                                : names[src_idx];
-            }
-        }
-    }
-
-    if (gen.children_parameters.size() < parameters.size()) {
-        for (const auto pair : src_to_this.data) {
-            const auto* src = children.try_to_get(pair.id);
-            const auto* dst = gen.children.try_to_get(pair.value);
-
-            if (src and dst) {
-                const auto src_idx = get_index(children.get_id(*src));
-                const auto dst_idx = get_index(gen.children.get_id(*dst));
-
-                gen.children_parameters[dst_idx] = parameters[src_idx];
-            }
-        }
-    }
-
-    return success();
-}
-
-status component_access::import(const generic_component& generic,
-                                generic_component&       dst) noexcept
-{
-    return import_in_generic(dst, generic.children, generic.connections);
-}
-
-status component_access::import(const graph_component& graph,
-                                generic_component&     dst) noexcept
-{
-    data_array<graph_component::child, child_id> children;
-    data_array<connection, connection_id>        connections;
-    vector<name_str>                             cache_names;
-
-    if (not graph.build_cache(*this, children, connections, cache_names))
-        return make_error(modeling_errc::graph_children_container_full);
-
-    return import_in_generic(dst, children, connections);
-}
-
-status component_access::import(const grid_component& grid,
-                                generic_component&    dst) noexcept
-{
-    data_array<grid_component::child, child_id> children;
-    data_array<connection, connection_id>       connections;
-    vector<name_str>                            cache_names;
-
-    if (not grid.build_cache(*this, children, connections, cache_names))
-        return make_error(modeling_errc::grid_children_container_full);
-
-    return import_in_generic(dst, children, connections);
-}
-
-status modeling::import(const component_id src,
-                        const component_id dst,
-                        const std::span<position> /*positions*/,
-                        const std::span<name_str> /*names*/,
-                        const std::span<parameter> /*parameters*/) noexcept
-{
-    return ids.write([&](auto& ids) noexcept -> status {
-        if (not ids.exists(src) or not ids.exists(dst))
-            return make_error(modeling_errc::component_not_found);
-
-        const auto& src_compo = ids.components[src];
-        auto&       dst_compo = ids.components[dst];
-
-        if (dst_compo.type != component_type::generic)
-            return make_error(modeling_errc::component_type_mismatch);
-
-        auto& gen = ids.generic_components.get(dst_compo.id.generic_id);
-
-        switch (src_compo.type) {
-        case component_type::generic:
-            return ids.import(
-              ids.generic_components.get(src_compo.id.generic_id), gen);
-
-        case component_type::graph:
-            return ids.import(ids.graph_components.get(src_compo.id.graph_id),
-                              gen);
-
-        case component_type::grid:
-            return ids.import(
-              ids.generic_components.get(src_compo.id.generic_id), gen);
-
-        case component_type::hsm:
-            return success();
-
-        case component_type::none:
-            return success();
-
-        case component_type::simulation:
-            return success();
-        }
-
-        unreachable();
-    });
 }
 
 } // namespace irt

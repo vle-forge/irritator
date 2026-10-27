@@ -964,12 +964,6 @@ parameter& parameter::set_integrator(real X, real dQ) noexcept
     return *this;
 }
 
-parameter& parameter::set_integrator(real X) noexcept
-{
-    reals[qss_integrator_tag::X] = std::isfinite(X) ? X : 0.0;
-    return *this;
-}
-
 parameter& parameter::set_time_func(real offset,
                                     real timestep,
                                     int  type) noexcept
@@ -1062,18 +1056,6 @@ parameter& parameter::set_generator_ta(const source_type   type,
     return *this;
 }
 
-parameter& parameter::set_generator_value(real value) noexcept
-{
-    bitflags<generator::option> flags(integers[generator_tag::i_options]);
-    flags.set(generator::option::value_use_source, false);
-    integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
-
-    integers[generator_tag::source_value] = 0;
-    reals[generator_tag::value]           = value;
-
-    return *this;
-}
-
 parameter& parameter::set_generator_value(const source_type   type,
                                           const source_any_id id) noexcept
 {
@@ -1096,13 +1078,6 @@ parameter& parameter::set_priority_queue_ta(const source_type   type,
                                             const source_any_id id) noexcept
 {
     integers[priority_queue_tag::source_ta] = from_source(type, id);
-    return *this;
-}
-
-parameter& parameter::set_hsm_wrapper_value(
-  const external_source_definition::id id) noexcept
-{
-    integers[hsm_wrapper_tag::source_value] = ordinal(id);
     return *this;
 }
 

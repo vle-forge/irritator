@@ -343,30 +343,6 @@ name_str grid_component::make_unique_name_id(int row, int col) const noexcept
     return ret;
 }
 
-bool grid_component::exists_input_connection(const port_id x,
-                                             const i32     row,
-                                             const i32     col,
-                                             const port_id id) const noexcept
-{
-    for (const auto& con : input_connections)
-        if (x == con.x and row == con.row and col == con.col and id == con.id)
-            return true;
-
-    return false;
-}
-
-bool grid_component::exists_output_connection(const port_id y,
-                                              const i32     row,
-                                              const i32     col,
-                                              const port_id id) const noexcept
-{
-    for (const auto& con : output_connections)
-        if (y == con.y and row == con.row and col == con.col and id == con.id)
-            return true;
-
-    return false;
-}
-
 expected<input_connection_id> grid_component::connect_input(
   const port_id x,
   const i32     row,

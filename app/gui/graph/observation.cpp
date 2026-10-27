@@ -996,63 +996,6 @@ void graph_editor::show(application&    app,
     });
 }
 
-void graph_editor::show(application&       app,
-                        component&         c,
-                        const component_id c_id,
-                        graph_component&   g) noexcept
-{
-    const auto name = format_n<64>("{}##{}", c.name.sv(), ordinal(c_id));
-
-    if (not ImGui::BeginChild(name.c_str())) {
-        ImGui::EndChild();
-        return;
-    }
-
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
-
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
-
-    const auto canvas_p1              = canvas_p0 + canvas_sz;
-    u32        outer_border_c         = 0u;
-    u32        inner_border_c         = 0u;
-    u32        edge_c                 = 0u;
-    u32        node_active_c          = 0u;
-    u32        edge_active_c          = 0u;
-    u32        background_selection_c = 0u;
-
-    app.config.vars.colors.read(
-      [&](const auto& colors, const auto /*v*/) noexcept {
-          outer_border_c         = to_ImU32(colors[style_color::outer_border]);
-          inner_border_c         = to_ImU32(colors[style_color::inner_border]);
-          edge_c                 = to_ImU32(colors[style_color::edge]);
-          node_active_c          = to_ImU32(colors[style_color::node_active]);
-          edge_active_c          = to_ImU32(colors[style_color::edge_active]);
-          background_selection_c = to_ImU32(
-            colors[style_color::background_selection]);
-      });
-
-    if (initialize_canvas(canvas_p0, canvas_p1, outer_border_c))
-        update(app, g.g);
-
-    if (flags[option::show_grid])
-        draw_grid(canvas_p0, canvas_p1, inner_border_c);
-
-    draw_graph(g.g, canvas_p0, edge_c, node_active_c, edge_active_c, app);
-
-    (void)draw_popup(
-      app, g.g, canvas_p0,
-      bitflags<popup_options>{ popup_options::show_graph_modication });
-
-    draw_selection(g.g, canvas_p0, background_selection_c);
-
-    ImGui::GetWindowDrawList()->PopClipRect();
-    ImGui::End();
-}
-
 void graph_editor::update(application& app, const graph& g) noexcept
 {
     app.add_gui_task([&]() noexcept {

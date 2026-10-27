@@ -86,24 +86,6 @@ public:
         return m_buffer[m_buffer_pos++];
     }
 
-    /** Discard @c z random numbers. Useful to jump ahead in the random
-     * sequence. */
-    constexpr void discard(const u64 z) noexcept
-    {
-        m_counter[1] += z;
-        m_buffer_pos = 2; // Invalid the buffer.
-    }
-
-    /** A state setter to give full random access for example to replay
-     * simulation for example @c index is the @c model_id and @c step is the
-     * number of the random.  */
-    constexpr void set_state(const u64 index, const u64 step) noexcept
-    {
-        m_counter[0] = index;
-        m_counter[1] = step;
-        m_buffer_pos = 2; // Invalid the buffer.
-    }
-
     /** Give the minimum integer of the random generator. Defined by the STL
      * requirements for random number generators. */
     static constexpr result_type min() noexcept
@@ -187,24 +169,6 @@ public:
             refill_buffer();
 
         return m_state[buf_0 + m_state[pos]++];
-    }
-
-    /** Discard @c z random numbers. Useful to jump ahead in the random
-     * sequence. */
-    constexpr void discard(const u64 z) noexcept
-    {
-        m_state[ctr_1] += z;
-        m_state[pos] = 2; // Invalid the buffer.
-    }
-
-    /** A state setter to give full random access for example to replay
-     * simulation for example @c index is the @c model_id and @c step is the
-     * number of the random.  */
-    constexpr void set_state(const u64 index, const u64 step) noexcept
-    {
-        m_state[ctr_0] = index;
-        m_state[ctr_1] = step;
-        m_state[pos]   = 2; // Invalid the buffer.
     }
 
     /** Give the minimum integer of the random generator. Defined by the STL

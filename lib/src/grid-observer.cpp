@@ -133,12 +133,6 @@ status grid_observer::init(project& pj, const modeling& mod) noexcept
     });
 }
 
-void grid_observer::clear() noexcept
-{
-    observers.clear();
-    values.clear();
-}
-
 void grid_observer::update(const project& pj) noexcept
 {
     const auto len        = static_cast<std::size_t>(rows * cols);

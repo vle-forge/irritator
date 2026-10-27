@@ -92,17 +92,6 @@ public:
         move_op++;
         return *this;
     }
-
-    static void reset() noexcept
-    {
-        counters::default_ctor  = 0;
-        counters::copy_ctor     = 0;
-        counters::move_ctor     = 0;
-        counters::in_place_ctor = 0;
-        counters::dtor          = 0;
-        counters::copy_op       = 0;
-        counters::move_op       = 0;
-    }
 };
 
 struct count_ctor_assign {
@@ -143,18 +132,6 @@ struct count_ctor_assign {
     }
 
     ~count_ctor_assign() noexcept { count_dtor++; }
-
-    int value() const noexcept { return a; }
-
-    static void reset() noexcept
-    {
-        count_ctor        = 0;
-        count_move_ctor   = 0;
-        count_copy_ctor   = 0;
-        count_move_assign = 0;
-        count_copy_assign = 0;
-        count_dtor        = 0;
-    }
 
     static inline int count_ctor;
     static inline int count_move_ctor;

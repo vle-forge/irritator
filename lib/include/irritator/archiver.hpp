@@ -25,8 +25,6 @@ private:
 public:
     json_dearchiver() noexcept = default;
 
-    status set_buffer(const u32 buffer_size) noexcept;
-
     //! Load a component structure from a json file.
     status operator()(const file_access& files,
                       component_access&  ids,
@@ -55,7 +53,6 @@ public:
                       const component_access& ids,
                       std::span<char>         io) noexcept;
 
-    void destroy() noexcept;
     void clear() noexcept;
 };
 
@@ -106,7 +103,6 @@ public:
                       vector<char>&           buffer,
                       print_option print_options = print_option::off) noexcept;
 
-    void destroy() noexcept;
     void clear() noexcept;
 };
 

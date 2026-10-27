@@ -989,12 +989,6 @@ graph_component_editor_data::graph_component_editor_data(
   , m_id(id_)
 {}
 
-void graph_component_editor_data::clear() noexcept
-{
-    graph_id = undefined<graph_component_id>();
-    m_id     = undefined<component_id>();
-}
-
 bool graph_component_editor_data::show(component_editor& ed,
                                        const component_access& /*ids*/,
                                        component& compo) noexcept
@@ -1140,12 +1134,6 @@ bool graph_component_editor_data::show_selected_nodes(
     }
 
     return false;
-}
-
-bool graph_component_editor_data::need_show_selected_nodes(
-  component_editor& /*ed*/) noexcept
-{
-    return not selected_nodes.empty();
 }
 
 void graph_component_editor_data::clear_selected_nodes() noexcept

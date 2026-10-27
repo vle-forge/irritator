@@ -305,13 +305,6 @@ struct failing_resource {
         {
             std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
         }
-
-        void release() noexcept {}
-
-        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
-        {
-            return { 0, 0 };
-        }
     };
 
     static data& instance() noexcept

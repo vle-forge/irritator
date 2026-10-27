@@ -357,18 +357,6 @@ bool flat_simulation_editor::display(application&    app,
     return true;
 }
 
-void flat_simulation_editor::reset() noexcept
-{
-    distance        = { 15.f, 15.f };
-    scrolling       = { 0.f, 0.f };
-    zoom            = 1.f;
-    start_selection = { 0.f, 0.f };
-    end_selection   = { 0.f, 0.f };
-
-    selected_nodes.clear();
-    run_selection = false;
-}
-
 constexpr static auto clear(auto&      data,
                             const auto models,
                             const auto tns) noexcept
@@ -412,24 +400,6 @@ static ImU32 compute_color(const float t) noexcept
     const ImU32 ml  = (al * af + bl * bf);
     const ImU32 mh  = (ah * af + bh * bf);
     return (mh & 0xff00ff00) | ((ml & 0xff00ff00) >> 8);
-}
-
-constexpr static void move_tn(auto&              data,
-                              const tree_node_id tn_id,
-                              const float        shift_x,
-                              const float        shift_y) noexcept
-{
-    data.tn_centers[tn_id].x += shift_x;
-    data.tn_centers[tn_id].y += shift_y;
-}
-
-constexpr static void move_model(auto&          data,
-                                 const model_id mdl_id,
-                                 const float    shift_x,
-                                 const float    shift_y) noexcept
-{
-    data.positions[mdl_id][0] += shift_x;
-    data.positions[mdl_id][1] += shift_y;
 }
 
 constexpr static void move_models(auto&            data,

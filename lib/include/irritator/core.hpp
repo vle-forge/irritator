@@ -345,12 +345,6 @@ constexpr bool any_equal(const T& s, Args&&... args) noexcept
     return ((s == std::forward<Args>(args)) || ... || false);
 }
 
-template<class T, class... Rest>
-constexpr bool all_same_type() noexcept
-{
-    return (std::is_same_v<T, Rest> && ...);
-}
-
 /** Checks if the given two numbers are relatively equal according to a relative
  * epsilon. */
 template<std::floating_point Real>
@@ -445,9 +439,6 @@ public:
     /// be undefined_file -- there is no string to append for it.
     void replace_extension(const file_type type) noexcept;
 
-    std::string_view filename() const noexcept;
-    std::string_view extension() const noexcept;
-
     /// Get the parent directory of the path.
     path parent_directory() const noexcept;
 
@@ -456,8 +447,6 @@ public:
     /// Windows interprets the narrow string according to the system code
     /// page, not necessarily as UTF-8.
     std::filesystem::path to_std_path() const noexcept;
-    std::ifstream         open_std_ifstream() const noexcept;
-    std::ofstream         open_std_ofstream() const noexcept;
     std_file              open_std_file(const char* mode) const noexcept;
 };
 
@@ -490,17 +479,7 @@ struct time_domain<time> {
     {
         return std::fpclassify(t) == FP_INFINITE;
     }
-
-    static bool is_zero(time t) noexcept
-    {
-        return std::fpclassify(t) == FP_ZERO;
-    }
 };
-
-inline bool is_infinity(const std::floating_point auto x) noexcept
-{
-    return std::fpclassify(x) == FP_INFINITE;
-}
 
 inline bool is_zero(const std::floating_point auto x) noexcept
 {
@@ -772,7 +751,6 @@ public:
     void swap(binary_file_source& other) noexcept;
 
     status init() noexcept;
-    void   finalize() noexcept;
     status init(source& src, source_data& data) noexcept;
     status update(source& src, source_data& data) noexcept;
     status restore(source& src, source_data& data) noexcept;
@@ -809,7 +787,6 @@ public:
     void swap(text_file_source& other) noexcept;
 
     status init() noexcept;
-    void   finalize() noexcept;
     status init(source& src, source_data& data) noexcept;
     status update(source& src, source_data& data) noexcept;
     status restore(source& src, source_data& data) noexcept;
@@ -971,10 +948,6 @@ public:
     //! Call the @c init function for all sources (@c constant_source, @c
     //! binary_file_source etc.).
     status prepare() noexcept;
-
-    //! Call the @c finalize function for all sources (@c constant_source,
-    //! @c binary_file_source etc.). Usefull to close opened files.
-    void finalize() noexcept;
 
     //! To be used in model declaration to initialize a source instance
     //! according to the type of the external source.
@@ -1207,7 +1180,6 @@ struct parameter {
 
     parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
-    parameter& set_integrator(real X) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
     parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
@@ -1226,7 +1198,6 @@ struct parameter {
     parameter& set_priority_queue(real sigma) noexcept;
 
     parameter& set_generator_ta(real sigma) noexcept;
-    parameter& set_generator_value(real value) noexcept;
     parameter& set_generator_ta(const source_type   type,
                                 const source_any_id id) noexcept;
     parameter& set_generator_value(const source_type   type,
@@ -1244,8 +1215,6 @@ struct parameter {
     parameter& set_dynamic_queue_ta(
       const external_source_definition::id id) noexcept;
     parameter& set_priority_queue_ta(
-      const external_source_definition::id id) noexcept;
-    parameter& set_hsm_wrapper_value(
       const external_source_definition::id id) noexcept;
 
     std::array<real, 4> reals{};
@@ -1479,10 +1448,6 @@ public:
     /// consumer exists on the other side of the SPSC contract.
     raw_buffer_type& raw_buffer() noexcept { return m_raw; }
 
-    /// Current occupancy of raw_buffer, queryable at any time by the
-    /// copy task, not only in reaction to observe()'s return value.
-    buffer_status raw_status() const noexcept { return raw_fill_status(); }
-
     template<typename Fn, typename... Args>
     auto read_history(Fn&& fn, Args&&... args) const noexcept
       -> decltype(std::invoke(
@@ -1678,18 +1643,13 @@ public:
     constexpr void   decrease(time tn, handle elem) noexcept;
     constexpr void   increase(time tn, handle elem) noexcept;
 
-    constexpr time tn(handle elem) noexcept;
-
     constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
 
     constexpr bool full() const noexcept;
     constexpr bool empty() const noexcept;
     constexpr bool is_in_tree(handle h) const noexcept;
 
     constexpr handle top() const noexcept;
-
-    constexpr void merge(heap& src) noexcept;
 
     constexpr const node& operator[](handle h) const noexcept;
     constexpr node&       operator[](handle h) noexcept;
@@ -1804,9 +1764,6 @@ public:
     bool is_in_tree(handle h) const noexcept;
 
     bool empty() const noexcept;
-
-    inline unsigned size() const noexcept;
-    int             ssize() const noexcept;
 };
 
 /// Stores two simulation time values, the begin `]-oo, +oo[` and the end
@@ -1823,9 +1780,6 @@ public:
     constexpr void set_bound(const double begin_, const double end_) noexcept;
     constexpr void set_duration(const double begin_,
                                 const double end_) noexcept;
-
-    /// Restore @c begin and @c end to @c 0 and @c 100 as in default ctor.
-    constexpr void clear() noexcept;
 
     /// @return true if @c value if the value exceeds the @c m_end value.
     constexpr bool expired(const double value) const noexcept;
@@ -1876,14 +1830,6 @@ struct output_port {
                                                 node in the linked
                                                 list of output port
                                                 connections. */
-
-    /** Call the @c Function for each node from the @c output_port::connection
-     * and/or from the @c output_port::next linked list. */
-    template<typename Function, typename... Args>
-    void for_each(const data_array<model, model_id>&           models,
-                  const data_array<block_node, block_node_id>& nodes,
-                  Function&&                                   fn,
-                  Args&&... args) const noexcept;
 
     /** Call the @c Function for each node from the @c output_port::connection
      * and/or from the @c output_port::next linked list. All nodes without valid
@@ -2028,11 +1974,6 @@ struct random_factor {
     /** Allocate and fill a new vector with random values according to the
      * random distribution and parameters. */
     vector<real> gen(std::span<u64, 6> key) const noexcept;
-
-    /** Fill a vector with random values according to the random distribution
-     * and parameters. */
-    std::span<real> gen(std::span<u64, 6> key,
-                        std::span<real>   values) const noexcept;
 };
 
 using simulation_factor = id_data_array<void,
@@ -2154,10 +2095,6 @@ public:
     void destroy() noexcept;
 
     bool can_alloc(std::integral auto place) const noexcept;
-    bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
-
-    template<typename Dynamics>
-    bool can_alloc_dynamics(std::integral auto place) const noexcept;
 
     //! @brief cleanup simulation object
     //!
@@ -2187,12 +2124,6 @@ public:
     /// with @c dt time-step. The interpolate type is automatically detected.
     status observe(model& mdl, const time) noexcept;
 
-    /// Allocate a new observer for the model @c mdl and resample raw-sample
-    /// with @c dt time-step and for the interpolate_type @c type.
-    status observe(model& mdl,
-                   const time,
-                   const interpolate_type type) noexcept;
-
     void unobserve(model& mdl) noexcept;
 
     void deallocate(model_id id) noexcept;
@@ -2218,60 +2149,6 @@ public:
 
     status connect(output_port& port, model_id dst, int port_dst) noexcept;
     status connect(output_port_id& port, model_id dst, int port_dst) noexcept;
-
-    template<typename Function, typename... Args>
-    void for_each(output_port& port, Function&& fn, Args&&... args) noexcept
-    {
-        for (const auto& elem : port.connections)
-            if (auto* mdl = models.try_to_get(elem.model))
-                std::invoke(std::forward<Function>(fn), *mdl, elem.port_index,
-                            std::forward<Args>(args)...);
-
-        block_node* prev = nullptr;
-        for (auto* block = nodes.try_to_get(port.next); block;
-             block       = nodes.try_to_get(block->next)) {
-
-            for (auto it = block->nodes.begin(); it != block->nodes.end();) {
-                if (auto* mdl = models.try_to_get(it->model)) {
-                    std::invoke(std::forward<Function>(fn), *mdl,
-                                it->port_index, std::forward<Args>(args)...);
-                    ++it;
-                } else {
-                    block->nodes.swap_pop_back(it);
-                }
-
-                if (block->nodes.empty()) {
-                    if (prev != nullptr) {
-                        prev->next = block->next;
-                        nodes.free(*block);
-                        block = prev;
-                    } else {
-                        if (auto* next_block = nodes.try_to_get(block->next)) {
-                            block->nodes = next_block->nodes;
-                            block->next  = next_block->next;
-                            nodes.free(*next_block);
-                        } else {
-                            nodes.free(*block);
-                            port.next = undefined<block_node_id>();
-                            break;
-                        }
-                    }
-                } else {
-                    prev = block;
-                }
-            }
-        }
-    }
-
-    template<typename Function, typename... Args>
-    void for_each(const output_port_id port,
-                  Function&&           fn,
-                  Args&&... args) noexcept
-    {
-        if (auto* y = output_ports.try_to_get(port))
-            for_each(*y, std::forward<Function>(fn),
-                     std::forward<Args>(args)...);
-    }
 
     template<typename Function, typename... Args>
     void for_each(const output_port_id& port,
@@ -2335,9 +2212,6 @@ public:
     status initialize() noexcept;
 
     status run() noexcept;
-
-    template<typename Fn, typename... Args>
-    status run_with_cb(Fn&& fn, Args&&... args) noexcept;
 
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
@@ -2603,11 +2477,6 @@ inline auto get_qss_message(std::span<const message> msgs) noexcept
 /// Get the minimum value (@c message[0]) from the list of messages. If
 /// the list is empty, this function returns zero.
 constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
-  -> real;
-
-/// Get the maximum value (@c message[0]) from the list of messages. If
-/// the list is empty, this function returns zero.
-constexpr inline auto get_max_message(std::span<const message> msgs) noexcept
   -> real;
 
 inline status send_message(simulation&    sim,
@@ -10627,25 +10496,6 @@ inline bool is_ports_compatible(const model& mdl_src,
  *
  ****************************************************************************/
 
-inline void copy(const model& src, model& dst) noexcept
-{
-    dst.type   = src.type;
-    dst.handle = invalid_heap_handle;
-
-    dispatch(dst, [&src]<typename Dynamics>(Dynamics& dst_dyn) -> void {
-        const auto& src_dyn = get_dyn<Dynamics>(src);
-        std::construct_at(&dst_dyn, src_dyn);
-
-        if constexpr (has_input_port<Dynamics>)
-            for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
-                dst_dyn.x[i].reset();
-
-        if constexpr (has_output_port<Dynamics>)
-            for (int i = 0, e = length(dst_dyn.y); i != e; ++i)
-                dst_dyn.y[i] = undefined<output_port_id>();
-    });
-}
-
 template<typename Dynamics>
 inline status external_source::initialize_source(Dynamics&    dyn,
                                                  source&      src,
@@ -10895,12 +10745,6 @@ constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
   -> real
 {
     return msgs.empty() ? zero : (*std::ranges::min_element(msgs))[0];
-}
-
-constexpr inline auto get_max_message(std::span<const message> msgs) noexcept
-  -> real
-{
-    return msgs.empty() ? zero : (*std::ranges::max_element(msgs))[0];
 }
 
 /**
@@ -11185,21 +11029,9 @@ constexpr void heap<A>::increase(time tn, handle elem) noexcept
 }
 
 template<typename A>
-constexpr time heap<A>::tn(handle elem) noexcept
-{
-    return nodes[elem].tn;
-}
-
-template<typename A>
 constexpr unsigned heap<A>::size() const noexcept
 {
     return static_cast<unsigned>(m_size);
-}
-
-template<typename A>
-constexpr int heap<A>::ssize() const noexcept
-{
-    return static_cast<int>(m_size);
 }
 
 template<typename A>
@@ -11232,21 +11064,6 @@ template<typename A>
 constexpr typename heap<A>::handle heap<A>::top() const noexcept
 {
     return root;
-}
-
-template<typename A>
-constexpr void heap<A>::merge(heap& src) noexcept
-{
-    if (this == &src)
-        return;
-
-    if (root == invalid_heap_handle) {
-        root = src.root;
-        return;
-    }
-
-    root = merge(root, src.root);
-    m_size += src.m_size;
 }
 
 template<typename A>
@@ -11478,18 +11295,6 @@ inline bool scheduller<A>::empty() const noexcept
     return m_heap.empty();
 }
 
-template<typename A>
-unsigned scheduller<A>::size() const noexcept
-{
-    return m_heap.size();
-}
-
-template<typename A>
-inline int scheduller<A>::ssize() const noexcept
-{
-    return static_cast<int>(m_heap.size());
-}
-
 //
 // simulation
 //
@@ -11515,12 +11320,6 @@ inline constexpr void time_limit::set_duration(const double begin_,
             m_end   = begin_ + duration_;
         }
     }
-}
-
-inline constexpr void time_limit::clear() noexcept
-{
-    m_begin = 0;
-    m_end   = 100;
 }
 
 inline constexpr bool time_limit::expired(const double value) const noexcept
@@ -11884,28 +11683,6 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
         observers.get<resampler>(
           obs_id) = resampler{ dt, get_interpolate_type(mdl.type) };
-        observers.get<observer_history_cursor>(obs_id) = 0;
-        observers.get<observer_name>(obs_id).clear();
-
-        mdl.obs_id = obs_id;
-    }
-
-    return success();
-}
-
-inline status simulation::observe(model&                 mdl,
-                                  const time             dt,
-                                  const interpolate_type type) noexcept
-{
-    if (debug::check(not observers.exists(mdl.obs_id))) {
-        if (not observers.can_alloc(1))
-            return make_error(simulation_errc::observers_container_full);
-
-        auto& obs = observers.alloc(models.get_id(mdl));
-
-        const auto obs_id = observers.get_id(obs);
-
-        observers.get<resampler>(obs_id)               = resampler{ dt, type };
         observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
@@ -12452,70 +12229,6 @@ inline status simulation::run() noexcept
     return success();
 }
 
-template<typename Fn, typename... Args>
-inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
-{
-    debug::ensure(std::isfinite(t.load()));
-
-    immediate_models.clear();
-    immediate_observers.clear();
-
-    if (sched.empty()) {
-        t = time_domain<time>::infinity;
-        return success();
-    }
-
-    last_valid_t = t;
-    t            = sched.tn();
-
-    if (limits.expired(t)) {
-        t = limits.end();
-        return success();
-    }
-
-    sched.pop(immediate_models);
-
-    // emitting_output_ports.clear();
-    for (const auto id : immediate_models)
-        if (auto* mdl = models.try_to_get(id); mdl)
-            irt_check(make_transition(*mdl, t));
-
-    fn(std::as_const(*this),
-       std::span(immediate_models.data(), immediate_models.size()),
-       std::forward<Args>(args)...);
-
-    // for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-    //     auto* mdl =
-    //     models.try_to_get(emitting_output_ports[i].model); if (!mdl)
-    //         continue;
-
-    //    debug::ensure(sched.is_in_tree(mdl->handle));
-    //    sched.update(*mdl, t);
-
-    //    if (not messages.can_alloc(1))
-    //        return
-    //        make_error(simulation_errc::messages_container_full);
-
-    //    auto  port = emitting_output_ports[i].port;
-    //    auto& msg  = emitting_output_ports[i].msg;
-
-    //    dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-    //        if constexpr (has_input_port<Dynamics>) {
-    //            auto* list = messages.try_to_get(dyn.x[port]);
-    //            if (not list) {
-    //                auto& new_list = messages.alloc();
-    //                dyn.x[port]    = messages.get_id(new_list);
-    //                list           = &new_list;
-    //            }
-
-    //            list->push_back({ msg[0], msg[1], msg[2] });
-    //        }
-    //    });
-    //}
-
-    return success();
-}
-
 //
 // class HSM
 //
@@ -12681,29 +12394,6 @@ inline raw_sample hsm_wrapper::observation(time t, time /*e*/) const noexcept
 inline bool simulation::can_alloc(std::integral auto place) const noexcept
 {
     return models.can_alloc(place);
-}
-
-inline bool simulation::can_alloc(dynamics_type      type,
-                                  std::integral auto place) const noexcept
-{
-    if (type == dynamics_type::hsm_wrapper)
-        return models.can_alloc(place) && hsms.can_alloc(place);
-    else if (type == dynamics_type::simulation_wrapper)
-        return models.can_alloc(place) and sims.can_alloc(place);
-    else
-        return models.can_alloc(place);
-}
-
-template<typename Dynamics>
-inline bool simulation::can_alloc_dynamics(
-  std::integral auto place) const noexcept
-{
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return models.can_alloc(place) && hsms.can_alloc(place);
-    else if constexpr (std::is_same_v<Dynamics, simulation_wrapper>)
-        return models.can_alloc(place) && sims.can_alloc(place);
-    else
-        return models.can_alloc(place);
 }
 
 template<typename Dynamics>
@@ -13170,23 +12860,6 @@ inline constexpr void input_port::reset() noexcept
 }
 
 // output-port implementation
-
-template<typename Function, typename... Args>
-void output_port::for_each(const data_array<model, model_id>&           models,
-                           const data_array<block_node, block_node_id>& nodes,
-                           Function&&                                   fn,
-                           Args&&... args) const noexcept
-{
-    for (const auto& node : connections)
-        if (const auto* mdl = models.try_to_get(node.model))
-            std::invoke(fn, *mdl, node.port_index, args...);
-
-    for (const auto* block = nodes.try_to_get(next); block;
-         block             = nodes.try_to_get(block->next))
-        for (const auto& elem : block->nodes)
-            if (const auto* mdl = models.try_to_get(elem.model))
-                std::invoke(fn, *mdl, elem.port_index, args...);
-}
 
 template<typename Function, typename... Args>
 void output_port::for_each(data_array<model, model_id>&           models,

@@ -645,36 +645,6 @@ bool application::init() noexcept
     return true;
 }
 
-template<typename DataArray>
-static void cleanup_sim_or_gui_task(DataArray& d_array) noexcept
-{
-    typename DataArray::value_type* task   = nullptr;
-    typename DataArray::value_type* to_del = nullptr;
-
-    while (d_array.next(task)) {
-        if (to_del) {
-            d_array.free(*to_del);
-            to_del = nullptr;
-        }
-
-        if (task->state == task_status::finished) {
-            to_del = task;
-        }
-    }
-
-    if (to_del)
-        d_array.free(*to_del);
-}
-
-void application::request_open_directory_dlg(
-  const registred_path_id id) noexcept
-{
-    debug::ensure(not show_select_reg_path);
-
-    show_select_reg_path = true;
-    selected_reg_path    = id;
-}
-
 auto application::show_menu() noexcept -> show_result_t
 {
     show_result_t ret = show_result_t::success;
@@ -918,36 +888,6 @@ auto application::show() noexcept -> show_result_t
     return ret;
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
-{
-    vector<component_id> ret;
-    vector<tree_node*>   stack;
-
-    if (auto* child = tn.tree.get_child(); child)
-        stack.emplace_back(child);
-
-    while (!stack.empty()) {
-        auto* cur = stack.back();
-        stack.pop_back();
-
-        app.mod.ids.read([&](const auto& ids, auto) {
-            if (ids.exists(cur->id))
-                if (auto it = std::find(ret.begin(), ret.end(), cur->id);
-                    it == ret.end())
-                    ret.emplace_back(cur->id);
-        });
-
-        if (auto* sibling = cur->tree.get_sibling(); sibling)
-            stack.emplace_back(sibling);
-
-        if (auto* child = cur->tree.get_child(); child)
-            stack.emplace_back(child);
-    }
-
-    return ret;
-}
-
 bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
@@ -1051,103 +991,6 @@ bool show_select_model_box(const char*     button_label,
     return ret;
 }
 
-void application::start_load_project(const project_id pj_id) noexcept
-{
-    add_gui_task([&, pj_id]() noexcept {
-        auto* pj = pjs.try_to_get(pj_id);
-        if (not pj or is_undefined(pj->pj.project_file))
-            return;
-
-        mod.files.read([&](const auto& fs, auto) noexcept {
-            mod.ids.read([&](const auto& ids, auto) noexcept {
-                if (auto ret = pj->pj.load(fs, ids); ret.has_value()) {
-                    log(log_level::info, [&](auto& msg) noexcept {
-                        mod.files.read([&](const auto& fs,
-                                           const auto /*vesr*/) {
-                            format(
-                              msg, "Loading project file {} success",
-                              fs.file_paths.get(pj->pj.project_file).path.sv());
-                        });
-                    });
-                } else {
-                    log(log_level::error, [&](auto& msg) noexcept {
-                        mod.files.read([&](const auto& fs,
-                                           const auto /*vesr*/) {
-                            format(
-                              msg, "Loading project file {} error",
-                              fs.file_paths.get(pj->pj.project_file).path.sv());
-                            format(msg, "{}", ret.error());
-                        });
-                    });
-                }
-            });
-        });
-    });
-}
-
-void application::start_save_project(const project_id pj_id) noexcept
-{
-    add_gui_task([&, pj_id]() noexcept {
-        auto* pj_ed = pjs.try_to_get(pj_id);
-        if (not pj_ed)
-            return;
-
-        mod.files.read([&](const auto& fs, auto) noexcept {
-            mod.ids.read([&](const auto& ids, auto) noexcept {
-                if (auto ret = pj_ed->pj.save(fs, ids); ret) {
-                    log(log_level::info, [&](auto& msg) noexcept {
-                        mod.files.read(
-                          [&](const auto& fs, const auto /*vers*/) {
-                              format(msg, "Saving project file {} success",
-                                     fs.file_paths.get(pj_ed->pj.project_file)
-                                       .path.sv());
-                          });
-                    });
-                } else {
-                    log(log_level::error, [&](auto& msg) noexcept {
-                        const small_string<127> name = mod.files.read(
-                          [&](const auto& fs, const auto /*vers*/) {
-                              const auto* f = fs.file_paths.try_to_get(
-                                pj_ed->pj.project_file);
-                              return f ? f->path.sv() : std::string_view{ "-" };
-                          });
-
-                        format(msg, "Saving project file {} error {}",
-                               name.sv(), ret.error());
-                    });
-                }
-            });
-        });
-    });
-}
-
-void application::start_save_component(const component_id id) noexcept
-{
-    add_gui_task([&, id]() noexcept {
-        mod.ids.read([&](const auto& ids, auto) noexcept {
-            mod.files.read([&](const auto& fs, auto) noexcept {
-                if (ids.exists(id)) {
-                    const auto& compo = ids.components[id];
-
-                    if (auto ret = mod.save(ids, fs, id); not ret) {
-                        log(log_level::error, [&](auto& msg) {
-                            format(msg,
-                                   "component: fail to save {} (part: {} {}",
-                                   compo.name.sv(), ordinal(ret.error().cat()),
-                                   ret.error().value());
-                        });
-                    } else {
-                        log(log_level::notice, [&](auto& msg) {
-                            format(msg, "component: save {} success",
-                                   compo.name.sv());
-                        });
-                    }
-                }
-            });
-        });
-    });
-}
-
 void application::start_init_source(const project_id  pj_id,
                                     const u64         id,
                                     const source_type type) noexcept
@@ -1197,13 +1040,6 @@ void application::start_init_source(const project_id  pj_id,
                 }
             }
         }
-    });
-}
-
-void application::start_dir_path_refresh(const dir_path_id id) noexcept
-{
-    add_gui_task([&, id]() noexcept {
-        mod.files.write([&](auto& fs) { fs.refresh(id); });
     });
 }
 

@@ -102,11 +102,6 @@ inline static auto ichar_equals(char a, char b) noexcept -> bool
     return ascii_tolower(a) == ascii_tolower(b);
 }
 
-inline std::string_view to_sv(const vector<char>& vec) noexcept
-{
-    return std::string_view(vec.data(), vec.size());
-}
-
 /**
    Returns @c true if two strings are equal, using a case-insensitive
    comparison. The case-comparison operation is defined only for low-ASCII
@@ -146,13 +141,6 @@ slow:
 
     return true;
 }
-
-static constexpr std::string_view element_type_string[] = {
-    "{}",     "digraph",  "edge", "graph",   "node",
-    "strict", "subgraph", "id",   "integer", "double_quote",
-    "{",      "}",        ":",    ".",       ";",
-    "=",      "[",        "]",    "->",      "--",
-};
 
 enum class str_id : irt::u32;
 
@@ -726,11 +714,6 @@ private:
         return {};
     }
 
-    bool empty() const noexcept
-    {
-        return tokens.empty() and (is.eof() or is.bad());
-    }
-
     bool check_minimum_tokens(std::integral auto nb) noexcept
     {
         debug::ensure(std::cmp_less(nb, tokens.capacity()));
@@ -741,19 +724,6 @@ private:
         (void)fill_tokens();
 
         return std::cmp_greater_equal(tokens.size(), nb);
-    }
-
-    void print_ring(const std::string_view title) const noexcept
-    {
-        fmt::print("{}\n ", title);
-        for (auto it = tokens.head(), et = tokens.tail(); it != et; ++it) {
-            if (it->is_string())
-                fmt::print(" `{}'", to_sv(strings.get<vector<char>>(it->str)));
-            else
-                fmt::print(" {}",
-                           element_type_string[static_cast<int>(it->type)]);
-        }
-        fmt::print("\n");
     }
 
     bool next_is_edge() noexcept
@@ -1658,23 +1628,6 @@ expected<void> graph::reserve(int n, int e) noexcept
         return make_error(modeling_errc::dot_memory_insufficient);
 
     return success();
-}
-
-void graph::swap(graph& g) noexcept
-{
-    nodes.swap(g.nodes);
-    edges.swap(g.edges);
-    node_names.swap(g.node_names);
-    node_labels.swap(g.node_labels);
-    node_positions.swap(g.node_positions);
-    node_components.swap(g.node_components);
-    node_areas.swap(g.node_areas);
-    edges_nodes.swap(g.edges_nodes);
-    edges_penwidths.swap(g.edges_penwidths);
-
-    main_id.swap(g.main_id);
-    std::swap(buffer, g.buffer);
-    std::swap(flags, g.flags);
 }
 
 void graph::clear() noexcept

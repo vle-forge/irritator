@@ -164,13 +164,6 @@ class plot_observation_widget
 public:
     plot_observation_widget() noexcept = default;
 
-    /** Display all observers data using an ImPlot::PlotLineG or
-     * ImPlot::PlotScatterG for continuous data or ImPlot::PlotStairsG or
-     * ImPlot::PlotBarG for discrete data into and ImPlot::BeginPlot() /
-     * ImPlot::EndPlot().
-     */
-    void show(project& app) noexcept;
-
     /** Display the observer data using an ImPlot::PlotLineG or
      * ImPlot::PlotScatterG for continuous data or ImPlot::PlotStairsG or
      * ImPlot::PlotBarG for discrete data.
@@ -276,16 +269,6 @@ struct grid_observation_widget {
               const ImVec2&  size) noexcept;
 };
 
-// Callback function use into ImPlot::Plot like functions that use ring_buffer
-// to read a large buffer instead of a vector.
-inline ImPlotPoint ring_buffer_getter(int idx, void* data)
-{
-    auto* ring  = reinterpret_cast<ring_buffer<observation>*>(data);
-    auto  index = ring->index_from_begin(idx);
-
-    return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
-};
-
 /**
  * @brief The file_selector class display triple-combobox to select a file,
  * create new files or directories.
@@ -353,9 +336,6 @@ struct plot_copy {
 };
 
 struct plot_copy_widget {
-    /** Display all plot_copy data into a ImPlot widget. */
-    void show(const char* name) noexcept;
-
     /** Display a @c plot_copy using @c ImPlot::PlogLineG or @c
      * ImPlot::PlotScatterG but without @c ImPlot::BeginPlot and @c
      * ImPlot::EndPlot */
@@ -373,11 +353,6 @@ public:
     void show() noexcept;
 
     bool is_open = false;
-
-    void save_obs(const project_id                pj_id,
-                  const variable_observer_id      vobs,
-                  const variable_observer::sub_id svobs) noexcept;
-    void save_copy(const plot_copy_id id) noexcept;
 
     void add_project(const project_id id) noexcept;
     void remove_project(const project_id id) noexcept;
@@ -428,12 +403,6 @@ public:
     enum class option : u8 { show_grid, show_help };
 
     graph_editor() noexcept;
-
-    /** Display the graph component directly into a @c ImGui::BeginChild. */
-    void show(application&       app,
-              component&         c,
-              const component_id c_id,
-              graph_component&   g) noexcept;
 
     /** Display the simulation @c tree-node and @c graph-observer into an
      * @c ImGui::BeginChild window.
@@ -542,19 +511,12 @@ public:
     grid_component_editor_data(const component_id      id,
                                const grid_component_id grid) noexcept;
 
-    void clear() noexcept;
-
     bool show(component_editor& ed,
               const component_access&,
               component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
-    bool need_show_selected_nodes(component_editor& ed) noexcept;
-    void clear_selected_nodes() noexcept;
-
-    //! Get the underlying component_id.
-    component_id get_id() const noexcept { return m_id; }
 
     ImVec2           distance{ 5.f, 5.f };
     ImVec2           size{ 30.f, 30.f };
@@ -584,19 +546,13 @@ public:
     graph_component_editor_data(const component_id       id,
                                 const graph_component_id graph) noexcept;
 
-    void clear() noexcept;
-
     bool show(component_editor& ed,
               const component_access&,
               component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
-    bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
-
-    //! Get the underlying component_id.
-    component_id get_id() const noexcept { return m_id; }
 
 private:
     file_selector file_select;
@@ -698,24 +654,18 @@ public:
                               const hsm_component&   hsm) noexcept;
     ~hsm_component_editor_data() noexcept;
 
-    //! Get the underlying component_id.
-    component_id get_id() const noexcept { return m_id; }
-
     bool show(component_editor& ed,
               const component_access&,
               component& compo) noexcept;
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
-    bool need_show_selected_nodes(component_editor& ed) noexcept;
-    void clear_selected_nodes() noexcept;
 
 private:
     void show_hsm() noexcept;
     bool show_menu() noexcept;
     bool show_graph() noexcept;
     bool show_panel(component&) noexcept;
-    void clear() noexcept;
     bool valid() noexcept;
 
     void read(application& app, component&) noexcept;
@@ -761,11 +711,6 @@ public:
     bool show_selected_nodes(component_editor& ed,
                              const component_access&,
                              component& compo) noexcept;
-    bool need_show_selected_nodes(component_editor& ed) noexcept;
-    void clear_selected_nodes() noexcept;
-
-    //! Get the underlying component_id.
-    component_id get_id() const noexcept { return m_id; }
 
     ImNodesEditorContext* context = nullptr;
 
@@ -837,14 +782,6 @@ public:
      */
     void init(application& app, project_editor& pj_ed) noexcept;
 
-    /**
-     * Add a rebuild @c nodes and @c links vectors task according to the current
-     * @c tree_node.
-     *
-     * @param app Application to use thread task manager and log.
-     */
-    void reinit(application& app, project_editor& pj_ed) noexcept;
-
     bool display(application& app, project_editor& pj_ed) noexcept;
 
     struct link {
@@ -912,8 +849,6 @@ public:
 
     bool display(application& app, project_editor& pj_ed) noexcept;
     void display_status() noexcept;
-
-    void reset() noexcept;
 
 private:
     struct data_type {
@@ -995,8 +930,6 @@ public:
     void show(application& app, project_editor& pj) noexcept;
 
     struct selection {
-        void clear() noexcept;
-
         void select(constant_source_id id) noexcept;
         void select(text_file_source_id id) noexcept;
         void select(binary_file_source_id id) noexcept;
@@ -1136,8 +1069,6 @@ public:
     void display_subwindows(application& app) noexcept;
     void close_subwindows(application& app) noexcept;
 
-    void import_from_modeling(application& app) noexcept;
-    void init_simulation(application& app) noexcept;
     void finish_simulation(application& app) noexcept;
 
     bool can_edit() const noexcept;
@@ -1165,11 +1096,6 @@ public:
     //! Select a @c tree_node node in the modeling tree node. The existence of
     //! the underlying component is tested before assignment.
     void select(application& app, tree_node_id id) noexcept;
-
-    //! @return true if @c id is the selected @c tree_node.
-    bool is_selected(tree_node_id id) const noexcept;
-
-    tree_node_id selected_tn() noexcept;
 
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
 
@@ -1230,12 +1156,6 @@ public:
     void add_simulation_component_data() noexcept;
 
     bool is_component_open(const component_id id) const noexcept;
-
-    template<typename IdentifierType>
-    auto try_to_get(const IdentifierType id) noexcept;
-
-    template<typename T>
-    auto get_id(const T& elem) const noexcept;
 
     enum class tab_id : u32;
 
@@ -1329,10 +1249,7 @@ public:
     void show() noexcept;
 
     void add_open_file(const file_path_id, const project_id) noexcept;
-    void add_open_file(const file_path_id, const component_id) noexcept;
-    void add_open_file(const file_path_id, const graph_id) noexcept;
     std::optional<file_target> get_open_file(const file_path_id) noexcept;
-    void                       close_open_file(const file_path_id) noexcept;
 
     bool is_open = true;
 
@@ -1657,12 +1574,6 @@ public:
 
     request_buffer<std::unique_ptr<project>> new_project_req;
 
-    void request_alloc_project_editor(std::unique_ptr<project> pj) noexcept
-    {
-        if (new_project_req.try_request())
-            new_project_req.fulfill(std::move(pj));
-    }
-
     /// Open a new project window iff component @c id can be set as a project.
     void try_set_component_as_project(const file_access&      files,
                                       const component_access& ids,
@@ -1708,21 +1619,12 @@ public:
         requires(std::is_integral_v<T> || is_identifier_type<T>)
     std::size_t get_task_manager_list(T id) const noexcept;
 
-    /// Allocate a new @c project_editor and read the file @c file_path_id.
-    void start_load_project(const project_id f_id) noexcept;
-
-    /// Save the project @c pj_id.
-    void start_save_project(const project_id pj_id) noexcept;
-    void start_save_component(const component_id id) noexcept;
     void start_init_source(const project_id  pj_id,
                            const u64         id,
                            const source_type type) noexcept;
     void start_hsm_test_start() noexcept;
-    void start_dir_path_refresh(const dir_path_id id) noexcept;
 
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
-
-    void request_open_directory_dlg(const registred_path_id id) noexcept;
 
     std::atomic<file_path_id> new_file;
     std::atomic<dir_path_id>  new_dir;
@@ -1817,45 +1719,6 @@ std::size_t application::get_task_manager_list(T id) const noexcept
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-
-inline tree_node_id project_editor::selected_tn() noexcept
-{
-    return m_selected_tree_node;
-}
-
-template<typename IdentifierType>
-auto component_editor::try_to_get(const IdentifierType id) noexcept
-{
-    auto& app = container_of(this, &application::component_ed);
-
-    if constexpr (std::is_same_v<IdentifierType, grid_editor_data_id>)
-        return app.grids.try_to_get(id);
-    if constexpr (std::is_same_v<IdentifierType, graph_editor_data_id>)
-        return app.graphs.try_to_get(id);
-    if constexpr (std::is_same_v<IdentifierType, generic_editor_data_id>)
-        return app.generics.try_to_get(id);
-    if constexpr (std::is_same_v<IdentifierType, hsm_editor_data_id>)
-        return app.hsms.try_to_get(id);
-    if constexpr (std::is_same_v<IdentifierType, simulation_editor_data_id>)
-        return app.sims.try_to_get(id);
-}
-
-template<typename T>
-auto component_editor::get_id(const T& elem) const noexcept
-{
-    auto& app = container_of(this, &application::component_ed);
-
-    if constexpr (std::is_same_v<T, grid_component_editor_data>)
-        return app.grids.get_id(elem);
-    if constexpr (std::is_same_v<T, graph_component_editor_data>)
-        return app.graphs.get_id(elem);
-    if constexpr (std::is_same_v<T, generic_component_editor_data>)
-        return app.generics.get_id(elem);
-    if constexpr (std::is_same_v<T, hsm_component_editor_data>)
-        return app.hsms.get_id(elem);
-    if constexpr (std::is_same_v<T, simulation_component_editor_data>)
-        return app.sims.get_id(elem);
-}
 
 } // namespace irt
 

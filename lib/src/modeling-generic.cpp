@@ -30,73 +30,6 @@ generic_component::generic_component(
     children_parameters.resize(child_limit.value());
 }
 
-expected<child_id> generic_component::copy_to(
-  const child&       c,
-  generic_component& dst) const noexcept
-{
-    // debug::ensure(children.is_in_array(c));
-
-    const auto src_id  = children.get_id(c);
-    const auto src_idx = get_index(src_id);
-
-    if (not dst.children.can_alloc())
-        return make_error(modeling_errc::generic_children_container_full);
-
-    auto& new_c = c.type == child_type::component
-                    ? dst.children.alloc(c.id.compo_id)
-                    : dst.children.alloc(c.id.mdl_type);
-
-    const auto new_c_id  = dst.children.get_id(new_c);
-    const auto new_c_idx = get_index(new_c_id);
-
-    debug::ensure(std::cmp_less(new_c_idx, dst.children_names.size()));
-    debug::ensure(std::cmp_less(new_c_idx, dst.children_positions.size()));
-    debug::ensure(std::cmp_less(new_c_idx, dst.children_parameters.size()));
-
-    dst.children_names[new_c_idx] =
-      dst.exists_child(children_names[src_idx].sv())
-        ? dst.make_unique_name_id(new_c_id)
-        : children_names[src_idx];
-
-    dst.children_positions[new_c_idx]  = children_positions[new_c_idx];
-    dst.children_parameters[new_c_idx] = children_parameters[src_idx];
-
-    return new_c_id;
-}
-
-status generic_component::copy(const generic_component& src) noexcept
-{
-    if (not children.can_alloc(src.children.size()) and
-        not children.reserve(src.children.size()))
-        return make_error(modeling_errc::component_container_full);
-
-    if (not connections.can_alloc(src.connections.size()) and
-        not connections.reserve(src.connections.size()))
-        return make_error(modeling_errc::component_container_full);
-
-    table<child_id, child_id> mapping;
-
-    for (const auto& c : src.children) {
-        if (auto ret = src.copy_to(c, *this); ret.has_value()) {
-            const auto c_id = src.children.get_id(c);
-            mapping.data.emplace_back(c_id, *ret);
-        }
-    }
-
-    mapping.sort();
-
-    for (const auto& con : src.connections) {
-        if (auto* child_src = mapping.get(con.src); child_src) {
-            if (auto* child_dst = mapping.get(con.dst); child_dst) {
-                connections.alloc(
-                  *child_src, con.index_src, *child_dst, con.index_dst);
-            }
-        }
-    }
-
-    return success();
-}
-
 generic_component::child& generic_component::alloc(
   const component_id id) noexcept
 {
@@ -138,30 +71,6 @@ generic_component::child& generic_component::alloc(
     children_positions[index].y = 0.f;
 
     return child;
-}
-
-bool generic_component::exists_input_connection(
-  const port_id          x,
-  const child&           dst,
-  const connection::port port) const noexcept
-{
-    for (const auto& con : input_connections)
-        if (con.x == x and con.dst == children.get_id(dst) and con.port == port)
-            return true;
-
-    return false;
-}
-
-bool generic_component::exists_output_connection(
-  const port_id          y,
-  const child&           src,
-  const connection::port port) const noexcept
-{
-    for (const auto& con : output_connections)
-        if (con.y == y and con.src == children.get_id(src) and con.port == port)
-            return true;
-
-    return false;
 }
 
 bool generic_component::exists(const child&           src,

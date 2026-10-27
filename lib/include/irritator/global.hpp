@@ -71,8 +71,6 @@ struct recorded_paths {
                   name_str,
                   i8>
       recs;
-
-    vector<recorded_path_id> sort_by_priorities() const noexcept;
 };
 
 struct variables {
@@ -100,7 +98,6 @@ public:
     config_manager& operator=(config_manager&&) noexcept = delete;
 
     std::error_code save() noexcept;
-    std::error_code load() noexcept;
 
     variables vars;
 

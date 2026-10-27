@@ -571,102 +571,11 @@ status simulation_wrapper::transition(simulation&           sim,
     return success();
 }
 
-static auto compute_min_last(const auto& embedded_sims,
-                             const auto  mdl_id) noexcept
-  -> std::pair<embedded_simulation::sub_id, size_t>
-{
-    auto        best_id = undefined<embedded_simulation::sub_id>();
-    auto        index   = size_t(0);
-    auto        value   = std::numeric_limits<real>::max();
-    const auto& sim_obs = embedded_sims.template get<
-      embedded_simulation::simulation_observation>();
-
-    for (const auto id : embedded_sims) {
-        if (const auto* ptr = sim_obs[id].get(mdl_id)) {
-            debug::ensure(ptr->values.size() > 0);
-            const auto new_value = std::min(ptr->values.back()[1], value);
-
-            if (new_value < value) {
-                best_id = id;
-                index   = ptr->values.size() - 1;
-            }
-        }
-    }
-
-    return std::make_pair(best_id, index);
-}
-
 /*
 
   Function to search the min, max, last min, last max
 
  */
-
-static auto compute_max_last(const auto& embedded_sims,
-                             const auto  mdl_id) noexcept
-  -> std::pair<embedded_simulation::sub_id, size_t>
-{
-    auto        best_id = undefined<embedded_simulation::sub_id>();
-    auto        index   = size_t(0);
-    auto        value   = std::numeric_limits<real>::lowest();
-    const auto& sim_obs = embedded_sims.template get<
-      embedded_simulation::simulation_observation>();
-
-    for (const auto id : embedded_sims) {
-        if (const auto* ptr = sim_obs[id].get(mdl_id)) {
-            const auto new_value = std::max(ptr->values.back()[1], value);
-
-            if (new_value < value)
-                best_id = id;
-        }
-    }
-
-    return std::make_pair(best_id, index);
-}
-
-static auto compute_min(const auto& embedded_sims, const auto mdl_id) noexcept
-  -> std::pair<embedded_simulation::sub_id, size_t>
-{
-    auto        best_id = undefined<embedded_simulation::sub_id>();
-    auto        index   = size_t(0);
-    auto        value   = std::numeric_limits<real>::max();
-    const auto& sim_obs = embedded_sims.template get<
-      embedded_simulation::simulation_observation>();
-
-    for (const auto id : embedded_sims) {
-        if (const auto* ptr = sim_obs[id].get(mdl_id)) {
-            for (auto i = size_t(0), e = ptr->values.size(); i != e; ++i) {
-                value   = std::min(ptr->values[i][1], value);
-                index   = i;
-                best_id = id;
-            }
-        }
-    }
-
-    return std::make_pair(best_id, index);
-}
-
-static auto compute_max(const auto& embedded_sims, const auto mdl_id) noexcept
-  -> std::pair<embedded_simulation::sub_id, size_t>
-{
-    auto        best_id = undefined<embedded_simulation::sub_id>();
-    auto        index   = size_t(0);
-    auto        value   = std::numeric_limits<real>::max();
-    const auto& sim_obs = embedded_sims.template get<
-      embedded_simulation::simulation_observation>();
-
-    for (const auto id : embedded_sims) {
-        if (const auto* ptr = sim_obs[id].get(mdl_id)) {
-            for (auto i = size_t(0), e = ptr->values.size(); i != e; ++i) {
-                value   = std::max(ptr->values[i][1], value);
-                index   = i;
-                best_id = id;
-            }
-        }
-    }
-
-    return std::make_pair(best_id, index);
-}
 
 /* * * * *
  *

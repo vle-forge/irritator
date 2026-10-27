@@ -42,25 +42,6 @@ static void plot(const plot_copy& p) noexcept
     }
 }
 
-void plot_copy_widget::show(const char* name) noexcept
-{
-    auto& app = container_of(this, &application::plot_copy_wgt);
-
-    ImGui::PushID(this);
-
-    if (ImPlot::BeginPlot(name, ImVec2(-1, -1))) {
-        ImPlot::SetupAxes(
-          nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
-
-        for_each_data(app.copy_obs,
-                      [&](auto& plot_copy) noexcept { plot(plot_copy); });
-
-        ImPlot::EndPlot();
-    }
-
-    ImGui::PopID();
-}
-
 void plot_copy_widget::show_plot_line(const plot_copy& p) noexcept { plot(p); }
 
 } // namespace irt

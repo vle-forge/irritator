@@ -656,31 +656,6 @@ void library_window::add_open_file(const file_path_id file_id,
     }
 }
 
-void library_window::add_open_file(const file_path_id file_id,
-                                   const component_id compo_id) noexcept
-{
-    if (auto* ret = open_file_list.get(file_id)) {
-        ret->compo_id = compo_id;
-    } else {
-        open_file_list.set(file_id, file_target{ .compo_id = compo_id });
-    }
-}
-
-void library_window::add_open_file(const file_path_id file_id,
-                                   const graph_id     g_id) noexcept
-{
-    if (auto* ret = open_file_list.get(file_id)) {
-        ret->g_id = g_id;
-    } else {
-        open_file_list.set(file_id, file_target{ .g_id = g_id });
-    }
-}
-
-void library_window::close_open_file(const file_path_id file_id) noexcept
-{
-    open_file_list.erase(file_id);
-}
-
 auto library_window::get_open_file(const file_path_id file_id) noexcept
   -> std::optional<file_target>
 {

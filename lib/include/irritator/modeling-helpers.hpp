@@ -61,22 +61,6 @@ inline file_path_id get_file_from_component(const component_access& ids,
     return undefined<file_path_id>();
 }
 
-/// Adds the extension to the file path string according to @c type extension.
-inline void add_extension(file_path_str& file,
-                          file_type type = file_type::component_file) noexcept
-{
-    const std::decay_t<decltype(file)> tmp(file);
-
-    if (auto dot = tmp.sv().find_last_of('.'); dot == std::string_view::npos) {
-        format(file,
-               "{}{}",
-               tmp.sv().substr(0, dot),
-               file_type_names[ordinal(type)]);
-    } else {
-        format(file, "{}{}", tmp.sv(), file_type_names[ordinal(type)]);
-    }
-}
-
 /// Checks if the file path string has the corresponding @c type extension.
 constexpr bool has_extension(
   const std::string_view filename,
@@ -198,16 +182,6 @@ inline std::optional<path> make_file(const file_access&         fs,
 }
 
 inline std::optional<path> make_file(const file_access& fs,
-                                     const file_path&   f) noexcept
-{
-    if (auto* dir = fs.dir_paths.try_to_get(f.parent))
-        if (auto* reg = fs.registred_paths.try_to_get(dir->parent))
-            return make_file(*reg, *dir, f);
-
-    return std::nullopt;
-}
-
-inline std::optional<path> make_file(const file_access& fs,
                                      const file_path_id f) noexcept
 {
     if (auto* file = fs.file_paths.try_to_get(f))
@@ -216,29 +190,6 @@ inline std::optional<path> make_file(const file_access& fs,
                 return make_file(*reg, *dir, *file);
 
     return std::nullopt;
-}
-
-inline expected<file> open_file(
-  const registred_path& reg_p,
-  const dir_path&       dir_p,
-  const file_path&      file_p,
-  const file_mode       mode = file_mode(file_open_options::read)) noexcept
-{
-    if (auto path = make_file(reg_p, dir_p, file_p); path.has_value())
-        return file::open(*path, mode);
-
-    return make_error(std::errc::not_enough_memory);
-}
-
-inline expected<file> open_file(
-  const file_access& fs,
-  const file_path_id id,
-  const file_mode    mode = file_mode(file_open_options::read)) noexcept
-{
-    if (const auto filename = make_file(fs, id); filename.has_value())
-        return file::open(*filename, mode);
-
-    return make_error(std::errc::not_enough_memory);
 }
 
 /// Checks the type of \c component pointed by the \c tree_node \c.
@@ -256,22 +207,6 @@ inline bool component_is_grid_or_graph(const component_access& ids,
     }
 
     return false;
-}
-
-//! Call \c f for each model found into \c tree_node::nodes_v table.
-template<typename Function>
-void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
-{
-    for (sz i = 0, e = tn.unique_id_to_model_id.data.size(); i < e; ++i) {
-        if_data_exists_do(sim.models,
-                          tn.unique_id_to_model_id.data[i].value.mdl_id,
-                          [&](auto& mdl) {
-                              std::invoke(
-                                std::forward<Function>(f),
-                                tn.unique_id_to_model_id.data[i].id.sv(),
-                                mdl);
-                          });
-    }
 }
 
 template<typename Function>

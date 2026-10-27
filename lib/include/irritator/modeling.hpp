@@ -340,14 +340,6 @@ public:
     child& alloc(const component_id id) noexcept;
     child& alloc(const dynamics_type type) noexcept;
 
-    /** Copy the @c generic_component children and connections into this
-     * generic_component.
-     *
-     * @param src The source.
-     * @return @c success() or @c modeling_errc error.
-     */
-    status copy(const generic_component& src) noexcept;
-
     /** Grow the children @a data_array and resize theq
      *  @a children_positions, @a children_names and @a children_parameters
      *  vectors to match the new capacity.
@@ -364,13 +356,6 @@ public:
                children_names.resize(children.capacity()) and
                children_parameters.resize(children.capacity());
     }
-
-    bool exists_input_connection(const port_id          x,
-                                 const child&           dst,
-                                 const connection::port port) const noexcept;
-    bool exists_output_connection(const port_id          y,
-                                  const child&           src,
-                                  const connection::port port) const noexcept;
 
     bool exists(const child&           src,
                 const connection::port p_src,
@@ -401,16 +386,6 @@ public:
     status connect_output(const port_id          y,
                           const child&           src,
                           const connection::port port) noexcept;
-
-    /// @brief Copy a child into another `generic_component`.
-    ///
-    /// @param c [in] The identifier to copy.
-    /// @param dst [in,out] The `generic_component` destination.
-    ///
-    /// @return Identifier of the newly allocated child. Can return
-    /// error if `dst` can not allocate a new child.
-    expected<child_id> copy_to(const child&       c,
-                               generic_component& dst) const noexcept;
 
     bool     exists_child(const std::string_view name) const noexcept;
     child_id find_child(const std::string_view name) const noexcept;
@@ -506,29 +481,6 @@ public:
         return c * m_row + r;
     }
 
-    constexpr std::pair<i32, i32> pos(std::integral auto p) const noexcept
-    {
-        debug::ensure(is_coord_valid(p % m_row, p / m_row));
-
-        return std::make_pair(p % m_row, p / m_row);
-    }
-
-    constexpr u64 unique_id(i32 pos_) const noexcept
-    {
-        auto pair = pos(pos_);
-
-        return u32s_to_u64(static_cast<u32>(pair.first),
-                           static_cast<u32>(pair.second));
-    }
-
-    constexpr std::pair<int, int> unique_id(u64 id) const noexcept
-    {
-        auto unpack = u64_to_u32s(id);
-
-        return std::make_pair(static_cast<int>(unpack.first),
-                              static_cast<int>(unpack.second));
-    }
-
     struct input_connection {
         input_connection() noexcept = default;
 
@@ -538,14 +490,6 @@ public:
           , col(col_)
           , id(id_)
         {}
-
-        void clear() noexcept
-        {
-            x   = undefined<port_id>();
-            row = -1;
-            col = -1;
-            id  = undefined<port_id>();
-        }
 
         port_id x   = undefined<port_id>(); //! The port_id in this component.
         i32     row = -1;                   //! The row in children vector.
@@ -564,32 +508,12 @@ public:
           , id(id_)
         {}
 
-        void clear() noexcept
-        {
-            y   = undefined<port_id>();
-            row = -1;
-            col = -1;
-            id  = undefined<port_id>();
-        }
-
         port_id y   = undefined<port_id>(); //! The port_id in this component.
         i32     row = -1;                   //! The row in children vector.
         i32     col = -1;                   //! The col in children vector.
         port_id
           id = undefined<port_id>(); //! The port_id of the @c children[idx].
     };
-
-    //! @brief Check if the input connection already exits.
-    bool exists_input_connection(const port_id x,
-                                 const i32     row,
-                                 const i32     col,
-                                 const port_id id) const noexcept;
-
-    //! @brief Check if the output connection already exits.
-    bool exists_output_connection(const port_id x,
-                                  const i32     row,
-                                  const i32     col,
-                                  const port_id id) const noexcept;
 
     //! @brief Tries to add this input connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
@@ -681,9 +605,6 @@ public:
      */
     void clear() noexcept;
 
-    /** Swap the content of the graph with @a other. */
-    void swap(graph& g) noexcept;
-
     expected<void> init_scale_free_graph(double       alpha,
                                          double       beta,
                                          component_id id,
@@ -768,13 +689,6 @@ public:
           , id(id_)
         {}
 
-        void clear() noexcept
-        {
-            x  = undefined<port_id>();
-            v  = graph_node_id{ 0 };
-            id = undefined<port_id>();
-        }
-
         port_id x = undefined<port_id>();     //! The port_id in this component.
         graph_node_id v = graph_node_id{ 0 }; //! The index in children vector.
         port_id
@@ -789,13 +703,6 @@ public:
           , v(v_)
           , id(id_)
         {}
-
-        void clear() noexcept
-        {
-            y  = undefined<port_id>();
-            v  = graph_node_id{ 0 };
-            id = undefined<port_id>();
-        }
 
         port_id y = undefined<port_id>(); //! The port_id in this component.
         graph_node_id v = graph_node_id{
@@ -814,8 +721,6 @@ public:
 
     struct dot_file_param {
         file_path_id file = undefined<file_path_id>();
-
-        void reset() noexcept { file = undefined<file_path_id>(); }
     };
 
     struct scale_free_param {
@@ -823,14 +728,6 @@ public:
         double       beta  = 1.e3;
         component_id id    = undefined<component_id>();
         int          nodes = 32;
-
-        void reset() noexcept
-        {
-            alpha = 2.5;
-            beta  = 1.e3;
-            id    = undefined<component_id>();
-            nodes = 32;
-        }
     };
 
     struct small_world_param {
@@ -838,14 +735,6 @@ public:
         i32          k           = 6;
         component_id id          = undefined<component_id>();
         int          nodes       = 32;
-
-        void reset() noexcept
-        {
-            probability = 3e-2;
-            k           = 6;
-            id          = undefined<component_id>();
-            nodes       = 32;
-        }
     };
 
     dot_file_param    dot;
@@ -868,9 +757,6 @@ public:
 
     graph_component() noexcept;
 
-    void swap(graph_component& other) noexcept;
-
-    bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
 
     /** Compute top-left and bottom-right limits according to the position and
@@ -1032,26 +918,6 @@ struct dir_path;
 struct file_path;
 
 struct registred_path {
-    /**
-     * Linear search a directory with the name @a dir_name in the @a
-     * children vector.
-     * @param data A @a data_array of @a dir_path.
-     * @param dir_name The name to search.
-     * @return The directory identifier or @a undefined otherwise.
-     */
-    dir_path_id search(const data_array<dir_path, dir_path_id>& data,
-                       const std::string_view dir_name) noexcept;
-
-    /**
-     * Returns true if a directory with the name @a dir_name in the @a
-     * children vector exists in this @a registred_path.
-     * @param data A @a data_array of @a dir_path.
-     * @param dir_name The name to search.
-     * @return @a true is the directory exists, false otherwise.
-     */
-    bool exists(const data_array<dir_path, dir_path_id>& data,
-                const std::string_view                   dir_name) noexcept;
-
     registred_path_str path; /**< Stores an absolute path in utf8 format. */
     name_str           name; /**< Stores a user name, the same name as in the
                                 configuration file. */
@@ -1069,13 +935,6 @@ struct dir_path {
     vector<file_path_id> children;
 
     fs_flags flags;
-
-    bool exist(const file_path_id id) const noexcept
-    {
-        return std::ranges::any_of(
-          children,
-          [id](const auto f_id) noexcept -> bool { return f_id == id; });
-    }
 };
 
 struct file_path {
@@ -1108,7 +967,6 @@ struct tree_node {
 
         enum class type : u8 { empty, model, tree_node } type = type::empty;
 
-        constexpr auto is_empty() const noexcept { return type == type::empty; }
         constexpr auto is_model() const noexcept { return type == type::model; }
         constexpr auto is_tree_node() const noexcept
         {
@@ -1218,18 +1076,6 @@ struct tree_node {
 
         return it == unique_id_to_model_id.data.end() ? std::string_view{}
                                                       : it->id.sv();
-    }
-
-    auto get_unique_id(const tree_node_id tn_id) const noexcept
-      -> std::string_view
-    {
-        auto it = std::find_if(
-          unique_id_to_tree_node_id.data.begin(),
-          unique_id_to_tree_node_id.data.end(),
-          [tn_id](const auto& elem) noexcept { return elem.value == tn_id; });
-
-        return it == unique_id_to_tree_node_id.data.end() ? std::string_view{}
-                                                          : it->id.sv();
     }
 };
 
@@ -1400,10 +1246,6 @@ public:
 
     static expected<project> load(const file_access&      fs,
                                   const component_access& cs,
-                                  const std::span<char>   buffer) noexcept;
-
-    static expected<project> load(const file_access&      fs,
-                                  const component_access& cs,
                                   const file_path_id      file_id) noexcept;
 
     status load(const file_access& fs, const component_access& ids) noexcept;
@@ -1419,20 +1261,11 @@ public:
                const file_access&      fs,
                const component_id      compo_id) noexcept;
 
-    /// Build the complete @c tree_node hierarchy from the @c component
-    /// head.
-    status rebuild(const component_access& ids, const file_access& fs) noexcept;
-
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
 
     auto head() const noexcept -> component_id;
     auto tn_head() const noexcept -> tree_node_id;
-
-    template<typename Function, typename... Args>
-    void for_each_children(tree_node& tn,
-                           Function&& f,
-                           Args&&... args) noexcept;
 
     /// Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
@@ -1442,9 +1275,6 @@ public:
                              const tree_node& to,
                              const model_id   mdl_id) noexcept
       -> relative_id_path;
-
-    auto get_model(const relative_id_path& path) noexcept
-      -> std::pair<tree_node_id, model_id>;
 
     auto get_model(const tree_node& tn, const relative_id_path& path) noexcept
       -> std::pair<tree_node_id, model_id>;
@@ -1466,11 +1296,6 @@ public:
     void build_unique_id_path(const tree_node&       model_unique_id_parent,
                               const std::string_view model_unique_id,
                               unique_id_path&        out) const noexcept;
-
-    /** Search a model with name attribute equals to @c id from the root
-     * tree-node (the top of the hierarchy). */
-    auto get_model_path(const std::string_view id) const noexcept
-      -> std::optional<std::pair<tree_node_id, model_id>>;
 
     /** Search a model from the @c path. The first element is the root node
      * (top of the hierarchy), next element are tree nodes and finally, at
@@ -1543,16 +1368,6 @@ public:
      */
     graph_observer& alloc_graph_observer() noexcept;
 
-    /** Get the observation directory used by all text observation
-     * files. If the @c observation_dir is undefined this function returns
-     * an empty string.
-     *
-     * @param mod The modeling object to get the observation directory.
-     * @return A string_view to the observation directory.
-     */
-    std::optional<path> get_observation_dir(
-      const irt::modeling& mod) const noexcept;
-
     registred_path_id observation_dir; /**< The output directory used by all
                                           text observation file. If undefined,
                                           the current repertory is used. */
@@ -1623,11 +1438,6 @@ public:
     status init(project& pj, const modeling& mod) noexcept;
 
     /**
-     * @brief Clear the @c observers and @c values vectors.
-     */
-    void clear() noexcept;
-
-    /**
      * @brief For each observer in @c observers get the last value from history
      * buffer.
      *
@@ -1674,11 +1484,6 @@ public:
      * @param sim
      */
     status init(project& pj, const modeling& mod) noexcept;
-
-    /**
-     * @brief Clear the @c observers and @c values vectors.
-     */
-    void clear() noexcept;
 
     /**
      * @brief For each observer in @c observers get the last value from history
@@ -1745,9 +1550,6 @@ public:
     //! @details Do nothing if `tn` and `mdl` is not found.
     void erase(const tree_node_id tn, const model_id mdl) noexcept;
 
-    //! @brief Remove a `sub_id` from `id_array`.
-    void erase(const sub_id id) noexcept;
-
     //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
     //! already exists.
     sub_id push_back(const tree_node_id      tn,
@@ -1758,7 +1560,6 @@ public:
 
     bool     exists(const sub_id id) const noexcept { return subs.exists(id); }
     unsigned size() const noexcept { return subs.size(); }
-    int      ssize() const noexcept { return subs.ssize(); }
 };
 
 struct modeling_reserve_definition {
@@ -1856,26 +1657,15 @@ struct component_access {
     data_array<hierarchical_state_machine, hsm_id> hsms;
     data_array<graph, graph_id>                    graphs;
 
-    component_id alloc() noexcept { return ids.alloc(); }
-
     void free(const component_id id) noexcept;
     void clear(const component_id id) noexcept;
 
     bool exists(const component_id id) const noexcept { return ids.exists(id); }
 
-    bool can_alloc(int number) const noexcept { return ids.can_alloc(number); }
-
-    template<size_t Num, size_t Denum>
-    bool grow() noexcept
-    {
-        return ids.grow<Num, Denum>();
-    }
-
     iterator       begin() noexcept { return ids.begin(); }
     iterator       end() noexcept { return ids.end(); }
     const_iterator begin() const noexcept { return ids.begin(); }
     const_iterator end() const noexcept { return ids.end(); }
-    unsigned       capacity() const noexcept { return ids.capacity(); }
     unsigned       size() const noexcept { return ids.size(); }
     int            ssize() const noexcept { return ids.ssize(); }
 
@@ -1904,12 +1694,6 @@ struct component_access {
     component_id alloc_graph_component() noexcept;
     component_id alloc_hsm_component() noexcept;
     component_id alloc_sim_component() noexcept;
-
-    status import(const generic_component& grid,
-                  generic_component&       dst) noexcept;
-    status import(const graph_component& graph,
-                  generic_component&     dst) noexcept;
-    status import(const grid_component& grid, generic_component& dst) noexcept;
 };
 
 struct file_access {
@@ -1929,14 +1713,6 @@ struct file_access {
 
     int browse_registred(const registred_path_id id) noexcept;
     int browse_registreds() noexcept;
-
-    /// Removes the :;c file_path from :c file_paths and remove the file
-    /// from the filesystem.
-    void remove(const file_path_id id) noexcept;
-
-    /// Update the @c dir_path::children vector according to the
-    /// filesystem.
-    void refresh(const dir_path_id id) noexcept;
 
     /// Search a existing filename in the @c dir_path::children and with
     /// the type @c type. Use @c undefined_file to select any file with
@@ -1981,8 +1757,6 @@ struct file_access {
     registred_path_id alloc_registred(const std::string_view name,
                                       const int              priority) noexcept;
 
-    bool exists(const registred_path_id dir) const noexcept;
-    bool exists(const dir_path_id dir) const noexcept;
     bool create_directories(const registred_path_id id) const noexcept;
     bool create_directories(const dir_path_id id) const noexcept;
 
@@ -1990,22 +1764,10 @@ struct file_access {
     /// remove directory from filesystem.
     void remove_directory(const dir_path_id id) noexcept;
 
-    /// Removes any files in the @c dir_path file system.
-    void remove_files(const dir_path_id id) noexcept;
-
     /// Removes @c file_id from the file system.
     void remove_file(const file_path_id file) noexcept;
 
-    /// Move a file from a file system to another.
-    void move_file(const dir_path_id to, const file_path_id file) noexcept;
-
-    void free(const file_path_id file) noexcept;
-    void free(const dir_path_id dir) noexcept;
-    void free(const registred_path_id dir) noexcept;
-
     expected<path> get_fs_path(const file_path_id id) const noexcept;
-    expected<path> get_fs_path(const dir_path_id id) const noexcept;
-    expected<path> get_fs_path(const registred_path_id id) const noexcept;
 
     struct full_file_access_result {
         registred_path_id reg_id  = undefined<registred_path_id>();
@@ -2038,21 +1800,9 @@ public:
      */
     status fill_components() noexcept;
 
-    /**
-     * Browse the file system to search components, projects and data file in
-     * registred paths. The @c fill_components function use this function.
-     */
-    void browse_file_system() noexcept;
-
     status save(const component_access& ids,
                 const file_access&      fs,
                 const component_id      id) noexcept;
-
-    status import(const component_id         src,
-                  const component_id         dst,
-                  const std::span<position>  positions  = {},
-                  const std::span<name_str>  names      = {},
-                  const std::span<parameter> parameters = {}) noexcept;
 
     shared_buffer<component_access> ids;
     shared_buffer<file_access>      files;
@@ -2147,32 +1897,6 @@ inline tree_node::tree_node(component_id           id_,
 /*
    Project part
  */
-
-template<typename Function, typename... Args>
-inline void project::for_each_children(tree_node& tn,
-                                       Function&& f,
-                                       Args&&... args) noexcept
-{
-    auto* child = tn.tree.get_child();
-    if (!child)
-        return;
-
-    vector<tree_node*> stack;
-    stack.emplace_back(child);
-    while (!stack.empty()) {
-        auto cur = stack.back();
-        stack.pop_back();
-
-        std::invoke(std::forward<Function>(f), *child,
-                    std::forward<Args>(args)...);
-
-        if (auto* sibling = cur->tree.get_sibling(); sibling)
-            stack.emplace_back(sibling);
-
-        if (auto* child = cur->tree.get_child(); child)
-            stack.emplace_back(child);
-    }
-}
 
 } // namespace irt
 

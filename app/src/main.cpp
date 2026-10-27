@@ -230,58 +230,6 @@ public:
         }
     }
 
-    irt::status observation_initialize() noexcept
-    {
-        for (auto& o : pj.grid_observers)
-            irt_check(o.init(pj, mod));
-
-        for (auto& o : pj.graph_observers)
-            irt_check(o.init(pj, mod));
-
-        for (auto& o : pj.variable_observers)
-            irt_check(o.init(pj));
-
-        return irt::success();
-    }
-
-    void observation_update() noexcept
-    {
-        for (auto& g : pj.grid_observers) {
-            const auto g_id = pj.grid_observers.get_id(g);
-            if (auto* g = pj.grid_observers.try_to_get(g_id))
-                g->update(pj);
-        }
-
-        for (auto& g : pj.graph_observers) {
-            const auto g_id = pj.graph_observers.get_id(g);
-            if (auto* g = pj.graph_observers.try_to_get(g_id))
-                g->update(pj);
-        }
-    }
-
-    irt::expected<void> run() noexcept
-    {
-        irt_check(observation_initialize());
-        irt_check(pj.sim.srcs.prepare());
-        irt_check(pj.sim.initialize());
-
-        fmt::print("grid-observers: {}\n"
-                   "graph-observers: {}\n"
-                   "plot-observers: {}\n",
-                   pj.grid_observers.ssize(), pj.graph_observers.ssize(),
-                   pj.variable_observers.ssize());
-
-        do {
-            irt_check(pj.sim.run());
-            observation_update();
-        } while (not pj.sim.current_time_expired());
-
-        irt_check(pj.sim.finalize());
-        observation_update();
-
-        return irt::success();
-    }
-
     irt::expected<void> prepare_and_run() noexcept
     {
         log(irt::log_level::notice, [&](auto& m) {
@@ -376,8 +324,6 @@ public:
         else
             load_next_token();
     }
-
-    constexpr bool have_data() noexcept { return not args.empty(); }
 
     constexpr bool start_short_option() const noexcept
     {

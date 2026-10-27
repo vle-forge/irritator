@@ -16,36 +16,6 @@ namespace irt {
 
 constexpr static inline i32 simulation_task_number = 64;
 
-inline ImVec4 to_ImVec4(std::span<const float, 4>& array) noexcept
-{
-    return ImVec4(array[0], array[1], array[2], array[3]);
-}
-
-inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
-{
-    return reinterpret_cast<ImVec4&>(array);
-}
-
-inline const ImVec4& to_ImVec4(const std::array<float, 4>& array) noexcept
-{
-    return reinterpret_cast<const ImVec4&>(array);
-}
-
-inline const float* to_float_ptr(std::span<float, 4>& array) noexcept
-{
-    return array.data();
-}
-
-inline float* to_float_ptr(std::array<float, 4>& array) noexcept
-{
-    return &array[0];
-}
-
-inline const float* to_float_ptr(const std::array<float, 4>& array) noexcept
-{
-    return &array[0];
-}
-
 constexpr inline float saturate(const float v) noexcept
 {
     return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
@@ -328,28 +298,6 @@ inline auto SelectableWithHint(const char*          label,
     return ret;
 }
 
-inline auto TreeNodeExWithHint(const char*        label,
-                               const char*        hint,
-                               ImGuiTreeNodeFlags flags = 0) noexcept -> bool
-{
-    ::irt::debug::ensure(label);
-    ::irt::debug::ensure(hint);
-
-    bool ret = ImGui::TreeNodeEx(label, flags);
-
-    ImGui::SameLine();
-
-    const auto avail =
-      ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(hint).x;
-    const auto max_avail = std::max(0.f, avail);
-    const auto pos       = ImGui::GetCursorPosX() + max_avail;
-
-    ImGui::SetCursorPosX(pos);
-    ImGui::TextDisabled("%s", hint);
-
-    return ret;
-}
-
 inline auto TreeNodeExSelectableWithHint(const char*        label,
                                          const char*        hint,
                                          bool*              p_selected,
@@ -390,20 +338,6 @@ inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
       (content_width - (nb_space * item_spacing)) / static_cast<float>(button);
 
     return ImVec2(button_width, 0.f);
-}
-
-inline auto InputFraction(const char* label, irt::fraction* f) noexcept
-{
-    int vec[2] = { f->numerator(), f->denominator() };
-
-    if (ImGui::InputInt2(label, &vec[0])) {
-        if (vec[0] > 0 and vec[1] > 0) {
-            *f = irt::fraction{ vec[0], vec[1] };
-            return true;
-        }
-    }
-
-    return false;
 }
 
 inline auto DragFraction(const char* label, irt::fraction* f) noexcept

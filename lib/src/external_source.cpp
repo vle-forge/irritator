@@ -221,12 +221,6 @@ status binary_file_source::init() noexcept
     return success();
 }
 
-void binary_file_source::finalize() noexcept
-{
-    if (ifs)
-        ifs.close();
-}
-
 bool binary_file_source::seekg(const long to_seek) noexcept
 {
     return ifs.seekg(to_seek).good();
@@ -392,12 +386,6 @@ status text_file_source::init(source& src, source_data& data) noexcept
     offset           = static_cast<u64>(tellg);
 
     return text_file_source_fill_buffer(*this, src);
-}
-
-void text_file_source::finalize() noexcept
-{
-    if (ifs)
-        ifs.close();
 }
 
 status text_file_source::update(source& src, source_data& data) noexcept
@@ -663,15 +651,6 @@ status external_source::prepare() noexcept
     return success();
 }
 
-void external_source::finalize() noexcept
-{
-    for (auto& src : binary_file_sources)
-        src.finalize();
-
-    for (auto& src : text_file_sources)
-        src.finalize();
-}
-
 external_source::external_source(
   const external_source_reserve_definition& res) noexcept
   : constant_sources{ res.constant_nb.value() }
@@ -812,14 +791,6 @@ vector<real> random_factor::gen(std::span<u64, 6> key) const noexcept
     (void)random_fill(*this, key, std::span<real>(ret.begin(), ret.end()));
 
     return ret;
-}
-
-std::span<real> random_factor::gen(std::span<u64, 6> key,
-                                   std::span<real>   values) const noexcept
-{
-    debug::ensure(not values.empty());
-
-    return random_fill(*this, key, values);
 }
 
 } // namespace irt

@@ -46,11 +46,6 @@ static constexpr inline const char* internal_component_names[] = {
     "qss3_negative_lif", "qss3_seirs", "qss3_van_der_pol"
 };
 
-//! Try to get internal component type from a string. If the string is unknown,
-//! optional returns \c std::nullopt.
-auto get_internal_component_type(std::string_view name) noexcept
-  -> std::optional<internal_component>;
-
 static constexpr inline const char* dynamics_type_names[] = {
     "qss1_integrator",
     "qss1_multiplier",

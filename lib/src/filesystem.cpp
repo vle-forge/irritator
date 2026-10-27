@@ -372,11 +372,6 @@ static expected<path> get_home_filename(const char* filename) noexcept
     return make_error(std::errc::bad_address);
 }
 
-expected<path> get_settings_filename() noexcept
-{
-    return get_home_filename("settings.ini");
-}
-
 class config_home_manager
 {
 private:

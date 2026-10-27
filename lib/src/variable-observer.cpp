@@ -67,12 +67,6 @@ void variable_observer::erase(const tree_node_id tn,
             subs.free(id);
 }
 
-void variable_observer::erase(const sub_id i) noexcept
-{
-    if (subs.exists(i))
-        subs.free(i);
-}
-
 variable_observer::sub_id variable_observer::push_back(
   const tree_node_id      tn,
   const model_id          mdl,
