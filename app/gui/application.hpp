@@ -1104,8 +1104,6 @@ public:
 class project_editor
 {
 public:
-    enum class visualization_mode { flat, tree };
-
     enum class show_result_t {
         success,          /**< Nothing to do. */
         request_to_close, /**< The window must be closed by the called. */
@@ -1143,11 +1141,6 @@ public:
     void finish_simulation(application& app) noexcept;
 
     bool can_edit() const noexcept;
-    bool can_display_graph_editor() const noexcept;
-
-    std::atomic_bool force_pause   = false;
-    bool             show_minimap  = true;
-    bool             display_graph = true;
 
     enum class raw_data_type : u8 { none, graph, binary, text };
 
@@ -1155,16 +1148,10 @@ public:
 
     bool is_dock_init = false;
 
-    real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;
 
     std::chrono::milliseconds one_simulation_time_duration{ 1000 };
     std::chrono::milliseconds simulation_task_duration{ 16 };
-
-    tree_node_id head    = undefined<tree_node_id>();
-    tree_node_id current = undefined<tree_node_id>();
-
-    visualization_mode mode = visualization_mode::flat;
 
     ImPlotContext* output_context = nullptr;
 
@@ -1185,10 +1172,6 @@ public:
     tree_node_id selected_tn() noexcept;
 
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
-
-    /// For each simulation, and according to the @a save_simulation_raw_data,
-    /// an output stream to store all model state during simulation.
-    file raw_ofs;
 
     player_controller sim_player;
 
@@ -1834,11 +1817,6 @@ std::size_t application::get_task_manager_list(T id) const noexcept
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
  */
-
-inline bool project_editor::can_display_graph_editor() const noexcept
-{
-    return display_graph;
-}
 
 inline tree_node_id project_editor::selected_tn() noexcept
 {
