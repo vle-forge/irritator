@@ -1702,33 +1702,25 @@ public:
     ///
     /// @param id A value used to select the ordered-task-list.
     /// @param fn The function to run.
-    template<typename Fn>
-    void add_simulation_task(const unsigned id, Fn&& fn) noexcept;
+    template<typename T, typename Fn>
+        requires((std::is_integral_v<T> or is_identifier_type<T>) and
+                 std::is_invocable_v<Fn>)
+    void add_simulation_task(T id, Fn&& fn) noexcept;
 
     /// Helper function to add a @c task into the GUI @c ordered_task_list.
     template<typename Fn>
+        requires(std::is_invocable_v<Fn>)
     void add_gui_task(Fn&& fn) noexcept;
 
-    /// Get the ordered/unordered list from an identifier or a integer.
+    /// Get the ordered/unordered list index from an identifier or a integer.
     ///
     /// @code
     /// get_task_manager_list(pjs.get_id(pj));
     /// get_task_manager_list(pjs.next_key());
     /// @endcode
-
     template<typename T>
         requires(std::is_integral_v<T> || is_identifier_type<T>)
-    std::size_t get_task_manager_list(T id) const noexcept
-    {
-        // unordered_task_list(0) is for the GUI
-
-        if constexpr (is_identifier_type<T>) {
-            const auto uid = static_cast<std::size_t>(get_index(id));
-            return 1u + (uid % (task_mgr.list_size() - 1u));
-        } else {
-            return 1u + (id % (task_mgr.list_size() - 1u));
-        }
-    }
+    std::size_t get_task_manager_list(T id) const noexcept;
 
     /// Allocate a new @c project_editor and read the file @c file_path_id.
     void start_load_project(const project_id f_id) noexcept;
@@ -1806,20 +1798,35 @@ bool show_local_observers(application&            app,
 //! @return A pointer to a newly allocated memory.
 path get_imgui_filename() noexcept;
 
-template<typename Fn>
-void application::add_simulation_task(const unsigned id, Fn&& fn) noexcept
+template<typename T, typename Fn>
+    requires((std::is_integral_v<T> or is_identifier_type<T>) and
+             std::is_invocable_v<Fn>)
+void application::add_simulation_task(T id, Fn&& fn) noexcept
 {
-    const auto index = id % (task_mgr.list_size() - 1);
+    const auto idx = get_task_manager_list(id);
 
-    task_mgr.ordered(index).add(std::forward<Fn>(fn));
+    task_mgr.ordered(idx).add(std::forward<Fn>(fn));
 }
 
 template<typename Fn>
+    requires(std::is_invocable_v<Fn>)
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    const auto index = task_mgr.list_size() - 1;
+    task_mgr.ordered(0).add(std::forward<Fn>(fn));
+}
 
-    task_mgr.ordered(index).add(std::forward<Fn>(fn));
+template<typename T>
+    requires(std::is_integral_v<T> || is_identifier_type<T>)
+std::size_t application::get_task_manager_list(T id) const noexcept
+{
+    // unordered_task_list(0) is for the GUI
+
+    if constexpr (is_identifier_type<T>) {
+        const auto uid = static_cast<std::size_t>(get_index(id));
+        return 1u + (uid % (task_mgr.list_size() - 1u));
+    } else {
+        return 1u + (id % (task_mgr.list_size() - 1u));
+    }
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
