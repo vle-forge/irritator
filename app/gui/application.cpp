@@ -789,7 +789,7 @@ void application::show_dock() noexcept
                           const auto dot      = filename.find_last_of('.');
                           const auto label    = filename.substr(0, dot);
 
-                          auto& pj = pjs.alloc(label, task_mgr,
+                          auto& pj = pjs.alloc(mod, label, task_mgr,
                                                static_cast<sz>(pjs.next_key()),
                                                std::move(*pj_released));
                           const auto pj_id = pjs.get_id(pj);
@@ -804,7 +804,7 @@ void application::show_dock() noexcept
                 if (not opened) {
                     const auto next_key = pjs.next_key();
                     const auto label    = format_n<32>("project-{}", next_key);
-                    auto&      pj = pjs.alloc(label.sv(), task_mgr,
+                    auto&      pj = pjs.alloc(mod, label.sv(), task_mgr,
                                               static_cast<sz>(pjs.next_key()),
                                               std::move(*pj_released));
                     const auto pj_id = pjs.get_id(pj);

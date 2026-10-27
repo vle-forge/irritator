@@ -20,18 +20,26 @@
 
 namespace irt {
 
-project_editor::project_editor(const std::string_view default_name,
+project_editor::project_editor(const modeling&        mod,
+                               const std::string_view default_name,
                                task_manager&          tm,
                                std::size_t            index,
                                project&&              project_) noexcept
-  : pj(std::move(project_))
+  : output_context{ ImPlot::CreateContext() }
+  , pj(std::move(project_))
   , sim_player{ pj.sim, tm, index }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
     set_title_name(default_name);
 
-    output_context = ImPlot::CreateContext();
+    if (const auto ret = pj.simulation_init(mod); ret.has_error()) {
+        log(log_level::error, [&](auto& m) {
+            format(m, "fail to open project-editor: {}", ret.error());
+        });
+
+        // @TODO prepare to close the window.
+    }
 }
 
 void project_editor::set_title_name(const std::string_view name) noexcept

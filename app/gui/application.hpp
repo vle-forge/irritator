@@ -26,7 +26,7 @@ namespace irt {
 
 class application;
 class component_editor;
-struct project_editor;
+class project_editor;
 
 enum class notification_id : u32;
 enum class plot_copy_id : u32;
@@ -1105,20 +1105,24 @@ void schedule_player(application&       app,
                      const unsigned     idx,
                      player_controller& c) noexcept;
 
-struct project_editor {
+class project_editor
+{
+public:
     enum class visualization_mode { flat, tree };
 
-    project_editor(const std::string_view default_name,
+    enum class show_result_t {
+        success,          /**< Nothing to do. */
+        request_to_close, /**< The window must be closed by the called. */
+    };
+
+    project_editor(const modeling&        mod,
+                   const std::string_view default_name,
                    task_manager&          tm,
                    std::size_t            index,
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;
 
-    enum class show_result_t {
-        success,          /**< Nothing to do. */
-        request_to_close, /**< The window must be closed by the called. */
-    };
 
     void set_title_name(const std::string_view name) noexcept;
 
