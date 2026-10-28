@@ -756,7 +756,7 @@ void binary_serialize(Ar& ar, counter& d) noexcept
 {
     auto& [x, event_number, last_value, sum_values, sigma, type] = d;
     ar(x, event_number, last_value, sum_values, sigma);
-    io_enum(ar, type, std::remove_cvref_t<decltype(type)>::sum_value);
+    io_enum(ar, type, counter::observation_type::sum_value);
 }
 
 template<typename Ar>
@@ -775,7 +775,7 @@ void binary_serialize(Ar& ar, constant& d) noexcept
 {
     auto& [y, sigma, offset, value, type, port] = d;
     ar(y, sigma, offset, value);
-    io_enum(ar, type, std::remove_cvref_t<decltype(type)>::outcoming_component_n);
+    io_enum(ar, type, constant::init_type::outcoming_component_n);
     ar(port);
 }
 
@@ -784,7 +784,7 @@ void binary_serialize(Ar& ar, abstract_min_max_hold<QssLevel, IsMax>& d) noexcep
 {
     auto& [x, y, value, extremum, sigma, mode] = d;
     ar(x, y, value, extremum, sigma);
-    io_enum(ar, mode, std::remove_cvref_t<decltype(mode)>::hold);
+    io_enum(ar, mode, abstract_min_max_hold<QssLevel, IsMax>::mode_type::hold);
 }
 
 template<typename Ar, std::size_t QssLevel>
@@ -827,7 +827,7 @@ void binary_serialize(Ar& ar, abstract_threshold_crossing<QssLevel>& d) noexcept
 {
     auto& [x, y, value, threshold, edge, sigma, side] = d;
     ar(x, y, value, threshold, edge, sigma);
-    io_enum(ar, side, std::remove_cvref_t<decltype(side)>::below);
+    io_enum(ar, side, abstract_threshold_crossing<QssLevel>::side_type::below);
 }
 
 template<typename Ar, std::size_t QssLevel>
@@ -891,7 +891,7 @@ void binary_serialize(Ar& ar, abstract_saturation<QssLevel>& d) noexcept
 {
     auto& [x, y, value, lower, upper, sigma, z, emit] = d;
     ar(x, y, value, lower, upper, sigma);
-    io_enum(ar, z, std::remove_cvref_t<decltype(z)>::above);
+    io_enum(ar, z, abstract_saturation<QssLevel>::zone::above);
     ar(emit);
 }
 
@@ -900,7 +900,7 @@ void binary_serialize(Ar& ar, abstract_dead_zone<QssLevel>& d) noexcept
 {
     auto& [x, y, value, lower, upper, sigma, z, emit] = d;
     ar(x, y, value, lower, upper, sigma);
-    io_enum(ar, z, std::remove_cvref_t<decltype(z)>::above);
+    io_enum(ar, z, abstract_dead_zone<QssLevel>::zone::above);
     ar(emit);
 }
 
@@ -958,8 +958,8 @@ void binary_serialize(Ar& ar, simulation_wrapper& d) noexcept
 {
     auto& [x, y, sim_id, sigma, observation_time_step, run, state] = d;
     ar(x, y, sim_id, sigma, observation_time_step);
-    io_enum(ar, run, std::remove_cvref_t<decltype(run)>::until);
-    io_enum(ar, state, std::remove_cvref_t<decltype(state)>::input_changed);
+    io_enum(ar, run, simulation_wrapper::run_type::until);
+    io_enum(ar, state, simulation_wrapper::run_state::input_changed);
 }
 
 /* * * * * * * * * *
@@ -1054,7 +1054,7 @@ void binary_serialize(Ar& ar, abstract_cross<QssLevel>& d) noexcept
 {
     auto& [x, y, output_values, value, threshold, sigma, zone] = d;
     ar(x, y, output_values, value, threshold, sigma);
-    io_enum(ar, zone, std::remove_cvref_t<decltype(zone)>::down);
+    io_enum(ar, zone, abstract_cross<QssLevel>::zone_type::down);
 }
 
 template<typename Ar, std::size_t QssLevel>
@@ -1069,7 +1069,7 @@ void binary_serialize(Ar& ar, time_func& d) noexcept
 {
     auto& [y, offset, timestep, value, sigma, function] = d;
     ar(y, offset, timestep, value, sigma);
-    io_enum(ar, function, std::remove_cvref_t<decltype(function)>::linear);
+    io_enum(ar, function, time_func::function_type::linear);
 }
 
 template<typename Ar>
