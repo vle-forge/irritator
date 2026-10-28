@@ -87,8 +87,6 @@ struct simulation_player_options {
 ///   manager must outlive the player and must not be shut down during a tick.
 ///
 /// @TODO
-/// - Simulations with @c simulation_wrapper are not supported (see
-///   @c binary-simulation.hpp).
 /// - Using @c hierarchy<keyframe> to more feature?
 class simulation_player
 {

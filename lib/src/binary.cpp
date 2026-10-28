@@ -185,6 +185,26 @@ void io_union32(Ar& ar, Union& u) noexcept
         std::memcpy(static_cast<void*>(&u), &bits, sizeof(bits));
 }
 
+/// The context of the reader (see @c binary_reader::set_context).
+struct binary_context {
+    /// The sources of the simulation being read: the sources of a dynamics
+    /// view their buffers.
+    external_source* srcs = nullptr;
+
+    /// The depth of the simulation being read: 0 for the root simulation, 1
+    /// for its embedded simulations, etc.
+    int depth = 0;
+
+    /// The files of the sources are opened before the models are read. They
+    /// are not opened for the original simulation of an embedded simulation:
+    /// it is never run, its copies are run.
+    bool open_files = true;
+
+    /// The error of the opening of a file (the reader only knows that it
+    /// fails).
+    error_code error;
+};
+
 /// Binds the buffer of a source to the buffer it views, the one of the
 /// external source or the one of the dynamics (the random source views
 /// @c source_data::chunk_real). The reader gets the external source with
@@ -300,8 +320,9 @@ void io_source(Ar& ar, source& src, source_data& data) noexcept
             return;
 
         if (bound) {
-            if (not bind_source(ar.template context<external_source>(), src,
-                                data) or
+            const auto* ctx = ar.template context<binary_context>();
+
+            if (not bind_source(ctx ? ctx->srcs : nullptr, src, data) or
                 src.index > src.buffer.size())
                 ar.fail();
         }
@@ -941,6 +962,86 @@ void binary_serialize(Ar& ar, simulation_wrapper& d) noexcept
     io_enum(ar, state, std::remove_cvref_t<decltype(state)>::input_changed);
 }
 
+/* * * * * * * * * *
+ *
+ * Embedded simulations
+ *
+ * * * * * * * * * */
+
+template<typename Ar>
+void binary_serialize(Ar& ar, single_factor& f) noexcept
+{
+    ar(f.value);
+}
+
+template<typename Ar>
+void binary_serialize(Ar& ar, fixed_factor& f) noexcept
+{
+    ar(f.values);
+}
+
+template<typename Ar>
+void binary_serialize(Ar& ar, random_factor& f) noexcept
+{
+    ar(f.reals, f.ints, f.count);
+    io_enum(ar, f.dist, distribution_type::weibull);
+}
+
+/// The value received on the input port is optional: a boolean then the value.
+template<typename Ar>
+void binary_serialize(Ar& ar, embedded_simulation::input_parameter& p) noexcept
+{
+    ar(p.mdl_id, p.values);
+
+    bool has_value = p.value.has_value();
+    real value     = p.value.value_or(zero);
+    ar(has_value);
+
+    if (has_value)
+        ar(value);
+
+    if constexpr (Ar::is_reader)
+        p.value = has_value ? std::optional<real>(value) : std::nullopt;
+}
+
+template<typename Ar>
+void binary_serialize(
+  Ar&                                              ar,
+  embedded_simulation::embedded_model_observation& o) noexcept
+{
+    ar(o.values);
+}
+
+/// A table: its vector of (identifier, value). The binary_access::check
+/// function checks the order of the identifiers (the table is a sorted
+/// vector).
+template<typename Ar,
+         typename Identifier,
+         typename T,
+         class Compare,
+         typename A>
+void binary_serialize(Ar& ar, table<Identifier, T, Compare, A>& t) noexcept
+{
+    ar(t.data);
+}
+
+template<typename Ar>
+void binary_serialize(
+  Ar& ar,
+  table<model_id, embedded_simulation::embedded_model_observation>::value_type&
+    v) noexcept
+{
+    ar(v.id, v.value);
+}
+
+/// The embedded simulations and the simulations need the binary_access
+/// (defined after).
+template<typename Ar>
+void binary_serialize(Ar& ar, embedded_simulation& e) noexcept;
+
+template<typename Ar>
+void binary_serialize(Ar& ar, simulation& sim) noexcept;
+
 template<typename Ar, std::size_t PortNumber>
 void binary_serialize(Ar& ar, accumulator<PortNumber>& d) noexcept
 {
@@ -1011,12 +1112,6 @@ void binary_serialize(Ar& ar, model& m) noexcept
 
     if (not ar.ok())
         return;
-
-    // The embedded simulations are not supported.
-    if (m.type == dynamics_type::simulation_wrapper) {
-        ar.fail();
-        return;
-    }
 
     dispatch(m, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
         if constexpr (Ar::is_reader)
@@ -1377,9 +1472,10 @@ struct binary_access {
     ///   a handle;
     /// - the connections: the lists of blocks of an output port end and do
     ///   not share a block.
-    static bool check(const simulation& sim) noexcept
+    static bool check(const simulation& sim, const int depth = 0) noexcept
     {
-        if (sim.sims.size() != 0)
+        if (depth > embedded_simulation_max_depth or
+            (sim.sims.size() != 0 and depth >= embedded_simulation_max_depth))
             return false;
 
         const auto& h = sim.sched.m_heap;
@@ -1388,8 +1484,11 @@ struct binary_access {
             const auto id = sim.models.get_id(mdl);
 
             if (std::cmp_greater(static_cast<int>(mdl.type),
-                                 dynamics_type_last()) or
-                mdl.type == dynamics_type::simulation_wrapper)
+                                 dynamics_type_last()))
+                return false;
+
+            if (mdl.type == dynamics_type::simulation_wrapper and
+                not wrapper_ok(sim, mdl))
                 return false;
 
             if (mdl.obs_id != observer_id{ 0 }) {
@@ -1461,6 +1560,148 @@ struct binary_access {
             }
         }
 
+        for (const auto& e : sim.sims)
+            if (not embedded_ok(e, depth + 1))
+                return false;
+
+        return true;
+    }
+
+    /// A simulation wrapper references an embedded simulation. Once the
+    /// simulation is initialized (the model has a scheduler node), the ports
+    /// match the factors and the selections of the embedded simulation (see
+    /// simulation_wrapper::transition and lambda).
+    static bool wrapper_ok(const simulation& sim, const model& mdl) noexcept
+    {
+        const auto& w = get_dyn<simulation_wrapper>(mdl);
+        const auto* e = sim.sims.try_to_get(w.sim_id);
+
+        if (is_defined(w.sim_id) and e == nullptr)
+            return false;
+
+        if (mdl.handle == invalid_heap_handle)
+            return true;
+
+        return e != nullptr and
+               w.x.size() == e->input_parameters.size() + 2u and
+               w.y.size() == e->input_parameters.size() + e->selections.size();
+    }
+
+    /// The objective function: valid enumerations and, if there are
+    /// selections, the parameters of the method (indexed by the index of the
+    /// selections).
+    static bool objective_ok(const embedded_simulation& e) noexcept
+    {
+        const auto& o  = e.objective;
+        const auto& ws = o.weighted_sum_params;
+        const auto& ec = o.epsilon_constrained_params;
+
+        if (ordinal(o.method) > ordinal(optimization_method::weighted_sum) or
+            ordinal(o.type) > ordinal(optimization_type::minimize) or
+            ordinal(ws.norm) > ordinal(norm_type::z_score))
+            return false;
+
+        for (const auto t : ws.types)
+            if (ordinal(t) > ordinal(optimization_type::minimize))
+                return false;
+
+        for (const auto op : ec.operations)
+            if (ordinal(op) > ordinal(operation_type::less_equal))
+                return false;
+
+        const auto n = e.selections.size();
+        if (n == 0)
+            return true;
+
+        switch (o.method) {
+        case optimization_method::weighted_sum:
+            return std::cmp_greater_equal(ws.weights.size(), n) and
+                   std::cmp_greater_equal(ws.types.size(), n);
+
+        case optimization_method::epsilon_constrained:
+            return std::cmp_greater_equal(ec.epsilons.size(), n) and
+                   std::cmp_greater_equal(ec.operations.size(), n) and
+                   e.selections.exists(ec.primary);
+
+        case optimization_method::simple:
+            return e.selections.exists(o.simple_params.primary);
+        }
+
+        return false;
+    }
+
+    /// The models of the factors and of the input parameters exist in a
+    /// simulation (and have a parameter).
+    static bool factors_ok(const embedded_simulation& e,
+                           const simulation&          sim) noexcept
+    {
+        for (const auto id : e.factors) {
+            const auto mdl_id = e.factors.get<model_id>(id);
+
+            if (not sim.models.exists(mdl_id) or
+                not std::cmp_less(get_index(mdl_id), sim.parameters.size()))
+                return false;
+        }
+
+        for (const auto& p : e.input_parameters)
+            if (not sim.models.exists(p.mdl_id))
+                return false;
+
+        return true;
+    }
+
+    /// An embedded simulation: its original simulation and its copies are
+    /// consistent, the factors and the selections reference models of the
+    /// simulations, the identifiers of the selections and of the copies are
+    /// dense (the objective function is a vector indexed by them) and the
+    /// tables of observations are sorted.
+    static bool embedded_ok(const embedded_simulation& e,
+                            const int                  depth) noexcept
+    {
+        if (not check(e.sim, depth))
+            return false;
+
+        for (const auto id : e.factors)
+            if (ordinal(e.factors.get<factor_type>(id)) >
+                ordinal(factor_type::random_mult))
+                return false;
+
+        for (const auto id : e.selections) {
+            if (not std::cmp_less(get_index(id), e.selections.size()) or
+                ordinal(e.selections.get<criteria_type>(id)) >
+                  ordinal(criteria_type::max) or
+                not e.sim.models.exists(e.selections.get<model_id>(id)))
+                return false;
+        }
+
+        if (not objective_ok(e))
+            return false;
+
+        if (not e.input_parameters.empty() and
+            e.input_parameters.size() != e.factors.size())
+            return false;
+
+        if (not factors_ok(e, e.sim))
+            return false;
+
+        const auto& sims = e.embedded_sims.get<simulation>();
+        const auto& obs  = e.embedded_sims
+                            .get<embedded_simulation::simulation_observation>();
+
+        for (const auto id : e.embedded_sims) {
+            const auto idx = get_index(id);
+
+            if (not std::cmp_less(idx, e.embedded_sims.size()) or
+                not check(sims[idx], depth) or not factors_ok(e, sims[idx]))
+                return false;
+
+            // sorted (two selections can observe the same model)
+            const auto& table = obs[idx].data;
+            for (sz i = 1; i < table.size(); ++i)
+                if (table[i].id < table[i - 1].id)
+                    return false;
+        }
+
         return true;
     }
 
@@ -1496,6 +1737,7 @@ struct binary_access {
         ar(sim.observers, sim.nodes, sim.output_ports, sim.dated_messages);
         io(ar, sim.sched.m_heap);
         ar(sim.message_buffer);
+        io_embedded_states(ar, sim);
 
         if constexpr (Ar::is_reader) {
             if (not ar.ok())
@@ -1515,8 +1757,145 @@ struct binary_access {
         }
     }
 
+    /// The state of the embedded simulations: the PRNG of the random
+    /// factors, the values of the input ports and the copies of the original
+    /// simulation with their observations. The embedded simulations are the
+    /// same (the identifiers are checked).
+    template<typename Ar>
+    static void io_embedded_states(Ar& ar, simulation& sim) noexcept
+    {
+        u32 count = static_cast<u32>(sim.sims.size());
+        ar(count);
+
+        if (not ar.ok() or count != sim.sims.size()) {
+            ar.fail();
+            return;
+        }
+
+        for (auto& e : sim.sims) {
+            const auto id      = sim.sims.get_id(e);
+            auto       read_id = id;
+            ar(read_id);
+
+            if (read_id != id) {
+                ar.fail();
+                return;
+            }
+
+            ar(e.seed, e.input_parameters, e.embedded_sims);
+
+            if (not ar.ok())
+                return;
+        }
+    }
+
+    /// The original simulation of an embedded simulation (its files are not
+    /// opened, see binary_context::open_files), the factors, the selections
+    /// and the objective function.
+    template<typename Ar>
+    static void io(Ar& ar, embedded_simulation& e) noexcept
+    {
+        if constexpr (Ar::is_reader) {
+            auto* ctx = ar.template context<binary_context>();
+            if (ctx == nullptr) {
+                ar.fail();
+                return;
+            }
+
+            const auto open_files = ctx->open_files;
+            ctx->open_files       = false;
+            ar(e.sim);
+            ctx->open_files = open_files;
+        } else {
+            ar(e.sim);
+        }
+
+        ar(e.factors, e.selections);
+
+        auto& o = e.objective;
+        io_enum(ar, o.method, optimization_method::weighted_sum);
+        io_enum(ar, o.type, optimization_type::minimize);
+        ar(o.weighted_sum_params.weights, o.weighted_sum_params.types);
+        io_enum(ar, o.weighted_sum_params.norm, norm_type::z_score);
+        ar(o.epsilon_constrained_params.epsilons,
+           o.epsilon_constrained_params.operations,
+           o.epsilon_constrained_params.primary, o.simple_params.primary);
+    }
+
+    /// A whole simulation, without header: the limits, the sources, the state
+    /// machines, the embedded simulations, the state and the parameters. The
+    /// reader opens the files of the sources before reading the models (the
+    /// sources of the models view their buffers).
+    template<typename Ar>
+    static void io_simulation(Ar& ar, simulation& sim) noexcept
+    {
+        io_limits(ar, sim);
+        io_sources(ar, sim.srcs);
+
+        if constexpr (Ar::is_reader) {
+            auto* ctx = ar.template context<binary_context>();
+
+            if (not ar.ok() or ctx == nullptr) {
+                ar.fail();
+                return;
+            }
+
+            if (ctx->open_files) {
+                if (auto ret = prepare_files(sim.srcs); not ret) {
+                    if (not ctx->error)
+                        ctx->error = ret.error();
+
+                    ar.fail();
+                    return;
+                }
+            }
+        }
+
+        ar(sim.hsms, sim.sims);
+        io_snapshot(ar, sim);
+
+        if (ar.ok())
+            io_parameters(ar, sim);
+    }
+
+    /// A simulation in a simulation (the original simulation or a copy of
+    /// an embedded simulation). The reader limits the depth and binds the
+    /// sources of the models to the sources of this simulation.
+    template<typename Ar>
+    static void io_nested(Ar& ar, simulation& sim) noexcept
+    {
+        if constexpr (Ar::is_writer) {
+            io_simulation(ar, sim);
+        } else {
+            auto* ctx = ar.template context<binary_context>();
+
+            if (ctx == nullptr or ctx->depth >= embedded_simulation_max_depth) {
+                ar.fail();
+                return;
+            }
+
+            sim.clear();
+            sim.srcs.clear();
+            sim.sims.clear();
+
+            auto* srcs = ctx->srcs;
+            ctx->srcs  = &sim.srcs;
+            ++ctx->depth;
+
+            io_simulation(ar, sim);
+
+            --ctx->depth;
+            ctx->srcs = srcs;
+        }
+    }
+
     static void clear_snapshot(simulation& sim) noexcept
     {
+        for (auto& e : sim.sims) {
+            e.embedded_sims.clear();
+            e.input_parameters.clear();
+        }
+
         sim.models.clear();
         sim.observers.clear();
         sim.nodes.clear();
@@ -1637,6 +2016,19 @@ struct binary_access {
             });
         }
 
+        // The copies of the embedded simulations (the original simulation is
+        // never run: its sources are not bound).
+        for (auto& e : sim.sims) {
+            auto& sims = e.embedded_sims.get<simulation>();
+
+            for (const auto id : e.embedded_sims) {
+                if (not result.has_value())
+                    return result;
+
+                result = restore_sources(sims[get_index(id)]);
+            }
+        }
+
         return result;
     }
 };
@@ -1645,6 +2037,18 @@ template<typename Ar>
 void binary_serialize(Ar& ar, observer& o) noexcept
 {
     binary_access::io(ar, o);
+}
+
+template<typename Ar>
+void binary_serialize(Ar& ar, embedded_simulation& e) noexcept
+{
+    binary_access::io(ar, e);
+}
+
+template<typename Ar>
+void binary_serialize(Ar& ar, simulation& sim) noexcept
+{
+    binary_access::io_nested(ar, sim);
 }
 
 template<typename Ar>
@@ -1685,27 +2089,35 @@ status write_snapshot(binary_writer& w, const simulation& sim) noexcept
 
 status read_snapshot(binary_reader& r, simulation& sim) noexcept
 {
-    r.set_context(&sim.srcs);
+    binary_context ctx;
+    ctx.srcs = &sim.srcs;
+    r.set_context(&ctx);
 
-    const auto version = read_header(r, binary_snapshot_magic);
-    if (version != binary_simulation_version) {
-        binary_access::clear_snapshot(sim);
-        return make_error(simulation_errc::range_error);
-    }
+    const auto ret = [&]() noexcept -> status {
+        const auto version = read_header(r, binary_snapshot_magic);
+        if (version != binary_simulation_version) {
+            binary_access::clear_snapshot(sim);
+            return make_error(simulation_errc::range_error);
+        }
 
-    binary_access::io_snapshot(r, sim);
+        binary_access::io_snapshot(r, sim);
 
-    if (not r.ok()) {
-        binary_access::clear_snapshot(sim);
-        return reader_error(r);
-    }
+        if (not r.ok()) {
+            binary_access::clear_snapshot(sim);
+            return ctx.error ? ctx.error : reader_error(r);
+        }
 
-    if (not binary_access::check(sim)) {
-        binary_access::clear_snapshot(sim);
-        return make_error(simulation_errc::range_error);
-    }
+        if (not binary_access::check(sim)) {
+            binary_access::clear_snapshot(sim);
+            return make_error(simulation_errc::range_error);
+        }
 
-    return binary_access::restore_sources(sim);
+        return binary_access::restore_sources(sim);
+    }();
+
+    r.set_context(nullptr);
+
+    return ret;
 }
 
 status write_simulation(binary_writer& w, const simulation& sim) noexcept
@@ -1713,14 +2125,8 @@ status write_simulation(binary_writer& w, const simulation& sim) noexcept
     if (not binary_access::check(sim))
         return make_error(simulation_errc::range_error);
 
-    auto& s = const_cast<simulation&>(sim);
-
     write_header(w, binary_simulation_magic, binary_simulation_version);
-    binary_access::io_limits(w, s);
-    binary_access::io_sources(w, s.srcs);
-    w(s.hsms);
-    binary_access::io_snapshot(w, s);
-    binary_access::io_parameters(w, s);
+    binary_access::io_simulation(w, const_cast<simulation&>(sim));
 
     if (not w.ok())
         return make_error(simulation_errc::memory_error);
@@ -1733,44 +2139,41 @@ status read_simulation(binary_reader& r, simulation& sim) noexcept
     const auto fail = [&sim](const error_code ec) noexcept -> status {
         sim.clear();
         sim.srcs.clear();
+        sim.sims.clear();
 
         return ec;
     };
 
     sim.clear();
     sim.srcs.clear();
-    r.set_context(&sim.srcs);
+    sim.sims.clear();
 
-    if (read_header(r, binary_simulation_magic) != binary_simulation_version)
-        return fail(make_error(simulation_errc::range_error));
+    binary_context ctx;
+    ctx.srcs = &sim.srcs;
+    r.set_context(&ctx);
 
-    binary_access::io_limits(r, sim);
-    binary_access::io_sources(r, sim.srcs);
+    const auto ret = [&]() noexcept -> status {
+        if (read_header(r, binary_simulation_magic) !=
+            binary_simulation_version)
+            return fail(make_error(simulation_errc::range_error));
 
-    if (not r.ok())
-        return fail(reader_error(r));
+        binary_access::io_simulation(r, sim);
 
-    // The binary files must be opened before the models are read: the sources
-    // of the models view the buffers of the files.
-    if (auto ret = binary_access::prepare_files(sim.srcs); not ret)
-        return fail(ret.error());
+        if (not r.ok())
+            return fail(ctx.error ? ctx.error : reader_error(r));
 
-    r(sim.hsms);
-    binary_access::io_snapshot(r, sim);
+        if (not binary_access::check(sim))
+            return fail(make_error(simulation_errc::range_error));
 
-    if (r.ok())
-        binary_access::io_parameters(r, sim);
+        if (auto ret = binary_access::restore_sources(sim); not ret)
+            return fail(ret.error());
 
-    if (not r.ok())
-        return fail(reader_error(r));
+        return success();
+    }();
 
-    if (not binary_access::check(sim))
-        return fail(make_error(simulation_errc::range_error));
+    r.set_context(nullptr);
 
-    if (auto ret = binary_access::restore_sources(sim); not ret)
-        return fail(ret.error());
-
-    return success();
+    return ret;
 }
 
 status save_simulation(const path& p, const simulation& sim) noexcept

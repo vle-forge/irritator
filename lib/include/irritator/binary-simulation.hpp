@@ -20,14 +20,18 @@
  * - the snapshot (@c 'IRTS'): the part of the simulation that changes while it
  *   runs, to roll back a simulation: the models with their dynamics, the
  *   observers (raw samples, history and resampler), the connections, the
- *   dated messages, the messages that wait for the next step, the scheduler
- *   and the current time. The external
+ *   dated messages, the messages that wait for the next step, the scheduler,
+ *   the current time and the state of the embedded simulations (the copies of
+ *   the original simulation, with their observations, the values of the input
+ *   ports and the PRNG of the random factors). The external
  *   sources, the hierarchical state machines and the parameters are not
  *   written: the snapshot is read in the simulation it comes from (or in a
  *   simulation built the same way).
  * - the dump (@c 'IRTD'): everything that is needed to rebuild a simulation
  *   in an empty @c irt::simulation: the snapshot, the limits, the external
- *   sources the hierarchical state machines and the parameters.
+ *   sources, the hierarchical state machines, the embedded simulations (the
+ *   original simulation, the factors, the selections and the objective
+ *   function) and the parameters.
  *
  * What is restored is the exact state of the containers (see
  * @c binary-containers.hpp): the models keep their identifiers, the
@@ -41,8 +45,11 @@
  *   The writer checks the consistency of the simulation (scheduler,
  *   observers, connections, input ports, references between models) and
  *   refuses to write an inconsistent state.
- * - A simulation that holds embedded simulations (@c simulation::sims,
- *   @c simulation_wrapper) is not supported.
+ * - The embedded simulations (@c simulation::sims, @c simulation_wrapper)
+ *   are written as whole simulations (each copy of the experimental design is
+ *   a simulation): the size of the snapshot grows with the number of copies.
+ *   The depth of the embedded simulations is limited by
+ *   @c embedded_simulation_max_depth.
  * - The files of the external sources are not part of the dump: the dump
  *   stores their paths and positions, the reader opens the files again.
  *
@@ -63,12 +70,12 @@ inline constexpr u32 binary_snapshot_magic = binary_magic('I', 'R', 'T', 'S');
 inline constexpr u32 binary_simulation_magic = binary_magic('I', 'R', 'T', 'D');
 
 /// Version of both formats. A reader refuses another version.
-inline constexpr u32 binary_simulation_version = 2u;
+inline constexpr u32 binary_simulation_version = 3u;
 
 /// Writes the snapshot of the simulation.
 ///
 /// Errors: @c simulation_errc::range_error if the simulation is not in a
-/// consistent state or holds embedded simulations, @c
+/// consistent state (or if its embedded simulations are too deep), @c
 /// simulation_errc::memory_error if the writer can not grow.
 status write_snapshot(binary_writer& w, const simulation& sim) noexcept;
 

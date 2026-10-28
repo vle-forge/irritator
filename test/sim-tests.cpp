@@ -6,6 +6,8 @@
 
 #include "world.hpp"
 
+#include <irritator/helpers.hpp>
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -70,6 +72,110 @@ struct alignas(64) over_aligned_column {
 enum class over_aligned_id : std::uint32_t;
 
 error_code error_of(const status& s) noexcept { return s.error(); }
+
+/// A simulation wrapper and its embedded simulation. The original simulation
+/// is a generator and two counters observed by the selections, the time advance
+/// of the generator is the factor (0.5, 1 or 2): three copies. A generator of
+/// the root simulation sends the time to run (1, 2, 3...) to the wrapper every
+/// 5 time units (the wrapper sends its results before the next message).
+struct wrapper_world {
+    model_id               wrapper  = undefined<model_id>();
+    model_id               best     = undefined<model_id>();
+    embedded_simulation_id embedded = undefined<embedded_simulation_id>();
+};
+
+void build_wrapper_world(simulation&                        sim,
+                         const simulation_wrapper::run_type run,
+                         wrapper_world&                     w) noexcept
+{
+    debug::ensure(sim.sims.reserve(1));
+    auto& e    = sim.sims.alloc();
+    w.embedded = sim.sims.get_id(e);
+
+    auto& orig = e.sim;
+    orig.limits.set_bound(0, 10);
+    auto& o_gen  = orig.alloc<generator>();
+    auto& o_cnt1 = orig.alloc<counter>();
+    auto& o_cnt2 = orig.alloc<counter>();
+    orig.parameters[get_index(orig.get_id(o_gen))].clear().set_generator_ta(
+      1.0);
+    debug::ensure(orig.connect_dynamics(o_gen, 0, o_cnt1, 0));
+    debug::ensure(orig.connect_dynamics(o_gen, 0, o_cnt2, 0));
+
+    debug::ensure(e.factors.reserve(1) and e.selections.reserve(2));
+
+    const auto f                  = e.factors.alloc_id();
+    e.factors.get<model_id>(f)    = orig.get_id(o_gen);
+    e.factors.get<name_str>(f)    = "ta";
+    e.factors.get<factor_type>(f) = factor_type::fixed;
+    auto& values                  = e.factors.get<fixed_factor>(f).values;
+    debug::ensure(values.resize(3));
+    values[0] = 0.5;
+    values[1] = 1.0;
+    values[2] = 2.0;
+
+    for (const auto& [cnt, c] :
+         { std::pair{ orig.get_id(o_cnt1), criteria_type::max },
+           std::pair{ orig.get_id(o_cnt2), criteria_type::min_last } }) {
+        const auto s                       = e.selections.alloc_id();
+        e.selections.get<model_id>(s)      = cnt;
+        e.selections.get<name_str>(s)      = "events";
+        e.selections.get<criteria_type>(s) = c;
+    }
+
+    e.objective.method                = optimization_method::simple;
+    e.objective.type                  = optimization_type::maximize;
+    e.objective.simple_params.primary = *e.selections.begin();
+
+    // the root simulation
+
+    sim.limits.set_bound(0, 20);
+
+    const real times[] = { 1, 2, 3, 4, 5, 6 };
+    debug::ensure(sim.srcs.constant_sources.reserve(1));
+    auto& cst = sim.srcs.constant_sources.alloc(times);
+
+    auto& gen = sim.alloc<generator>();
+    sim.parameters[get_index(sim.get_id(gen))]
+      .clear()
+      .set_generator_ta(5.0)
+      .set_generator_value(source_type::constant,
+                           sim.srcs.constant_sources.get_id(cst));
+
+    auto& wrp = sim.alloc<simulation_wrapper>();
+    w.wrapper = sim.get_id(wrp);
+    debug::ensure(wrp.x.resize(3) and wrp.y.resize(3));
+
+    auto& p = sim.parameters[get_index(w.wrapper)];
+    p.integers[simulation_wrapper_tag::run] = ordinal(run);
+    p.integers[simulation_wrapper_tag::id]  = ordinal(w.embedded);
+
+    // with the complete mode, each message initializes and runs the copies
+    if (run == simulation_wrapper::run_type::complete)
+        debug::ensure(sim.connect_dynamics(gen, 0, wrp, 0));
+
+    debug::ensure(sim.connect_dynamics(gen, 0, wrp, 1));
+
+    for (int i = 0; i != 3; ++i) {
+        auto& c = sim.alloc<counter>();
+        if (i == 0)
+            w.best = sim.get_id(c);
+
+        debug::ensure(sim.connect_dynamics(wrp, i, c, 0));
+    }
+}
+
+/// A chain of embedded simulations: the root simulation contains an embedded
+/// simulation of depth 1 that contains an embedded simulation of depth 2...
+void build_embedded_chain(simulation& sim, const int depth) noexcept
+{
+    simulation* current = &sim;
+
+    for (int i = 0; i != depth; ++i) {
+        debug::ensure(current->sims.reserve(1));
+        current = &current->sims.alloc().sim;
+    }
+}
 
 } // namespace
 
@@ -320,15 +426,6 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
             expect(snapshot(sim).empty());
             mdl->type = type;
             expect(not dump(sim).empty());
-        }
-
-        {
-            // the embedded simulations are not supported
-
-            simulation sim;
-            sim.alloc<simulation_wrapper>();
-            expect(dump(sim).empty());
-            expect(snapshot(sim).empty());
         }
 
         {
@@ -764,6 +861,165 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
                 << "grow" << capacity;
           }
       };
+};
+
+ut::suite<"irt::binary embedded simulations"> embedded_suite = [] {
+    using namespace ut;
+    using namespace ut::literals;
+
+    // A dump during the simulation: the loaded simulation runs as the
+    // original simulation.
+    for (const auto run : { simulation_wrapper::run_type::complete,
+                            simulation_wrapper::run_type::until }) {
+        const auto name = std::string(
+                            "dump: the embedded simulations continue (") +
+                          std::string(
+                            simulation_wrapper::run_type_names[ordinal(run)]) +
+                          ")";
+
+        test(name) = [run] {
+            simulation    sim;
+            wrapper_world w;
+            build_wrapper_world(sim, run, w);
+            expect(start(sim) >> ut::fatal);
+            expect(run_steps(sim, 7) >> ut::fatal);
+
+            const auto middle = dump(sim);
+            expect(not middle.empty() >> ut::fatal);
+
+            simulation fresh;
+            expect(load_dump(fresh, middle) >> ut::fatal);
+            expect(same(dump(fresh), middle, "embedded fixed point"));
+
+            const auto& e = *fresh.sims.try_to_get(w.embedded);
+            expect(eq(e.embedded_sims.size(), 3u));
+            expect(eq(e.input_parameters.size(), 1u));
+
+            // with the until mode, the copies are dumped during their run
+            if (run == simulation_wrapper::run_type::until) {
+                const auto& sims    = e.embedded_sims.get<simulation>();
+                auto        running = 0;
+
+                for (const auto id : e.embedded_sims) {
+                    const auto t = sims[get_index(id)].current_time();
+                    running += (0.0 < t and t < 10.0) ? 1 : 0;
+                }
+
+                expect(running > 0);
+            }
+
+            expect(run_steps(sim, 10));
+            expect(run_steps(fresh, 10));
+            expect(same(dump(fresh), dump(sim), "embedded continuation"));
+
+            const auto& a = get_dyn<counter>(sim.models.get(w.best));
+            const auto& b = get_dyn<counter>(fresh.models.get(w.best));
+            expect(a.event_number > 0);
+            expect(eq(a.event_number, b.event_number));
+            expect(eq(a.sum_values, b.sum_values));
+        };
+    }
+
+    "snapshot: rollback with embedded simulations"_test = [] {
+        simulation    sim;
+        wrapper_world w;
+        build_wrapper_world(sim, simulation_wrapper::run_type::until, w);
+        expect(start(sim) >> ut::fatal);
+        expect(run_steps(sim, 5) >> ut::fatal);
+
+        const auto at_5 = snapshot(sim);
+        expect(not at_5.empty() >> ut::fatal);
+
+        expect(run_steps(sim, 10));
+        const auto original = dump(sim);
+
+        expect(load_snapshot(sim, at_5) >> ut::fatal);
+        expect(same(snapshot(sim), at_5, "embedded snapshot fixed point"));
+        expect(run_steps(sim, 10));
+        expect(same(dump(sim), original, "embedded rollback"));
+    };
+
+    "dump: the depth of the embedded simulations is limited"_test = [] {
+        simulation deepest;
+        build_embedded_chain(deepest, embedded_simulation_max_depth);
+
+        const auto b = dump(deepest);
+        expect(not b.empty());
+
+        simulation fresh;
+        expect(load_dump(fresh, b));
+
+        simulation too_deep;
+        build_embedded_chain(too_deep, embedded_simulation_max_depth + 1);
+        expect(dump(too_deep).empty());
+        expect(snapshot(too_deep).empty());
+    };
+
+    "dump: refuse an inconsistent simulation wrapper"_test = [] {
+        {
+            // an embedded simulation that does not exist
+
+            simulation sim;
+            auto&      wrp = sim.alloc<simulation_wrapper>();
+            expect(not dump(sim).empty());
+
+            wrp.sim_id = embedded_simulation_id{ 0x10001u };
+            expect(dump(sim).empty());
+            expect(snapshot(sim).empty());
+        }
+
+        {
+            // the ports do not match the embedded simulation
+
+            simulation    sim;
+            wrapper_world w;
+            build_wrapper_world(sim, simulation_wrapper::run_type::until, w);
+            expect(start(sim) >> ut::fatal);
+            expect(not dump(sim).empty());
+
+            auto& wrp = get_dyn<simulation_wrapper>(sim.models.get(w.wrapper));
+            expect(wrp.x.resize(4));
+            expect(dump(sim).empty());
+            expect(wrp.x.resize(3));
+
+            auto& e = *sim.sims.try_to_get(w.embedded);
+            e.selections.get<criteria_type>(
+              *e.selections.begin()) = static_cast<criteria_type>(42);
+            expect(dump(sim).empty());
+        }
+    };
+
+    "dump: an embedded simulation in an untrusted input"_test = [] {
+        simulation    sim;
+        wrapper_world w;
+        build_wrapper_world(sim, simulation_wrapper::run_type::until, w);
+        expect(start(sim) >> ut::fatal);
+        expect(run_steps(sim, 7) >> ut::fatal);
+
+        const auto b = dump(sim);
+        expect(not b.empty() >> ut::fatal);
+
+        // every truncated input is refused and leaves an empty simulation
+        for (std::size_t len = 0; len < b.size(); len += 97) {
+            const bytes cut(b.begin(),
+                            b.begin() + static_cast<std::ptrdiff_t>(len));
+
+            simulation fresh;
+            expect(not load_dump(fresh, cut)) << "length" << len;
+            expect(is_empty(fresh) and fresh.sims.size() == 0u);
+        }
+
+        // flipped bytes never crash
+        std::mt19937 rng(42);
+        for (int i = 0; i != 2000; ++i) {
+            auto corrupted = b;
+            corrupted[rng() % corrupted.size()] ^= static_cast<u8>(1 +
+                                                                   rng() % 255);
+
+            simulation fresh;
+            (void)load_dump(fresh, corrupted, 64u * 1024u * 1024u);
+        }
+    };
 };
 
 int main() {}

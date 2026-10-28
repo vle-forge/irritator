@@ -2263,6 +2263,12 @@ public:
     status finalize() noexcept;
 };
 
+/// The maximum number of levels of embedded simulations: a simulation of depth
+/// @c embedded_simulation_max_depth can not contain embedded simulations (the
+/// root simulation has the depth 0). The binary dump refuses deeper
+/// simulations.
+inline constexpr int embedded_simulation_max_depth = 4;
+
 /** The @c embedded_simulation class stores a @c simulation (models,
  * connections, observers, etc.) that serves as its initial project. It also
  * stores a set of @c simulation instances with different parameters to carry
