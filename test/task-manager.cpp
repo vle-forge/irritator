@@ -374,8 +374,9 @@ int main()
         // Updated before wait_empty() returns.
         expect(eq(tm.wordered_tasks_completed(0), irt::u64{ 3 }));
         // The execution time (ms) was the number of tasks before the fix.
-        expect(
-          ge(tm.wordered_execution_time(0), std::chrono::milliseconds{ 6 }));
+        // Compares the counts: libstdc++ 11 has no operator<< for durations.
+        expect(ge(tm.wordered_execution_time(0).count(),
+                  std::chrono::milliseconds{ 6 }.count()));
         expect(tm.wordered_execution_time(0) <
                std::chrono::milliseconds{ 5000 });
         tm.shutdown();
