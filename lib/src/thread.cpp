@@ -85,6 +85,14 @@ bool ordered_task_list::stopping() const noexcept
     return m_stopping;
 }
 
+ordered_task_list::status ordered_task_list::get_status() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return status{ .queued   = m_queue.size(),
+                   .running  = static_cast<u32>(m_tasks_running),
+                   .stopping = m_stopping };
+}
+
 ordered_worker::ordered_worker(ordered_task_list& list) noexcept
   : m_list(&list)
 {}
@@ -221,6 +229,17 @@ bool unordered_task_list::stopping() const noexcept
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_stopping;
+}
+
+unordered_task_list::status unordered_task_list::get_status() const noexcept
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return status{ .current    = m_phase,
+                   .pending    = static_cast<u32>(m_pending.size()),
+                   .incoming   = static_cast<u32>(m_incoming.size()),
+                   .batch_size = m_batch_size,
+                   .started    = m_next_index,
+                   .completed  = m_completed };
 }
 
 unordered_worker::unordered_worker(std::span<unordered_task_list> lists,

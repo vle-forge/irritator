@@ -382,6 +382,44 @@ int main()
         tm.shutdown();
     };
 
+    "lists: status snapshots"_test = [] {
+        using phase = irt::unordered_task_list::phase;
+
+        irt::task_manager tm(mono_tm);
+        tm.start();
+
+        for (int i = 0; i < 3; ++i)
+            expect(tm.ordered(0).add([] {}));
+        tm.ordered(0).wait_empty();
+
+        const auto o = tm.ordered(0).get_status();
+        expect(eq(o.queued, 0u));
+        expect(eq(o.running, 0u));
+        expect(not o.stopping);
+
+        for (int i = 0; i < 4; ++i)
+            expect(tm.unordered(0).add([] {}));
+
+        auto u = tm.unordered(0).get_status();
+        expect(u.current == phase::accepting);
+        expect(eq(u.pending, 4u));
+        expect(eq(u.incoming, 0u));
+
+        tm.unordered(0).submit();
+        tm.unordered(0).wait_completion();
+
+        u = tm.unordered(0).get_status();
+        expect(u.current == phase::accepting);
+        expect(eq(u.pending, 0u));
+        expect(eq(u.batch_size, 4u));
+        expect(eq(u.started, 4u));
+        expect(eq(u.completed, 4u));
+
+        tm.shutdown();
+        expect(tm.ordered(0).get_status().stopping);
+        expect(tm.unordered(0).get_status().current == phase::shutting_down);
+    };
+
     // The worker must update its statistics BEFORE the list publishes the
     // completion (wait_empty() relies on it). The observer spins on the list
     // counter instead of sleeping on the condition variable, to catch the few

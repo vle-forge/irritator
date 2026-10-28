@@ -1331,6 +1331,20 @@ struct task_window {
     void show() noexcept;
     void show_widgets() noexcept;
 
+    /// The counters of a list or a worker, sampled every second to compute
+    /// the number of tasks per second and the load.
+    struct sample {
+        u64   tasks   = 0;   //!< Completed tasks at the last sample.
+        u64   time_ms = 0;   //!< Execution time at the last sample.
+        float rate    = 0.f; //!< Tasks per second during the last period.
+        float load    = 0.f; //!< Part of the last period spent in tasks.
+    };
+
+    vector<sample> lists;   //!< The ordered then the unordered lists.
+    vector<sample> workers; //!< The ordered then the unordered workers.
+
+    std::chrono::steady_clock::time_point last_sample;
+
     bool is_open = false;
 };
 

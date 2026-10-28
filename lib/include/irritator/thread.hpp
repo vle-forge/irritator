@@ -325,6 +325,15 @@ public:
     bool pop(task& out) noexcept;
     void notify_done() noexcept;
 
+    /// A snapshot of the list (for statistics).
+    struct status {
+        u32  queued;   //!< Tasks waiting in the ring buffer.
+        u32  running;  //!< Tasks being executed (0 or 1).
+        bool stopping; //!< @c shutdown() was called.
+    };
+
+    status get_status() const noexcept;
+
     //! Wait until every accepted task is done, or until @c shutdown().
     void wait_empty() noexcept;
 
@@ -437,6 +446,20 @@ public:
     bool try_steal(task& out) noexcept;
     void notify_done() noexcept;
 
+    enum class phase : uint8_t { accepting, executing, shutting_down };
+
+    /// A snapshot of the list (for statistics).
+    struct status {
+        phase current;    //!< Building, executing or shutting down.
+        u32   pending;    //!< Tasks of the batch (accepting: being built).
+        u32   incoming;   //!< Tasks added while the batch executes.
+        u32   batch_size; //!< Size of the batch (executing).
+        u32   started;    //!< Tasks of the batch taken by a worker.
+        u32   completed;  //!< Tasks of the batch done.
+    };
+
+    status get_status() const noexcept;
+
     //! Wait for the end of the batch, or until @c shutdown().
     void wait_completion() noexcept;
 
@@ -459,8 +482,6 @@ public:
 
 private:
     friend class task_manager;
-
-    enum class phase : uint8_t { accepting, executing, shutting_down };
 
     vector<task> m_pending;  // the batch (accepting: being built)
     vector<task> m_incoming; // tasks added while the batch executes
