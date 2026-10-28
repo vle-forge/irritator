@@ -315,7 +315,7 @@ static auto load_component(const file_access& files,
                            const component_id compo_id) noexcept -> status
 {
     if (not ids.exists(compo_id))
-        return make_error(modeling_errc::component_load_error);
+        return make_error(modeling_errc::component_not_found);
 
     auto& compo = ids.components[compo_id];
 
@@ -1144,7 +1144,7 @@ status modeling::save(const component_access& ids,
                       const component_id      id) noexcept
 {
     if (not ids.exists(id))
-        return make_error(modeling_errc::component_load_error);
+        return make_error(modeling_errc::component_not_found);
 
     const auto filenames = make_component_files(fs, ids, id);
 

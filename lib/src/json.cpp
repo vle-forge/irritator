@@ -8013,7 +8013,7 @@ struct json_archiver::impl {
         if (reg->path.empty())
             return make_error(modeling_errc::directory_error);
         if (reg->name.empty())
-            return make_error(modeling_errc::file_error);
+            return make_error(modeling_errc::recorded_directory_error);
 
         w.StartObject();
 

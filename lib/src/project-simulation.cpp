@@ -117,14 +117,14 @@ static status flush_to_irtb(const observer& obs,
                                                 .t_max  = vec[len - 1].t,
                                                 .mdl_id = obs.model() };
 
-              if (std::fwrite(&header, sizeof(header), 1, out.to_file()) <= 1)
-                  return make_error(simulation_errc::file_eof_error);
+              if (std::fwrite(&header, sizeof(header), 1, out.to_file()) != 1)
+                  return make_error(simulation_errc::file_write_error);
 
               const auto begin = vec.begin() + cursor;
               const auto nmemb = vec.size() - cursor;
               if (std::fwrite(begin, sizeof(resampled_sample), nmemb,
-                              out.to_file()) <= 1)
-                  return make_error(simulation_errc::file_eof_error);
+                              out.to_file()) != nmemb)
+                  return make_error(simulation_errc::file_write_error);
           }
 
           return cursor + vec.size();

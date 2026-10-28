@@ -95,7 +95,7 @@ status generic_component::connect(const child&           src,
                                   const connection::port p_dst) noexcept
 {
     if (exists(src, p_src, dst, p_dst))
-        return make_error(modeling_errc::generic_connection_already_exist);
+        return make_error(modeling_errc::generic_connection_already_exists);
 
     if (src.type == child_type::model) {
         if (dst.type == child_type::model) {
@@ -125,7 +125,7 @@ status generic_component::connect_input(const port_id          x,
     for (const auto& con : input_connections)
         if (con.x == x and con.dst == children.get_id(dst) and con.port == port)
             return make_error(
-              modeling_errc::generic_input_connection_container_already_exist);
+              modeling_errc::generic_input_connection_already_exists);
 
     input_connections.alloc(x, children.get_id(dst), port);
 
@@ -143,7 +143,7 @@ status generic_component::connect_output(const port_id          y,
     for (const auto& con : output_connections)
         if (con.y == y and con.src == children.get_id(src) and con.port == port)
             return make_error(
-              modeling_errc::generic_output_connection_container_already_exist);
+              modeling_errc::generic_output_connection_already_exists);
     output_connections.alloc(y, children.get_id(src), port);
 
     return success();

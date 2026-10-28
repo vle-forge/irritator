@@ -63,7 +63,7 @@ static status connect(generic_component& c,
         return make_error(modeling_errc::generic_connection_container_full);
 
     if (is_connection_exits(c, src, port_src, dst, port_dst))
-        return make_error(modeling_errc::generic_connection_already_exist);
+        return make_error(modeling_errc::generic_connection_already_exists);
 
     c.connections.alloc(src, port_src, dst, port_dst);
 
@@ -142,7 +142,7 @@ status add_lif(component& dst, generic_component& com) noexcept
         return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
-        return make_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_connection_container_full);
 
     auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
@@ -181,8 +181,11 @@ status add_izhikevich(component& dst, generic_component& com) noexcept
 
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    if (!(com.children.can_alloc(19) && com.connections.can_alloc(22)))
+    if (!com.children.can_alloc(19))
         return make_error(modeling_errc::generic_children_container_full);
+
+    if (!com.connections.can_alloc(22))
+        return make_error(modeling_errc::generic_connection_container_full);
 
     auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(com, "u");
     auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(com, "v");
@@ -320,7 +323,7 @@ status add_negative_lif(component& dst, generic_component& com) noexcept
         return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
-        return make_error(modeling_errc::generic_children_container_full);
+        return make_error(modeling_errc::generic_connection_container_full);
 
     auto mdl_0 = alloc<irt::constant>(com, "1");
     com.children_parameters[mdl_0].set_constant(1, 0);
@@ -440,7 +443,7 @@ status component_access::copy(const internal_component src,
 
     auto& dst = components[id];
     if (dst.type != component_type::generic)
-        return make_error(modeling_errc::component_not_found);
+        return make_error(modeling_errc::component_type_mismatch);
 
     auto& gen = generic_components.get(dst.id.generic_id);
 

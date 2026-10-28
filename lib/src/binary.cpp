@@ -1783,7 +1783,7 @@ status save_simulation(const path& p, const simulation& sim) noexcept
         return f.error();
 
     if (not write_all(*f, w.bytes()))
-        return make_error(simulation_errc::file_access_error);
+        return make_error(simulation_errc::file_write_error);
 
     f->close();
 

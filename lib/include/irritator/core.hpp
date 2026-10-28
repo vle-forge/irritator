@@ -3718,7 +3718,7 @@ struct abstract_inverse {
     status lambda(simulation& sim) noexcept
     {
         if (is_zero(value[0]))
-            return make_error(simulation_errc::abstract_log_input_error);
+            return make_error(simulation_errc::abstract_inverse_input_error);
 
         if constexpr (QssLevel == 1) {
             return send_message(sim, y[0], one / value[0]);
@@ -5925,7 +5925,7 @@ struct abstract_sqrt {
     status lambda(simulation& sim) noexcept
     {
         if (value[0] <= zero)
-            return make_error(simulation_errc::abstract_log_input_error);
+            return make_error(simulation_errc::abstract_sqrt_input_error);
 
         const real s = std::sqrt(value[0]);
         if constexpr (QssLevel == 1)
@@ -6275,7 +6275,7 @@ struct abstract_division {
         const real a0 = values[0];
         const real b0 = values[1];
         if (is_zero(b0))
-            return make_error(simulation_errc::abstract_log_input_error);
+            return make_error(simulation_errc::abstract_division_by_zero_error);
 
         if constexpr (QssLevel == 1)
             return send_message(sim, y[0], a0 / b0);
@@ -11837,7 +11837,7 @@ inline status simulation::connect(output_port_id& port,
 
     if (not y) {
         if (not output_ports.can_alloc(1) and not output_ports.grow<2, 1>())
-            return make_error(simulation_errc::output_port_error);
+            return make_error(simulation_errc::output_ports_container_full);
 
         auto& new_y = output_ports.alloc();
         port        = output_ports.get_id(new_y);

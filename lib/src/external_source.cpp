@@ -422,7 +422,7 @@ status text_file_source::init(source& src, source_data& data) noexcept
     // A text file is read sequentially: it can not be shared between sources.
     if (in_use)
         return make_error(
-          simulation_errc::external_source_text_file_access_error);
+          simulation_errc::external_source_text_file_already_used);
 
     irt_check(text_file_source_fill_buffer(*this, src, data));
     in_use = true;

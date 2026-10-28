@@ -471,7 +471,8 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
     auto* embed_sims = sim.sims.try_to_get(sim_id);
 
     if (not embed_sims)
-        return make_error(simulation_errc::simulation_wrapper_source_error);
+        return make_error(
+          simulation_errc::simulation_wrapper_embedded_simulation_search_error);
 
     if (x.size() <= 2)
         return make_error(simulation_errc::simulation_wrapper_input_error);

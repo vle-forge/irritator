@@ -50,16 +50,12 @@ enum class simulation_errc : std::int16_t {
     range_error,  /**< ERANGE error, A value is not within the range of allowed
                      values. */
 
-    file_access_error, /**< Build from registered, directory and file name
-                          error. */
-    file_eof_error,    /**< End of file reach too quickly. */
-    file_open_error,   /**< Fail to open the file with common API. */
-    file_empty,        /**< The file can not be empty. */
+    file_eof_error,   /**< End of file reach too quickly. */
+    file_open_error,  /**< Fail to open the file with common API. */
+    file_write_error, /**< Fail to write data into the file. */
+    file_empty,       /**< The file can not be empty. */
 
-    user_directory_access_fail,
-    user_file_access_error,
-    executable_access_fail,
-    user_component_directory_access_fail,
+    executable_access_fail, /**< The installation directory is unreachable. */
 
     external_source_binary_file_unknown,
     external_source_binary_file_access_error,
@@ -70,47 +66,34 @@ enum class simulation_errc : std::int16_t {
     external_source_random_unknown,
     external_source_text_file_unknown,
     external_source_text_file_access_error,
-    external_source_text_file_size_error,
+    external_source_text_file_already_used, /**< A text file is read by only
+                                               one source. */
     external_source_text_file_eof_error,
 
     observers_container_full,
-
-    scheduler_container_full,
-
-    ta_abnormal,
-
     models_container_full,
-
+    output_ports_container_full,
     emitting_output_ports_full,
+    connection_container_full,
+    dated_messages_container_full,
+
+    ta_abnormal, /**< A time advance is negative, infinite or NaN. */
+
     hsm_unknown,
     connection_incompatible,
     connection_already_exists,
-    connection_container_full,
-    messages_container_full,
-    input_port_error,
-    output_port_error,
-    dated_messages_container_full,
+    input_port_error, /**< The input port does not exist. */
 
     abstract_compare_output_value_error,
-    abstract_compare_a_b_value_error,
-
     abstract_filter_threshold_condition_error,
-
     abstract_integrator_dq_error,
     abstract_integrator_x_error,
-
-    abstract_multiplier_value_error,
-
     abstract_power_n_error,
-
-    abstract_sum_value_error,
-
     abstract_wsum_coeff_error,
-    abstract_wsum_value_error,
-
-    abstract_inverse_input_error, // value[0] == 0
-
-    abstract_log_input_error, // value[0] <= 0
+    abstract_inverse_input_error,    // value[0] == 0
+    abstract_log_input_error,        // value[0] <= 0
+    abstract_sqrt_input_error,       // value[0] <= 0
+    abstract_division_by_zero_error, // divisor == 0
 
     constant_value_error,
     constant_offset_error,
@@ -122,23 +105,18 @@ enum class simulation_errc : std::int16_t {
     hsm_next_state_error,
 
     queue_ta_error,
-    queue_fifo_error,
 
     time_func_offset_error,
     time_func_timestep_error,
-    time_func_function_error,
 
     simulation_wrapper_not_enough_memory,
-    simulation_wrapper_source_error,
     simulation_wrapper_too_many_embedded_simulation_error,
-    simulation_wrapper_parameter_error,
     simulation_wrapper_input_error,
     simulation_wrapper_output_error,
 
     simulation_wrapper_embedded_simulation_source_error,
     simulation_wrapper_embedded_simulation_initialization_error,
     simulation_wrapper_embedded_simulation_search_error,
-    simulation_wrapper_embedded_simulation_observation_error,
     simulation_wrapper_embedded_simulation_finalization_error,
 };
 
@@ -146,26 +124,18 @@ enum class project_errc : std::int16_t {
     none = 0,
 
     memory_error,
-    range_error,
 
     empty_project,
 
     file_access_error, /**< Build from registered, directory and file name
                           error. */
-    file_eof_error,    /**< End of file reach too quickly. */
-    file_open_error,   /**< Fail to open the file with common API. */
-    file_empty,        /**< The file can not be empty. */
 
-    json_invalid_format, /**< The JSON file is invalid. */
-    json_invalid_component_format,
-    json_invalid_project_format,
-    json_dependency_error,
-
-    import_error,
     component_cache_error,
     component_unknown,
     component_port_x_unknown,
     component_port_y_unknown,
+
+    connection_between_sum_ports, /**< Two sum ports can not be connected. */
 };
 
 enum class modeling_errc : std::int16_t {
@@ -176,16 +146,8 @@ enum class modeling_errc : std::int16_t {
     directory_error,
     file_error,
 
-    file_access_error, /**< Build from registered, directory and file name
-       error. */
-    file_eof_error,    /**< End of file reach too quickly. */
-    file_open_error,   /**< Fail to open the file with common API. */
-    file_empty,        /**< The file can not be empty. */
-
-    json_invalid_format, /**< The JSON file is invalid. */
     json_invalid_component_format,
     json_invalid_project_format,
-    json_dependency_error,
 
     component_type_mismatch,
     component_not_found,
@@ -204,29 +166,22 @@ enum class modeling_errc : std::int16_t {
     graph_input_connection_already_exists,
     graph_output_connection_already_exists,
     graph_connection_container_full,
-    graph_connection_already_exist,
+    graph_connection_already_exists,
     graph_children_container_full,
+    graph_generation_error, /**< The random graph generator does not find a
+                               valid edge. */
 
     grid_input_connection_container_full,
     grid_output_connection_container_full,
     grid_connection_container_full,
-    grid_connection_already_exist,
     grid_children_container_full,
-
-    hsm_input_connection_container_full,
-    hsm_output_connection_container_full,
-    hsm_connection_container_full,
-    hsm_connection_already_exist,
-    hsm_children_container_full,
-
-    simulation_container_full,
 
     generic_input_connection_container_full,
     generic_output_connection_container_full,
-    generic_input_connection_container_already_exist,
-    generic_output_connection_container_already_exist,
+    generic_input_connection_already_exists,
+    generic_output_connection_already_exists,
     generic_connection_container_full,
-    generic_connection_already_exist,
+    generic_connection_already_exists,
     generic_connection_compatibility_error,
     generic_children_container_full,
 };

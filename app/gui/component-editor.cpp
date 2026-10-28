@@ -811,19 +811,14 @@ static bool show_input_connections_new(const component_access& ids,
                     log(
                       log_level::error,
                       [](auto& m, auto ec) {
-                          if (ec.value() ==
-                              ordinal(modeling_errc::
-                                        graph_input_connection_already_exists))
+                          if (ec == error_code(
+                                      modeling_errc::
+                                        grid_input_connection_container_full))
                               m = "modeling: fail to add input connection - "
-                                  "Input connection already exists.";
-                          else if (ec.value() ==
-                                   ordinal(
-                                     modeling_errc::
-                                       graph_input_connection_container_full))
-                              m = "modeling: fail to add input connection - "
-                                  "Not enough memory to allocate more "
-                                  "input "
+                                  "Not enough memory to allocate more input "
                                   "connection.";
+                          else
+                              m = "modeling: fail to add input connection.";
                       },
                       ret.error());
                 } else {
@@ -897,24 +892,20 @@ static bool show_output_connections_new(const component_access& ids,
             }
 
             if (is_defined(con.y) and is_defined(con.id)) {
-                if (auto ret = grid.connect_input(con.y, con.row, con.col,
-                                                  con.id);
+                if (auto ret = grid.connect_output(con.y, con.row, con.col,
+                                                   con.id);
                     not ret) {
                     log(
                       log_level::error,
                       [](auto& m, auto ec) {
-                          if (ec.value() ==
-                              ordinal(modeling_errc::
-                                        graph_input_connection_already_exists))
-                              m = "modeling: fail to input connection - Input "
-                                  "connection already exists.";
-                          else if (ec.value() ==
-                                   ordinal(
-                                     modeling_errc::
-                                       graph_input_connection_container_full))
-                              m = "modeling: fail to input connection - Not "
-                                  "enough memory to allocate more input "
+                          if (ec == error_code(
+                                      modeling_errc::
+                                        grid_output_connection_container_full))
+                              m = "modeling: fail to add output connection - "
+                                  "Not enough memory to allocate more output "
                                   "connection.";
+                          else
+                              m = "modeling: fail to add output connection.";
                       },
                       ret.error());
                 } else {
@@ -1058,15 +1049,18 @@ static bool connect_input(const port_id      g_port_id,
         log(
           log_level::error,
           [](auto& m, auto ec) {
-              if (ec.value() ==
-                  ordinal(modeling_errc::graph_input_connection_already_exists))
+              if (ec ==
+                  error_code(
+                    modeling_errc::generic_input_connection_already_exists))
                   m = "modeling: fail to add input connection - Input "
                       "connection already exists.";
-              else if (ec.value() ==
-                       ordinal(
-                         modeling_errc::graph_input_connection_container_full))
-                  m = "modeling: fail to add input connection - Not enough "
-                      "memory to allocate more input connection.";
+              else if (ec ==
+                       error_code(modeling_errc::
+                                    generic_input_connection_container_full))
+                  m = "modeling: fail to add input connection - Not "
+                      "enough memory to allocate more input connection.";
+              else
+                  m = "modeling: fail to add input connection.";
           },
           ret.error());
 
@@ -1188,16 +1182,18 @@ static bool connect_output(const port_id      g_port_id,
         log(
           log_level::error,
           [](auto& m, auto ec) {
-              if (ec.value() ==
-                  ordinal(
-                    modeling_errc::graph_output_connection_already_exists))
+              if (ec ==
+                  error_code(
+                    modeling_errc::generic_output_connection_already_exists))
                   m = "modeling: fail to add output connection - Output "
                       "connection already exists.";
-              else if (ec.value() ==
-                       ordinal(
-                         modeling_errc::graph_output_connection_container_full))
-                  m = "modeling: fail to add output connection - Not enough "
-                      "memory to allocate more output connection.";
+              else if (ec ==
+                       error_code(modeling_errc::
+                                    generic_output_connection_container_full))
+                  m = "modeling: fail to add output connection - Not "
+                      "enough memory to allocate more output connection.";
+              else
+                  m = "modeling: fail to add output connection.";
           },
           ret.error());
 
@@ -1260,17 +1256,19 @@ static bool show_input_connections_new(const component_access& ids,
                 log(
                   log_level::error,
                   [](auto& m, auto ec) {
-                      if (ec.value() ==
-                          ordinal(modeling_errc::
-                                    graph_input_connection_already_exists))
+                      if (ec ==
+                          error_code(modeling_errc::
+                                       graph_input_connection_already_exists))
                           m = "modeling: fail to add input connection - Input "
                               "connection already exists.";
-                      else if (ec.value() ==
-                               ordinal(modeling_errc::
+                      else if (ec == error_code(
+                                       modeling_errc::
                                          graph_input_connection_container_full))
                           m = "modeling: fail to add input connection - Not "
                               "enough memory to allocate more input "
                               "connection.";
+                      else
+                          m = "modeling: fail to add input connection.";
                   },
                   ret.error());
             } else {
@@ -1336,18 +1334,21 @@ static bool show_output_connections_new(const component_access& ids,
                 log(
                   log_level::error,
                   [](auto& m, auto ec) {
-                      if (ec.value() ==
-                          ordinal(modeling_errc::
-                                    graph_output_connection_already_exists))
+                      if (ec ==
+                          error_code(modeling_errc::
+                                       graph_output_connection_already_exists))
                           m = "modeling: fail to add output connection - "
-                              "Output connection already exists.";
-                      else if (ec.value() ==
-                               ordinal(
+                              "Output "
+                              "connection already exists.";
+                      else if (ec ==
+                               error_code(
                                  modeling_errc::
                                    graph_output_connection_container_full))
                           m = "modeling: fail to add output connection - Not "
                               "enough memory to allocate more output "
                               "connection.";
+                      else
+                          m = "modeling: fail to add output connection.";
                   },
                   ret.error());
             } else {
@@ -1845,12 +1846,12 @@ static bool show_input_connection_packs(const component_access& ids,
               ids, "child component", vec, con.child_component, con.child_port);
 
             con.child_component = child.first;
-            con.child_port = ids.exists(con.child_component)
-                               ? combobox_component_port_id(
+            con.child_port      = ids.exists(con.child_component)
+                                    ? combobox_component_port_id(
                                    "child port",
                                    ids.components[con.child_component].x,
                                    child.second)
-                               : combobox_component_port_id_empty("child port");
+                                    : combobox_component_port_id_empty("child port");
 
             if (is_defined(con.child_component) and
                 is_defined(con.child_port) and is_defined(con.parent_port) and
@@ -1887,12 +1888,12 @@ static bool show_output_connection_packs(const component_access& ids,
               ids, "child component", vec, con.child_component, con.child_port);
 
             con.child_component = child.first;
-            con.child_port = ids.exists(con.child_component)
-                               ? combobox_component_port_id(
+            con.child_port      = ids.exists(con.child_component)
+                                    ? combobox_component_port_id(
                                    "child port",
                                    ids.components[con.child_component].y,
                                    child.second)
-                               : combobox_component_port_id_empty("child port");
+                                    : combobox_component_port_id_empty("child port");
 
             if (is_defined(con.child_component) and
                 is_defined(con.child_port) and is_defined(con.parent_port) and

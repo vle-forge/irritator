@@ -1448,8 +1448,7 @@ expected<void> graph::init_scale_free_graph(double       alpha,
                 ++cnt;
 
                 if (cnt > 10'000)
-                    return make_error(
-                      modeling_errc::graph_children_container_full);
+                    return make_error(modeling_errc::graph_generation_error);
 
             } while (not is_defined(second) or *first == second or
                      exists_edge(*first, second));
@@ -1458,12 +1457,12 @@ expected<void> graph::init_scale_free_graph(double       alpha,
             if (not edges.can_alloc(1)) {
                 if (not edges.grow<3, 2>())
                     return make_error(
-                      modeling_errc::graph_children_container_full);
+                      modeling_errc::graph_connection_container_full);
 
                 if (not edges_nodes.resize(edges.capacity()) or
                     not edges_penwidths.resize(edges.capacity()))
                     return make_error(
-                      modeling_errc::graph_children_container_full);
+                      modeling_errc::graph_connection_container_full);
             }
 
             auto new_edge_id                  = edges.alloc();
@@ -1545,7 +1544,7 @@ expected<void> graph::init_small_world_graph(double       probability,
                 ++cnt;
 
                 if (cnt > 10'000)
-                    return make_error(modeling_errc::component_container_full);
+                    return make_error(modeling_errc::graph_generation_error);
 
                 continue;
             } else {
@@ -1591,7 +1590,7 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 {
     for (auto id : edges)
         if (edges_nodes[id][0].first == src and edges_nodes[id][1].first == dst)
-            return make_error(modeling_errc::graph_connection_already_exist);
+            return make_error(modeling_errc::graph_connection_already_exists);
 
     if (not edges.can_alloc(1)) {
         if (not edges.grow<2, 1>())
