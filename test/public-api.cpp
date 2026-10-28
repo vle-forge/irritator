@@ -2195,37 +2195,6 @@ int main()
         //   -.176, 1.e-2));
     };
 
-    "binary-memory-io"_test = [] {
-#if 0
-        auto f = irt::memory::make(256);
-
-        expect(f.has_value()) << fatal;
-        expect(eq(f->data.size(), 256u));
-        expect(eq(f->data.capacity(), 256u));
-        expect(eq(f->tell(), 0));
-        expect(eq(f->length(), 256));
-
-        irt::u8  a = 0xfe;
-        irt::u16 b = 0xfedc;
-        irt::u32 c = 0xfedcba98;
-        irt::u64 d = 0xfedcba9876543210;
-
-        expect(!!f->write(a));
-        expect(!!f->write(b));
-        expect(!!f->write(c));
-        expect(!!f->write(d));
-
-        expect(eq(f->data.size(), 256u));
-        expect(eq(f->data.capacity(), 256u));
-        expect(eq(f->tell(), 8 + 4 + 2 + 1));
-        expect(eq(f->length(), 256));
-
-        f->rewind();
-
-        expect(f->tell() == 0);
-#endif
-    };
-
     "id_data_array"_test = [] {
         enum class my_id : irt::u32;
 

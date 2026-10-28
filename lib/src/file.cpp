@@ -521,20 +521,4 @@ std_file path::open_std_file(const char* mode) const noexcept
 #endif
 }
 
-memory::memory(memory&& other) noexcept
-  : data(std::move(other.data))
-  , pos(other.pos)
-{
-    other.pos = 0;
-}
-
-memory& memory::operator=(memory&& other) noexcept
-{
-    data      = std::move(other.data);
-    pos       = other.pos;
-    other.pos = 0;
-
-    return *this;
-}
-
 } // namespace irt

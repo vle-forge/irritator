@@ -23,7 +23,6 @@ set(public_irritator_header
     include/irritator/thread.hpp)
 
 set(private_irritator_sources
-    src/archiver.cpp
     src/binary.cpp
     src/dot-parser.cpp
     src/error.cpp

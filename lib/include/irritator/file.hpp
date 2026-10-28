@@ -135,27 +135,6 @@ private:
     file_mode mode{};
 };
 
-enum class seek_origin : u8 { current, end, set };
-
-class memory
-{
-public:
-    ~memory() noexcept = default;
-
-    static expected<memory> make(const i64 length) noexcept;
-
-    memory(const memory& other) noexcept            = delete;
-    memory& operator=(const memory& other) noexcept = delete;
-    memory(memory&& other) noexcept;
-    memory& operator=(memory&& other) noexcept;
-
-    vector<u8> data;
-    i64        pos = 0;
-
-private:
-    memory(const i64 length) noexcept;
-};
-
 } // irt
 
 #endif
