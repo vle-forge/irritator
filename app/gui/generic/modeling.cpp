@@ -380,9 +380,11 @@ static std::optional<int> get_y_port(const component_access&         ids,
             if (not sim_compo)
                 return std::nullopt;
 
+            // The output ports: one per factor and one per selection.
             if (not(std::cmp_greater_equal(index_src.model, 0) and
                     std::cmp_less(index_src.model,
-                                  sim_compo->factors.size() + 2)))
+                                  sim_compo->factors.size() +
+                                    sim_compo->selections.size())))
                 return std::nullopt;
 
             return pack_out(src_id, index_src.model);
@@ -414,10 +416,10 @@ static std::optional<int> get_x_port(const component_access&         ids,
             if (not sim_compo)
                 return std::nullopt;
 
+            // The input ports: init, run and one per factor.
             if (not(std::cmp_greater_equal(index_dst.model, 0) and
                     std::cmp_less(index_dst.model,
-                                  sim_compo->factors.size() +
-                                    sim_compo->selections.size())))
+                                  sim_compo->factors.size() + 2)))
                 return std::nullopt;
 
             return pack_in(dst_id, index_dst.model);
