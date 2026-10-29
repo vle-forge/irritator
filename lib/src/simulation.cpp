@@ -7,41 +7,36 @@
 
 namespace irt {
 
-/** Fill the observers history vector. */
 static void update_observations(simulation& sim) noexcept
 {
     if (not sim.immediate_observers.empty())
         sim.tick_resamplers();
 }
 
+/// Appends the new points to the observations: they are cleared when the
+/// embedded simulation starts again. After this call the resamplers keep no
+/// output, so a dump of the simulation loses nothing.
 static status copy_history(
   simulation&                                  sim,
   embedded_simulation::simulation_observation& sim_obs) noexcept
 {
     sim.tick_resamplers();
 
-    for (auto& obs : sim.observers) {
-        const auto mdl_id = obs.model();
-        auto       ok     = true;
-        auto*      vec    = sim_obs.get(mdl_id);
+    return sim.drain_observations([&](const observation_batch& b) -> status {
+        auto* vec = sim_obs.get(b.obs.model());
 
-        if (vec != nullptr) {
-            obs.read_history([&vec, &ok](const auto& h, const auto) {
-                if (not vec->values.reserve(h.size())) {
-                    ok &= false;
-                    return;
-                }
+        if (vec == nullptr)
+            return success();
 
-                vec->values = h;
-            });
+        const auto n = static_cast<int>(b.points.size());
+        if (not vec->values.can_alloc(n) and
+            not vec->values.template grow<2, 1>(n))
+            return make_error(
+              simulation_errc::simulation_wrapper_not_enough_memory);
 
-            if (not ok)
-                return make_error(
-                  simulation_errc::simulation_wrapper_not_enough_memory);
-        }
-    }
-
-    return success();
+        vec->values.insert(vec->values.end(), b.points.begin(), b.points.end());
+        return success();
+    });
 }
 
 static status run_complete(embedded_simulation& embed_sims) noexcept

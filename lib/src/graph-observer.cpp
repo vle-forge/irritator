@@ -117,12 +117,8 @@ void graph_observer::update(const project& pj) noexcept
             const auto  obs_id = observers[i];
             const auto* obs    = pj.sim.observers.try_to_get(obs_id);
 
-            if (obs) {
-                obs->read_history([&](const auto& h, const auto) {
-                    if (not h.empty())
-                        values[i] = h.back().value;
-                });
-            }
+            if (obs)
+                values[i] = obs->last_value();
         }
     }
 }

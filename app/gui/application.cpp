@@ -879,8 +879,10 @@ void application::show_dock() noexcept
 
 auto application::show() noexcept -> show_result_t
 {
-    for (auto& ed : pjs)
+    for (auto& ed : pjs) {
         ed.sim_player.frame_lock = ed.sim_player.player.try_lock_structure();
+        ed.sim_player.curves.receive();
+    }
 
     auto ret = show_menu();
     show_dock();

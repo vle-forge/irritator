@@ -48,6 +48,10 @@ status simulation_player::start() noexcept
     reset();
 
     irt_check(m_sim.initialize());
+
+    if (m_sink)
+        m_sink->rewind(m_sim);
+
     irt_check(push_keyframe());
 
     m_started = true;
@@ -317,50 +321,82 @@ void simulation_player::tick_parallel(const std::span<const observer_id> ids,
         m_utl->wait_completion();
 }
 
-void simulation_player::tick_all_observers(const time now) noexcept
+status simulation_player::drain_observers(
+  const std::span<const observer_id> ids) noexcept
+{
+    return m_sim.drain_observations(
+      ids, [this](const observation_batch& b) noexcept -> status {
+          return m_sink ? m_sink->consume(b) : success();
+      });
+}
+
+status simulation_player::drain_all_observers() noexcept
+{
+    return m_sim.drain_observations(
+      [this](const observation_batch& b) noexcept -> status {
+          return m_sink ? m_sink->consume(b) : success();
+      });
+}
+
+status simulation_player::tick_all_observers(const time now) noexcept
 {
     const auto n = static_cast<std::size_t>(m_sim.observers.size());
 
-    if (not parallel_tick(n))
-        return m_sim.tick_resamplers(now);
+    if (not parallel_tick(n)) {
+        m_sim.tick_resamplers(now);
+        return drain_all_observers();
+    }
 
     m_obs_ids.clear();
     for (const auto& obs : m_sim.observers)
         m_obs_ids.emplace_back(m_sim.observers.get_id(obs));
 
-    tick_parallel(
-      std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()), now);
+    const auto ids = std::span<const observer_id>(m_obs_ids.data(),
+                                                  m_obs_ids.size());
+
+    tick_parallel(ids, now);
+
+    // The consumer is called by this thread only: it needs no lock against
+    // the helpers of the parallel tick.
+    return drain_observers(ids);
 }
 
-void simulation_player::flush_observers() noexcept
+status simulation_player::flush_observers() noexcept
 {
     if (m_started)
-        tick_all_observers(m_sim.current_time());
+        return tick_all_observers(m_sim.current_time());
+
+    return success();
 }
 
-void simulation_player::tick_observers() noexcept
+status simulation_player::tick_observers() noexcept
 {
-    if (m_sim.current_time_expired()) {
-        tick_all_observers(m_sim.current_time());
-    } else if (not m_sim.immediate_observers.empty()) {
-        const auto ids = std::span<const observer_id>(
-          m_sim.immediate_observers.data(),
-          static_cast<std::size_t>(m_sim.immediate_observers.size()));
+    if (m_sim.current_time_expired())
+        return tick_all_observers(m_sim.current_time());
 
-        if (not parallel_tick(ids.size()))
-            return m_sim.tick_resamplers(ids, m_sim.current_time());
+    if (m_sim.immediate_observers.empty())
+        return success();
 
+    const auto ids = std::span<const observer_id>(
+      m_sim.immediate_observers.data(),
+      static_cast<std::size_t>(m_sim.immediate_observers.size()));
+
+    if (not parallel_tick(ids.size())) {
+        m_sim.tick_resamplers(ids, m_sim.current_time());
+    } else {
         // The identifiers of immediate_observers are unique: two chunks never
-        // tick the same observer, and the vector is not changed during the tick.
+        // tick the same observer, and the vector is not changed during the
+        // tick.
         tick_parallel(ids, m_sim.current_time());
     }
+
+    return drain_observers(ids);
 }
 
 status simulation_player::do_step() noexcept
 {
     irt_check(m_sim.run());
-
-    tick_observers();
+    irt_check(tick_observers());
 
     ++m_step;
     m_furthest = std::max(m_furthest, m_step);
@@ -388,13 +424,11 @@ status simulation_player::finalize_if_finished() noexcept
 
     irt_check(m_sim.finalize());
 
-    // The final observations (and the near full observers) go to the history.
-    tick_observers();
+    // The final observations (and the near full observers) go to the consumer.
+    irt_check(tick_observers());
 
     // Without this tick the last resampled point of each series stays pending.
-    tick_all_observers(time_domain<time>::infinity);
-
-    return success();
+    return tick_all_observers(time_domain<time>::infinity);
 }
 
 status simulation_player::snapshot_to(vector<u8>& out) noexcept
@@ -415,8 +449,15 @@ status simulation_player::restore_from(const vector<u8>& data) noexcept
 {
     binary_reader r(std::span<const u8>(data.data(), data.size()));
 
-    std::unique_lock lock(m_restore_mutex);
-    return read_snapshot(r, m_sim);
+    {
+        std::unique_lock lock(m_restore_mutex);
+        irt_check(read_snapshot(r, m_sim));
+    }
+
+    if (m_sink)
+        m_sink->rewind(m_sim);
+
+    return success();
 }
 
 status simulation_player::push_keyframe() noexcept

@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/archiver.hpp>
+#include <irritator/binary.hpp>
 #include <irritator/core.hpp>
 #include <irritator/dot-parser.hpp>
 #include <irritator/error.hpp>
@@ -407,6 +408,12 @@ struct irtb_content {
     bool     ok     = false;
 };
 
+/// The layout of the file header of @c project-simulation.cpp.
+struct irb_file_header {
+    irt::u32 magic   = irt::binary_magic('I', 'R', 'T', 'B');
+    irt::u32 version = 3;
+};
+
 /// The layout of the chunk header of @c project-simulation.cpp.
 struct irtb_header {
     irt::u64  n_rows;
@@ -426,19 +433,27 @@ static irtb_content read_irtb(const irt::path& p) noexcept
 {
     const auto  content = read_file(p);
     const auto  size    = static_cast<std::size_t>(content.size());
-    std::size_t offset  = 0;
+    std::size_t offset  = sizeof(irb_file_header);
 
     irtb_content ret;
+    if (size < offset)
+        return ret;
+
+    irb_file_header file, expected;
+    std::memcpy(&file, content.data(), sizeof(file));
+    if (file.magic != expected.magic or file.version != expected.version)
+        return ret;
+
     while (offset + sizeof(irtb_header) <= size) {
         irtb_header h;
         std::memcpy(&h, content.data() + offset, sizeof(h));
 
         ++ret.chunks;
         ret.rows += h.n_rows;
-        offset += sizeof(h) + h.n_rows * sizeof(irt::resampled_sample);
+        offset += sizeof(h) + h.n_rows * sizeof(irt::raw_sample);
     }
 
-    ret.ok = size > 0 and offset == size;
+    ret.ok = offset == size;
     return ret;
 }
 
@@ -469,15 +484,27 @@ static irt::path path_in(const irt::path&       dir,
     return ret;
 }
 
-static irt::u64 history_size(const irt::simulation& sim) noexcept
-{
-    irt::u64 ret = 0;
-    for (const auto& obs : sim.observers)
-        ret += obs.read_history(
-          [](const auto& h, const auto /*version*/) { return h.size(); });
+/// Gives the outputs to the observation files and keeps the curves (no
+/// rewind).
+struct tee_sink final : irt::observation_sink {
+    explicit tee_sink(irt::observation_sink& next_) noexcept
+      : next(next_)
+    {}
 
-    return ret;
-}
+    irt::observation_sink&             next;
+    irt::vector<irt::resampled_sample> points;
+
+    irt::status consume(const irt::observation_batch& b) noexcept override
+    {
+        points.insert(points.end(), b.points.begin(), b.points.end());
+        return next.consume(b);
+    }
+
+    void rewind(const irt::simulation& sim) noexcept override
+    {
+        next.rewind(sim);
+    }
+};
 
 int main()
 {
@@ -2407,44 +2434,71 @@ int main()
                      pj.variable_observers.grow<2, 1>()));
         pj.alloc_variable_observer().push_back(pj.tn_head(), cnt_id);
 
-        // First run: written and purged every ten steps, as the command line
-        // interface does.
+        // First run: written every ten steps, as the command line interface
+        // does.
         expect(fatal(pj.simulation_init(mod).has_value()));
         expect(fatal(eq(pj.sim.observers.size(), 1u)));
 
+        tee_sink               curves(pj.observation_file_sink());
         irt::simulation_player player(pj.sim);
+        player.set_observation_sink(&curves);
         expect(player.keep_history(false).has_value());
         expect(player.start().has_value());
 
         while (not player.finished()) {
             expect(
               fatal(player.advance(std::chrono::seconds(60), 10).has_value()));
-            expect(fatal(pj.flush_observations(true).has_value()));
-            expect(eq(history_size(pj.sim), 0u));
+            expect(fatal(pj.flush_observations().has_value()));
         }
 
         expect(pj.close_observations().has_value());
         expect(pj.close_observations().has_value());
 
-        // Second run: written at the end only, the histories are kept.
+        // Second run: a rewind and a replay do not write the samples again.
         expect(fatal(pj.simulation_init(mod).has_value()));
         player.reset();
+        player.set_observation_sink(&pj.observation_file_sink());
+        expect(player.keep_history(true).has_value());
         expect(player.start().has_value());
+        expect(player.advance(std::chrono::seconds(60), 50).has_value());
+        expect(player.flush_observers().has_value());
+        expect(player.go_to(10).has_value());
         expect(player.advance(std::chrono::seconds(60)).has_value());
         expect(fatal(player.finished()));
         expect(pj.close_observations().has_value());
 
         const auto dir    = irt::path{ temp_path.sv() };
-        const auto purged = read_irtb(path_in(dir, "obs-0-0000.irb"));
-        const auto whole  = read_irtb(path_in(dir, "obs-0-0001.irb"));
+        const auto first  = read_irtb(path_in(dir, "obs-0-0000.irb"));
+        const auto second = read_irtb(path_in(dir, "obs-0-0001.irb"));
 
-        expect(purged.ok);
-        expect(whole.ok);
-        expect(gt(purged.chunks, 1u));
-        expect(eq(whole.chunks, 1u));
-        expect(gt(whole.rows, 0u));
-        expect(eq(purged.rows, whole.rows));
-        expect(eq(history_size(pj.sim), whole.rows));
+        expect(first.ok);
+        expect(second.ok);
+        expect(gt(first.chunks, 1u));
+        expect(gt(first.rows, 0u));
+        expect(eq(first.rows, second.rows));
+
+        // The CSV resamples the raw samples like the simulation does.
+        const auto csv = path_in(dir, "obs-0-0000.csv");
+        expect(fatal(irt::write_observations_csv(
+                       path_in(dir, "obs-0-0000.irb"),
+                       path_in(dir, "obs-0-0000.manifest.jsonl"), csv)
+                       .has_value()));
+
+        const auto content = read_file(csv);
+        auto       text    = std::string_view(content.data(), content.size());
+        text.remove_prefix(text.find('\n') + 1);
+
+        expect(fatal(not curves.points.empty()));
+        for (const auto& p : curves.points) {
+            const auto eol  = text.find('\n');
+            const auto line = text.substr(0, eol);
+            expect(fatal(eol != std::string_view::npos));
+
+            expect(line.starts_with(fmt::format("{},", p.t)));
+            expect(line.ends_with(fmt::format(",{}", p.value)));
+            text.remove_prefix(eol + 1);
+        }
+        expect(text.empty());
 
         for (const auto* name :
              { "obs-0-0000.manifest.jsonl", "obs-0-0001.manifest.jsonl" }) {
@@ -2462,28 +2516,32 @@ int main()
         const auto csv      = path_in(dir, "run.csv");
 
         {
-            const irtb_header           h1{ 2, 0.0, 0.5, 7 };
-            const irt::resampled_sample s1[] = { { 0.0, 1.0 }, { 0.5, 2.0 } };
-            const irtb_header           h2{ 1, 1.0, 1.0, 9 };
-            const irt::resampled_sample s2[] = { { 1.0, 3.0 } };
+            const irtb_header     h1{ 2, 0.0, 0.5, 7 };
+            const irt::raw_sample s1[] = { { 0.0, 1.0 }, { 0.5, 2.0 } };
+            const irtb_header     h2{ 1, 1.0, 1.0, 9 };
+            const irt::raw_sample s2[] = { { 1.0, 3.0 } };
+            const irtb_header     h3{ 1, 1.0, 1.0, 7 };
+            const irt::raw_sample s3[] = { { 1.0, 4.0 } };
+
+            const auto as_bytes = [](const auto& v) noexcept {
+                return std::span<const char>(reinterpret_cast<const char*>(&v),
+                                             sizeof(v));
+            };
+
+            const irb_file_header file;
 
             irt::vector<char> bytes;
             for (const auto block :
-                 { std::span<const char>(reinterpret_cast<const char*>(&h1),
-                                         sizeof(h1)),
-                   std::span<const char>(reinterpret_cast<const char*>(s1),
-                                         sizeof(s1)),
-                   std::span<const char>(reinterpret_cast<const char*>(&h2),
-                                         sizeof(h2)),
-                   std::span<const char>(reinterpret_cast<const char*>(s2),
-                                         sizeof(s2)) })
+                 { as_bytes(file), as_bytes(h1), as_bytes(s1), as_bytes(h2),
+                   as_bytes(s2), as_bytes(h3), as_bytes(s3) })
                 bytes.insert(bytes.end(), block.begin(), block.end());
 
             expect(fatal(write_file(irb, bytes)));
         }
 
         constexpr auto lines = "{\"model_id\": 7, \"name\": \"a,\\\"b\\\"\", "
-                               "\"created_at\":0}\n"
+                               "\"created_at\":0, \"dt\":0.5, "
+                               "\"interpolation\": \"none\"}\n"
                                "{\"model_id\": 7, \"name\": \"a,\\\"b\\\"\", "
                                "\"destroyed_at\":1}\n"sv;
         expect(fatal(write_file(manifest, lines)));
@@ -2494,25 +2552,40 @@ int main()
         expect(eq(std::string_view(content.data(), content.size()),
                   "t,model_id,name,value\n"
                   "0,7,\"a,\"\"b\"\"\",1\n"
+                  "1,9,,3\n"
                   "0.5,7,\"a,\"\"b\"\"\",2\n"
-                  "1,9,,3\n"sv));
+                  "1,7,\"a,\"\"b\"\"\",4\n"sv));
 
-        // Without manifest the names are empty.
+        // Without manifest the names are empty and the samples are raw.
         const auto no_names = path_in(dir, "no-names.csv");
         expect(
           irt::write_observations_csv(irb, irt::path{}, no_names).has_value());
-        expect(file_contains(no_names, "0.5,7,,2\n"));
+        expect(file_contains(no_names, "0.5,7,,2\n1,9,,3\n1,7,,4\n"));
 
-        // A truncated file is an error: an expected one, without breakpoint.
-        const auto bytes = read_file(irb);
-        expect(fatal(write_file(
-          irb, std::span<const char>(bytes.data(), sizeof(irtb_header) + 8))));
-
+        // A truncated file, another magic or another version are errors:
+        // expected ones, without breakpoint.
         const auto callback    = irt::on_error_callback;
         irt::on_error_callback = nullptr;
-        expect(
-          irt::write_observations_csv(irb, irt::path{}, path_in(dir, "bad.csv"))
-            .has_error());
+
+        const auto bytes   = read_file(irb);
+        const auto refused = [&](const std::span<const char> content) {
+            return write_file(irb, content) and
+                   irt::write_observations_csv(irb, irt::path{},
+                                               path_in(dir, "bad.csv"))
+                     .has_error();
+        };
+
+        expect(refused(std::span<const char>(
+          bytes.data(), sizeof(irb_file_header) + sizeof(irtb_header) + 8)));
+
+        auto other = bytes;
+        other[0]   = 'X';
+        expect(refused(other));
+
+        other    = bytes;
+        other[4] = 2; // the version 2 stored resampled samples
+        expect(refused(other));
+
         irt::on_error_callback = callback;
     };
 }

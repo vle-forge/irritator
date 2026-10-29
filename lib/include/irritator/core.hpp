@@ -1441,16 +1441,14 @@ class observer
 private:
     friend struct binary_access;
 
-    using history_type = shared_buffer<
-      vector<resampled_sample>,
-      append_only_merge_policy<vector<resampled_sample>>>;
-
 public:
     static inline constexpr auto raw_buffer_size = 256;
 
     using raw_buffer_type = circular_buffer<raw_sample, raw_buffer_size>;
 
     observer(const model_id mdl) noexcept;
+    observer(const observer& other) noexcept;
+    observer& operator=(const observer&) = delete;
 
     /// Push a raw sample. Called from the simulation task for each state
     /// change. O(1), no resampling logic here anymore.
@@ -1460,64 +1458,23 @@ public:
     /// occupancy threshold was crossed, ok otherwise.
     buffer_status observe(const raw_sample& s) noexcept;
 
-    /// Reset the circular_buffer and the history.
+    /// Reset the circular_buffer and the last value.
     void reset() noexcept;
-
-    /// Drops the resampled points (already written elsewhere), keeps the raw
-    /// samples. Never use it with a player that keeps an history: its
-    /// keyframes contain the history.
-    void clear_history() noexcept;
 
     /// Retrieves the underlying model identifier.
     model_id model() const noexcept { return m_model; }
+
+    /// The value of the last observation, readable from any thread: the views
+    /// that only show the current state (grids, graphs) need no series.
+    real last_value() const noexcept
+    {
+        return m_last_value.load(std::memory_order_relaxed);
+    }
 
     /// Designated single reader: the copy task's resampler for this
     /// model. Justified now (unlike before) because a real, dedicated
     /// consumer exists on the other side of the SPSC contract.
     raw_buffer_type& raw_buffer() noexcept { return m_raw; }
-
-    template<typename Fn, typename... Args>
-    auto read_history(Fn&& fn, Args&&... args) const noexcept
-      -> decltype(std::invoke(
-        std::forward<Fn>(fn),
-        std::declval<const typename history_type::value_type&>(),
-        std::declval<std::uint64_t>(),
-        std::forward<Args>(args)...))
-    {
-        if constexpr (std::is_void_v<decltype(std::invoke(
-                        std::forward<Fn>(fn),
-                        std::declval<
-                          const typename history_type::value_type&>(),
-                        std::declval<std::uint64_t>(),
-                        std::forward<Args>(args)...))>) {
-            m_history.read([&](const auto& history, const auto version) {
-                std::invoke(std::forward<Fn>(fn), history, version,
-                            std::forward<Args>(args)...);
-            });
-        } else {
-            return m_history.read([&](const auto& history, const auto version) {
-                return std::invoke(std::forward<Fn>(fn), history, version,
-                                   std::forward<Args>(args)...);
-            });
-        }
-    }
-
-    /// Only @c resampler can call the write_history function.
-    class write_key
-    {
-        friend class resampler;
-
-        write_key() noexcept = default;
-    };
-
-    /// Used exclusively by this model's resampler (copy task side) to
-    /// publish a batch of resampled points in a single write() -- never
-    /// called from the simulation thread.
-    template<typename Fn>
-    void write_history(Fn&& fn, write_key) noexcept
-    {
-        m_history.write(std::forward<Fn>(fn));
-    }
 
 private:
     // Alert threshold expressed as a fraction (Num/Denum) of raw_buffer
@@ -1534,12 +1491,11 @@ private:
                                     : buffer_status::ok;
     }
 
-    model_id m_model  = undefined<model_id>();
-    real     m_last_t = -std::numeric_limits<real>::infinity();
+    model_id          m_model  = undefined<model_id>();
+    real              m_last_t = -std::numeric_limits<real>::infinity();
+    std::atomic<real> m_last_value{ zero };
 
     circular_buffer<raw_sample, raw_buffer_size> m_raw;
-
-    history_type m_history;
 };
 
 /// Resampler -- owned exclusively by the copy task, ONE instance per
@@ -1547,6 +1503,10 @@ private:
 /// state that used to live in observer::observe()/commit_pending(): the
 /// pending point, the interpolation anchor, the resampling grid position,
 /// and the dedup state. Never touched by the simulation thread.
+///
+/// The samples read and the points produced stay in the resampler until a
+/// consumer takes them (@c simulation::drain_observations()): the simulation
+/// keeps no series, each consumer stores what it needs.
 class resampler
 {
 public:
@@ -1559,24 +1519,65 @@ public:
     /// global simulation step) for this model. Drains everything currently
     /// available in raw_buffer, confirms the pending point once `now` has
     /// passed it, and -- if `now` is +infinity -- finalizes the series
-    /// (equivalent of the former flush(+infinity)). Publishes any newly
-    /// resampled points to obs.write_history() in a single batched call.
+    /// (equivalent of the former flush(+infinity)).
     void tick(observer& obs, const real now) noexcept;
 
-    /// Forgets the pending point, the anchor and the batch (the series is
+    /// Same as the other @c tick() with samples read elsewhere (an @c .irb
+    /// file).
+    void tick(std::span<const raw_sample> samples, const real now) noexcept;
+
+    /// Forgets the pending point, the anchor and the outputs (the series is
     /// restarted); keeps the parameters (dt, interpolation). Use it when the
     /// simulation is initialized again.
     void reset() noexcept;
+
+    real             time_step() const noexcept { return m_dt; }
+    interpolate_type interpolation() const noexcept { return m_interp.order(); }
+
+    /// The raw samples read since the last @c clear_outputs().
+    std::span<const raw_sample> raw_output() const noexcept
+    {
+        return std::span(m_raw_batch.data(), m_raw_batch.size());
+    }
+
+    /// The resampled points produced since the last @c clear_outputs().
+    std::span<const resampled_sample> output() const noexcept
+    {
+        return std::span(m_batch.data(), m_batch.size());
+    }
+
+    /// Position of the first sample of @c raw_output() in the whole series of
+    /// raw samples. A rewind restores an earlier position: the consumer
+    /// replaces what it has from this position.
+    u64 raw_output_index() const noexcept
+    {
+        return m_raw_count - static_cast<u64>(m_raw_batch.size());
+    }
+
+    /// Position of the first point of @c output() in the whole resampled
+    /// series, see @c raw_output_index().
+    u64 output_index() const noexcept
+    {
+        return m_point_count - static_cast<u64>(m_batch.size());
+    }
+
+    /// Number of points of the whole resampled series produced so far.
+    u64 point_count() const noexcept { return m_point_count; }
+
+    void clear_outputs() noexcept;
 
 private:
     void ingest(const raw_sample& s) noexcept;
     void commit_pending() noexcept;
     void finalize() noexcept;
+    void advance(const real now) noexcept;
 
     void push_resampled(double t, double value) noexcept;
-    void flush_batch(observer& obs) noexcept;
 
     vector<resampled_sample> m_batch;
+    vector<raw_sample>       m_raw_batch;
+    u64                      m_point_count = 0;
+    u64                      m_raw_count   = 0;
     real                     m_dt;
     real                     m_next_sample_time  = 0.0;
     real                     m_last_pushed_value = 0.0;
@@ -1871,14 +1872,37 @@ struct output_port {
                   Args&&... args) noexcept;
 };
 
-using observer_name           = small_string<32>;
-using observer_history_cursor = u64;
+using observer_name  = small_string<32>;
 using observers_type = id_data_array<observer,
                                      observer_id,
                                      allocator<new_delete_memory_resource>,
                                      observer_name,
-                                     observer_history_cursor,
                                      resampler>;
+
+/// The outputs of the resampler of an observer, see
+/// @c simulation::drain_observations().
+struct observation_batch {
+    observer_id                       id;
+    const observer&                   obs;
+    const resampler&                  sampler;
+    std::span<const raw_sample>       raws;
+    std::span<const resampled_sample> points;
+};
+
+/// Receives the outputs of the resamplers, on the thread of the resamplers.
+/// Each consumer (file, curves...) keeps the part of the series it needs.
+class observation_sink
+{
+public:
+    virtual ~observation_sink() noexcept = default;
+
+    virtual status consume(const observation_batch& batch) noexcept = 0;
+
+    /// The resamplers of @c sim went back to an earlier state (a rewind, a
+    /// new start): the next outputs restart from their
+    /// @c resampler::output_index().
+    virtual void rewind(const simulation& sim) noexcept = 0;
+};
 
 enum class criteria_type {
     min_last, //!< Min value for the last observation value (one real).
@@ -2205,7 +2229,8 @@ public:
                             DynamicsDst& dst,
                             int          port_dst) noexcept;
 
-    /// For each observer fills the history
+    /// Resamples the raw samples of each observer: the outputs wait for
+    /// @c drain_observations().
     void tick_resamplers() noexcept
     {
         tick_resamplers(t.load(std::memory_order_acquire));
@@ -2244,6 +2269,58 @@ public:
         }
     }
 
+    /// Gives the outputs of the resamplers to @c fn(const observation_batch&)
+    /// (returns a status), then forgets them. The outputs are forgotten even
+    /// if @c fn fails, so that the memory does not grow: the first error is
+    /// returned.
+    template<typename Fn>
+    status drain_observations(Fn&& fn) noexcept
+    {
+        status ret = success();
+
+        for (auto& obs : observers)
+            drain_observation(observers.get_id(obs), obs, fn, ret);
+
+        return ret;
+    }
+
+    template<typename Fn>
+    status drain_observations(std::span<const observer_id> v, Fn&& fn) noexcept
+    {
+        status ret = success();
+
+        for (const auto obs_id : v)
+            if (auto* obs = observers.try_to_get(obs_id))
+                drain_observation(obs_id, *obs, fn, ret);
+
+        return ret;
+    }
+
+private:
+    template<typename Fn>
+    void drain_observation(const observer_id obs_id,
+                           const observer&   obs,
+                           Fn&               fn,
+                           status&           ret) noexcept
+    {
+        auto& r = observers.get<resampler>(obs_id);
+
+        if (r.raw_output().empty() and r.output().empty())
+            return;
+
+        auto st = fn(observation_batch{ .id      = obs_id,
+                                        .obs     = obs,
+                                        .sampler = r,
+                                        .raws    = r.raw_output(),
+                                        .points  = r.output() });
+
+        if (st.has_error() and ret.has_value())
+            ret = st;
+
+        r.clear_outputs();
+    }
+
+public:
     /** Call the initialize member function for each model of the
      * simulation an prepare the simulation class to call the `run`
      * function. */
@@ -11672,7 +11749,6 @@ inline status simulation::observe(model& mdl) noexcept
         observers.get<resampler>(obs_id) = resampler{
             default_observation_time_step, get_interpolate_type(mdl.type)
         };
-        observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
         mdl.obs_id = obs_id;
@@ -11693,7 +11769,6 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
         observers.get<resampler>(
           obs_id) = resampler{ dt, get_interpolate_type(mdl.type) };
-        observers.get<observer_history_cursor>(obs_id) = 0;
         observers.get<observer_name>(obs_id).clear();
 
         mdl.obs_id = obs_id;
@@ -11985,7 +12060,6 @@ inline status simulation::initialize() noexcept
     for (auto& obs : observers) {
         obs.reset();
         observers.get<resampler>(observers.get_id(obs)).reset();
-        observers.get<observer_history_cursor>(observers.get_id(obs)) = 0;
 
         if (auto* mdl = models.try_to_get(obs.model())) {
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {

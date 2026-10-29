@@ -36,8 +36,8 @@ Options:
   -c, --csv                Also converts the observations of the next
                            projects into `<name>-<id>-<run>.csv`.
   -x path                  Converts an existing `.irb` file (and the
-  --convert path           `.manifest.jsonl` file next to it for the names)
-                           into a `.csv` file next to it.
+  --convert path           `.manifest.jsonl` file next to it for the names
+                           and the resampling) into a `.csv` file next to it.
   -o path                  The output directory of the observation files.
   --output path            The project directory is used by default, or the
                            current directory.
@@ -279,19 +279,20 @@ private:
         pj.flags.set(irt::project::simulation_flag::write_irtb, true);
     }
 
-    // The complete mode of the player: no keyframe, and the histories are
-    // written then purged after each budget, so the memory does not grow with
-    // the length of the simulation.
+    // The complete mode of the player: no keyframe, and the samples go
+    // straight to the file, so the memory does not grow with the length of the
+    // simulation.
     irt::status run() noexcept
     {
         irt::simulation_player player(pj.sim, task_mgr, 0);
+        player.set_observation_sink(&pj.observation_file_sink());
 
         irt_check(player.keep_history(false));
         irt_check(player.start());
 
         while (not player.finished()) {
             irt_check(player.advance(std::chrono::milliseconds(100)));
-            irt_check(pj.flush_observations(true));
+            irt_check(pj.flush_observations());
         }
 
         irt_check(pj.close_observations());

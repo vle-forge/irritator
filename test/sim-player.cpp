@@ -92,6 +92,76 @@ bytes reference_at(const std::size_t n)
     return dump(sim);
 }
 
+/// Keeps the curves like a user interface: a rewind cuts them, the replay
+/// gives the points again.
+struct curves_sink final : observation_sink {
+    std::vector<std::vector<resampled_sample>> curves; // by observer index
+
+    std::vector<resampled_sample>& curve(const observer_id id)
+    {
+        const auto idx = static_cast<std::size_t>(get_index(id));
+        if (curves.size() <= idx)
+            curves.resize(idx + 1u);
+
+        return curves[idx];
+    }
+
+    status consume(const observation_batch& b) noexcept override
+    {
+        auto& c = curve(b.id);
+        c.resize(std::min<std::size_t>(c.size(), b.sampler.output_index()));
+        c.insert(c.end(), b.points.begin(), b.points.end());
+        return success();
+    }
+
+    void rewind(const simulation& sim) noexcept override
+    {
+        for (const auto& obs : sim.observers) {
+            const auto id = sim.observers.get_id(obs);
+            auto&      c  = curve(id);
+            c.resize(std::min<std::size_t>(
+              c.size(), sim.observers.get<resampler>(id).point_count()));
+        }
+    }
+
+    std::size_t points() const noexcept
+    {
+        std::size_t n = 0;
+        for (const auto& c : curves)
+            n += c.size();
+        return n;
+    }
+
+    /// The outputs of a simulation without player.
+    bool drain(simulation& sim)
+    {
+        return sim
+          .drain_observations(
+            [this](const observation_batch& b) noexcept { return consume(b); })
+          .has_value();
+    }
+};
+
+bool same_curves(const curves_sink& a, const curves_sink& b) noexcept
+{
+    const auto n = std::max(a.curves.size(), b.curves.size());
+
+    for (std::size_t i = 0; i != n; ++i) {
+        const auto  empty = std::vector<resampled_sample>{};
+        const auto& ca    = i < a.curves.size() ? a.curves[i] : empty;
+        const auto& cb    = i < b.curves.size() ? b.curves[i] : empty;
+
+        if (ca.size() != cb.size())
+            return false;
+
+        for (std::size_t j = 0; j != ca.size(); ++j)
+            if (ca[j].t != cb[j].t or ca[j].value != cb[j].value)
+                return false;
+    }
+
+    return true;
+}
+
 } // namespace
 
 namespace ut = boost::ut;
@@ -257,55 +327,56 @@ int main()
     "flush: the curves follow the steps"_test = [] {
         auto& tm = test_tm();
 
-        auto points = [](simulation& s) {
-            std::size_t n = 0;
-            for (const auto& obs : s.observers)
-                n += obs.read_history(
-                  [](const auto& h, const auto) noexcept { return h.size(); });
-            return n;
-        };
-
         simulation sim;
         world      w;
         build_world(sim, w);
         simulation_player player(sim, tm, 0, { 8, 16 });
+        curves_sink       curves;
+        player.set_observation_sink(&curves);
         expect(player.start().has_value());
 
-        // Lazy steps: the history waits for a nearly full raw buffer.
+        // Lazy steps: the curves wait for a nearly full raw buffer.
         for (int i = 0; i != 30; ++i)
             expect(player.step_forward().has_value());
 
-        const auto before = points(sim);
-        player.flush_observers();
-        const auto after = points(sim);
+        const auto before = curves.points();
+        expect(player.flush_observers().has_value());
+        const auto after = curves.points();
         expect(after > before) << "the flush gives the points";
 
         // a second flush has nothing more to give
-        player.flush_observers();
-        expect(points(sim) == after);
+        expect(player.flush_observers().has_value());
+        expect(curves.points() == after);
 
-        // Same state as a plain run that resamples everything.
-        simulation plain;
-        world      pw;
+        // Same state and curves as a plain run that resamples everything.
+        simulation  plain;
+        world       pw;
+        curves_sink plain_curves;
         build_world(plain, pw);
         expect(start(plain));
         expect(plain_steps(plain, 30));
         plain.tick_resamplers();
+        expect(plain_curves.drain(plain));
         expect(same(dump(sim), dump(plain), "30 steps and a flush"));
+        expect(same_curves(curves, plain_curves));
 
-        // A rewind and a replay, then a flush: the curves of the step 12.
+        // A rewind and a replay, then a flush: the curves are cut, then
+        // rebuilt as the curves of the step 12.
         expect(player.step_forward().has_value());
-        player.flush_observers();
+        expect(player.flush_observers().has_value());
         expect(player.go_to(12).has_value());
-        player.flush_observers();
+        expect(player.flush_observers().has_value());
 
-        simulation plain12;
-        world      pw12;
+        simulation  plain12;
+        world       pw12;
+        curves_sink plain12_curves;
         build_world(plain12, pw12);
         expect(start(plain12));
         expect(plain_steps(plain12, 12));
         plain12.tick_resamplers();
+        expect(plain12_curves.drain(plain12));
         expect(same(dump(sim), dump(plain12), "rewind, replay, flush"));
+        expect(same_curves(curves, plain12_curves));
 
         // The flush of every step changes nothing to the end of the run.
         simulation a;
@@ -313,10 +384,12 @@ int main()
         build_world(a, wa);
         a.limits.set_bound(0.0, 0.5);
         simulation_player pa(a, tm, 0, { 8, 16 });
+        curves_sink       ca;
+        pa.set_observation_sink(&ca);
         expect(pa.start().has_value());
         while (not pa.finished()) {
             expect(pa.step_forward().has_value());
-            pa.flush_observers();
+            expect(pa.flush_observers().has_value());
         }
 
         simulation b;
@@ -324,11 +397,14 @@ int main()
         build_world(b, wb);
         b.limits.set_bound(0.0, 0.5);
         simulation_player pb(b, tm, 0, { 8, 16 });
+        curves_sink       cb;
+        pb.set_observation_sink(&cb);
         expect(pb.start().has_value());
         expect(pb.advance(std::chrono::seconds(60)).has_value());
 
         expect(pa.step() == pb.step());
-        expect(points(a) == points(b));
+        expect(ca.points() > 0u);
+        expect(same_curves(ca, cb));
         expect(same(dump(a), dump(b), "flush at every step, same end"));
     };
 
@@ -337,7 +413,7 @@ int main()
         world      w;
         build_world(sim, w);
         simulation_player player(sim);
-        player.flush_observers(); // no effect
+        expect(player.flush_observers().has_value()); // no effect
         expect(not player.started());
     };
 

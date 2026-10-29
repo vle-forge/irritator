@@ -21,12 +21,16 @@
 struct file_output {
     using value_type = irt::observation;
 
-    std::FILE*     os = nullptr;
-    irt::observer& obs;
+    std::FILE*       os = nullptr;
+    irt::simulation& sim;
+    irt::observer_id id;
 
-    file_output(irt::observer& obs_, const char* filename) noexcept
+    file_output(irt::simulation&       sim_,
+                const irt::observer_id id_,
+                const char*            filename) noexcept
       : os{ std::fopen(filename, "w") }
-      , obs{ obs_ }
+      , sim{ sim_ }
+      , id{ id_ }
     {
         using namespace boost::ut;
 
@@ -39,10 +43,13 @@ struct file_output {
     ~file_output() noexcept
     {
         if (os) {
-            obs.read_history([&](const auto& h, const auto) {
-                for (std::size_t i = 0, e = h.size(); i != e; ++i)
-                    fmt::print(os, "{},{}\n", h[i].t, h[i].value);
-            });
+            (void)sim.drain_observations(
+              [&](const irt::observation_batch& b) noexcept -> irt::status {
+                  if (b.id == id)
+                      for (const auto& p : b.points)
+                          fmt::print(os, "{},{}\n", p.t, p.value);
+                  return irt::success();
+              });
 
             std::fflush(os);
             std::fclose(os);
@@ -1208,17 +1215,70 @@ int main()
 
         sim.tick_resamplers();
 
-        auto& obs = *sim.observers.begin();
+        irt::vector<irt::resampled_sample> h;
+        expect(
+          sim
+            .drain_observations([&](const irt::observation_batch& b) noexcept {
+                h.insert(h.end(), b.points.begin(), b.points.end());
+                return irt::success();
+            })
+            .has_value());
 
-        obs.read_history([&](const auto& h, const auto) {
-            expect(fatal(eq(h.ssize(), 3)));
-            expect(eq(h[0].value, 10.0));
-            expect(eq(h[0].t, 0.0));
-            expect(eq(h[1].value, 110.0));
-            expect(eq(h[1].t, 1.0));
-            expect(eq(h[2].value, 1110.0));
-            expect(eq(h[2].t, 2.0));
-        });
+        expect(fatal(eq(h.ssize(), 3)));
+        expect(eq(h[0].value, 10.0));
+        expect(eq(h[0].t, 0.0));
+        expect(eq(h[1].value, 110.0));
+        expect(eq(h[1].t, 1.0));
+        expect(eq(h[2].value, 1110.0));
+        expect(eq(h[2].t, 2.0));
+    };
+
+    "resampler_outputs"_test = [] {
+        irt::resampler r(0.5, irt::interpolate_type::none);
+
+        const irt::raw_sample first[] = { { 0.0, 1.0 }, { 0.5, 2.0 } };
+        r.tick(first, 0.5);
+
+        // The last sample waits for a later date.
+        expect(fatal(eq(r.output().size(), 1u)));
+        expect(eq(r.output()[0].t, 0.0));
+        expect(eq(r.output_index(), 0u));
+        expect(eq(r.raw_output().size(), 2u));
+        expect(eq(r.raw_output_index(), 0u));
+
+        r.clear_outputs();
+        expect(r.output().empty() and r.raw_output().empty());
+        expect(eq(r.output_index(), 1u));
+        expect(eq(r.raw_output_index(), 2u));
+
+        const irt::raw_sample second[] = { { 1.0, 4.0 } };
+        r.tick(second, irt::time_domain<irt::time>::infinity);
+
+        expect(fatal(eq(r.output().size(), 2u)));
+        expect(eq(r.output()[0].value, 2.0));
+        expect(eq(r.output()[1].value, 4.0));
+        expect(eq(r.output_index(), 1u));
+        expect(eq(r.point_count(), 3u));
+        expect(eq(r.raw_output_index(), 2u));
+
+        r.reset();
+        expect(eq(r.point_count(), 0u));
+        expect(r.output().empty() and r.raw_output().empty());
+    };
+
+    "observer_last_value"_test = [] {
+        irt::observer obs(irt::undefined<irt::model_id>());
+        expect(eq(obs.last_value(), 0.0));
+
+        expect(obs.observe(irt::raw_sample(1.0, 3.0)) ==
+               irt::buffer_status::ok);
+        expect(eq(obs.last_value(), 3.0));
+
+        const auto copy = obs;
+        expect(eq(copy.last_value(), 3.0));
+
+        obs.reset();
+        expect(eq(obs.last_value(), 0.0));
     };
 
     "cross_simulation"_test = [] {
@@ -2080,7 +2140,8 @@ int main()
         auto* obs = sim.observers.try_to_get(irt::get_model(l_and).obs_id);
 
         expect(fatal(obs != nullptr));
-        file_output fo_a(*obs, "boolean_simulation.csv");
+        file_output fo_a(sim, irt::get_model(l_and).obs_id,
+                         "boolean_simulation.csv");
 
         sim.limits.set_bound(0, 10);
         expect(!!sim.srcs.prepare());

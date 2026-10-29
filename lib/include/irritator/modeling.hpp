@@ -1217,15 +1217,18 @@ public:
 
     status simulation_apply_command() noexcept;
 
-    /// Appends the resampled points not yet written to the @c .irb file (only
-    /// with @c simulation_flag::write_irtb). With @c purge, the written points
-    /// are dropped from the histories: the memory does not grow with the
-    /// length of the simulation, but the histories can not be plotted.
-    status flush_observations(const bool purge) noexcept;
+    /// Writes the raw samples of the observers to the @c .irb file (only with
+    /// @c simulation_flag::write_irtb). Give it to the player of the
+    /// simulation (@c simulation_player::set_observation_sink()): the samples
+    /// replayed after a rewind are not written again.
+    observation_sink& observation_file_sink() noexcept { return obs_files; }
 
-    /// Writes the last points and the end of the manifest, then closes the
-    /// observation files. Call it once the simulation is finalized. Nothing
-    /// happens if the files are already closed.
+    /// Writes to the disk the samples kept by the buffers of the @c .irb file.
+    status flush_observations() noexcept;
+
+    /// Writes the end of the manifest, then closes the observation files.
+    /// Call it once the simulation is finalized. Nothing happens if the files
+    /// are already closed.
     status close_observations() noexcept;
 
     /// Empty paths without @c simulation_flag::write_irtb.
@@ -1394,18 +1397,31 @@ private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
 
-    struct observation_files {
+    class observation_files final : public observation_sink
+    {
+    public:
         file json_irtb;
         file bin_irtb;
         path json_path;
         path bin_path;
+
+        /// Number of raw samples written for each observer, indexed by
+        /// @c get_index(observer_id).
+        struct written_samples {
+            observer_id id    = undefined<observer_id>();
+            u64         count = 0;
+        };
+
+        vector<written_samples> written;
 
         observation_files() noexcept = default;
 
         observation_files(observation_files&&) noexcept            = default;
         observation_files& operator=(observation_files&&) noexcept = default;
 
-        observation_files(const observation_files&) noexcept {}
+        observation_files(const observation_files&) noexcept
+          : observation_sink()
+        {}
         observation_files& operator=(const observation_files&) noexcept
         {
             (void)json_irtb.close();
@@ -1413,6 +1429,9 @@ private:
 
             return *this;
         }
+
+        status consume(const observation_batch& batch) noexcept override;
+        void   rewind(const simulation& /*sim*/) noexcept override {}
     };
 
     observation_files obs_files;
@@ -1423,8 +1442,10 @@ private:
 
 /// Converts the observation files of a run to a CSV file with the columns
 /// `t,model_id,name,value`, in the order of the chunks of @c irb: the memory
-/// does not depend on the size of the files. The names come from the
-/// @c manifest (an empty path or a missing file gives empty names).
+/// does not depend on the size of the files. The raw samples are resampled
+/// with the time step and the interpolation of the @c manifest, like the
+/// curves of the simulation. An empty path or a missing file gives empty
+/// names and the raw samples.
 status write_observations_csv(const path& irb,
                               const path& manifest,
                               const path& csv) noexcept;
@@ -1462,8 +1483,8 @@ public:
     status init(project& pj, const modeling& mod) noexcept;
 
     /**
-     * @brief For each observer in @c observers get the last value from history
-     * buffer.
+     * @brief For each observer in @c observers get the last observed value
+     * (@c observer::last_value()).
      *
      * @param pj Get access of @c project::observations and @c
      * project::simulation::observers
@@ -1510,8 +1531,8 @@ public:
     status init(project& pj, const modeling& mod) noexcept;
 
     /**
-     * @brief For each observer in @c observers get the last value from history
-     * buffer.
+     * @brief For each observer in @c observers get the last observed value
+     * (@c observer::last_value()).
      *
      * @param pj Get access of @c project::observations and @c
      * project::simulation::observers

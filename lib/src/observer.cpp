@@ -10,12 +10,20 @@ observer::observer(const model_id mdl) noexcept
   : m_model(mdl)
 {}
 
+observer::observer(const observer& other) noexcept
+  : m_model(other.m_model)
+  , m_last_t(other.m_last_t)
+  , m_last_value(other.last_value())
+  , m_raw(other.m_raw)
+{}
+
 buffer_status observer::observe(const raw_sample& s) noexcept
 {
     debug::ensure(s.t >= m_last_t and
                   "observe() called with a date earlier than a previous "
                   "observation -- violates DEVS causality");
     m_last_t = s.t;
+    m_last_value.store(s.value, std::memory_order_relaxed);
 
     if (not m_raw.push(s))
         return buffer_status::overflow;
@@ -27,10 +35,8 @@ void observer::reset() noexcept
 {
     m_raw.clear();
     m_last_t = -std::numeric_limits<real>::infinity();
-    m_history.reset();
+    m_last_value.store(zero, std::memory_order_relaxed);
 }
-
-void observer::clear_history() noexcept { m_history.reset(); }
 
 resampler::resampler() noexcept
   : m_dt(1)
@@ -48,6 +54,20 @@ void resampler::tick(observer& obs, const real now) noexcept
     while (obs.raw_buffer().pop(s))
         ingest(s);
 
+    advance(now);
+}
+
+void resampler::tick(std::span<const raw_sample> samples,
+                     const real                  now) noexcept
+{
+    for (const auto& s : samples)
+        ingest(s);
+
+    advance(now);
+}
+
+void resampler::advance(const real now) noexcept
+{
     if (m_has_pending && now > m_pending.t) {
         commit_pending();
         m_has_pending = false;
@@ -55,13 +75,14 @@ void resampler::tick(observer& obs, const real now) noexcept
 
     if (std::isinf(now))
         finalize();
-
-    flush_batch(obs);
 }
 
 void resampler::reset() noexcept
 {
     m_batch.clear();
+    m_raw_batch.clear();
+    m_point_count       = 0;
+    m_raw_count         = 0;
     m_next_sample_time  = 0.0;
     m_last_pushed_value = 0.0;
     m_pending           = raw_sample{};
@@ -71,8 +92,17 @@ void resampler::reset() noexcept
     m_has_last_pushed   = false;
 }
 
+void resampler::clear_outputs() noexcept
+{
+    m_batch.clear();
+    m_raw_batch.clear();
+}
+
 void resampler::ingest(const raw_sample& s) noexcept
 {
+    m_raw_batch.push_back(s);
+    ++m_raw_count;
+
     if (m_has_pending && s.t == m_pending.t) {
         m_pending = s;
         return;
@@ -126,8 +156,7 @@ void resampler::finalize() noexcept
 }
 
 // Dedup: identical value since last publish -> skip (reader fills the
-// gap). Accumulates into a local batch, NOT written directly -- see
-// flush_batch(), called once per tick() rather than once per point.
+// gap).
 void resampler::push_resampled(double t, double value) noexcept
 {
     if (m_has_last_pushed && value == m_last_pushed_value)
@@ -136,30 +165,7 @@ void resampler::push_resampled(double t, double value) noexcept
     m_has_last_pushed   = true;
     m_last_pushed_value = value;
     m_batch.push_back(resampled_sample{ t, value });
-}
-
-void resampler::flush_batch(observer& obs) noexcept
-{
-    if (m_batch.empty())
-        return;
-
-    obs.write_history(
-      [&](auto& history) {
-          const auto n = m_batch.size();
-
-          if (not history.can_alloc(n) and not history.template grow<2, 1>(n)) {
-              using namespace std::string_view_literals;
-
-              log(log_level::debug,
-                  "simulation: fail to allocate more observer history"sv);
-              return;
-          }
-
-          history.insert(history.end(), m_batch.begin(), m_batch.end());
-      },
-      observer::write_key{});
-
-    m_batch.clear();
+    ++m_point_count;
 }
 
 }

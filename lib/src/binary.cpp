@@ -1204,24 +1204,23 @@ struct binary_access {
 
     /* observer */
 
-    /// The model, the last time, the raw samples that were not read yet by
-    /// the resampler and the history. The version of the history is not
-    /// kept: the reader of the history is a new observer.
+    /// The model, the last time and value, and the raw samples that were not
+    /// read yet by the resampler.
     template<typename Ar>
     static void io(Ar& ar, observer& o) noexcept
     {
         ar(o.m_model, o.m_last_t);
 
         if constexpr (Ar::is_writer) {
+            auto last_value = o.last_value();
+            ar(last_value);
             ar.write(static_cast<u32>(o.m_raw.size()));
             o.m_raw.for_each([&ar](const raw_sample& s) noexcept { ar(s); });
-
-            o.m_history.read(
-              [&ar](const vector<resampled_sample>& history,
-                    const u64 /*version*/) noexcept {
-                  ar(history);
-              });
         } else {
+            real last_value = zero;
+            ar(last_value);
+            o.m_last_value.store(last_value, std::memory_order_relaxed);
+
             u32 count = 0;
             ar.read(count);
 
@@ -1240,21 +1239,21 @@ struct binary_access {
                 if (ar.ok() and not o.m_raw.push(s))
                     ar.fail();
             }
-
-            o.m_history.write_only(
-              [&ar](vector<resampled_sample>& history) noexcept {
-                  ar(history);
-              });
         }
     }
 
     /* resampler */
 
+    /// The outputs not yet given to a consumer are not part of the state (the
+    /// player gives them before a snapshot): a restored resampler has none.
     template<typename Ar>
     static void io(Ar& ar, resampler& r) noexcept
     {
-        ar(r.m_batch, r.m_dt, r.m_next_sample_time, r.m_last_pushed_value,
-           r.m_pending, r.m_prev);
+        if constexpr (Ar::is_reader)
+            r.clear_outputs();
+
+        ar(r.m_point_count, r.m_raw_count, r.m_dt, r.m_next_sample_time,
+           r.m_last_pushed_value, r.m_pending, r.m_prev);
 
         auto order = r.m_interp.order();
         io_enum(ar, order, interpolate_type::qss3);

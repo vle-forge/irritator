@@ -131,24 +131,21 @@ static void show_copy_table(application& app) noexcept
 }
 #endif
 
-static void write(project&                        pj,
+static void write(const project_editor&           ed,
                   std::ofstream&                  ofs,
                   const variable_observer&        vobs,
                   const variable_observer::sub_id id) noexcept
 {
-    const auto  obs_id = vobs.subs.template get<observer_id>(id);
-    const auto* obs    = pj.sim.observers.try_to_get(obs_id);
+    const auto obs_id = vobs.subs.template get<observer_id>(id);
 
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.subs.template get<name_str>(id).sv() << '\n';
 
-    obs->read_history([&](const auto& lbuf, const auto /*version*/) noexcept {
-        for (const auto& v : lbuf)
-            ofs << v.t << ',' << v.value << '\n';
-    });
+    for (const auto& v : ed.sim_player.curves.get(obs_id))
+        ofs << v.t << ',' << v.value << '\n';
 }
 
-static void write(project&                        pj,
+static void write(const project_editor&           ed,
                   std::ofstream&                  ofs,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id sub_id) noexcept
@@ -157,20 +154,20 @@ static void write(project&                        pj,
 
     ofs.imbue(std::locale::classic());
 
-    if (const auto* vobs = pj.variable_observers.try_to_get(vobs_id);
+    if (const auto* vobs = ed.pj.variable_observers.try_to_get(vobs_id);
         vobs and vobs->exists(sub_id))
-        write(pj, ofs, *vobs, sub_id);
+        write(ed, ofs, *vobs, sub_id);
     else
         log(log_level::error, "output-error: unknown observation"sv);
 }
 
-static void write(project&                        pj,
+static void write(const project_editor&           ed,
                   const std::filesystem::path&    file_path,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id obs_id) noexcept
 {
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
-        write(pj, ofs, vobs_id, obs_id);
+        write(ed, ofs, vobs_id, obs_id);
     else
         log(log_level::error, [&](auto& msg) noexcept {
             format(
@@ -480,8 +477,7 @@ void output_editor::display_plot(const project_id pj_id) noexcept
                               pj->pj.sim.models.try_to_get(mdl_id)) {
                             const auto obs_id = mdl->obs_id;
 
-                            if (const auto* obs =
-                                  pj->pj.sim.observers.try_to_get(obs_id)) {
+                            if (pj->pj.sim.observers.exists(obs_id)) {
                                 const auto obs_idx = get_index(obs_id);
                                 const auto name = format_n<64>("{}-{}##{}",
                                                                pj->pj.name.sv(),
@@ -489,7 +485,8 @@ void output_editor::display_plot(const project_id pj_id) noexcept
                                                                obs_idx);
 
                                 app.plot_obs.show_plot_line(
-                                  *obs, plot_type_options::line, name.c_str());
+                                  pj->sim_player.curves.get(obs_id),
+                                  plot_type_options::line, name.c_str());
                             }
                         }
                     }
@@ -593,7 +590,7 @@ void output_editor::show() noexcept
                         write(app, m_file, m_copy_id);
                 } else if (m_need_save == save_option::obs) {
                     if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
-                        write(pj->pj, m_file, m_vobs_id, m_sub_id);
+                        write(*pj, m_file, m_vobs_id, m_sub_id);
                 }
             }
 

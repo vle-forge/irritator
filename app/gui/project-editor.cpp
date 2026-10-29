@@ -25,7 +25,7 @@ project_editor::project_editor(const modeling&        mod,
                                project&&              project_) noexcept
   : output_context{ ImPlot::CreateContext() }
   , pj(std::move(project_))
-  , sim_player{ pj.sim }
+  , sim_player{ pj }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {
@@ -398,7 +398,8 @@ static void show_local_variables_plot(application&       app,
         const auto  opts = v_obs.subs.template get<plot_type_options>(id);
         const auto& name = v_obs.subs.template get<name_str>(id);
 
-        app.plot_obs.show_plot_line(*obs, opts, name.c_str());
+        app.plot_obs.show_plot_line(ed.sim_player.curves.get(obs_id), opts,
+                                    name.c_str());
     }
 }
 
@@ -792,7 +793,8 @@ static void show_subplots(application&       app,
             const auto  opts = vobs.subs.template get<plot_type_options>(id);
             const auto& name = vobs.subs.template get<name_str>(id);
 
-            app.plot_obs.show_plot_line(*obs, opts, name.c_str());
+            app.plot_obs.show_plot_line(ed.sim_player.curves.get(obs_id), opts,
+                                        name.c_str());
         }
 
         ImPlot::EndPlot();

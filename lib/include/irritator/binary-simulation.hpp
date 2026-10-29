@@ -19,7 +19,7 @@
  *
  * - the snapshot (@c 'IRTS'): the part of the simulation that changes while it
  *   runs, to roll back a simulation: the models with their dynamics, the
- *   observers (raw samples, history and resampler), the connections, the
+ *   observers (raw samples and resampler), the connections, the
  *   dated messages, the messages that wait for the next step, the scheduler,
  *   the current time and the state of the embedded simulations (the copies of
  *   the original simulation, with their observations, the values of the input
@@ -70,7 +70,7 @@ inline constexpr u32 binary_snapshot_magic = binary_magic('I', 'R', 'T', 'S');
 inline constexpr u32 binary_simulation_magic = binary_magic('I', 'R', 'T', 'D');
 
 /// Version of both formats. A reader refuses another version.
-inline constexpr u32 binary_simulation_version = 3u;
+inline constexpr u32 binary_simulation_version = 4u;
 
 /// Writes the snapshot of the simulation.
 ///

@@ -171,9 +171,9 @@ public:
      * @attention Use this function after the call to ImPlot::BeginPlot() and
      * before the call to ImPlot::EndPlot().
      */
-    void show_plot_line(const observer&         obs,
-                        const plot_type_options options,
-                        const char*             name) noexcept;
+    void show_plot_line(std::span<const resampled_sample> points,
+                        const plot_type_options           options,
+                        const char*                       name) noexcept;
 };
 
 /** A class to compute 3D projection of 3D points using three rotation
@@ -972,6 +972,53 @@ struct player_view {
     bool   can_back;
 };
 
+/// The curves of the observers of a project, owned by the main thread. The
+/// task of the player gives the points (@c consume(), @c rewind()); the main
+/// thread takes them once per frame (@c receive()) and reads the curves
+/// without lock.
+class plot_series final : public observation_sink
+{
+public:
+    /// The outputs go to @c next too (the observation files).
+    explicit plot_series(observation_sink& next) noexcept
+      : m_next(next)
+    {}
+
+    status consume(const observation_batch& batch) noexcept override;
+    void   rewind(const simulation& sim) noexcept override;
+
+    /// Main thread: moves the points given by the task to the curves.
+    void receive() noexcept;
+
+    /// Main thread: the curve of the observer, empty if unknown.
+    std::span<const resampled_sample> get(const observer_id id) const noexcept;
+
+private:
+    /// Replaces the points of the curve from @c index by @c count points of
+    /// the staged points from @c first.
+    struct message {
+        observer_id id;
+        u64         index;
+        u32         first;
+        u32         count;
+    };
+
+    struct curve {
+        observer_id              id = undefined<observer_id>();
+        vector<resampled_sample> points;
+    };
+
+    observation_sink& m_next;
+
+    std::mutex               m_mutex;
+    vector<message>          m_staged;
+    vector<resampled_sample> m_staged_points;
+
+    vector<message>          m_received;
+    vector<resampled_sample> m_received_points;
+    vector<curve>            m_curves; // indexed by get_index(observer_id)
+};
+
 class player_controller
 {
 public:
@@ -987,11 +1034,15 @@ public:
 
     /// The player is sequential until @c application gives it the task list
     /// of the project (@c simulation_player::set_task_list()).
-    explicit player_controller(simulation& sim) noexcept
-      : player(sim)
-    {}
+    explicit player_controller(project& pj) noexcept
+      : player(pj.sim)
+      , curves(pj.observation_file_sink())
+    {
+        player.set_observation_sink(&curves);
+    }
 
     simulation_player player;
+    plot_series       curves;
     realtime_pacer    pacer;
 
     u32 resyncs = 0;

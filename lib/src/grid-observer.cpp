@@ -146,12 +146,8 @@ void grid_observer::update(const project& pj) noexcept
                 const auto  obs_id = observers[pos];
                 const auto* obs    = pj.sim.observers.try_to_get(obs_id);
 
-                if (obs) {
-                    obs->read_history([&](const auto& h, const auto) {
-                        if (not h.empty())
-                            values[pos] = h.back().value;
-                    });
-                }
+                if (obs)
+                    values[pos] = obs->last_value();
             }
         }
     }

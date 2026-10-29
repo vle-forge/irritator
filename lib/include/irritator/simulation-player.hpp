@@ -18,15 +18,16 @@
 
 namespace irt {
 
-/// The observers part of a step, sequential version: after @c simulation::run(),
-/// the observers whose raw buffer is nearly full are resampled
+/// The observers part of a step, sequential version: after @c
+/// simulation::run(), the observers whose raw buffer is nearly full are
+/// resampled
 /// (@c simulation::immediate_observers) and, at the end of the simulation, all
 /// the observers.
 ///
 /// The @c simulation_player does the same thing (in parallel if it can), so
 /// use this function to build a reference with a plain @c run() loop: a
 /// loop of @c sim.run() + @c sim.tick_resamplers() (all the observers at each
-/// step) does not give the same histories.
+/// step) does not give the same outputs.
 inline void tick_resamplers_after_run(simulation& sim) noexcept
 {
     if (sim.current_time_expired()) {
@@ -239,17 +240,26 @@ public:
      *
      * * * * * * * */
 
-    /// Moves the raw samples of all the observers to their history (the
-    /// curves). The steps do it lazily, for speed: an observer is resampled
-    /// only when its raw buffer is nearly full, or at the end of the
-    /// simulation. That is too late for an interactive use (debug, real time):
-    /// a model that emits a sample from time to time shows its curve after
-    /// hundreds of steps. Call it at the end of each slice of work (a frame)
-    /// in these modes. It does not change the simulation, only the moment
-    /// when the history receives the points, so the states of the player
-    /// (keyframes, rewinds) stay valid. The tick is parallel like the
+    /// The consumer of the outputs of the observers (a file, the curves of a
+    /// user interface): the player gives it the outputs after each tick of
+    /// the observers, and tells it the rewinds. Without a consumer, the outputs
+    /// are dropped. Call it when no step is running.
+    void set_observation_sink(observation_sink* sink) noexcept
+    {
+        m_sink = sink;
+    }
+
+    /// Moves the raw samples of all the observers to the consumer (the
+    /// curves, see @c set_observation_sink()). The steps do it lazily, for
+    /// speed: an observer is resampled only when its raw buffer is nearly full,
+    /// or at the end of the simulation. That is too late for an interactive use
+    /// (debug, real time): a model that emits a sample from time to time shows
+    /// its curve after hundreds of steps. Call it at the end of each slice of
+    /// work (a frame) in these modes. It does not change the simulation, only
+    /// the moment when the consumer receives the points, so the states of the
+    /// player (keyframes, rewinds) stay valid. The tick is parallel like the
     /// other ticks. Nothing happens if the player is not started.
-    void flush_observers() noexcept;
+    status flush_observers() noexcept;
 
     /// Return true iff simulation started.
     bool started() const noexcept { return m_started; }
@@ -317,7 +327,8 @@ private:
     };
 
     simulation&          m_sim;
-    unordered_task_list* m_utl = nullptr; // nullptr: sequential tick
+    unordered_task_list* m_utl  = nullptr; // nullptr: sequential tick
+    observation_sink*    m_sink = nullptr;
 
     binary_writer      m_writer;    // reused: no allocation for a snapshot
     vector<keyframe>   m_keyframes; // sorted by step, the first is the step 0
@@ -363,10 +374,14 @@ private:
     status push_keyframe() noexcept;
 
     /// After @c run(): see @c tick_resamplers_after_run().
-    void tick_observers() noexcept;
+    status tick_observers() noexcept;
 
     /// Resamples all the observers (parallel if there are enough).
-    void tick_all_observers(const time now) noexcept;
+    status tick_all_observers(const time now) noexcept;
+
+    /// Gives the outputs of the observers @c ids to the consumer.
+    status drain_observers(const std::span<const observer_id> ids) noexcept;
+    status drain_all_observers() noexcept;
 
     /// True if the tick of @c n observers is worth the task list.
     bool parallel_tick(const std::size_t n) const noexcept;

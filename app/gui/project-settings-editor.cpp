@@ -227,14 +227,13 @@ static bool submit(application&     app,
           if (not c.result.has_error())
               c.result = fn(c.player);
           if (history and not c.result.has_error())
-              c.player.flush_observers();
+              c.result = c.player.flush_observers();
 
-          // No purge: the plots read the histories.
           if (not c.result.has_error()) {
               if (c.player.finalized())
                   c.result = ed.pj.close_observations();
               else if (not history)
-                  c.result = ed.pj.flush_observations(false);
+                  c.result = ed.pj.flush_observations();
           }
 
           c.work += std::chrono::steady_clock::now() - t0;
