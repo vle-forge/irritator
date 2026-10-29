@@ -7,9 +7,12 @@
 #include <irritator/format.hpp>
 #include <irritator/global.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/simulation-player.hpp>
 
 #include <charconv>
+#include <chrono>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -21,25 +24,27 @@
 static void show_help() noexcept
 {
     std::puts(R"(
-irritator-cli [-h][-v][-tmin:max]
+irritator-cli [-h][-v][-o path][-t begin[,duration]] project.pirt...
+
+Runs each project from the beginning to the end and writes the observations
+in `<name>-<id>-<run>.irb` and `<name>-<id>-<run>.manifest.jsonl`.
 
 Options:
   -h,--help                This help message
   -v, --version            The version of irritator
-  -o path                  The output path of the simulation result.
-  --output path            If path does not exist, current dir is used.
+  -o path                  The output directory of the observation files.
+  --output path            The project directory is used by default, or the
+                           current directory.
   -t:begin[,duration]      Define the beginning date of the simulation and
-  --time begin[,duration]  ptionaly the duration. The begin date default is
-                           0.0, the duration is +infiny. Duration can only
-                           be a real greater or equal to 0.0 or `inf` for
-                           infiny.
+  --time begin[,duration]  optionally the duration. The limits of the project
+                           are used by default. The duration is a real
+                           greater or equal to 0.0 or `inf` for infinity.
 
 Examples:
-$ irritator-cli -hvt:1:100 first.irt -t 20:30 second.irt
+$ irritator-cli -t:1,100 first.pirt -t 20,30 second.pirt
 
-        Will load and run the simulation `first.irt` from date 1.0 to the
-        date 100.0 then load an run the simulation `second.irt` from date
-        20.0 to the date 50.0.
+        Runs the project `first.pirt` from the date 1.0 to the date 101.0,
+        then the project `second.pirt` from the date 20.0 to the date 50.0.
 
 )");
 }
@@ -67,36 +72,30 @@ struct report_parameter {
 
 enum class ec : irt::u8 {
     arg_missing,
-    bad_parsing,
     registred_path_empty,
     unknown_option,
     bad_real,
-    bad_int,
     bad_dir,
-    open_file,
-    json_file,
     project_init_error,
     modeling_init_error,
     simulation_init_error,
     unknown_output_path,
+    run_error,
     unknown_error
 };
 
 static constexpr report_parameter report_parameters[] = {
-    { "argument missing for {}", 1 },
-    { "fail to parse argument", 0 },
-    { "not global path", 0 },
-    { "unknwon action {}", 1 },
-    { "parameter `{}' is not a real", 1 },
-    { "parameter `{}' is not an integer", 1 },
-    { "directory `{}' can not be read", 1 },
-    { "open file `{}' error: {}", 2 },
-    { "json format error in `{}' error: {}", 2 },
-    { "project init error: {},", 1 },
-    { "modeling init error: {},", 1 },
-    { "simulation init error: {}", 1 },
-    { "unknown output path `{}'", 1 },
-    { "unknown error", 0 }
+    { "argument missing for {}\n", 1 },
+    { "not global path\n", 0 },
+    { "unknown option {}\n", 1 },
+    { "parameter `{}' is not a real\n", 1 },
+    { "directory `{}' can not be read\n", 1 },
+    { "project init error: {}\n", 1 },
+    { "modeling init error: {}\n", 1 },
+    { "simulation init error: {}\n", 1 },
+    { "unknown output path `{}'\n", 1 },
+    { "fail to run `{}': {}\n", 2 },
+    { "unknown error\n", 0 }
 };
 
 template<ec Index, typename... Args>
@@ -123,66 +122,34 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
     return ret;
 }
 
-enum class option_id : irt::u8 { unknown, help, memory, output, time, version };
+enum class option_id : irt::u8 { help, output, time, version };
 
 struct option {
-    const std::string_view short_opt;
-    const std::string_view long_opt;
-    const option_id        id;
-    const irt::u8          min_arg;
-    const irt::u8          max_arg;
+    std::string_view short_opt;
+    std::string_view long_opt;
+    option_id        id;
+    bool             has_value;
 };
 
 static inline constexpr option options[] = {
-    { "h", "help", option_id::help, 0, 0 },
-    { "m", "memory", option_id::memory, 1, 1 },
-    { "o", "output", option_id::output, 1, 1 },
-    { "t", "time", option_id::time, 1, 2 },
-    { "v", "version", option_id::version, 0, 0 },
+    { "h", "help", option_id::help, false },
+    { "o", "output", option_id::output, true },
+    { "t", "time", option_id::time, true },
+    { "v", "version", option_id::version, false },
 };
 
-static constexpr const option* get_from_short(
-  std::string_view short_name) noexcept
+static constexpr const option* find_option(const std::string_view name,
+                                           const bool is_long) noexcept
 {
-    const auto begin = std::begin(options);
-    const auto end   = std::end(options);
+    for (const auto& opt : options)
+        if ((is_long ? opt.long_opt : opt.short_opt) == name)
+            return &opt;
 
-    const auto i = irt::binary_find(
-      begin, end, short_name,
-      [](const auto& l, const auto& r) noexcept -> bool {
-          if constexpr (std::is_same_v<std::decay_t<decltype(l)>,
-                                       std::string_view>)
-              return l < r.short_opt;
-          else
-              return l.short_opt < r;
-      });
-
-    return i == end ? nullptr : i;
-}
-
-static constexpr const option* get_from_long(
-  std::string_view short_name) noexcept
-{
-    const auto begin = std::begin(options);
-    const auto end   = std::end(options);
-
-    const auto i = irt::binary_find(
-      begin, end, short_name,
-      [](const auto& l, const auto& r) noexcept -> bool {
-          if constexpr (std::is_same_v<std::decay_t<decltype(l)>,
-                                       std::string_view>)
-              return l < r.long_opt;
-          else
-              return l.long_opt < r;
-      });
-
-    return i == end ? nullptr : i;
+    return nullptr;
 }
 
 class main_parameters
 {
-    irt::sz memory = 1024 * 1024 * 8;
-
     irt::task_manager   task_mgr;
     irt::log_history    jn;
     irt::journal_scope  scope;
@@ -192,19 +159,24 @@ class main_parameters
     irt::json_dearchiver json;
     irt::project         pj;
 
+    std::optional<irt::real> begin;
+    std::optional<irt::real> duration;
+    irt::registred_path_id
+      output_dir = irt::undefined<irt::registred_path_id>();
+
     std::span<const char*> args;
     std::string_view       front;
 
-    irt::real r; // Temp variables used during parse operation.
-    irt::sz   u;
+    bool initialized = false;
 
 public:
     main_parameters(int ac, const char* av[])
       : task_mgr(
           irt::task_manager_options{ .list_count = 1, .worker_count = 0 })
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
-      , r{ 0.0 }
     {
+        task_mgr.start();
+
         mod.files.write([&](auto& fs) noexcept {
             registred_path_add(fs);
             fs.browse_registreds();
@@ -226,34 +198,87 @@ public:
                 break;
             }
         } else {
+            initialized = true;
             load_next_token();
         }
     }
 
-    irt::expected<void> prepare_and_run() noexcept
+    /** Consumes all the arguments of the command line: the options and the
+     * projects to run, in order.
+     * @return false if an argument is invalid or if a project fails. */
+    bool parse() noexcept
+    {
+        if (not initialized)
+            return false;
+
+        while (not front.empty())
+            if (not parse_token())
+                return false;
+
+        return true;
+    }
+
+private:
+    irt::status load_project(const std::string_view filename) noexcept
+    {
+        auto file = irt::file::open(
+          irt::path{ filename }, irt::file_mode(irt::file_open_options::read));
+        if (not file.has_value())
+            return file.error();
+
+        return mod.ids.read([&](const auto& ids, auto) -> irt::status {
+            return mod.files.read([&](const auto& fs, auto) -> irt::status {
+                return json(pj, fs, ids, filename, *file);
+            });
+        });
+    }
+
+    void apply_options(const std::filesystem::path& filename) noexcept
+    {
+        if (begin.has_value() or duration.has_value())
+            pj.sim.limits.set_duration(
+              begin.value_or(pj.sim.limits.begin()),
+              duration.value_or(pj.sim.limits.duration()));
+
+        if (irt::is_defined(output_dir))
+            pj.observation_dir = output_dir;
+
+        // The name prefixes the observation files.
+        if (pj.name.empty())
+            pj.name = filename.stem().string();
+
+        pj.flags.set(irt::project::simulation_flag::write_irtb, true);
+    }
+
+    // The complete mode of the player: no keyframe, and the histories are
+    // written then purged after each budget, so the memory does not grow with
+    // the length of the simulation.
+    irt::status run() noexcept
+    {
+        irt::simulation_player player(pj.sim, task_mgr, 0);
+
+        irt_check(player.keep_history(false));
+        irt_check(player.start());
+
+        while (not player.finished()) {
+            irt_check(player.advance(std::chrono::milliseconds(100)));
+            irt_check(pj.flush_observations(true));
+        }
+
+        return pj.close_observations();
+    }
+
+    irt::status prepare_and_run(const std::string_view filename) noexcept
     {
         log(irt::log_level::notice, [&](auto& m) {
-            irt::format(m, "Run simulation for file {}\n", front);
+            irt::format(m, "Run simulation for file {}\n", filename);
         });
 
-        const std::filesystem::path str{ front };
-        load_next_token();
+        irt_check(load_project(filename));
+        apply_options(std::filesystem::path(filename));
+        irt_check(pj.simulation_init(mod));
 
-#if 0
-        if (auto file = irt::file::open(
-              str, irt::file_mode(irt::file_open_options::read));
-            file.has_value()) {
-            if (json(pj, mod, pj.sim, str.string(), *file)) {
-                run();
-            } else {
-                return irt::make_error(irt::json_errc::invalid_project_format);
-            }
-        } else {
-            return file.error();
-        }
-#endif
-
-        return irt::success();
+        return run();
     }
 
     /** Try to add a new global path in @c modeling. This function only test if
@@ -306,257 +331,163 @@ public:
         return i;
     }
 
-    constexpr void load_next_token() noexcept
+    void load_next_token() noexcept
     {
         if (args.empty()) {
             front = std::string_view{};
         } else {
             front = args.front();
-            if (not args.empty())
-                args = args.subspan(1u);
+            args  = args.subspan(1u);
         }
-    }
-
-    constexpr void consume_data(const std::size_t nb) noexcept
-    {
-        if (front.size() <= nb)
-            front = front.substr(nb);
-        else
-            load_next_token();
-    }
-
-    constexpr bool start_short_option() const noexcept
-    {
-        irt::debug::ensure(not front.empty());
-        return front.size() > 1 and front[0] == '-' and front[1] != '-';
-    }
-
-    constexpr bool start_long_option() const noexcept
-    {
-        irt::debug::ensure(not front.empty());
-        return front.size() > 2 and front.substr(0, 2) == "--";
-    }
-
-    bool parse_integer() noexcept
-    {
-        if (const auto ec = std::from_chars(front.data(),
-                                            front.data() + front.size(), u);
-            ec.ec == std::errc{}) {
-            front = front.substr(ec.ptr - front.data());
-        } else {
-            warning<ec::bad_int>(front);
-        }
-        return true;
     }
 
 #if !defined(__APPLE__)
-    /** Parse a real from @c front and if it empty, front args. */
-    bool parse_real() noexcept
+    static bool parse_real(std::string_view& str, irt::real& r) noexcept
     {
-        if (const auto ec = std::from_chars(front.data(),
-                                            front.data() + front.size(), r);
-            ec.ec == std::errc{}) {
-            front = front.substr(ec.ptr - front.data());
-        } else {
-            warning<ec::bad_real>(front);
-        }
+        const auto ret = std::from_chars(str.data(), str.data() + str.size(),
+                                         r);
+        if (ret.ec != std::errc{})
+            return false;
 
+        str = str.substr(ret.ptr - str.data());
         return true;
     }
 #else
-    /** Parse a real from @c front and if it empty, front args. */
-    bool parse_real() noexcept
+    static bool parse_real(std::string_view& str, irt::real& r) noexcept
     {
-        const std::string str(front.data(), front.size());
-        char*             str_end = nullptr;
+        const std::string copy(str.data(), str.size());
+        char*             end = nullptr;
 
-        const auto dbl = std::strtod(str.c_str(), &str_end);
-        if (dbl == 0.0 and str_end == str.c_str()) {
-            warning<ec::bad_real>(str);
-        } else {
-            front = front.substr(str_end - str.c_str());
-            r     = dbl;
-        }
+        const auto dbl = std::strtod(copy.c_str(), &end);
+        if (end == copy.c_str())
+            return false;
 
+        str = str.substr(end - copy.c_str());
+        r   = dbl;
         return true;
     }
 #endif
 
-    /** Parse a real or the string "inf" from @c front and if it empty,
-     * front args. */
-    constexpr bool parse_real_or_infinity() noexcept
+    static bool parse_real_or_infinity(std::string_view& str,
+                                       irt::real&        r) noexcept
     {
-        if (front.size() >= 3 and front.substr(0, 3) == "inf") {
-            r     = std::numeric_limits<irt::real>::infinity();
-            front = front.substr(3);
+        if (str.starts_with("inf")) {
+            r   = std::numeric_limits<irt::real>::infinity();
+            str = str.substr(3);
             return true;
         }
 
-        return parse_real();
+        return parse_real(str, r);
     }
 
-    /** Parse a real, or a couple real,real or a couple real,inf. */
-    bool read_time() noexcept
+    /** Parse `begin` or `begin,duration` (`inf` for an infinite duration). */
+    bool read_time(std::string_view value) noexcept
     {
-        auto begin    = pj.sim.limits.begin();
-        auto duration = pj.sim.limits.duration();
+        irt::real b = 0, d = 0;
 
-        if (parse_real()) {
-            if (not front.empty() and (front[0] == ',' or front[0] == ':')) {
-                front = front.substr(1);
-                if (not front.empty() and parse_real_or_infinity()) {
-                    pj.sim.limits.set_duration(begin, r);
-                    return true;
-                }
-            } else {
-                pj.sim.limits.set_duration(begin, duration);
-                return true;
-            }
+        if (not parse_real(value, b))
+            return error<ec::bad_real>(false, value);
+
+        if (value.starts_with(',') or value.starts_with(':')) {
+            value = value.substr(1);
+            if (not parse_real_or_infinity(value, d) or d < 0)
+                return error<ec::bad_real>(false, value);
+
+            duration = d;
         }
 
-        return error<ec::arg_missing>(false, "time");
+        if (not value.empty())
+            return error<ec::bad_real>(false, value);
+
+        begin = b;
+        return true;
     }
 
-    /** Parse a integer and reinitialize the simulation buffers. */
-    bool read_memory() noexcept
-    {
-        if (parse_integer() and u > memory) {
-            memory = u;
-            return true;
-        }
-
-        return error<ec::arg_missing>(false, "memory");
-    }
-
-    bool read_output_dir() noexcept
+    bool read_output_dir(const std::string_view value) noexcept
     {
         try {
-            auto o  = std::filesystem::path(front);
-            auto ec = std::error_code();
-            if (std::filesystem::exists(o, ec)) {
+            const auto o  = std::filesystem::path(value);
+            auto       ec = std::error_code();
+
+            if (std::filesystem::is_directory(o, ec)) {
                 mod.files.write([&](auto& fs) {
-                    auto&      dir     = fs.registred_paths.alloc();
-                    const auto dir_id  = fs.registred_paths.get_id(dir);
-                    dir.name           = "output-directory";
-                    dir.path           = o.string().c_str();
-                    pj.observation_dir = dir_id;
+                    auto& dir  = fs.registred_paths.alloc();
+                    output_dir = fs.registred_paths.get_id(dir);
+                    dir.name   = "output-directory";
+                    dir.path   = o.string().c_str();
                 });
                 return true;
             }
         } catch (...) {
         }
 
-        return false;
+        return error<ec::unknown_output_path>(false, value);
     }
 
-    constexpr bool dispatch(const option& opt) noexcept
+    bool dispatch(const option& opt, const std::string_view value) noexcept
     {
         switch (opt.id) {
         case option_id::help:
             show_help();
             return true;
 
-        case option_id::memory:
-            if (front[0] == '=' or front[0] == ':')
-                consume_data(1u);
-
-            return read_memory();
-
         case option_id::output:
-            if (front[0] == '=' or front[0] == ':')
-                consume_data(1u);
+            return read_output_dir(value);
 
-            return read_output_dir();
+        case option_id::time:
+            return read_time(value);
 
         case option_id::version:
             show_version();
             return true;
-
-        case option_id::time:
-            if (front[0] == '=' or front[0] == ':')
-                consume_data(1u);
-
-            return read_time();
-
-        case option_id::unknown:
-            break;
         }
 
-        return error<ec::unknown_option>(false, front);
+        irt::unreachable();
     }
 
-    constexpr bool read_short_option() noexcept
+    /** An option is `-o value`, `-o=value`, `-o:value`, `--output value` or
+     * `--output=value`, anything else is a project to run. */
+    bool parse_token() noexcept
     {
-        if (const auto ptr = get_from_short(front); ptr) {
-            consume_data(1);
-            return dispatch(*ptr);
-        } else {
+        if (front.size() < 2 or front[0] != '-')
+            return read_argument();
+
+        const auto is_long = front[1] == '-';
+        auto       name    = front.substr(is_long ? 2 : 1);
+        auto       value   = std::string_view{};
+
+        if (const auto pos = name.find_first_of(is_long ? "=" : "=:");
+            pos != std::string_view::npos) {
+            value = name.substr(pos + 1);
+            name  = name.substr(0, pos);
+        }
+
+        const auto* opt = find_option(name, is_long);
+        if (not opt)
             return error<ec::unknown_option>(false, front);
+
+        load_next_token();
+
+        if (opt->has_value and value.empty()) {
+            if (front.empty())
+                return error<ec::arg_missing>(false, opt->long_opt);
+
+            value = front;
+            load_next_token();
         }
-    }
 
-    /** Consume all characters of the @c front token.
-     *
-     *  @return true If all characters from the front are read
-     * successsively.
-     */
-    constexpr bool read_short_options() noexcept
-    {
-        while (not front.empty() and read_short_option())
-            ;
-
-        return front.empty();
-    }
-
-    constexpr bool read_long_option() noexcept
-    {
-        if (const auto ptr = get_from_long(front); ptr) {
-            consume_data(ptr->long_opt.size());
-            return dispatch(*ptr);
-        } else {
-            return error<ec::unknown_option>(false, front);
-        }
+        return dispatch(*opt, value);
     }
 
     bool read_argument() noexcept
     {
-        irt::debug::ensure(not front.empty());
+        const auto filename = front;
+        load_next_token();
 
-        if (auto ret = prepare_and_run(); not ret) {
-            switch (ret.error().cat()) {
-            case irt::category::modeling:
-                warning<ec::modeling_init_error>(ret.error().value());
-                return false;
-            case irt::category::project:
-                warning<ec::project_init_error>(ret.error().value());
-                return false;
-            case irt::category::simulation:
-                warning<ec::simulation_init_error>(ret.error().value());
-                return false;
-            default:
-                warning<ec::unknown_error>();
-                return false;
-            }
-        }
+        if (auto ret = prepare_and_run(filename); ret.has_error())
+            return error<ec::run_error>(false, filename, ret.error());
 
         return true;
-    }
-
-    bool parse_args()
-    {
-        return start_short_option()  ? read_short_options()
-               : start_long_option() ? read_long_option()
-                                     : read_argument();
-    }
-
-    /** Consume all argument from the command line interface and return true
-     * if parsing are done. */
-    constexpr bool parse() noexcept
-    {
-        while (not front.empty() and parse_args())
-            ;
-
-        return front.empty() and args.empty();
     }
 };
 
@@ -564,5 +495,5 @@ int main(int argc, const char* argv[])
 {
     main_parameters m{ argc, argv };
 
-    return m.parse();
+    return m.parse() ? 0 : 1;
 }

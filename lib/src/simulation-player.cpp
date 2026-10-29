@@ -279,7 +279,7 @@ void simulation_player::tick_job::work() noexcept
         const auto last  = std::min(count, first + chunk);
 
         sim->tick_resamplers(
-          std::span<const observer_id>(ids + first, last - first));
+          std::span<const observer_id>(ids + first, last - first), now);
     }
 }
 
@@ -288,11 +288,12 @@ bool simulation_player::parallel_tick(const std::size_t n) const noexcept
     return m_utl != nullptr and m_helpers > 0 and n >= 2u * m_chunk;
 }
 
-void simulation_player::tick_parallel(
-  const std::span<const observer_id> ids) noexcept
+void simulation_player::tick_parallel(const std::span<const observer_id> ids,
+                                      const time now) noexcept
 {
     tick_job job;
     job.sim         = &m_sim;
+    job.now         = now;
     job.ids         = ids.data();
     job.count       = ids.size();
     job.chunk       = m_chunk;
@@ -316,42 +317,42 @@ void simulation_player::tick_parallel(
         m_utl->wait_completion();
 }
 
-void simulation_player::tick_all_observers() noexcept
+void simulation_player::tick_all_observers(const time now) noexcept
 {
     const auto n = static_cast<std::size_t>(m_sim.observers.size());
 
     if (not parallel_tick(n))
-        return m_sim.tick_resamplers();
+        return m_sim.tick_resamplers(now);
 
     m_obs_ids.clear();
     for (const auto& obs : m_sim.observers)
         m_obs_ids.emplace_back(m_sim.observers.get_id(obs));
 
     tick_parallel(
-      std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()));
+      std::span<const observer_id>(m_obs_ids.data(), m_obs_ids.size()), now);
 }
 
 void simulation_player::flush_observers() noexcept
 {
     if (m_started)
-        tick_all_observers();
+        tick_all_observers(m_sim.current_time());
 }
 
 void simulation_player::tick_observers() noexcept
 {
     if (m_sim.current_time_expired()) {
-        tick_all_observers();
+        tick_all_observers(m_sim.current_time());
     } else if (not m_sim.immediate_observers.empty()) {
         const auto ids = std::span<const observer_id>(
           m_sim.immediate_observers.data(),
           static_cast<std::size_t>(m_sim.immediate_observers.size()));
 
         if (not parallel_tick(ids.size()))
-            return m_sim.tick_resamplers(ids);
+            return m_sim.tick_resamplers(ids, m_sim.current_time());
 
         // The identifiers of immediate_observers are unique: two chunks never
         // tick the same observer, and the vector is not changed during the tick.
-        tick_parallel(ids);
+        tick_parallel(ids, m_sim.current_time());
     }
 }
 
@@ -389,6 +390,9 @@ status simulation_player::finalize_if_finished() noexcept
 
     // The final observations (and the near full observers) go to the history.
     tick_observers();
+
+    // Without this tick the last resampled point of each series stays pending.
+    tick_all_observers(time_domain<time>::infinity);
 
     return success();
 }

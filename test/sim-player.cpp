@@ -43,7 +43,8 @@ bool plain_steps(simulation& sim, const int n) noexcept
     return true;
 }
 
-/// The end of a plain run, as the player does it: finalize and the last tick.
+/// The end of a plain run, as the player does it: finalize, the last tick and
+/// the end of the series.
 bool plain_finish(simulation& sim) noexcept
 {
     if (not sim.current_time_expired())
@@ -53,6 +54,7 @@ bool plain_finish(simulation& sim) noexcept
         return false;
 
     tick_resamplers_after_run(sim);
+    sim.tick_resamplers(irt::time_domain<irt::time>::infinity);
     return true;
 }
 
@@ -326,7 +328,6 @@ int main()
         const auto last = player.step();
         const auto got  = dump(sim);
 
-        // The plain run: the steps, then finalize and the last tick.
         simulation plain;
         world      pw;
         build_world(plain, pw);
@@ -334,8 +335,7 @@ int main()
         expect(start(plain));
         expect(plain_steps(plain, static_cast<int>(last)));
         expect(plain.current_time_expired());
-        expect(plain.finalize().has_value());
-        tick_resamplers_after_run(plain);
+        expect(plain_finish(plain));
         expect(same(got, dump(plain), "finalized plain run"));
 
         // nothing more, and finalize is not called twice

@@ -111,7 +111,7 @@ static status flush_to_irtb(const observer& obs,
          const auto cursor, auto& out) noexcept -> expected<std::uint64_t> {
           const auto len = std::size(vec);
 
-          if (debug::check(std::cmp_less(cursor, len))) {
+          if (std::cmp_less(cursor, len)) {
               const auto header = chunk_header{ .n_rows = len - cursor,
                                                 .t_min  = vec[cursor].t,
                                                 .t_max  = vec[len - 1].t,
@@ -127,7 +127,7 @@ static status flush_to_irtb(const observer& obs,
                   return make_error(simulation_errc::file_write_error);
           }
 
-          return cursor + vec.size();
+          return len;
       },
       obs, cursor, out);
 
@@ -350,18 +350,22 @@ status project::simulation_init(const modeling& mod) noexcept
     if (flags[simulation_flag::write_irtb]) {
         const auto dir   = open_dir_name(mod, observation_dir);
         auto       files = open_irtb_file(name.sv(), dir, m_simulation_id,
-                                          m_simulation_run);
+                                          m_simulation_run++);
 
-        if (files.has_error())
+        if (files.has_error()) {
+            simulation_state = simulation_status::not_started;
             return files.error();
+        }
 
         obs_files.json_irtb = std::move(files->json_file);
         obs_files.bin_irtb  = std::move(files->binary_file);
 
         if (auto r = init_json_irtb(sim.observers, sim.current_time(),
                                     obs_files.json_irtb);
-            r.has_error())
+            r.has_error()) {
+            simulation_state = simulation_status::not_started;
             return r.error();
+        }
     }
 
     if (auto r = sim.srcs.prepare(); r.has_error()) {
@@ -716,166 +720,43 @@ bool project::push(const command& cmd) noexcept
 
 bool project::empty_commands() const noexcept { return commands.empty(); }
 
-void project::simulation_observation_for_imm_observers(
-  unordered_task_list& utl) noexcept
+status project::flush_observations(const bool purge) noexcept
 {
-    debug::ensure(simulation_state != simulation_status::finished);
+    if (not flags[simulation_flag::write_irtb] or
+        not obs_files.bin_irtb.is_open())
+        return success();
 
-    std::size_t obs_max = sim.immediate_observers.size();
-    std::size_t current = 0;
+    auto& cursors = sim.observers.get<observer_history_cursor>();
 
-    while (obs_max > 0) {
-        const auto loop = std::min(obs_max, ordered_task_list::task_max);
+    irt_check(flush_to_irtb(sim.observers, cursors, obs_files.bin_irtb));
 
-        for (std::size_t i = 0; i != loop; ++i) {
-            auto obs_id = sim.immediate_observers[i + current];
-
-            utl.add([&, obs_id]() noexcept {
-                if (auto* obs = sim.observers.try_to_get(obs_id)) {
-                    auto& res = sim.observers.get<resampler>(obs_id);
-
-                    res.tick(*obs, sim.current_time());
-                }
-            });
+    if (purge) {
+        for (auto& obs : sim.observers) {
+            obs.clear_history();
+            cursors[get_index(sim.observers.get_id(obs))] = 0;
         }
-
-        utl.submit();
-        utl.wait_completion();
-
-        current += loop;
-        if (obs_max > ordered_task_list::task_max)
-            obs_max -= ordered_task_list::task_max;
-        else
-            obs_max = 0;
     }
 
-    if (current > 0) {
-        utl.submit();
-        utl.wait_completion();
-    }
+    return success();
 }
 
-void project::simulation_observation_for_all_observers(
-  unordered_task_list& utl) noexcept
+status project::close_observations() noexcept
 {
-    debug::ensure(simulation_state != simulation_status::finished);
+    if (not obs_files.bin_irtb.is_open() and not obs_files.json_irtb.is_open())
+        return success();
 
-    std::size_t obs_max = sim.observers.ssize();
-    std::size_t current = 0;
+    auto guard = make_scope_exit([&]() noexcept {
+        obs_files.json_irtb.close();
+        obs_files.bin_irtb.close();
+    });
 
-    auto it = sim.observers.begin();
-    auto et = sim.observers.end();
+    irt_check(flush_observations(false));
 
-    while (it != et) {
-        const auto loop = std::min(obs_max, ordered_task_list::task_max);
+    if (obs_files.json_irtb.is_open())
+        return finalize_json_irtb(sim.observers, sim.current_time(),
+                                  obs_files.json_irtb);
 
-        for (std::size_t i = 0; i != loop; ++i) {
-            const auto obs_id = sim.observers.get_id(*it);
-
-            utl.add([&, obs_id]() noexcept {
-                if (auto* obs = sim.observers.try_to_get(obs_id)) {
-                    auto& res = sim.observers.get<resampler>(obs_id);
-
-                    res.tick(*obs, sim.current_time());
-                }
-            });
-
-            ++it;
-        }
-
-        utl.submit();
-        utl.wait_completion();
-
-        current += loop;
-        if (obs_max >= ordered_task_list::task_max)
-            obs_max -= ordered_task_list::task_max;
-        else
-            obs_max = 0;
-    }
-
-    if (current > 0) {
-        utl.submit();
-        utl.wait_completion();
-    }
-}
-
-void project::simulation_finalize_observation(unordered_task_list& utl) noexcept
-{
-    debug::ensure(simulation_state != simulation_status::finished);
-
-    std::size_t obs_max = sim.observers.ssize();
-    std::size_t current = 0;
-
-    auto it = sim.observers.begin();
-    auto et = sim.observers.end();
-
-    while (it != et) {
-        const auto loop = std::min(obs_max, ordered_task_list::task_max);
-
-        for (std::size_t i = 0; i != loop; ++i) {
-            const auto obs_id = sim.observers.get_id(*it);
-
-            utl.add([&, obs_id]() noexcept {
-                if (auto* obs = sim.observers.try_to_get(obs_id)) {
-                    auto& res = sim.observers.get<resampler>(obs_id);
-
-                    if (not time_domain<time>::is_infinity(sim.limits.end()))
-                        res.tick(*obs, sim.current_time());
-
-                    res.tick(*obs, time_domain<time>::infinity);
-                }
-            });
-
-            ++it;
-        }
-
-        utl.submit();
-        utl.wait_completion();
-
-        current += loop;
-        if (obs_max >= ordered_task_list::task_max)
-            obs_max -= ordered_task_list::task_max;
-        else
-            obs_max = 0;
-    }
-
-    if (current > 0) {
-        utl.submit();
-        utl.wait_completion();
-    }
-}
-
-status project::simulation_finish(unordered_task_list& utl) noexcept
-{
-    simulation_state = simulation_status::finishing;
-
-    const auto ret = sim.finalize();
-    simulation_finalize_observation(utl);
-
-    simulation_state = simulation_status::finished;
-
-    if (ret.has_error()) {
-        log(log_level::error, [&](auto& m) {
-            format(m, "simulation: finalizing fail: {}", ret.error());
-        });
-    }
-
-    if (flags[simulation_flag::write_irtb]) {
-        auto guard = make_scope_exit([&]() noexcept {
-            obs_files.json_irtb.close();
-            obs_files.bin_irtb.close();
-        });
-
-        return flush_to_irtb(sim.observers,
-                             sim.observers.get<observer_history_cursor>(),
-                             obs_files.bin_irtb)
-          .and_then([&] {
-              return finalize_json_irtb(sim.observers, sim.current_time(),
-                                        obs_files.json_irtb);
-          });
-    }
-
-    return ret;
+    return success();
 }
 
 } // namespace irt

@@ -1463,6 +1463,11 @@ public:
     /// Reset the circular_buffer and the history.
     void reset() noexcept;
 
+    /// Drops the resampled points (already written elsewhere), keeps the raw
+    /// samples. Never use it with a player that keeps an history: its
+    /// keyframes contain the history.
+    void clear_history() noexcept;
+
     /// Retrieves the underlying model identifier.
     model_id model() const noexcept { return m_model; }
 
@@ -2203,8 +2208,13 @@ public:
     /// For each observer fills the history
     void tick_resamplers() noexcept
     {
-        const auto now        = t.load(std::memory_order_acquire);
-        auto&      resamplers = observers.get<resampler>();
+        tick_resamplers(t.load(std::memory_order_acquire));
+    }
+
+    /// With @c now equal to infinity, the resamplers finalize their series.
+    void tick_resamplers(const time now) noexcept
+    {
+        auto& resamplers = observers.get<resampler>();
 
         for (auto& obs : observers) {
             const auto obs_id  = observers.get_id(obs);
@@ -2217,8 +2227,13 @@ public:
     /// For each observer in the vector transfert data
     void tick_resamplers(std::span<const observer_id> v) noexcept
     {
-        const auto now        = t.load(std::memory_order_acquire);
-        auto&      resamplers = observers.get<resampler>();
+        tick_resamplers(v, t.load(std::memory_order_acquire));
+    }
+
+    void tick_resamplers(std::span<const observer_id> v,
+                         const time                   now) noexcept
+    {
+        auto& resamplers = observers.get<resampler>();
 
         for (const auto obs_id : v) {
             if (auto* obs = observers.try_to_get(obs_id)) {
@@ -11970,6 +11985,7 @@ inline status simulation::initialize() noexcept
     for (auto& obs : observers) {
         obs.reset();
         observers.get<resampler>(observers.get_id(obs)).reset();
+        observers.get<observer_history_cursor>(observers.get_id(obs)) = 0;
 
         if (auto* mdl = models.try_to_get(obs.model())) {
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {

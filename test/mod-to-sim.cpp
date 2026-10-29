@@ -9,6 +9,7 @@
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
+#include <irritator/simulation-player.hpp>
 
 #include "utils.hpp"
 
@@ -397,6 +398,70 @@ static void simulation_component_tester(
 
         ++i;
     }
+}
+
+struct irtb_content {
+    irt::u64 chunks = 0;
+    irt::u64 rows   = 0;
+    bool     ok     = false;
+};
+
+/// The layout of the chunk header of @c project-simulation.cpp.
+static irtb_content read_irtb(const std::filesystem::path& p) noexcept
+{
+    struct header {
+        irt::u64  n_rows;
+        irt::real t_min;
+        irt::real t_max;
+        irt::u64  mdl_id;
+    };
+
+    irtb_content ret;
+    auto*        f = std::fopen(p.string().c_str(), "rb");
+    if (not f)
+        return ret;
+
+    header h;
+    while (std::fread(&h, sizeof(h), 1, f) == 1) {
+        ++ret.chunks;
+        ret.rows += h.n_rows;
+        if (std::fseek(
+              f, static_cast<long>(h.n_rows * sizeof(irt::resampled_sample)),
+              SEEK_CUR) != 0)
+            break;
+    }
+
+    ret.ok = std::feof(f) != 0;
+    std::fclose(f);
+    return ret;
+}
+
+static bool file_contains(const std::filesystem::path& p,
+                          const std::string_view       str) noexcept
+{
+    auto* f = std::fopen(p.string().c_str(), "rb");
+    if (not f)
+        return false;
+
+    irt::vector<char> content;
+    char              buffer[256];
+    for (auto n = std::fread(buffer, 1, sizeof(buffer), f); n > 0;
+         n      = std::fread(buffer, 1, sizeof(buffer), f))
+        content.insert(content.end(), buffer, buffer + n);
+
+    std::fclose(f);
+    return std::string_view(content.data(), content.size()).find(str) !=
+           std::string_view::npos;
+}
+
+static irt::u64 history_size(const irt::simulation& sim) noexcept
+{
+    irt::u64 ret = 0;
+    for (const auto& obs : sim.observers)
+        ret += obs.read_history(
+          [](const auto& h, const auto /*version*/) { return h.size(); });
+
+    return ret;
 }
 
 int main()
@@ -2273,5 +2338,103 @@ int main()
         simulation_component_tester(
           std::array{ 0.0, 1.0, 2.0, 1.0 }, std::array{ 5.0, 2.0, 3.0, 3.0 },
           std::array{ 1.0, 7.0, 7.0, 1.0, 2.0, 2.0, 1.0, 5.0, 5.0 });
+    };
+    "project: the observation files of a complete run"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{ "obs-files"sv };
+        expect(fatal(temp_path.success()));
+
+        irt::modeling          mod;
+        irt::registred_path_id reg_id{ 0 };
+
+        mod.files.write([&](auto& fs) {
+            reg_id                              = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg_id).path = temp_path.sv();
+        });
+
+        const auto compo_id = mod.ids.write([&](auto& ids) {
+            const auto compo_id = ids.alloc_generic_component();
+            auto&      compo    = ids.components[compo_id];
+            auto&      gen = ids.generic_components.get(compo.id.generic_id);
+
+            auto& g = gen.alloc(irt::dynamics_type::generator);
+            auto& c = gen.alloc(irt::dynamics_type::counter);
+
+            gen.children_names[gen.children.get_id(g)] = "gen";
+            gen.children_names[gen.children.get_id(c)] = "cnt";
+            gen.children_parameters[gen.children.get_id(g)].set_generator_ta(
+              0.25);
+            gen.children_parameters[gen.children.get_id(g)].reals[1] = 1.0;
+
+            expect(
+              gen.connect(g, { .model = 0 }, c, { .model = 0 }).has_value());
+            return compo_id;
+        });
+
+        irt::project pj;
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, compo_id).has_value()));
+            });
+        });
+
+        pj.name            = "obs";
+        pj.observation_dir = reg_id;
+        pj.flags.set(irt::project::simulation_flag::write_irtb);
+        pj.sim.limits.set_bound(0, 100);
+
+        auto cnt_id = irt::undefined<irt::model_id>();
+        for (const auto& mdl : pj.sim.models)
+            if (mdl.type == irt::dynamics_type::counter)
+                cnt_id = pj.sim.models.get_id(mdl);
+
+        expect(fatal(irt::is_defined(cnt_id)));
+        expect(fatal(pj.variable_observers.can_alloc(1) or
+                     pj.variable_observers.grow<2, 1>()));
+        pj.alloc_variable_observer().push_back(pj.tn_head(), cnt_id);
+
+        // First run: written and purged every ten steps, as the command line
+        // interface does.
+        expect(fatal(pj.simulation_init(mod).has_value()));
+        expect(fatal(eq(pj.sim.observers.size(), 1u)));
+
+        irt::simulation_player player(pj.sim);
+        expect(player.keep_history(false).has_value());
+        expect(player.start().has_value());
+
+        while (not player.finished()) {
+            expect(
+              fatal(player.advance(std::chrono::seconds(60), 10).has_value()));
+            expect(fatal(pj.flush_observations(true).has_value()));
+            expect(eq(history_size(pj.sim), 0u));
+        }
+
+        expect(pj.close_observations().has_value());
+        expect(pj.close_observations().has_value());
+
+        // Second run: written at the end only, the histories are kept.
+        expect(fatal(pj.simulation_init(mod).has_value()));
+        player.reset();
+        expect(player.start().has_value());
+        expect(player.advance(std::chrono::seconds(60)).has_value());
+        expect(fatal(player.finished()));
+        expect(pj.close_observations().has_value());
+
+        const auto dir    = std::filesystem::path(temp_path.sv());
+        const auto purged = read_irtb(dir / "obs-0-0000.irb");
+        const auto whole  = read_irtb(dir / "obs-0-0001.irb");
+
+        expect(purged.ok);
+        expect(whole.ok);
+        expect(gt(purged.chunks, 1u));
+        expect(eq(whole.chunks, 1u));
+        expect(gt(whole.rows, 0u));
+        expect(eq(purged.rows, whole.rows));
+        expect(eq(history_size(pj.sim), whole.rows));
+
+        for (const auto* name :
+             { "obs-0-0000.manifest.jsonl", "obs-0-0001.manifest.jsonl" }) {
+            expect(file_contains(dir / name, "\"created_at\":0"));
+            expect(file_contains(dir / name, "\"destroyed_at\":100"));
+        }
     };
 }

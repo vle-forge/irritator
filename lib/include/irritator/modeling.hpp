@@ -1217,13 +1217,16 @@ public:
 
     status simulation_apply_command() noexcept;
 
-    status simulation_finish(unordered_task_list& utl) noexcept;
+    /// Appends the resampled points not yet written to the @c .irb file (only
+    /// with @c simulation_flag::write_irtb). With @c purge, the written points
+    /// are dropped from the histories: the memory does not grow with the
+    /// length of the simulation, but the histories can not be plotted.
+    status flush_observations(const bool purge) noexcept;
 
-    void simulation_observation_for_imm_observers(
-      unordered_task_list& tasks) noexcept;
-    void simulation_observation_for_all_observers(
-      unordered_task_list& tasks) noexcept;
-    void simulation_finalize_observation(unordered_task_list& tasks) noexcept;
+    /// Writes the last points and the end of the manifest, then closes the
+    /// observation files. Call it once the simulation is finalized. Nothing
+    /// happens if the files are already closed.
+    status close_observations() noexcept;
 
 private:
     status simulation_new_model(const command::new_model_t& data) noexcept;

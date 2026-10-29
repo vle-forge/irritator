@@ -201,18 +201,21 @@ static bool show_registred_obseravation_path(application&    app,
 }
 
 template<class Fn>
-static bool submit(application&       app,
-                   const project_id   pj_id,
-                   player_controller& c,
-                   Fn                 fn) noexcept
+static bool submit(application&     app,
+                   const project_id pj_id,
+                   project_editor&  ed,
+                   Fn               fn) noexcept
 {
+    auto& c = ed.sim_player;
+
     if (c.busy.test_and_set(std::memory_order_acquire))
         return false;
 
     app.add_simulation_task(
       pj_id,
-      [&c, fn, edited = std::exchange(c.edited, false),
+      [&ed, fn, edited = std::exchange(c.edited, false),
        history = c.view != player_controller::kind::complete]() noexcept {
+          auto&      c  = ed.sim_player;
           const auto t0 = std::chrono::steady_clock::now();
 
           // The complete mode keeps no keyframe, the others keep them. It is
@@ -225,6 +228,14 @@ static bool submit(application&       app,
               c.result = fn(c.player);
           if (history and not c.result.has_error())
               c.player.flush_observers();
+
+          // No purge: the plots read the histories.
+          if (not c.result.has_error()) {
+              if (c.player.finalized())
+                  c.result = ed.pj.close_observations();
+              else if (not history)
+                  c.result = ed.pj.flush_observations(false);
+          }
 
           c.work += std::chrono::steady_clock::now() - t0;
 
@@ -306,7 +317,7 @@ void project_editor::schedule_player(application& app) noexcept
             sim_player.need_start = true;
         } else {
             sim_player.current = mode::paused;
-            submit(app, pj_id, sim_player, [](auto& p) { return p.start(); });
+            submit(app, pj_id, *this, [](auto& p) { return p.start(); });
             return;
         }
     }
@@ -319,7 +330,7 @@ void project_editor::schedule_player(application& app) noexcept
         if (sim_player.shown.finished)
             sim_player.current = mode::paused;
         else
-            submit(app, pj_id, sim_player,
+            submit(app, pj_id, *this,
                    [steps  = sim_player.steps_per_frame,
                     budget = sim_player.frame_budget](auto& p) {
                        return p.advance(budget, steps);
@@ -330,7 +341,7 @@ void project_editor::schedule_player(application& app) noexcept
         if (not sim_player.shown.can_back)
             sim_player.current = mode::paused;
         else
-            submit(app, pj_id, sim_player,
+            submit(app, pj_id, *this,
                    [steps  = sim_player.steps_per_frame,
                     budget = sim_player.frame_budget](auto& p) {
                        return p.retreat(budget, steps);
@@ -343,7 +354,7 @@ void project_editor::schedule_player(application& app) noexcept
             break;
         }
 
-        submit(app, pj_id, sim_player,
+        submit(app, pj_id, *this,
                [&pacer = sim_player.pacer, &resyncs = sim_player.resyncs,
                 unit     = sim_player.unit_duration,
                 budget   = sim_player.task_duration,
@@ -373,7 +384,7 @@ void project_editor::schedule_player(application& app) noexcept
             break;
         }
 
-        submit(app, pj_id, sim_player,
+        submit(app, pj_id, *this,
                [&work = sim_player.work, budget = sim_player.complete_budget,
                 restart = std::exchange(sim_player.need_start, false)](
                  auto& p) noexcept -> status {
@@ -420,21 +431,21 @@ static void show_debug_player(application&     app,
     ImGui::BeginDisabled(busy);
     if (EnhancedButton(app, "##c", size, "Beginning")) {
         c.current = mode::paused;
-        submit(app, pj_id, c, [](auto& p) { return p.go_to(0); });
+        submit(app, pj_id, ed, [](auto& p) { return p.go_to(0); });
     }
 
     ImGui::SameLine();
 
     if (EnhancedButton(app, "##c", size, "Back")) {
         c.current = mode::paused;
-        submit(app, pj_id, c, [](auto& p) { return p.step_back(); });
+        submit(app, pj_id, ed, [](auto& p) { return p.step_back(); });
     }
 
     ImGui::SameLine();
 
     if (EnhancedButton(app, "##c", size, "Forward")) {
         c.current = mode::paused;
-        submit(app, pj_id, c, [](auto& p) { return p.step_forward(); });
+        submit(app, pj_id, ed, [](auto& p) { return p.step_forward(); });
     }
     ImGui::EndDisabled();
 
@@ -461,7 +472,7 @@ static void show_debug_player(application&     app,
     if (ImGui::IsItemDeactivatedAfterEdit() and
         not c.busy.test(std::memory_order_acquire)) {
         c.current = mode::paused;
-        submit(app, pj_id, c,
+        submit(app, pj_id, ed,
                [target = c.target](auto& p) { return p.go_to(target); });
     }
 

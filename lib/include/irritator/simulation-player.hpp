@@ -337,6 +337,7 @@ private:
         std::size_t              count       = 0;
         std::size_t              chunk       = 1;
         std::size_t              chunk_count = 0;
+        time                     now         = 0;
         std::atomic<std::size_t> next{ 0 }; // next chunk to claim
 
         void work() noexcept;
@@ -354,13 +355,14 @@ private:
     void tick_observers() noexcept;
 
     /// Resamples all the observers (parallel if there are enough).
-    void tick_all_observers() noexcept;
+    void tick_all_observers(const time now) noexcept;
 
     /// True if the tick of @c n observers is worth the task list.
     bool parallel_tick(const std::size_t n) const noexcept;
 
     /// Resamples @c ids (without duplicates) with the task list.
-    void tick_parallel(const std::span<const observer_id> ids) noexcept;
+    void tick_parallel(const std::span<const observer_id> ids,
+                       const time                         now) noexcept;
 
     /// Takes a keyframe when the simulation goes beyond the last one (a
     /// replay of a known part of the history does not take any).

@@ -30,6 +30,8 @@ void observer::reset() noexcept
     m_history.reset();
 }
 
+void observer::clear_history() noexcept { m_history.reset(); }
+
 resampler::resampler() noexcept
   : m_dt(1)
   , m_interp(interpolate_type::none)
