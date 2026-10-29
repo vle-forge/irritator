@@ -40,7 +40,7 @@ static void build_graph(graph_observer&  graph_obs,
 
     const auto* to = pj.tree_nodes.try_to_get(graph_obs.tn_id);
 
-    if (debug::check(to)) {
+    if (to) {
         const auto relative_path =
           pj.build_relative_path(graph_parent, *to, graph_obs.mdl_id);
 

@@ -789,7 +789,7 @@ void grid_component_editor_data::write(application& app,
 
               ids.components[id] = *c;
 
-              if (debug::check(c->type == component_type::grid)) {
+              if (c->type == component_type::grid) {
                   const auto grid_id = c->id.grid_id;
 
                   if (auto* grid = ids.grid_components.try_to_get(grid_id))

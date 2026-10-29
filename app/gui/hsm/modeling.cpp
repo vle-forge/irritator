@@ -1205,8 +1205,7 @@ void hsm_component_editor_data::read(application& app,
 static void update_enabled_states(const hierarchical_state_machine& hsm,
                                   std::span<bool> vec) noexcept
 {
-    if (debug::check(vec.size() ==
-                     hierarchical_state_machine::max_number_of_state)) {
+    if (vec.size() == hierarchical_state_machine::max_number_of_state) {
         std::ranges::fill(vec, false);
 
         for (auto i = 0, e = length(hsm.states); i != e; ++i) {
@@ -1258,7 +1257,7 @@ void hsm_component_editor_data::write(application& app,
 
               ids.components[id] = *c;
 
-              if (debug::check(c->type == component_type::hsm)) {
+              if (c->type == component_type::hsm) {
                   const auto hsm_id = c->id.hsm_id;
 
                   if (auto* hsm = ids.hsm_components.try_to_get(hsm_id)) {

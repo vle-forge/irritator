@@ -11662,7 +11662,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
 
 inline status simulation::observe(model& mdl) noexcept
 {
-    if (debug::check(not observers.exists(mdl.obs_id))) {
+    if (not observers.exists(mdl.obs_id)) {
         if (not observers.can_alloc(1) and not observers.grow<2, 1>(1))
             return make_error(simulation_errc::observers_container_full);
 
@@ -11683,7 +11683,7 @@ inline status simulation::observe(model& mdl) noexcept
 
 inline status simulation::observe(model& mdl, const time dt) noexcept
 {
-    if (debug::check(not observers.exists(mdl.obs_id))) {
+    if (not observers.exists(mdl.obs_id)) {
         if (not observers.can_alloc(1) and not observers.grow<2, 1>(1))
             return make_error(simulation_errc::observers_container_full);
 

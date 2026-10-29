@@ -1861,7 +1861,7 @@ void generic_component_editor_data::read(application& app,
         if (not ids.exists(m_id))
             return;
 
-        if (debug::check(compo.type == component_type::generic)) {
+        if (compo.type == component_type::generic) {
             const auto gen_id = compo.id.generic_id;
 
             if (auto* gen = ids.generic_components.try_to_get(gen_id))
@@ -1910,7 +1910,7 @@ void generic_component_editor_data::write(application& app,
 
               ids.components[id] = *c;
 
-              if (debug::check(c->type == component_type::generic)) {
+              if (c->type == component_type::generic) {
                   const auto gen_id = c->id.generic_id;
 
                   if (auto* gen = ids.generic_components.try_to_get(gen_id)) {

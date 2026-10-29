@@ -508,7 +508,7 @@ void application::try_set_component_as_project(const file_access& /*files*/,
                                                const component_access& ids,
                                                const component_id id) noexcept
 {
-    if (debug::check(ids.exists(id))) {
+    if (ids.exists(id)) {
         add_gui_task([this, id]() {
             if (new_project_req.try_request()) {
                 mod.ids.read([&](const auto& ids, auto) noexcept {

@@ -678,7 +678,7 @@ void simulation_component_editor_data::write(application& app,
 
               ids.components[id] = std::move(*c);
 
-              if (debug::check(c->type == component_type::simulation)) {
+              if (c->type == component_type::simulation) {
                   const auto sim_id = c->id.sim_id;
 
                   if (auto* sim = ids.sim_components.try_to_get(sim_id)) {

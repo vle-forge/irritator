@@ -25,7 +25,7 @@ static status copy_history(
         auto       ok     = true;
         auto*      vec    = sim_obs.get(mdl_id);
 
-        if (debug::check(vec != nullptr)) {
+        if (vec != nullptr) {
             obs.read_history([&vec, &ok](const auto& h, const auto) {
                 if (not vec->values.reserve(h.size())) {
                     ok &= false;

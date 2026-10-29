@@ -1174,7 +1174,7 @@ void graph_component_editor_data::write(application& app,
 
               ids.components[id] = *c;
 
-              if (debug::check(c->type == component_type::graph)) {
+              if (c->type == component_type::graph) {
                   const auto graph_id = c->id.graph_id;
 
                   if (auto* graph = ids.graph_components.try_to_get(graph_id))
