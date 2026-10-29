@@ -261,6 +261,14 @@ public:
     /// other ticks. Nothing happens if the player is not started.
     status flush_observers() noexcept;
 
+    /// Minimum number of observers resampled together for a parallel tick
+    /// (see @c simulation_player_options::observers_per_chunk). 0 without
+    /// task list or unordered worker: the tick is always sequential.
+    std::size_t parallel_tick_threshold() const noexcept
+    {
+        return m_utl != nullptr and m_helpers > 0 ? 2u * m_chunk : 0u;
+    }
+
     /// Return true iff simulation started.
     bool started() const noexcept { return m_started; }
 

@@ -408,6 +408,19 @@ int main()
         expect(same(dump(a), dump(b), "flush at every step, same end"));
     };
 
+    "player: the threshold of the parallel tick"_test = [] {
+        simulation sim;
+
+        simulation_player alone(sim);
+        expect(eq(alone.parallel_tick_threshold(), 0u));
+
+        simulation_player shared(sim, test_tm(), 0, { 8, 16, 100 });
+        expect(eq(shared.parallel_tick_threshold(), 200u));
+
+        shared.set_task_list(test_tm(), test_tm().list_size());
+        expect(eq(shared.parallel_tick_threshold(), 0u)) << "out of range";
+    };
+
     "flush: nothing before start"_test = [] {
         simulation sim;
         world      w;

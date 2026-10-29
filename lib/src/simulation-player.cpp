@@ -289,7 +289,9 @@ void simulation_player::tick_job::work() noexcept
 
 bool simulation_player::parallel_tick(const std::size_t n) const noexcept
 {
-    return m_utl != nullptr and m_helpers > 0 and n >= 2u * m_chunk;
+    const auto threshold = parallel_tick_threshold();
+
+    return threshold > 0 and n >= threshold;
 }
 
 void simulation_player::tick_parallel(const std::span<const observer_id> ids,

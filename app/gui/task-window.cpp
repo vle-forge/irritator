@@ -236,6 +236,56 @@ static void show_lists(const task_window& wnd, task_manager& tm) noexcept
     }
 }
 
+/// The unordered lists only serve the parallel tick of the observers: a
+/// project with few observers never uses them.
+static void show_players(application& app) noexcept
+{
+    ImGui::SeparatorText("Simulation players (tick of the observers)");
+    if (not ImGui::BeginTable("Players", 4, table_flags))
+        return;
+
+    ImGui::TableSetupColumn("project");
+    ImGui::TableSetupColumn("list");
+    ImGui::TableSetupColumn("observers");
+    ImGui::TableSetupColumn("tick", ImGuiTableColumnFlags_WidthStretch);
+    ImGui::TableHeadersRow();
+
+    for (const auto& ed : app.pjs) {
+        const auto& player    = ed.sim_player.player;
+        const auto  threshold = player.parallel_tick_threshold();
+
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(ed.pj.name.c_str());
+        ImGui::TableNextColumn();
+        show_list_name(app.get_task_manager_list(app.pjs.get_id(ed)));
+        ImGui::TableNextColumn();
+
+        if (not ed.sim_player.simulation_readable()) {
+            ImGui::TextUnformatted("-");
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted("restoring");
+            continue;
+        }
+
+        const auto observers = static_cast<std::size_t>(
+          ed.pj.sim.observers.size());
+        ImGui::TextFormat("{}", observers);
+        ImGui::TableNextColumn();
+
+        if (threshold == 0)
+            ImGui::TextUnformatted("sequential: no unordered worker");
+        else if (observers < threshold)
+            ImGui::TextFormat("sequential: {} < {} observers", observers,
+                              threshold);
+        else
+            ImGui::TextFormat("parallel from {} observers resampled together",
+                              threshold);
+    }
+
+    ImGui::EndTable();
+}
+
 static void show_workers(const task_window& wnd, task_manager& tm) noexcept
 {
     if (not ImGui::BeginTable("Workers", 7, table_flags))
@@ -353,6 +403,7 @@ void task_window::show_widgets() noexcept
 
     if (ImGui::BeginTabItem("Lists")) {
         show_lists(*this, app.task_mgr);
+        show_players(app);
         ImGui::EndTabItem();
     }
 
