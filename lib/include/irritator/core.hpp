@@ -408,11 +408,11 @@ enum class file_type : u8 {
     data_file,         // .csv
     project_file,      // .pirt
     irb_file,          // .irb
-    irt_manifest_file, // .manifest.json
+    irt_manifest_file, // .manifest.jsonl
 };
 
 constexpr static inline std::string_view file_type_names[] = {
-    "", ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.json"
+    "", ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.jsonl"
 };
 
 /// Capacity: 1024 is generous on Linux/macOS/Android (typical PATH_MAX).

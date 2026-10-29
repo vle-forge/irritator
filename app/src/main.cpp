@@ -157,13 +157,11 @@ static inline constexpr option options[] = {
 /// The `.csv` and `.manifest.jsonl` files are next to the `.irb` file.
 static irt::status convert_to_csv(const irt::path& irb) noexcept
 {
-    const auto
-      ext = irt::file_type_names[irt::ordinal(irt::file_type::irb_file)];
-    const auto stem = irb.sv().substr(0, irb.sv().size() - ext.size());
+    auto manifest = irb;
+    manifest.replace_extension(irt::file_type::irt_manifest_file);
 
-    irt::path manifest, csv;
-    irt::format(manifest, "{}.manifest.jsonl", stem);
-    irt::format(csv, "{}.csv", stem);
+    auto csv = irb;
+    csv.replace_extension(irt::file_type::data_file);
 
     return irt::write_observations_csv(irb, manifest, csv);
 }

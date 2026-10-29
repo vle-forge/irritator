@@ -880,6 +880,20 @@ int main()
                irt::time_domain<irt::time>::negative_infinity);
     };
 
+    "path: extensions of the observation files"_test = [] {
+        using irt::file_type;
+
+        irt::path p{ "dir/run-0-0001.irb" };
+        expect(p.has_extension() == file_type::irb_file);
+
+        p.replace_extension(file_type::irt_manifest_file);
+        expect(eq(p.sv(), std::string_view{ "dir/run-0-0001.manifest.jsonl" }));
+        expect(p.has_extension() == file_type::irt_manifest_file);
+
+        p.replace_extension(file_type::data_file);
+        expect(eq(p.sv(), std::string_view{ "dir/run-0-0001.csv" }));
+    };
+
     "message"_test = [] {
         using namespace irt::literals;
 
