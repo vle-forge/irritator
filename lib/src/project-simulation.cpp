@@ -12,6 +12,8 @@
 #include <fmt/chrono.h>
 #include <fmt/format.h>
 
+#include <rapidjson/document.h>
+
 #include <bit>
 
 namespace irt {
@@ -35,6 +37,8 @@ struct chunk_header {
 struct irtb_files {
     file json_file;
     file binary_file;
+    path json_path;
+    path binary_path;
 };
 
 static path open_dir_name(const modeling&         mod,
@@ -85,7 +89,9 @@ static expected<irtb_files> open_irtb_file(
 
         if (j.has_value() and b.has_value())
             return irtb_files{ .json_file   = std::move(*j),
-                               .binary_file = std::move(*b) };
+                               .binary_file = std::move(*b),
+                               .json_path   = jfile,
+                               .binary_path = bfile };
 
         log(log_level::notice, [&](auto& m) noexcept {
             format(
@@ -347,6 +353,9 @@ status project::simulation_init(const modeling& mod) noexcept
         return r.error();
     }
 
+    obs_files.json_path.clear();
+    obs_files.bin_path.clear();
+
     if (flags[simulation_flag::write_irtb]) {
         const auto dir   = open_dir_name(mod, observation_dir);
         auto       files = open_irtb_file(name.sv(), dir, m_simulation_id,
@@ -359,6 +368,8 @@ status project::simulation_init(const modeling& mod) noexcept
 
         obs_files.json_irtb = std::move(files->json_file);
         obs_files.bin_irtb  = std::move(files->binary_file);
+        obs_files.json_path = files->json_path;
+        obs_files.bin_path  = files->binary_path;
 
         if (auto r = init_json_irtb(sim.observers, sim.current_time(),
                                     obs_files.json_irtb);
@@ -755,6 +766,126 @@ status project::close_observations() noexcept
     if (obs_files.json_irtb.is_open())
         return finalize_json_irtb(sim.observers, sim.current_time(),
                                   obs_files.json_irtb);
+
+    return success();
+}
+
+using manifest_names = table<u64, name_str>;
+
+static manifest_names read_manifest_names(const path& manifest) noexcept
+{
+    manifest_names names;
+
+    if (manifest.empty())
+        return names;
+
+    auto f = file::open(manifest, file_mode{ file_open_options::read });
+    if (not f.has_value())
+        return names;
+
+    const auto content = f->read_entire_file();
+    auto       text    = std::string_view(content.data(), content.size());
+
+    while (not text.empty()) {
+        const auto eol  = text.find('\n');
+        const auto line = text.substr(0, eol);
+        text            = eol == std::string_view::npos ? std::string_view{}
+                                                        : text.substr(eol + 1);
+
+        rapidjson::Document doc;
+        doc.Parse(line.data(), line.size());
+
+        if (doc.HasParseError() or not doc.IsObject())
+            continue;
+
+        const auto id   = doc.FindMember("model_id");
+        const auto name = doc.FindMember("name");
+
+        if (id != doc.MemberEnd() and id->value.IsUint64() and
+            name != doc.MemberEnd() and name->value.IsString())
+            names.data.emplace_back(
+              id->value.GetUint64(),
+              name_str(std::string_view(name->value.GetString(),
+                                        name->value.GetStringLength())));
+    }
+
+    names.sort();
+    return names;
+}
+
+static bool write_csv_field(std::FILE* out, const std::string_view str) noexcept
+{
+    if (str.find_first_of(",\"\n\r") == std::string_view::npos)
+        return std::fwrite(str.data(), 1, str.size(), out) == str.size();
+
+    if (std::fputc('"', out) == EOF)
+        return false;
+
+    for (const auto c : str) {
+        if (c == '"' and std::fputc('"', out) == EOF)
+            return false;
+        if (std::fputc(c, out) == EOF)
+            return false;
+    }
+
+    return std::fputc('"', out) != EOF;
+}
+
+status write_observations_csv(const path& irb,
+                              const path& manifest,
+                              const path& csv) noexcept
+{
+    const auto names = read_manifest_names(manifest);
+
+    auto in = file::open(irb, file_mode{ file_open_options::read });
+    if (not in.has_value())
+        return in.error();
+
+    auto out = file::open(csv, file_mode{ file_open_options::write });
+    if (not out.has_value())
+        return out.error();
+
+    auto* const fin  = in->to_file();
+    auto* const fout = out->to_file();
+
+    if (std::fputs("t,model_id,name,value\n", fout) == EOF)
+        return make_error(simulation_errc::file_write_error);
+
+    constexpr std::size_t    block = 4096;
+    vector<resampled_sample> samples(block);
+    chunk_header             header;
+
+    for (;;) {
+        const auto read = std::fread(&header, 1, sizeof(header), fin);
+        if (read == 0 and std::feof(fin))
+            break;
+        if (read != sizeof(header))
+            return make_error(simulation_errc::file_eof_error);
+
+        const auto* name = names.get(ordinal(header.mdl_id));
+        const auto  sv   = name ? name->sv() : std::string_view{};
+
+        for (u64 left = header.n_rows; left > 0;) {
+            const auto n = static_cast<std::size_t>(std::min<u64>(left, block));
+
+            if (std::fread(samples.data(), sizeof(resampled_sample), n, fin) !=
+                n)
+                return make_error(simulation_errc::file_eof_error);
+
+            for (std::size_t i = 0; i != n; ++i) {
+                fmt::print(fout, "{},{},", samples[i].t,
+                           ordinal(header.mdl_id));
+                if (not write_csv_field(fout, sv))
+                    return make_error(simulation_errc::file_write_error);
+                fmt::print(fout, ",{}\n", samples[i].value);
+            }
+
+            left -= n;
+        }
+    }
+
+    if (not out->close())
+        return make_error(simulation_errc::file_write_error);
 
     return success();
 }

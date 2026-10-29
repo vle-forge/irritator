@@ -1228,6 +1228,17 @@ public:
     /// happens if the files are already closed.
     status close_observations() noexcept;
 
+    /// Empty paths without @c simulation_flag::write_irtb.
+    const path& observation_irb_path() const noexcept
+    {
+        return obs_files.bin_path;
+    }
+
+    const path& observation_manifest_path() const noexcept
+    {
+        return obs_files.json_path;
+    }
+
 private:
     status simulation_new_model(const command::new_model_t& data) noexcept;
     status simulation_free_model(const command::free_model_t& data) noexcept;
@@ -1386,6 +1397,8 @@ private:
     struct observation_files {
         file json_irtb;
         file bin_irtb;
+        path json_path;
+        path bin_path;
 
         observation_files() noexcept = default;
 
@@ -1407,6 +1420,14 @@ private:
     u32 m_simulation_id  = 0;
     u32 m_simulation_run = 0;
 };
+
+/// Converts the observation files of a run to a CSV file with the columns
+/// `t,model_id,name,value`, in the order of the chunks of @c irb: the memory
+/// does not depend on the size of the files. The names come from the
+/// @c manifest (an empty path or a missing file gives empty names).
+status write_observations_csv(const path& irb,
+                              const path& manifest,
+                              const path& csv) noexcept;
 
 class grid_observer
 {

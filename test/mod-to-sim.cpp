@@ -13,6 +13,7 @@
 
 #include "utils.hpp"
 
+#include <cstring>
 #include <numeric>
 
 #include <boost/ut.hpp>
@@ -407,51 +408,65 @@ struct irtb_content {
 };
 
 /// The layout of the chunk header of @c project-simulation.cpp.
-static irtb_content read_irtb(const std::filesystem::path& p) noexcept
+struct irtb_header {
+    irt::u64  n_rows;
+    irt::real t_min;
+    irt::real t_max;
+    irt::u64  mdl_id;
+};
+
+static irt::vector<char> read_file(const irt::path& p) noexcept
 {
-    struct header {
-        irt::u64  n_rows;
-        irt::real t_min;
-        irt::real t_max;
-        irt::u64  mdl_id;
-    };
+    auto f = irt::file::open(p, irt::file_mode(irt::file_open_options::read));
+
+    return f.has_value() ? f->read_entire_file() : irt::vector<char>{};
+}
+
+static irtb_content read_irtb(const irt::path& p) noexcept
+{
+    const auto  content = read_file(p);
+    const auto  size    = static_cast<std::size_t>(content.size());
+    std::size_t offset  = 0;
 
     irtb_content ret;
-    auto*        f = std::fopen(p.string().c_str(), "rb");
-    if (not f)
-        return ret;
+    while (offset + sizeof(irtb_header) <= size) {
+        irtb_header h;
+        std::memcpy(&h, content.data() + offset, sizeof(h));
 
-    header h;
-    while (std::fread(&h, sizeof(h), 1, f) == 1) {
         ++ret.chunks;
         ret.rows += h.n_rows;
-        if (std::fseek(
-              f, static_cast<long>(h.n_rows * sizeof(irt::resampled_sample)),
-              SEEK_CUR) != 0)
-            break;
+        offset += sizeof(h) + h.n_rows * sizeof(irt::resampled_sample);
     }
 
-    ret.ok = std::feof(f) != 0;
-    std::fclose(f);
+    ret.ok = size > 0 and offset == size;
     return ret;
 }
 
-static bool file_contains(const std::filesystem::path& p,
-                          const std::string_view       str) noexcept
+static bool file_contains(const irt::path&       p,
+                          const std::string_view str) noexcept
 {
-    auto* f = std::fopen(p.string().c_str(), "rb");
-    if (not f)
-        return false;
-
-    irt::vector<char> content;
-    char              buffer[256];
-    for (auto n = std::fread(buffer, 1, sizeof(buffer), f); n > 0;
-         n      = std::fread(buffer, 1, sizeof(buffer), f))
-        content.insert(content.end(), buffer, buffer + n);
-
-    std::fclose(f);
+    const auto content = read_file(p);
     return std::string_view(content.data(), content.size()).find(str) !=
            std::string_view::npos;
+}
+
+static bool write_file(const irt::path&            p,
+                       const std::span<const char> bytes) noexcept
+{
+    auto f = irt::file::open(p, irt::file_mode(irt::file_open_options::write));
+
+    return f.has_value() and
+           std::fwrite(bytes.data(), 1, bytes.size(), f->to_file()) ==
+             bytes.size() and
+           f->close();
+}
+
+static irt::path path_in(const irt::path&       dir,
+                         const std::string_view name) noexcept
+{
+    auto ret = dir;
+    ret /= name;
+    return ret;
 }
 
 static irt::u64 history_size(const irt::simulation& sim) noexcept
@@ -2419,9 +2434,9 @@ int main()
         expect(fatal(player.finished()));
         expect(pj.close_observations().has_value());
 
-        const auto dir    = std::filesystem::path(temp_path.sv());
-        const auto purged = read_irtb(dir / "obs-0-0000.irb");
-        const auto whole  = read_irtb(dir / "obs-0-0001.irb");
+        const auto dir    = irt::path{ temp_path.sv() };
+        const auto purged = read_irtb(path_in(dir, "obs-0-0000.irb"));
+        const auto whole  = read_irtb(path_in(dir, "obs-0-0001.irb"));
 
         expect(purged.ok);
         expect(whole.ok);
@@ -2433,8 +2448,71 @@ int main()
 
         for (const auto* name :
              { "obs-0-0000.manifest.jsonl", "obs-0-0001.manifest.jsonl" }) {
-            expect(file_contains(dir / name, "\"created_at\":0"));
-            expect(file_contains(dir / name, "\"destroyed_at\":100"));
+            expect(file_contains(path_in(dir, name), "\"created_at\":0"));
+            expect(file_contains(path_in(dir, name), "\"destroyed_at\":100"));
         }
+    };
+    "project: observation files to csv"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{ "obs-csv"sv };
+        expect(fatal(temp_path.success()));
+
+        const auto dir      = irt::path{ temp_path.sv() };
+        const auto irb      = path_in(dir, "run.irb");
+        const auto manifest = path_in(dir, "run.manifest.jsonl");
+        const auto csv      = path_in(dir, "run.csv");
+
+        {
+            const irtb_header           h1{ 2, 0.0, 0.5, 7 };
+            const irt::resampled_sample s1[] = { { 0.0, 1.0 }, { 0.5, 2.0 } };
+            const irtb_header           h2{ 1, 1.0, 1.0, 9 };
+            const irt::resampled_sample s2[] = { { 1.0, 3.0 } };
+
+            irt::vector<char> bytes;
+            for (const auto block :
+                 { std::span<const char>(reinterpret_cast<const char*>(&h1),
+                                         sizeof(h1)),
+                   std::span<const char>(reinterpret_cast<const char*>(s1),
+                                         sizeof(s1)),
+                   std::span<const char>(reinterpret_cast<const char*>(&h2),
+                                         sizeof(h2)),
+                   std::span<const char>(reinterpret_cast<const char*>(s2),
+                                         sizeof(s2)) })
+                bytes.insert(bytes.end(), block.begin(), block.end());
+
+            expect(fatal(write_file(irb, bytes)));
+        }
+
+        constexpr auto lines = "{\"model_id\": 7, \"name\": \"a,\\\"b\\\"\", "
+                               "\"created_at\":0}\n"
+                               "{\"model_id\": 7, \"name\": \"a,\\\"b\\\"\", "
+                               "\"destroyed_at\":1}\n"sv;
+        expect(fatal(write_file(manifest, lines)));
+
+        expect(irt::write_observations_csv(irb, manifest, csv).has_value());
+
+        const auto content = read_file(csv);
+        expect(eq(std::string_view(content.data(), content.size()),
+                  "t,model_id,name,value\n"
+                  "0,7,\"a,\"\"b\"\"\",1\n"
+                  "0.5,7,\"a,\"\"b\"\"\",2\n"
+                  "1,9,,3\n"sv));
+
+        // Without manifest the names are empty.
+        const auto no_names = path_in(dir, "no-names.csv");
+        expect(
+          irt::write_observations_csv(irb, irt::path{}, no_names).has_value());
+        expect(file_contains(no_names, "0.5,7,,2\n"));
+
+        // A truncated file is an error: an expected one, without breakpoint.
+        const auto bytes = read_file(irb);
+        expect(fatal(write_file(
+          irb, std::span<const char>(bytes.data(), sizeof(irtb_header) + 8))));
+
+        const auto callback    = irt::on_error_callback;
+        irt::on_error_callback = nullptr;
+        expect(
+          irt::write_observations_csv(irb, irt::path{}, path_in(dir, "bad.csv"))
+            .has_error());
+        irt::on_error_callback = callback;
     };
 }

@@ -24,7 +24,8 @@
 static void show_help() noexcept
 {
     std::puts(R"(
-irritator-cli [-h][-v][-o path][-t begin[,duration]] project.pirt...
+irritator-cli [-h][-v][-c][-o path][-t begin[,duration]] project.pirt...
+irritator-cli -x file.irb...
 
 Runs each project from the beginning to the end and writes the observations
 in `<name>-<id>-<run>.irb` and `<name>-<id>-<run>.manifest.jsonl`.
@@ -32,6 +33,11 @@ in `<name>-<id>-<run>.irb` and `<name>-<id>-<run>.manifest.jsonl`.
 Options:
   -h,--help                This help message
   -v, --version            The version of irritator
+  -c, --csv                Also converts the observations of the next
+                           projects into `<name>-<id>-<run>.csv`.
+  -x path                  Converts an existing `.irb` file (and the
+  --convert path           `.manifest.jsonl` file next to it for the names)
+                           into a `.csv` file next to it.
   -o path                  The output directory of the observation files.
   --output path            The project directory is used by default, or the
                            current directory.
@@ -45,6 +51,10 @@ $ irritator-cli -t:1,100 first.pirt -t 20,30 second.pirt
 
         Runs the project `first.pirt` from the date 1.0 to the date 101.0,
         then the project `second.pirt` from the date 20.0 to the date 50.0.
+
+$ irritator-cli -x first-0-0000.irb
+
+        Writes `first-0-0000.csv` with the columns `t,model_id,name,value`.
 
 )");
 }
@@ -81,6 +91,8 @@ enum class ec : irt::u8 {
     simulation_init_error,
     unknown_output_path,
     run_error,
+    not_irb_file,
+    csv_error,
     unknown_error
 };
 
@@ -95,6 +107,8 @@ static constexpr report_parameter report_parameters[] = {
     { "simulation init error: {}\n", 1 },
     { "unknown output path `{}'\n", 1 },
     { "fail to run `{}': {}\n", 2 },
+    { "`{}' is not a .irb file\n", 1 },
+    { "fail to convert `{}': {}\n", 2 },
     { "unknown error\n", 0 }
 };
 
@@ -122,7 +136,7 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
     return ret;
 }
 
-enum class option_id : irt::u8 { help, output, time, version };
+enum class option_id : irt::u8 { csv, convert, help, output, time, version };
 
 struct option {
     std::string_view short_opt;
@@ -132,11 +146,27 @@ struct option {
 };
 
 static inline constexpr option options[] = {
+    { "c", "csv", option_id::csv, false },
+    { "x", "convert", option_id::convert, true },
     { "h", "help", option_id::help, false },
     { "o", "output", option_id::output, true },
     { "t", "time", option_id::time, true },
     { "v", "version", option_id::version, false },
 };
+
+/// The `.csv` and `.manifest.jsonl` files are next to the `.irb` file.
+static irt::status convert_to_csv(const irt::path& irb) noexcept
+{
+    const auto
+      ext = irt::file_type_names[irt::ordinal(irt::file_type::irb_file)];
+    const auto stem = irb.sv().substr(0, irb.sv().size() - ext.size());
+
+    irt::path manifest, csv;
+    irt::format(manifest, "{}.manifest.jsonl", stem);
+    irt::format(csv, "{}.csv", stem);
+
+    return irt::write_observations_csv(irb, manifest, csv);
+}
 
 static constexpr const option* find_option(const std::string_view name,
                                            const bool is_long) noexcept
@@ -162,7 +192,8 @@ class main_parameters
     std::optional<irt::real> begin;
     std::optional<irt::real> duration;
     irt::registred_path_id
-      output_dir = irt::undefined<irt::registred_path_id>();
+         output_dir = irt::undefined<irt::registred_path_id>();
+    bool write_csv  = false;
 
     std::span<const char*> args;
     std::string_view       front;
@@ -265,7 +296,12 @@ private:
             irt_check(pj.flush_observations(true));
         }
 
-        return pj.close_observations();
+        irt_check(pj.close_observations());
+
+        if (write_csv)
+            return convert_to_csv(pj.observation_irb_path());
+
+        return irt::success();
     }
 
     irt::status prepare_and_run(const std::string_view filename) noexcept
@@ -424,9 +460,29 @@ private:
         return error<ec::unknown_output_path>(false, value);
     }
 
+    bool read_convert(const std::string_view value) noexcept
+    {
+        const auto irb = irt::path{ value };
+
+        if (irb.has_extension() != irt::file_type::irb_file)
+            return error<ec::not_irb_file>(false, value);
+
+        if (auto ret = convert_to_csv(irb); ret.has_error())
+            return error<ec::csv_error>(false, value, ret.error());
+
+        return true;
+    }
+
     bool dispatch(const option& opt, const std::string_view value) noexcept
     {
         switch (opt.id) {
+        case option_id::csv:
+            write_csv = true;
+            return true;
+
+        case option_id::convert:
+            return read_convert(value);
+
         case option_id::help:
             show_help();
             return true;
