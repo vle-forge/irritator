@@ -36,14 +36,7 @@ status simulation_player::start() noexcept
         not m_keyframes.front().finalized)
         irt_check(restore_from(m_keyframes.front().data));
 
-    m_started   = false;
-    m_finalized = false;
-    m_keyframes.clear();
-    m_window.clear();
-    m_window_first = 0;
-    m_step         = 0;
-    m_furthest     = 0;
-    m_floor        = 0;
+    reset();
 
     irt_check(m_sim.initialize());
     irt_check(push_keyframe());
@@ -52,6 +45,18 @@ status simulation_player::start() noexcept
 
     // A simulation can be finished at the beginning (end <= begin).
     return finalize_if_finished();
+}
+
+void simulation_player::reset() noexcept
+{
+    m_started   = false;
+    m_finalized = false;
+    m_keyframes.clear();
+    m_window.clear();
+    m_window_first = 0;
+    m_step         = 0;
+    m_furthest     = 0;
+    m_floor        = 0;
 }
 
 status simulation_player::step_forward() noexcept

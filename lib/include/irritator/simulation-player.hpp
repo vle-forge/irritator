@@ -130,6 +130,12 @@ public:
     /// the simulation again from its definition.
     status start() noexcept;
 
+    /// Forgets the state of the player (history, steps, end of the
+    /// simulation): the player is not started. Call it when the simulation is
+    /// built again from its definition, before @c start(): otherwise
+    /// @c start() could restore a keyframe of the previous simulation.
+    void reset() noexcept;
+
     /// One step forward. Nothing happens when the simulation is finished. The
     /// step that finishes the simulation also finalizes it, see @c finalized().
     status step_forward() noexcept;

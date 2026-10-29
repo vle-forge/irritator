@@ -292,6 +292,25 @@ void project_editor::schedule_player(application& app) noexcept
         }
     }
 
+    // The simulation belongs to the task while the player is busy: it is
+    // built again here, between two tasks.
+    if (std::exchange(sim_player.need_rebuild, false)) {
+        if (pj.simulation_init(app.mod).has_error()) {
+            sim_player.current = mode::paused;
+            return;
+        }
+
+        sim_player.player.reset();
+
+        if (sim_player.current == mode::complete) {
+            sim_player.need_start = true;
+        } else {
+            sim_player.current = mode::paused;
+            submit(app, idx, sim_player, [](auto& p) { return p.start(); });
+            return;
+        }
+    }
+
     switch (sim_player.current) {
     case mode::paused:
         break;
@@ -371,7 +390,16 @@ void project_editor::schedule_player(application& app) noexcept
     }
 }
 
-/// Debug mode: the player is a "video player" of the simulation.
+static void show_restart_button(const application& app,
+                                player_controller& c) noexcept
+{
+    if (EnhancedButton(app, "restart", ImVec2{},
+                       "Build the simulation again and start it")) {
+        c.current      = player_controller::mode::paused;
+        c.need_rebuild = true;
+    }
+}
+
 static void show_debug_player(application&    app,
                               project_editor& ed,
                               const unsigned  idx) noexcept
@@ -381,10 +409,8 @@ static void show_debug_player(application&    app,
     auto& c = ed.sim_player;
 
     if (not c.shown.started) {
-        if (EnhancedButton(app, "start", ImVec2{}, "Start the player")) {
-            if (ed.pj.simulation_init(app.mod).has_value())
-                submit(app, idx, c, [](auto& p) { return p.start(); });
-        }
+        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
+            c.need_rebuild = true;
         return;
     }
 
@@ -442,12 +468,11 @@ static void show_debug_player(application&    app,
     ImGui::TextFormat("step {}, time {:g}", c.shown.step, c.shown.t);
     if (busy)
         ImGui::TextFormat("Work in progress...");
+
+    show_restart_button(app, c);
 }
 
-/// Real time mode: one unit of simulation time lasts unit_duration.
-static void show_realtime_player(application&    app,
-                                 project_editor& ed,
-                                 const unsigned  idx) noexcept
+static void show_realtime_player(application& app, project_editor& ed) noexcept
 {
     using mode = player_controller::mode;
 
@@ -455,8 +480,7 @@ static void show_realtime_player(application&    app,
 
     if (not c.shown.started) {
         if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
-            if (ed.pj.simulation_init(app.mod).has_value())
-                submit(app, idx, c, [](auto& p) { return p.start(); });
+            c.need_rebuild = true;
         return;
     }
 
@@ -480,11 +504,10 @@ static void show_realtime_player(application&    app,
         if (c.shown.lateness_ms > 0)
             ImGui::TextFormat("The simulation is slower than the real time.");
     }
+
+    show_restart_button(app, c);
 }
 
-/// Complete mode: from the beginning to the end, as fast as possible, without
-/// any keyframe (the memory does not depend on the length of the simulation).
-/// The pause button stops after the current task (complete_budget at most).
 static void show_complete_player(application& app, project_editor& ed) noexcept
 {
     using mode = player_controller::mode;
@@ -501,10 +524,9 @@ static void show_complete_player(application& app, project_editor& ed) noexcept
             c.current = mode::paused;
     } else {
         if (EnhancedButton(app, "##full", size, resume ? "Resume" : "Run")) {
-            if (ed.pj.simulation_init(app.mod).has_value()) {
-                c.need_start = not resume;
-                c.current    = mode::complete;
-            }
+            // Resume continues the current simulation: no rebuild.
+            c.need_rebuild = not resume;
+            c.current      = mode::complete;
         }
     }
 
@@ -512,8 +534,8 @@ static void show_complete_player(application& app, project_editor& ed) noexcept
 
     ImGui::BeginDisabled(not c.shown.started);
     if (EnhancedButton(app, "##full", size, "Restart")) {
-        c.need_start = true;
-        c.current    = mode::complete;
+        c.need_rebuild = true;
+        c.current      = mode::complete;
     }
     ImGui::EndDisabled();
 
@@ -565,7 +587,7 @@ static void show_simulation_player(application&    app,
         break;
 
     case kind::realtime:
-        show_realtime_player(app, ed, idx);
+        show_realtime_player(app, ed);
         break;
 
     case kind::complete:
@@ -710,7 +732,10 @@ static bool show_project_simulation_settings(application&    app,
 
     ed.sim_player.unit_duration = ed.one_simulation_time_duration;
     ed.sim_player.task_duration = ed.simulation_task_duration;
-    show_simulation_player(app, ed, get_index(app.pjs.get_id(ed)));
+
+    show_simulation_player(
+      app, ed,
+      static_cast<unsigned>(app.get_task_manager_list(app.pjs.get_id(ed))));
 
     ImGui::SeparatorText("Observation");
 

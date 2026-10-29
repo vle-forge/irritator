@@ -401,6 +401,44 @@ int main()
         expect(same(dump(sim), dump(sim2), "with and without history"));
     };
 
+    // After a complete run (no history) the simulation is built again, as the
+    // GUI does: reset() forgets the player state, start() must not restore a
+    // keyframe of the previous simulation.
+    "finalize: reset and start a simulation built again"_test = [] {
+        auto& tm = test_tm();
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        sim.limits.set_bound(0.0, 0.5);
+
+        simulation_player player(sim, tm, 0, { 8, 16 });
+        expect(player.keep_history(false).has_value());
+        expect(player.start().has_value());
+        expect(player.advance(std::chrono::seconds(60)).has_value());
+        expect(player.finalized());
+
+        const auto t = sim.current_time();
+
+        player.reset();
+        expect(not player.started());
+        expect(not player.finalized());
+        expect(player.step() == 0_u);
+        expect(player.keyframe_number() == 0_u);
+
+        sim.clear();
+        build_world(sim, w);
+        sim.limits.set_bound(0.0, 0.5);
+
+        expect(player.start().has_value());
+        expect(player.step() == 0_u);
+        expect(player.advance(std::chrono::seconds(60)).has_value());
+        expect(player.finalized());
+        // The new random source has another identifier, so another stream:
+        // the run goes to the same end, not by the same steps.
+        expect(player.step() > 0_u);
+        expect(sim.current_time() == t);
+    };
+
     "finalize: forget_history on a finalized simulation"_test = [] {
         auto& tm = test_tm();
         simulation sim;

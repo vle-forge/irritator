@@ -1031,7 +1031,8 @@ public:
     bool has_result = false;
     bool pace_reset = true;  ///< rebase clock to the next task (start, resume).
     bool need_start = false; ///< the next complete task (re)starts the player.
-    bool edited     = false; ///< Use modify the simulation: forget_history()
+    bool need_rebuild = false; ///< build the simulation again, then start.
+    bool edited       = false; ///< Use modify the simulation: forget_history()
 };
 
 class project_editor
