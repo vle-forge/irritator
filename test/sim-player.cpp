@@ -107,6 +107,40 @@ int main()
 
     static const auto ref = reference(300);
 
+    // The views of the GUI hold the structure lock during a frame: a rewind
+    // waits for the end of the frame, the readers never wait.
+    "player: a rewind waits for the readers of the structure"_test = [] {
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        simulation_player player(sim, { 8, 16 });
+
+        expect(player.start().has_value());
+        for (int i = 0; i != 20; ++i)
+            expect(player.step_forward().has_value());
+
+        auto lock = player.try_lock_structure();
+        expect(ut::fatal(lock.owns_lock()));
+        expect(player.try_lock_structure().owns_lock());
+
+        const auto        models = sim.models.size();
+        std::atomic<bool> done{ false };
+        std::thread       rewind([&] {
+            (void)player.step_back();
+            done.store(true);
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        expect(not done.load());
+        expect(eq(sim.models.size(), models));
+
+        lock.unlock();
+        rewind.join();
+
+        expect(done.load());
+        expect(player.step() == 19_u);
+    };
+
     "player: step forward, then step back one by one"_test = [] {
         auto& tm = test_tm();
         simulation          sim;

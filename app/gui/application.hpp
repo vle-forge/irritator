@@ -1035,6 +1035,13 @@ public:
     bool need_start = false; ///< the next complete task (re)starts the player.
     bool need_rebuild = false; ///< build the simulation again, then start.
     bool edited       = false; ///< Use modify the simulation: forget_history()
+
+    /// Held by the main thread during a frame, see @c simulation_readable().
+    std::shared_lock<std::shared_mutex> frame_lock;
+
+    /// False during a frame where a rewind rebuilds the simulation: the views
+    /// must not read it.
+    bool simulation_readable() const noexcept { return frame_lock.owns_lock(); }
 };
 
 class project_editor

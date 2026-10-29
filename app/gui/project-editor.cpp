@@ -48,7 +48,9 @@ void project_editor::set_title_name(const std::string_view name) noexcept
 
 project_editor::~project_editor() noexcept
 {
-    // Wait simulation-player tasks if it running
+    // A task blocked in a rewind waits for this lock: release it before
+    // waiting for the task.
+    sim_player.frame_lock = {};
 
     while (sim_player.busy.test(std::memory_order_acquire))
         std::this_thread::yield();
@@ -1055,6 +1057,13 @@ auto project_editor::show(application& app) noexcept -> show_result_t
 
     bool is_open = true;
     if (not ImGui::Begin(title.c_str(), &is_open)) {
+        ImGui::End();
+        return is_open ? show_result_t::success
+                       : show_result_t::request_to_close;
+    }
+
+    if (not sim_player.simulation_readable()) {
+        ImGui::TextUnformatted("Restoring the simulation...");
         ImGui::End();
         return is_open ? show_result_t::success
                        : show_result_t::request_to_close;

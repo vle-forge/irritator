@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <limits>
+#include <shared_mutex>
 #include <span>
 #include <thread>
 
@@ -224,6 +225,14 @@ public:
     /// True (default) if the steps take keyframes, see @c keep_history().
     bool keeps_history() const noexcept { return m_keep_history; }
 
+    /// While the lock is held, a rewind can not rebuild the containers of the
+    /// simulation (models, observers...). The lock is empty if a rewind is in
+    /// progress: the simulation must not be read.
+    std::shared_lock<std::shared_mutex> try_lock_structure() const noexcept
+    {
+        return std::shared_lock(m_restore_mutex, std::try_to_lock);
+    }
+
     /* * * * * * * *
      *
      * observers
@@ -327,6 +336,8 @@ private:
     bool      m_finalized    = false; // simulation::finalize() done, see above
 
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
+
+    mutable std::shared_mutex m_restore_mutex;
 
     /// The work of one parallel tick, shared between the calling thread and
     /// the helpers: each one claims chunks until there is none. It lives on

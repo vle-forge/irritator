@@ -491,6 +491,9 @@ void application::set_player_task_list(project_editor& ed) noexcept
 {
     ed.sim_player.player.set_task_list(task_mgr,
                                        get_task_manager_list(pjs.get_id(ed)));
+
+    // Opened during a frame: its views are drawn in this frame.
+    ed.sim_player.frame_lock = ed.sim_player.player.try_lock_structure();
 }
 
 application::~application() noexcept
@@ -876,6 +879,9 @@ void application::show_dock() noexcept
 
 auto application::show() noexcept -> show_result_t
 {
+    for (auto& ed : pjs)
+        ed.sim_player.frame_lock = ed.sim_player.player.try_lock_structure();
+
     auto ret = show_menu();
     show_dock();
 
@@ -887,6 +893,11 @@ auto application::show() noexcept -> show_result_t
 
     if (settings_wnd.is_open)
         settings_wnd.show();
+
+    // Released before the scheduling: simulation_init() and the next tasks
+    // must never wait for the views.
+    for (auto& ed : pjs)
+        ed.sim_player.frame_lock = {};
 
     for (auto& ed : pjs)
         ed.schedule_player(*this);

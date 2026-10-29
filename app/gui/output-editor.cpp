@@ -310,7 +310,7 @@ void output_editor::display_project(const project_id pj_id) noexcept
     auto& app = container_of(this, &application::output_ed);
     auto* pj  = app.pjs.try_to_get(pj_id);
 
-    if (not pj)
+    if (not pj or not pj->sim_player.simulation_readable())
         return;
 
     const auto pj_idx     = get_index(pj_id);
@@ -430,7 +430,7 @@ void output_editor::display_plot(const project_id pj_id) noexcept
     const auto  pj_idx = get_index(pj_id);
     const auto* pj     = app.pjs.try_to_get(pj_id);
 
-    if (not pj)
+    if (not pj or not pj->sim_player.simulation_readable())
         return;
 
     ImGui::PushID(pj_idx);

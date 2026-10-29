@@ -415,6 +415,7 @@ status simulation_player::restore_from(const vector<u8>& data) noexcept
 {
     binary_reader r(std::span<const u8>(data.data(), data.size()));
 
+    std::unique_lock lock(m_restore_mutex);
     return read_snapshot(r, m_sim);
 }
 
