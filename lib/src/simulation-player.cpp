@@ -20,9 +20,18 @@ simulation_player::simulation_player(simulation&   sim,
                                      const options opt) noexcept
   : simulation_player(sim, opt)
 {
+    set_task_list(tm, list_index);
+}
+
+void simulation_player::set_task_list(task_manager& tm,
+                                      const size_t  list_index) noexcept
+{
     if (list_index < tm.list_size()) {
         m_utl     = &tm.unordered(list_index);
         m_helpers = static_cast<u32>(tm.unordered_worker_size());
+    } else {
+        m_utl     = nullptr;
+        m_helpers = 0;
     }
 }
 

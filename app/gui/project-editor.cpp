@@ -22,12 +22,10 @@ namespace irt {
 
 project_editor::project_editor(const modeling&        mod,
                                const std::string_view default_name,
-                               task_manager&          tm,
-                               std::size_t            index,
                                project&&              project_) noexcept
   : output_context{ ImPlot::CreateContext() }
   , pj(std::move(project_))
-  , sim_player{ pj.sim, tm, index }
+  , sim_player{ pj.sim }
   , graph_eds{ 16 }
   , visualisation_eds{ 64, reserve_tag }
 {

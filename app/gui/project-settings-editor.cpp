@@ -202,7 +202,7 @@ static bool show_registred_obseravation_path(application&    app,
 
 template<class Fn>
 static bool submit(application&       app,
-                   unsigned           idx,
+                   const project_id   pj_id,
                    player_controller& c,
                    Fn                 fn) noexcept
 {
@@ -210,8 +210,9 @@ static bool submit(application&       app,
         return false;
 
     app.add_simulation_task(
-      idx, [&c, fn, edited = std::exchange(c.edited, false),
-            history = c.view != player_controller::kind::complete]() noexcept {
+      pj_id,
+      [&c, fn, edited = std::exchange(c.edited, false),
+       history = c.view != player_controller::kind::complete]() noexcept {
           const auto t0 = std::chrono::steady_clock::now();
 
           // The complete mode keeps no keyframe, the others keep them. It is
@@ -273,8 +274,7 @@ void project_editor::schedule_player(application& app) noexcept
 {
     using mode = player_controller::mode;
 
-    const auto id  = app.pjs.get_id(*this);
-    const auto idx = app.get_task_manager_list(id);
+    const auto pj_id = app.pjs.get_id(*this);
 
     if (sim_player.busy.test(std::memory_order_acquire))
         return;
@@ -306,7 +306,7 @@ void project_editor::schedule_player(application& app) noexcept
             sim_player.need_start = true;
         } else {
             sim_player.current = mode::paused;
-            submit(app, idx, sim_player, [](auto& p) { return p.start(); });
+            submit(app, pj_id, sim_player, [](auto& p) { return p.start(); });
             return;
         }
     }
@@ -319,7 +319,7 @@ void project_editor::schedule_player(application& app) noexcept
         if (sim_player.shown.finished)
             sim_player.current = mode::paused;
         else
-            submit(app, idx, sim_player,
+            submit(app, pj_id, sim_player,
                    [steps  = sim_player.steps_per_frame,
                     budget = sim_player.frame_budget](auto& p) {
                        return p.advance(budget, steps);
@@ -330,7 +330,7 @@ void project_editor::schedule_player(application& app) noexcept
         if (not sim_player.shown.can_back)
             sim_player.current = mode::paused;
         else
-            submit(app, idx, sim_player,
+            submit(app, pj_id, sim_player,
                    [steps  = sim_player.steps_per_frame,
                     budget = sim_player.frame_budget](auto& p) {
                        return p.retreat(budget, steps);
@@ -343,7 +343,7 @@ void project_editor::schedule_player(application& app) noexcept
             break;
         }
 
-        submit(app, idx, sim_player,
+        submit(app, pj_id, sim_player,
                [&pacer = sim_player.pacer, &resyncs = sim_player.resyncs,
                 unit     = sim_player.unit_duration,
                 budget   = sim_player.task_duration,
@@ -373,7 +373,7 @@ void project_editor::schedule_player(application& app) noexcept
             break;
         }
 
-        submit(app, idx, sim_player,
+        submit(app, pj_id, sim_player,
                [&work = sim_player.work, budget = sim_player.complete_budget,
                 restart = std::exchange(sim_player.need_start, false)](
                  auto& p) noexcept -> status {
@@ -400,9 +400,9 @@ static void show_restart_button(const application& app,
     }
 }
 
-static void show_debug_player(application&    app,
-                              project_editor& ed,
-                              const unsigned  idx) noexcept
+static void show_debug_player(application&     app,
+                              project_editor&  ed,
+                              const project_id pj_id) noexcept
 {
     using mode = player_controller::mode;
 
@@ -420,21 +420,21 @@ static void show_debug_player(application&    app,
     ImGui::BeginDisabled(busy);
     if (EnhancedButton(app, "##c", size, "Beginning")) {
         c.current = mode::paused;
-        submit(app, idx, c, [](auto& p) { return p.go_to(0); });
+        submit(app, pj_id, c, [](auto& p) { return p.go_to(0); });
     }
 
     ImGui::SameLine();
 
     if (EnhancedButton(app, "##c", size, "Back")) {
         c.current = mode::paused;
-        submit(app, idx, c, [](auto& p) { return p.step_back(); });
+        submit(app, pj_id, c, [](auto& p) { return p.step_back(); });
     }
 
     ImGui::SameLine();
 
     if (EnhancedButton(app, "##c", size, "Forward")) {
         c.current = mode::paused;
-        submit(app, idx, c, [](auto& p) { return p.step_forward(); });
+        submit(app, pj_id, c, [](auto& p) { return p.step_forward(); });
     }
     ImGui::EndDisabled();
 
@@ -461,7 +461,7 @@ static void show_debug_player(application&    app,
     if (ImGui::IsItemDeactivatedAfterEdit() and
         not c.busy.test(std::memory_order_acquire)) {
         c.current = mode::paused;
-        submit(app, idx, c,
+        submit(app, pj_id, c,
                [target = c.target](auto& p) { return p.go_to(target); });
     }
 
@@ -560,9 +560,9 @@ static void show_complete_player(application& app, project_editor& ed) noexcept
         ImGui::TextUnformatted("The simulation is finished.");
 }
 
-static void show_simulation_player(application&    app,
-                                   project_editor& ed,
-                                   const unsigned  idx) noexcept
+static void show_simulation_player(application&     app,
+                                   project_editor&  ed,
+                                   const project_id pj_id) noexcept
 {
     using kind = player_controller::kind;
 
@@ -583,7 +583,7 @@ static void show_simulation_player(application&    app,
 
     switch (ed.sim_player.view) {
     case kind::debug:
-        show_debug_player(app, ed, idx);
+        show_debug_player(app, ed, pj_id);
         break;
 
     case kind::realtime:
@@ -732,10 +732,7 @@ static bool show_project_simulation_settings(application&    app,
 
     ed.sim_player.unit_duration = ed.one_simulation_time_duration;
     ed.sim_player.task_duration = ed.simulation_task_duration;
-
-    show_simulation_player(
-      app, ed,
-      static_cast<unsigned>(app.get_task_manager_list(app.pjs.get_id(ed))));
+    show_simulation_player(app, ed, app.pjs.get_id(ed));
 
     ImGui::SeparatorText("Observation");
 

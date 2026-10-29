@@ -107,6 +107,11 @@ public:
                       const size_t  list_index,
                       const options opt = options{}) noexcept;
 
+    /// Changes the unordered list used to resample the observers in parallel
+    /// (see the constructor), when the list of the simulation is known after
+    /// the construction. Call it when no step is running.
+    void set_task_list(task_manager& tm, const size_t list_index) noexcept;
+
     simulation_player(const simulation_player&)            = delete;
     simulation_player& operator=(const simulation_player&) = delete;
 

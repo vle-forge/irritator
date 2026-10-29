@@ -985,8 +985,10 @@ public:
         complete  ///< to the end, as fast as possible, without history
     };
 
-    player_controller(simulation& sim, task_manager& tm, sz index) noexcept
-      : player(sim, tm, index)
+    /// The player is sequential until @c application gives it the task list
+    /// of the project (@c simulation_player::set_task_list()).
+    explicit player_controller(simulation& sim) noexcept
+      : player(sim)
     {}
 
     simulation_player player;
@@ -1045,8 +1047,6 @@ public:
 
     project_editor(const modeling&        mod,
                    const std::string_view default_name,
-                   task_manager&          tm,
-                   std::size_t            index,
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;
@@ -1633,6 +1633,12 @@ public:
     template<typename T>
         requires(std::is_integral_v<T> || is_identifier_type<T>)
     std::size_t get_task_manager_list(T id) const noexcept;
+
+    /// Gives the simulation player of a new project the unordered list of the
+    /// project: its steps run on the ordered list of the same index (see
+    /// @c add_simulation_task()), so the projects that share a list never use
+    /// the unordered list at the same time.
+    void set_player_task_list(project_editor& ed) noexcept;
 
     void start_init_source(const project_id  pj_id,
                            const u64         id,

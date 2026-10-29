@@ -487,6 +487,12 @@ application::application(log_history& jn_) noexcept
     });
 }
 
+void application::set_player_task_list(project_editor& ed) noexcept
+{
+    ed.sim_player.player.set_task_list(task_mgr,
+                                       get_task_manager_list(pjs.get_id(ed)));
+}
+
 application::~application() noexcept
 {
     using namespace std::literals;
@@ -759,10 +765,10 @@ void application::show_dock() noexcept
                           const auto dot      = filename.find_last_of('.');
                           const auto label    = filename.substr(0, dot);
 
-                          auto& pj = pjs.alloc(mod, label, task_mgr,
-                                               static_cast<sz>(pjs.next_key()),
-                                               std::move(*pj_released));
+                          auto&      pj    = pjs.alloc(mod, label,
+                                                       std::move(*pj_released));
                           const auto pj_id = pjs.get_id(pj);
+                          set_player_task_list(pj);
                           library_wnd.add_open_file(f_id, pj_id);
                           output_ed.add_project(pj_id);
                           return true;
@@ -774,10 +780,10 @@ void application::show_dock() noexcept
                 if (not opened) {
                     const auto next_key = pjs.next_key();
                     const auto label    = format_n<32>("project-{}", next_key);
-                    auto&      pj = pjs.alloc(mod, label.sv(), task_mgr,
-                                              static_cast<sz>(pjs.next_key()),
-                                              std::move(*pj_released));
+                    auto&      pj       = pjs.alloc(mod, label.sv(),
+                                                    std::move(*pj_released));
                     const auto pj_id = pjs.get_id(pj);
+                    set_player_task_list(pj);
                     output_ed.add_project(pj_id);
                 }
             }
