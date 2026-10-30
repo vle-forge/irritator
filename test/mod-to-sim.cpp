@@ -506,6 +506,52 @@ struct tee_sink final : irt::observation_sink {
     }
 };
 
+static irt::vector<char> json_save_component(irt::modeling&          mod,
+                                             const irt::component_id id)
+{
+    irt::vector<char> out;
+
+    mod.files.read([&](const auto& files, auto) {
+        mod.ids.read([&](const auto& ids, auto) {
+            irt::json_archiver j;
+            boost::ut::expect(
+              j(files, ids, id, out,
+                irt::json_archiver::print_option::indent_2_one_line_array)
+                .has_value());
+        });
+    });
+
+    return out;
+}
+
+static irt::expected<irt::component_id> json_load_component(
+  irt::modeling&         mod,
+  const std::string_view json)
+{
+    irt::vector<char> buffer(static_cast<int>(json.size()));
+    std::copy_n(json.data(), json.size(), buffer.data());
+
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::component_id> {
+          return mod.ids.write(
+            [&](auto& ids) -> irt::expected<irt::component_id> {
+                const auto           id = ids.alloc_generic_component();
+                irt::json_dearchiver j;
+                if (auto ret = j(files, ids, id, ids.components[id],
+                                 std::span(buffer.data(), buffer.size()));
+                    ret.has_error())
+                    return ret.error();
+
+                return id;
+            });
+      });
+}
+
+static bool same_buffers(const irt::vector<char>& a, const irt::vector<char>& b)
+{
+    return std::ranges::equal(a, b);
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -2585,6 +2631,121 @@ int main()
         other    = bytes;
         other[4] = 2; // the version 2 stored resampled samples
         expect(refused(other));
+
+        irt::on_error_callback = callback;
+    };
+
+    "json: the sources survive a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_generic_component();
+            auto&      compo = ids.components[id];
+            compo.srcs.data.reserve(4);
+
+            auto& cst = compo.srcs.alloc_constant_source("cst");
+            cst.data.emplace_back(1.0);
+            cst.data.emplace_back(2.0);
+
+            auto& rnd    = compo.srcs.alloc_random_source("rnd");
+            rnd.type     = irt::distribution_type::fisher_f;
+            rnd.reals[0] = 2.0;
+            rnd.reals[1] = 3.0;
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& srcs = ids.components[*read].srcs.data;
+            expect(eq(srcs.size(), 2u));
+
+            for (const auto src_id : srcs) {
+                const auto& elem = srcs.template get<
+                  irt::external_source_definition::source_element>(src_id);
+                if (elem.type == irt::source_type::random) {
+                    expect(elem.rnd.type == irt::distribution_type::fisher_f);
+                    expect(eq(elem.rnd.reals[0], 2.0));
+                    expect(eq(elem.rnd.reals[1], 3.0));
+                } else {
+                    expect(eq(elem.cst.data.size(), 2u));
+                }
+            }
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
+    "json: the hsm source and constants survive a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_hsm_component();
+            auto&      compo = ids.components[id];
+            auto&      hsm   = ids.hsm_components.get(compo.id.hsm_id);
+            compo.srcs.data.reserve(2);
+
+            compo.srcs.alloc_constant_source("unused");
+            compo.srcs.alloc_constant_source("cst").data.emplace_back(1.0);
+            hsm.src = *(++compo.srcs.data.begin());
+
+            hsm.machine.constants[0] = 1.5;
+            hsm.machine.constants[7] = 8.0;
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& compo = ids.components[*read];
+            const auto& hsm   = ids.hsm_components.get(compo.id.hsm_id);
+
+            expect(fatal(compo.srcs.data.exists(hsm.src)));
+            expect(eq(compo.srcs.data.template get<irt::name_str>(hsm.src).sv(),
+                      "cst"sv));
+            expect(eq(hsm.machine.constants[0], 1.5));
+            expect(eq(hsm.machine.constants[7], 8.0));
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
+    "json: the malformed files are refused"_test = [] {
+        auto callback = std::exchange(irt::on_error_callback, nullptr);
+
+        irt::modeling mod;
+
+        const std::string_view malformed[] = {
+            R"([])",
+            R"({"name": "a", "type": "hsm",
+                "states": [{"id": 999}]})",
+            R"({"name": "a", "type": "hsm",
+                "constants": [1, 2, 3, 4, 5, 6, 7, 8, 9]})",
+            R"({"name": "a", "type": "grid", "rows": 1, "columns": 1,
+                "children": [{"component-type": "none"}],
+                "connections": [{"type": "input", "col": 0,
+                                 "id": "in", "x": "in"}]})",
+            R"({"name": "a", "type": "simple",
+                "children": [{"id": 0, "type": "counter",
+                              "dynamics": {"observation-type": "bad"}}]})",
+            R"({"name": "a", "type": "simple",
+                "children": [{"id": 0, "type": "simulation_wrapper",
+                              "dynamics": {"run-type": "bad"}}]})",
+            R"({"name": "a", "type": "simple",
+                "children": [{"id": 0, "type": "time_func",
+                              "dynamics": {"function": "bad"}}]})",
+        };
+
+        for (const auto json : malformed)
+            expect(json_load_component(mod, json).has_error()) << json;
 
         irt::on_error_callback = callback;
     };

@@ -231,7 +231,8 @@ public:
     real                           r1      = 0.0;
     real                           r2      = 0.0;
     time                           timeout = time_domain<time>::infinity;
-    external_source_definition::id src;
+    external_source_definition::id
+      src = undefined<external_source_definition::id>();
 };
 
 inline void hsm_component::clear() noexcept
