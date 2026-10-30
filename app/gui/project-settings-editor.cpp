@@ -402,7 +402,7 @@ void project_editor::schedule_player(application& app) noexcept
 static void show_restart_button(const application& app,
                                 player_controller& c) noexcept
 {
-    if (EnhancedButton(app, "restart", ImVec2{},
+    if (EnhancedButton(app, "\ue0b4##restart", ImVec2{},
                        "Build the simulation again and start it")) {
         c.current      = player_controller::mode::paused;
         c.need_rebuild = true;
@@ -418,7 +418,7 @@ static void show_debug_player(application&     app,
     auto& c = ed.sim_player;
 
     if (not c.shown.started) {
-        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
+        if (EnhancedButton(app, "\ue0a9##start", ImVec2{}, "Start the player"))
             c.need_rebuild = true;
         return;
     }
@@ -427,21 +427,21 @@ static void show_debug_player(application&     app,
     const auto busy = c.busy.test(std::memory_order_acquire);
 
     ImGui::BeginDisabled(busy);
-    if (EnhancedButton(app, "##c", size, "Beginning")) {
+    if (EnhancedButton(app, "\ue0c5##c", size, "Beginning")) {
         c.current = mode::paused;
         submit(app, pj_id, ed, [](auto& p) { return p.go_to(0); });
     }
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, "##c", size, "Back")) {
+    if (EnhancedButton(app, "\ue02f##c", size, "Back")) {
         c.current = mode::paused;
         submit(app, pj_id, ed, [](auto& p) { return p.step_back(); });
     }
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, "##c", size, "Forward")) {
+    if (EnhancedButton(app, "\ue030##c", size, "Forward")) {
         c.current = mode::paused;
         submit(app, pj_id, ed, [](auto& p) { return p.step_forward(); });
     }
@@ -449,13 +449,14 @@ static void show_debug_player(application&     app,
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, c.current == mode::play ? "##c" : "##c", size,
-                       "Play"))
+    if (EnhancedButton(app, c.current == mode::play ? "\ue09e##c" : "\ue034##c",
+                       size, "Play"))
         c.current = (c.current == mode::play) ? mode::paused : mode::play;
 
     ImGui::SameLine();
 
-    if (EnhancedButton(app, c.current == mode::reverse ? "##r" : "##r",
+    if (EnhancedButton(app,
+                       c.current == mode::reverse ? "\ue09e##r" : "\ue033##r",
                        size, "Reverse"))
         c.current = (c.current == mode::reverse) ? mode::paused : mode::reverse;
 
@@ -488,14 +489,15 @@ static void show_realtime_player(application& app, project_editor& ed) noexcept
     auto& c = ed.sim_player;
 
     if (not c.shown.started) {
-        if (EnhancedButton(app, "start", ImVec2{}, "Start the player"))
+        if (EnhancedButton(app, "\ue0a9##start", ImVec2{}, "Start the player"))
             c.need_rebuild = true;
         return;
     }
 
     const auto size = ImGui::ComputeButtonSize(5);
 
-    if (EnhancedButton(app, c.current == mode::realtime ? "##t" : "RT##t",
+    if (EnhancedButton(app,
+                       c.current == mode::realtime ? "\ue09e##t" : "\ue038##t",
                        size, "Real time")) {
         if (c.current == mode::realtime) {
             c.current = mode::paused;
@@ -529,10 +531,11 @@ static void show_complete_player(application& app, project_editor& ed) noexcept
     const auto resume   = c.shown.started and not finished;
 
     if (running) {
-        if (EnhancedButton(app, "##full", size, "Pause"))
+        if (EnhancedButton(app, "\ue09e##full", size, "Pause"))
             c.current = mode::paused;
     } else {
-        if (EnhancedButton(app, "##full", size, resume ? "Resume" : "Run")) {
+        if (EnhancedButton(app, "\ue034##full", size,
+                           resume ? "Resume" : "Run")) {
             // Resume continues the current simulation: no rebuild.
             c.need_rebuild = not resume;
             c.current      = mode::complete;
@@ -542,7 +545,7 @@ static void show_complete_player(application& app, project_editor& ed) noexcept
     ImGui::SameLine();
 
     ImGui::BeginDisabled(not c.shown.started);
-    if (EnhancedButton(app, "##full", size, "Restart")) {
+    if (EnhancedButton(app, "\ue0b4##full", size, "Restart")) {
         c.need_rebuild = true;
         c.current      = mode::complete;
     }
