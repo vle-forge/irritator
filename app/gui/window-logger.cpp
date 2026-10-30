@@ -137,8 +137,7 @@ void window_logger::show() noexcept
         app.jn.reset_history();
 
     ImGui::Separator();
-    ImGui::BeginChild("scrolling", ImVec2(0, 0), false,
-                      ImGuiWindowFlags_HorizontalScrollbar);
+    ImGui::BeginChild("scrolling", ImVec2(0, 0), false);
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 
@@ -161,7 +160,9 @@ void window_logger::show() noexcept
 
     ImGui::PopStyleVar();
 
-    if (scroll_to_bottom)
+    // Follows the new messages only if the user has not scrolled up to read.
+    if (scroll_to_bottom or
+        (auto_scroll and ImGui::GetScrollY() >= ImGui::GetScrollMaxY()))
         ImGui::SetScrollHereY(1.0f);
     scroll_to_bottom = false;
     ImGui::EndChild();
