@@ -250,9 +250,9 @@ static constexpr inline std::string_view norm_type_names[] = { "min-max",
 
 static constexpr inline std::string_view operation_type_names[] = {
     "equal",
+    "not-equal",
     "greater-equal",
     "less-equal",
-    "not-equal",
 };
 
 template<typename RandomGenerator, typename Distribution>

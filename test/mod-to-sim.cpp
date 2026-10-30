@@ -275,14 +275,10 @@ static void simulation_component_tester(
         }
 
         sim.factors.template get<irt::factor_type>(a) = irt::factor_type::fixed;
-        sim.factors.template get<irt::unique_id_path>(a).push_back(
-          std::string_view("a"));
         sim.factors.template get<irt::fixed_factor>(a).values.assign(c1.begin(),
                                                                      c1.end());
 
         sim.factors.template get<irt::factor_type>(b) = irt::factor_type::fixed;
-        sim.factors.template get<irt::unique_id_path>(b).push_back(
-          std::string_view("b"));
         sim.factors.template get<irt::fixed_factor>(b).values.assign(c2.begin(),
                                                                      c2.end());
 

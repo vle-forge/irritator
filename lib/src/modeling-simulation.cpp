@@ -126,36 +126,36 @@ status simulation_component::copy_to(
         const auto type       = factors.get<factor_type>(id);
         const auto tn_mdl_opt = pj.get_model_path(path);
 
-        if (tn_mdl_opt.has_value()) {
-            const auto new_id = embed_sims.factors.alloc_id();
+        if (not tn_mdl_opt.has_value())
+            return make_error(simulation_errc::simulation_wrapper_input_error);
 
-            embed_sims.factors.get<model_id>(new_id) = tn_mdl_opt->second;
-            embed_sims.factors.get<name_str>(new_id) = factors.get<name_str>(
-              id);
-            embed_sims.factors.get<factor_type>(new_id) = type;
+        const auto new_id = embed_sims.factors.alloc_id();
 
-            switch (type) {
-            case factor_type::single:
-            case factor_type::single_add:
-            case factor_type::single_mult:
-                embed_sims.factors.get<single_factor>(
-                  new_id) = factors.get<single_factor>(id);
-                break;
+        embed_sims.factors.get<model_id>(new_id)    = tn_mdl_opt->second;
+        embed_sims.factors.get<name_str>(new_id)    = factors.get<name_str>(id);
+        embed_sims.factors.get<factor_type>(new_id) = type;
 
-            case factor_type::fixed:
-            case factor_type::fixed_add:
-            case factor_type::fixed_mult:
-                embed_sims.factors.get<fixed_factor>(
-                  new_id) = factors.get<fixed_factor>(id);
-                break;
+        switch (type) {
+        case factor_type::single:
+        case factor_type::single_add:
+        case factor_type::single_mult:
+            embed_sims.factors.get<single_factor>(
+              new_id) = factors.get<single_factor>(id);
+            break;
 
-            case factor_type::random:
-            case factor_type::random_add:
-            case factor_type::random_mult:
-                embed_sims.factors.get<random_factor>(
-                  new_id) = factors.get<random_factor>(id);
-                break;
-            }
+        case factor_type::fixed:
+        case factor_type::fixed_add:
+        case factor_type::fixed_mult:
+            embed_sims.factors.get<fixed_factor>(
+              new_id) = factors.get<fixed_factor>(id);
+            break;
+
+        case factor_type::random:
+        case factor_type::random_add:
+        case factor_type::random_mult:
+            embed_sims.factors.get<random_factor>(
+              new_id) = factors.get<random_factor>(id);
+            break;
         }
     }
 
@@ -163,15 +163,16 @@ status simulation_component::copy_to(
         const auto& path       = selections.get<unique_id_path>(id);
         const auto  tn_mdl_opt = pj.get_model_path(path);
 
-        if (tn_mdl_opt.has_value()) {
-            const auto new_id = embed_sims.selections.alloc_id();
+        if (not tn_mdl_opt.has_value())
+            return make_error(simulation_errc::simulation_wrapper_output_error);
 
-            embed_sims.selections.get<model_id>(new_id) = tn_mdl_opt->second;
-            embed_sims.selections.get<name_str>(
-              new_id) = selections.get<name_str>(id);
-            embed_sims.selections.get<criteria_type>(
-              new_id) = selections.get<criteria_type>(id);
-        }
+        const auto new_id = embed_sims.selections.alloc_id();
+
+        embed_sims.selections.get<model_id>(new_id) = tn_mdl_opt->second;
+        embed_sims.selections.get<name_str>(new_id) = selections.get<name_str>(
+          id);
+        embed_sims.selections.get<criteria_type>(
+          new_id) = selections.get<criteria_type>(id);
     }
 
     embed_sims.objective = objective;

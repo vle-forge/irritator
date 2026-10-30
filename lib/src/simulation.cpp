@@ -373,16 +373,14 @@ static status embedded_sims_copy_parameters(
         // 25    -> [1 2 2]
         // 26    -> [2 2 2]
 
-        sz ptr = 0u;
-        do {
+        for (sz ptr = 0u; ptr < params.size(); ++ptr) {
             ++params[ptr].position;
 
             if (params[ptr].position < params[ptr].count)
                 break;
 
             params[ptr].position = 0u;
-            ++ptr;
-        } while (ptr < params.size());
+        }
     }
 
     dlog(0, "\n");

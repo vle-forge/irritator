@@ -6715,9 +6715,7 @@ struct json_writer {
         w.StartArray();
         for (const auto id : sim.factors) {
             const auto* name   = sim.factors.get<name_str>(id).c_str();
-            const auto  tn_id  = sim.factors.get<tree_node_id>(id);
-            const auto  mdl_id = sim.factors.get<model_id>(id);
-            const auto  access = sim.pj.build_unique_id_path(tn_id, mdl_id);
+            const auto& access = sim.factors.get<unique_id_path>(id);
             const auto  type   = sim.factors.get<factor_type>(id);
 
             w.StartObject();
@@ -6771,9 +6769,7 @@ struct json_writer {
         w.StartArray();
         for (const auto id : sim.selections) {
             const auto* name   = sim.selections.get<name_str>(id).c_str();
-            const auto  tn_id  = sim.selections.get<tree_node_id>(id);
-            const auto  mdl_id = sim.selections.get<model_id>(id);
-            const auto  access = sim.pj.build_unique_id_path(tn_id, mdl_id);
+            const auto& access = sim.selections.get<unique_id_path>(id);
             const auto  crit   = sim.selections.get<criteria_type>(id);
 
             w.StartObject();
