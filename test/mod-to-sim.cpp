@@ -2713,6 +2713,28 @@ int main()
         expect(same_buffers(first, json_save_component(mod, *read)));
     };
 
+    "json: a failed read releases its internal component"_test = [] {
+        auto callback = std::exchange(irt::on_error_callback, nullptr);
+
+        irt::modeling mod;
+
+        const auto missing_child = R"({"name": "a", "type": "simple",
+            "children": [{"id": 0, "type": "component",
+                          "component-type": "simple", "path": "unknown",
+                          "directory": "unknown", "file": "unknown.irt"}]})"sv;
+
+        expect(json_load_component(mod, missing_child).has_error());
+        expect(json_load_component(mod, missing_child).has_error());
+        expect(json_load_component(mod, R"({"name": "b", "type": "simple"})"sv)
+                 .has_value());
+
+        mod.ids.read([&](const auto& ids, auto) {
+            expect(eq(ids.generic_components.size(), 1u));
+        });
+
+        irt::on_error_callback = callback;
+    };
+
     "json: the malformed files are refused"_test = [] {
         auto callback = std::exchange(irt::on_error_callback, nullptr);
 

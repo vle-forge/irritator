@@ -4652,21 +4652,21 @@ struct json_reader {
                            component_access&          ids,
                            component_id               compo_id) noexcept
     {
+        // A component is read again until its dependencies are read: the
+        // internal component of the previous attempt must be released.
+        ids.clear(compo_id);
         auto& compo = ids.components[compo_id];
         compo       = component{};
 
-        if (not doc.IsObject()) {
-            compo.state = component_status::unread;
-            return error_code(modeling_errc::json_invalid_component_format);
-        }
-
-        if (read_component(doc.GetObject(), files, ids, compo_id)) {
+        if (doc.IsObject() and
+            read_component(doc.GetObject(), files, ids, compo_id)) {
             compo.state = component_status::unmodified;
             return success();
-        } else {
-            compo.state = component_status::unread;
-            return error_code(modeling_errc::json_invalid_component_format);
         }
+
+        ids.clear(compo_id);
+        compo.state = component_status::unread;
+        return error_code(modeling_errc::json_invalid_component_format);
     }
 
     status parse_project(const rapidjson::Document& doc,
