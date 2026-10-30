@@ -154,7 +154,14 @@ private:
 
     u32 loop_number = 0u;
 
+    ImGuiTextFilter filter;
+
+    /// Indexed by the log category: errors, warnings, infos and debugs.
+    std::array<bool, 4> visible_categories = { true, true, true, true };
+    std::array<u32, 4>  categories_count   = {};
+
     bool clear_expected   = false;
+    bool copy_expected    = false;
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
 };
