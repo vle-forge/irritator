@@ -1554,11 +1554,7 @@ enum class plot_type_options : u8 {
 class variable_observer
 {
 public:
-    name_str                               name;
-    static_bounded_value<i32, 8, 64>       max_observers          = 8;
-    static_bounded_value<i32, 8, 512>      raw_buffer_size        = 64;
-    static_bounded_value<i32, 1024, 65536> linearized_buffer_size = 32768;
-    static_bounded_floating_point<float, 1, 100, 1, 10> time_step = .01f;
+    name_str name;
 
     fraction timestep = { 1, 100 }; //!< Affect resampler::m_dt.
 
