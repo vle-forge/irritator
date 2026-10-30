@@ -15,11 +15,53 @@
 #include "utils.hpp"
 
 #include <cstring>
+#include <filesystem>
 #include <numeric>
 
 #include <boost/ut.hpp>
 
 using namespace std::literals;
+
+static irt::vector<char> json_save_component(irt::modeling&          mod,
+                                             const irt::component_id id)
+{
+    irt::vector<char> out;
+
+    mod.files.read([&](const auto& files, auto) {
+        mod.ids.read([&](const auto& ids, auto) {
+            auto ret = irt::save_component(
+              files, ids, id, irt::json_pretty_print::indent_2_one_line_array);
+            boost::ut::expect(ret.has_value());
+            if (ret.has_value())
+                out = std::move(*ret);
+        });
+    });
+
+    return out;
+}
+
+static irt::expected<irt::component_id> json_load_component(
+  irt::modeling&         mod,
+  const std::string_view json)
+{
+    return mod.files.read(
+      [&](const auto& files, auto) -> irt::expected<irt::component_id> {
+          return mod.ids.write(
+            [&](auto& ids) -> irt::expected<irt::component_id> {
+                const auto id = ids.alloc_generic_component();
+                if (auto ret = irt::load_component(files, ids, id, json);
+                    ret.has_error())
+                    return ret.error();
+
+                return id;
+            });
+      });
+}
+
+static bool same_buffers(const irt::vector<char>& a, const irt::vector<char>& b)
+{
+    return std::ranges::equal(a, b);
+}
 
 irt::expected<irt::graph> irt_parse_dot_buffer(irt::modeling&   mod,
                                                std::string_view str)
@@ -274,6 +316,45 @@ static void simulation_component_tester(
 
     expect(fatal(mod.fill_components().has_value()));
 
+    {
+        using irt::operation_type;
+
+        mod.ids.write([&](auto& ids) {
+            auto& sim = ids.sim_components.get(
+              ids.components[sim_compo].id.sim_id);
+            auto& eps = sim.objective.epsilon_constrained_params;
+
+            sim.objective
+              .method = irt::optimization_method::epsilon_constrained;
+            eps.epsilons.clear();
+            eps.operations.clear();
+            for (auto i = 0; i < sim.selections.ssize(); ++i) {
+                eps.epsilons.emplace_back(0.5);
+                eps.operations.emplace_back(operation_type::greater_equal);
+            }
+            eps.primary = *sim.selections.begin();
+        });
+
+        const auto first = json_save_component(mod, sim_compo);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.write([&](auto& ids) {
+            const auto& eps = ids.sim_components
+                                .get(ids.components[*read].id.sim_id)
+                                .objective.epsilon_constrained_params;
+            expect(fatal(not eps.operations.empty()));
+            expect(eps.operations.front() == operation_type::greater_equal);
+            expect(irt::is_defined(eps.primary));
+
+            ids.sim_components.get(ids.components[sim_compo].id.sim_id)
+              .objective.method = irt::optimization_method::simple;
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    }
+
     irt::file_path_id simulation_wrapper_file_id = mod.files.write(
       [&](auto& fs) {
           return fs.alloc_file(dir_id, "sim-wrapper.irt",
@@ -505,47 +586,6 @@ struct tee_sink final : irt::observation_sink {
         next.rewind(sim);
     }
 };
-
-static irt::vector<char> json_save_component(irt::modeling&          mod,
-                                             const irt::component_id id)
-{
-    irt::vector<char> out;
-
-    mod.files.read([&](const auto& files, auto) {
-        mod.ids.read([&](const auto& ids, auto) {
-            auto ret = irt::save_component(
-              files, ids, id, irt::json_pretty_print::indent_2_one_line_array);
-            boost::ut::expect(ret.has_value());
-            if (ret.has_value())
-                out = std::move(*ret);
-        });
-    });
-
-    return out;
-}
-
-static irt::expected<irt::component_id> json_load_component(
-  irt::modeling&         mod,
-  const std::string_view json)
-{
-    return mod.files.read(
-      [&](const auto& files, auto) -> irt::expected<irt::component_id> {
-          return mod.ids.write(
-            [&](auto& ids) -> irt::expected<irt::component_id> {
-                const auto id = ids.alloc_generic_component();
-                if (auto ret = irt::load_component(files, ids, id, json);
-                    ret.has_error())
-                    return ret.error();
-
-                return id;
-            });
-      });
-}
-
-static bool same_buffers(const irt::vector<char>& a, const irt::vector<char>& b)
-{
-    return std::ranges::equal(a, b);
-}
 
 int main()
 {
@@ -2733,6 +2773,79 @@ int main()
         });
 
         irt::on_error_callback = callback;
+    };
+
+    "json: the grid options survive a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id = ids.alloc_grid_component();
+            auto& grid = ids.grid_components.get(ids.components[id].id.grid_id);
+            grid.resize(2, 3, irt::undefined<irt::component_id>());
+            grid.opts      = irt::grid_component::options::torus;
+            grid.neighbors = irt::grid_component::neighborhood::eight;
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& grid = ids.grid_components.get(
+              ids.components[*read].id.grid_id);
+            expect(eq(grid.row(), 2));
+            expect(eq(grid.column(), 3));
+            expect(grid.opts == irt::grid_component::options::torus);
+            expect(grid.neighbors == irt::grid_component::neighborhood::eight);
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
+    "json: the wrappers without component are valid json"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+            gen.alloc(irt::dynamics_type::hsm_wrapper);
+            gen.alloc(irt::dynamics_type::simulation_wrapper);
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(read.has_value());
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
+    "json: the examples are readable"_test = [] {
+        irt::modeling mod;
+
+        const auto examples = (std::filesystem::path(EXAMPLES_DIR)
+                                 .parent_path() /
+                               "examples")
+                                .string();
+
+        mod.files.write([&](auto& fs) {
+            const auto reg_id = fs.alloc_registred("system", 0);
+            fs.registred_paths.get(reg_id).path = irt::path{ examples };
+        });
+
+        expect(fatal(mod.fill_components().has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            expect(eq(ids.ssize(), 4));
+
+            for (const auto id : ids)
+                expect(ids.components[id].state ==
+                       irt::component_status::unmodified)
+                  << ids.components[id].name.sv();
+        });
     };
 
     "json: the malformed files are refused"_test = [] {

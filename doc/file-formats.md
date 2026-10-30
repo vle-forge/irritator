@@ -36,6 +36,10 @@ three members.
 | `directory` | Directory inside the registered path.                          |
 | `file`      | File name, for example `cell.irt`.                             |
 
+When `path` is absent or names no registered path, the directory is searched
+in every registered path. This makes a component portable between the
+`system` and `user` paths, as the files in `examples/` do.
+
 A referenced component must be read before the component that references it.
 `modeling::fill_components()` reads every component file of the registered
 paths and retries those whose dependencies are not read yet, until no more
@@ -196,6 +200,8 @@ neighbors automatically.
 "columns": 10,
 "in-connection-type": 1,
 "out-connection-type": 1,
+"options": "none",
+"neighbors": "four",
 "children": [ { "component-type": "simple", "path": "user", "directory": "diffusion", "file": "cell.irt" }, ... ],
 "connections": [
   { "type": "input", "row": 0, "col": 0, "id": "in", "x": "in" },
@@ -207,6 +213,8 @@ neighbors automatically.
 |-----------------------|---------------------------------------------------------------------|
 | `rows`, `columns`     | Size of the grid, in [1, 1024).                                     |
 | `in-connection-type`, `out-connection-type` | How the neighbors are connected: `0` a single port `in`/`out`, `1` ports named after the cardinal points (`N`, `S`, `W`, `E`, `NE`…), `2` ports named after the neighborhood coordinates. |
+| `options`             | Optional: `none`, `row_cylinder`, `column_cylinder` or `torus` to wrap the rows, the columns or both. |
+| `neighbors`           | Optional: `four` or `eight`, the neighborhood of the automatic connections. |
 | `children`            | Exactly `rows` × `columns` child component references, row by row. |
 | `connections`         | Connections between the ports of this component and the cells.      |
 

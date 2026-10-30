@@ -35,6 +35,13 @@ using namespace std::literals;
 
 namespace irt {
 
+static constexpr std::string_view grid_option_names[] = {
+    "none", "row_cylinder", "column_cylinder", "torus"
+};
+
+static constexpr std::string_view grid_neighborhood_names[] = { "four",
+                                                                "eight" };
+
 static constexpr std::string_view plot_type_option_names[] = { "none", "line",
                                                                "dash" };
 
@@ -3152,6 +3159,16 @@ struct json_reader {
                          return read_temp_i64(value) &&
                                 copy_i64_to(grid.out_connection_type);
 
+                     if ("options"sv == name)
+                         return read_temp_string(value) &&
+                                copy_name_to(grid_option_names, grid.opts,
+                                             "grid options");
+
+                     if ("neighbors"sv == name)
+                         return read_temp_string(value) &&
+                                copy_name_to(grid_neighborhood_names,
+                                             grid.neighbors, "grid neighbors");
+
                      if ("children"sv == name)
                          return read_grid_children(value, files, ids, grid);
 
@@ -3496,6 +3513,14 @@ struct json_reader {
             if (const auto i = val.FindMember("values"); i != val.MemberEnd()) {
                 if (i->value.IsObject()) {
                     auto& r = sim.factors.get<random_factor>(id);
+
+                    if (const auto c = val.FindMember("count");
+                        c != val.MemberEnd()) {
+                        if (not c->value.IsUint())
+                            return error("bad random factor count");
+                        r.count = c->value.GetUint();
+                    }
+
                     return read_random(i->value.GetObject(), r.dist, r.reals,
                                        r.ints);
                 }
@@ -3681,17 +3706,12 @@ struct json_reader {
         operations.reserve(arr.Size());
 
         for (rapidjson::SizeType i = 0, e = arr.Size(); i != e; ++i) {
-            if (not read_temp_string(arr[i]))
+            auto op = operation_type::equal;
+            if (not(read_temp_string(arr[i]) and
+                    copy_name_to(operation_type_names, op, "operation")))
                 return false;
 
-            if (string_equal_to("equal"))
-                operations.emplace_back(operation_type::equal);
-            else if (string_equal_to("not-equal"))
-                operations.emplace_back(operation_type::not_equal);
-            else if (string_equal_to("greater-equal"))
-                operations.emplace_back(operation_type::greater_equal);
-            else if (string_equal_to("less-equal"))
-                operations.emplace_back(operation_type::less_equal);
+            operations.emplace_back(op);
         }
 
         return true;
@@ -5581,25 +5601,28 @@ struct json_writer {
                const parameter& p) noexcept
     {
         writer.StartObject();
-        writer.Key("sim");
-        writer.StartObject();
 
-        const auto  uint_id = p.integers[simulation_wrapper_tag::id];
-        const auto  id      = enum_cast<component_id>(uint_id);
-        const auto& f       = ids.component_file_paths[id];
+        const auto id = enum_cast<component_id>(
+          p.integers[simulation_wrapper_tag::id]);
 
-        write_child_component_path(writer, files, f);
+        if (ids.exists(id)) {
+            writer.Key("sim");
+            writer.StartObject();
+            write_child_component_path(writer, files,
+                                       ids.component_file_paths[id]);
+            writer.EndObject();
+        }
 
-        writer.EndObject();
-
+        const auto run  = p.integers[simulation_wrapper_tag::run];
+        const auto name = 0 <= run and
+                              std::cmp_less(
+                                run,
+                                std::size(simulation_wrapper::run_type_names))
+                            ? simulation_wrapper::run_type_names[run]
+                            : simulation_wrapper::run_type_names[0];
         writer.Key("run-type");
-        writer.String(simulation_wrapper::run_type_names
-                        [p.integers[simulation_wrapper_tag::run]]
-                          .data(),
-                      static_cast<rapidjson::SizeType>(
-                        simulation_wrapper::run_type_names
-                          [p.integers[simulation_wrapper_tag::run]]
-                            .size()));
+        writer.String(name.data(),
+                      static_cast<rapidjson::SizeType>(name.size()));
 
         // If the component and the simulation_component exist, we stores the
         // number of factors and selections to indirectly define the number of
@@ -5629,9 +5652,6 @@ struct json_writer {
     {
         writer.StartObject();
 
-        writer.Key("hsm");
-        writer.StartObject();
-
         const auto id = enum_cast<component_id>(
           p.integers[hsm_wrapper_tag::id]);
 
@@ -5639,6 +5659,8 @@ struct json_writer {
             const auto& c = ids.components[id];
             const auto& f = ids.component_file_paths[id];
 
+            writer.Key("hsm");
+            writer.StartObject();
             write_child_component_path(writer, files, f);
             writer.EndObject();
 
@@ -6329,6 +6351,10 @@ struct json_writer {
         w.Int(ordinal(grid.in_connection_type));
         w.Key("out-connection-type");
         w.Int(ordinal(grid.out_connection_type));
+        w.Key("options");
+        w.String(grid_option_names[ordinal(grid.opts)].data());
+        w.Key("neighbors");
+        w.String(grid_neighborhood_names[ordinal(grid.neighbors)].data());
 
         w.Key("children");
         w.StartArray();
@@ -6498,7 +6524,7 @@ struct json_writer {
 
             const auto child_compo_id = g.g.node_components[con.v];
             if (not ids.exists(child_compo_id))
-                return;
+                continue;
 
             const auto& c = ids.components[child_compo_id];
             if (c.x.exists(con.id)) {
@@ -6521,7 +6547,7 @@ struct json_writer {
 
             const auto child_compo_id = g.g.node_components[con.v];
             if (not ids.exists(child_compo_id))
-                return;
+                continue;
 
             const auto& c = ids.components[child_compo_id];
             if (c.y.exists(con.id)) {
@@ -6839,16 +6865,10 @@ struct json_writer {
                       e = length(
                         sim.objective.epsilon_constrained_params.operations);
                  i != e; ++i) {
-                w.String(
-                  optimization_type_names
-                    [ordinal(
-                       sim.objective.epsilon_constrained_params.operations[i])]
-                      .data(),
-                  static_cast<rapidjson::SizeType>(
-                    optimization_type_names
-                      [ordinal(sim.objective.epsilon_constrained_params
-                                 .operations[i])]
-                        .size()));
+                const auto name = operation_type_names[ordinal(
+                  sim.objective.epsilon_constrained_params.operations[i])];
+                w.String(name.data(),
+                         static_cast<rapidjson::SizeType>(name.size()));
             }
             w.EndArray();
 
@@ -7237,26 +7257,20 @@ struct json_writer {
         w.Key("component-type");
         w.String(component_type_names[ordinal(compo.type)]);
 
-        switch (compo.type) {
-        case component_type::generic:
-        case component_type::grid:
-        case component_type::hsm:
-            w.Key("component-path");
-            w.String(reg.name.c_str(),
-                     static_cast<rapidjson::SizeType>(reg.name.size()));
+        if (compo.type == component_type::none)
+            return;
 
-            w.Key("component-directory");
-            w.String(dir.path.c_str(),
-                     static_cast<rapidjson::SizeType>(dir.path.size()));
+        w.Key("component-path");
+        w.String(reg.name.c_str(),
+                 static_cast<rapidjson::SizeType>(reg.name.size()));
 
-            w.Key("component-file");
-            w.String(file.path.c_str(),
-                     static_cast<rapidjson::SizeType>(file.path.size()));
-            break;
+        w.Key("component-directory");
+        w.String(dir.path.c_str(),
+                 static_cast<rapidjson::SizeType>(dir.path.size()));
 
-        default:
-            break;
-        };
+        w.Key("component-file");
+        w.String(file.path.c_str(),
+                 static_cast<rapidjson::SizeType>(file.path.size()));
     }
 
     template<typename Writer>
