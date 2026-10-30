@@ -82,31 +82,74 @@ struct json_reader {
     /// The read failed because a component it depends on is not read yet.
     bool missing_dependency = false;
 
+    // The messages are kept until the end of the read: a read that waits for
+    // a dependency is retried later and must not fill the log.
+    bool                               has_error = false;
+    small_string<255>                  first_error;
+    small_string<255>                  first_error_context;
+    small_vector<small_string<255>, 8> warnings;
+    int                                dropped_warnings = 0;
+
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        const auto title = format_n<255>(fmt, std::forward<T>(args)...);
-
-        log(log_level::warning, [&](auto& msg) {
-            format(msg, "json warning {}: {}", m_path, title.sv());
-        });
+        if (warnings.can_alloc(1))
+            warnings.emplace_back(format_n<255>(fmt, std::forward<T>(args)...));
+        else
+            ++dropped_warnings;
     }
 
+    /// Only the first error is kept: the next ones are its consequences.
     template<typename... T>
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        const auto title = format_n<255>(fmt, std::forward<T>(args)...);
+        if (not has_error) {
+            has_error   = true;
+            first_error = format_n<255>(fmt, std::forward<T>(args)...);
 
-        log(log_level::error, [&](auto& msg) {
-            format(msg, "json error {}: {}", m_path, title.sv());
-        });
-
-        for (const auto& e : stack) {
-            log(log_level::error,
-                [&](auto& msg) { format(msg, "- {}", e.sv()); });
+            first_error_context.clear();
+            for (const auto& e : stack) {
+                if (not first_error_context.empty())
+                    first_error_context.append(" > ");
+                first_error_context.append(e.sv());
+            }
         }
 
         return false;
+    }
+
+    template<typename... T>
+    bool wait_for(fmt::format_string<T...> fmt, T&&... args) noexcept
+    {
+        missing_dependency = true;
+        return error(fmt, std::forward<T>(args)...);
+    }
+
+    void flush_log(const bool success) noexcept
+    {
+        if (not success and missing_dependency) {
+            log(log_level::debug, [&](auto& msg) {
+                format(msg, "json {}: {}", m_path, first_error.sv());
+            });
+            return;
+        }
+
+        if (not success)
+            log(log_level::error, [&](auto& msg) {
+                format(msg, "json error {}: {} (in {})", m_path,
+                       first_error.sv(), first_error_context.sv());
+            });
+
+        for (const auto& w : warnings)
+            log(log_level::warning, [&](auto& msg) {
+                format(msg, "json warning {}: {}", m_path, w.sv());
+            });
+
+        if (dropped_warnings > 0)
+            log(log_level::warning, [&](auto& msg) {
+                format(msg, "json warning {}: and {} more", m_path,
+                       dropped_warnings);
+            });
     }
 
     project& pj() const noexcept
@@ -1508,11 +1551,9 @@ struct json_reader {
             return error("unknown component in {} / {} / {}", reg, dir, file);
 
         const auto& c = ids.components[compo_id];
-        if (not is_loaded(c.file_status)) {
-            missing_dependency = true;
-            return error("need to read the component in {} / {} / {}", reg, dir,
-                         file);
-        }
+        if (not is_loaded(c.file_status))
+            return wait_for("waiting for the component {}{}{}/{}", reg,
+                            reg.empty() ? "" : ":", dir, file);
 
         c_id = compo_id;
 
@@ -3431,15 +3472,8 @@ struct json_reader {
                 sim.pj = std::move(*pj_opt);
                 return true;
             } else {
-                missing_dependency = true;
-                log(log_level::info, [&](auto& m) {
-                    format(m,
-                           "simulation-component: fail to load project "
-                           "{} with error ({}, {})",
-                           file, ordinal(pj_opt.error().cat()),
-                           pj_opt.error().value());
-                    return false;
-                });
+                return wait_for("waiting for the project {}{}{}/{}", reg,
+                                reg.empty() ? "" : ":", dir, file);
             }
         }
 
@@ -4683,8 +4717,12 @@ struct json_reader {
         auto& compo = ids.components[compo_id];
         compo       = component{};
 
-        if (doc.IsObject() and
-            read_component(doc.GetObject(), files, ids, compo_id)) {
+        const auto read = doc.IsObject() ? read_component(doc.GetObject(),
+                                                          files, ids, compo_id)
+                                         : error("the root is not an object");
+        flush_log(read);
+
+        if (read) {
             compo.file_status = component_file_status::saved;
             return success();
         }
@@ -4703,10 +4741,13 @@ struct json_reader {
         pj().clear();
         pj().sim.clear();
 
-        if (doc.IsObject() and read_project(doc.GetObject(), files, ids))
-            return success();
+        const auto read = doc.IsObject()
+                            ? read_project(doc.GetObject(), files, ids)
+                            : error("the root is not an object");
+        flush_log(read);
 
-        return error_code(modeling_errc::json_invalid_project_format);
+        return read ? success()
+                    : error_code(modeling_errc::json_invalid_project_format);
     }
 };
 
@@ -4727,13 +4768,20 @@ static expected<vector<char>> read_file(file& f) noexcept
     return buffer;
 }
 
-static status parse_json_data(std::span<const char> buffer,
-                              rapidjson::Document&  doc) noexcept
+static status parse_json_data(std::span<const char>  buffer,
+                              rapidjson::Document&   doc,
+                              const std::string_view path) noexcept
 {
     doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
-    if (doc.HasParseError())
+    if (doc.HasParseError()) {
+        log(log_level::error, [&](auto& msg) {
+            format(msg, "json error {}: {} (at offset {})", path,
+                   rapidjson::GetParseError_En(doc.GetParseError()),
+                   doc.GetErrorOffset());
+        });
         return error_code(std::errc::executable_format_error);
+    }
 
     return success();
 }
@@ -7334,7 +7382,7 @@ static status load_component(const file_access&     files,
     debug::ensure(ids.exists(compo_id));
 
     rapidjson::Document doc;
-    if (auto ret = parse_json_data(json, doc); ret.has_error()) {
+    if (auto ret = parse_json_data(json, doc, path); ret.has_error()) {
         ids.components[compo_id]
           .file_status = component_file_status::unreadable;
         return ret.error();
@@ -7350,7 +7398,7 @@ static status load_project(project&                pj,
                            const std::string_view  path) noexcept
 {
     rapidjson::Document doc;
-    if (auto ret = parse_json_data(json, doc); ret.has_error())
+    if (auto ret = parse_json_data(json, doc, path); ret.has_error())
         return ret.error();
 
     return json_reader(pj, path).parse_project(doc, files, ids);

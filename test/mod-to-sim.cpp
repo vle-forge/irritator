@@ -2875,7 +2875,24 @@ int main()
             fs.registred_paths.get(reg_id).path = temp_path.sv();
         });
 
+        auto       journal     = std::make_unique<irt::thread_journal>();
+        const auto old_journal = std::exchange(irt::current_journal,
+                                               journal.get());
         expect(fatal(mod.fill_components().has_value()));
+        irt::current_journal = old_journal;
+
+        // A component waiting for a dependency is not an error: only the
+        // malformed file and the one depending on it are reported.
+        auto errors = 0;
+        for (irt::log_record r; journal->pop(r);) {
+            if (r.level != irt::log_level::error)
+                continue;
+
+            ++errors;
+            expect(r.msg.sv().find("uses-good") == std::string_view::npos)
+              << r.msg.sv();
+        }
+        expect(eq(errors, 2));
 
         mod.files.read([&](const auto& fs, auto) {
             mod.ids.read([&](const auto& ids, auto) {

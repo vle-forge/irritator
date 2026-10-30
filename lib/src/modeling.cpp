@@ -341,6 +341,9 @@ static auto load_component(const file_access& files,
             }
         } else {
             compo.file_status = component_file_status::unreadable;
+            log(log_level::error, [&](auto& m) noexcept {
+                format(m, "modeling: fail to open {}", filename.sv());
+            });
             return f.error();
         }
     } catch (const std::bad_alloc& /*e*/) {
@@ -438,15 +441,8 @@ status modeling::fill_components() noexcept
                         continue;
                     }
 
-                    if (load_component(fs, ids, *f, id).has_value()) {
+                    if (load_component(fs, ids, *f, id).has_value())
                         have_read = true;
-                    } else if (compo.file_status ==
-                               component_file_status::unreadable) {
-                        log(log_level::warning, [&](auto& m) noexcept {
-                            format(m, "modeling: fail to read component `{}'",
-                                   f->sv());
-                        });
-                    }
                 }
             }
 
@@ -454,11 +450,13 @@ status modeling::fill_components() noexcept
                 auto& compo = ids.components[id];
                 if (compo.file_status == component_file_status::pending) {
                     compo.file_status = component_file_status::unreadable;
-                    log(log_level::warning, [&](auto& m) noexcept {
+
+                    const auto f = make_file(fs, ids.component_file_paths[id]);
+                    log(log_level::error, [&](auto& m) noexcept {
                         format(m,
-                               "modeling: component {} depends on an "
-                               "unreadable component",
-                               ordinal(id));
+                               "modeling: {} depends on an unreadable "
+                               "component",
+                               f.has_value() ? f->sv() : compo.name.sv());
                     });
                 }
             }
