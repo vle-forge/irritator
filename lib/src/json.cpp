@@ -146,9 +146,7 @@ struct json_dearchiver::impl {
           : r(r_)
         {
             fatal::ensure(r->stack.can_alloc(1));
-
-            if (r->stack.can_alloc(1))
-                r->stack.emplace_back(id);
+            r->stack.emplace_back(id);
         }
 
         ~auto_stack() noexcept { r->stack.pop_back(); }
@@ -166,7 +164,6 @@ struct json_dearchiver::impl {
 
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
         for (; i != e; ++i) {
-            // debug_logi(stack.ssize(), "for-array: {}/{}\n", i, e);
 
             if (!std::invoke(std::forward<Function>(f), i, array.GetArray()[i],
                              std::forward<Args>(args)...))
@@ -198,14 +195,8 @@ struct json_dearchiver::impl {
             } else {
                 if (not std::invoke(std::forward<Function>(fn),
                                     std::distance(std::begin(names), x),
-                                    it->value)) {
-                    // debug_logi(stack.ssize(),
-                    //            "for-member: element {} return false\n",
-                    //            vector<char>_view{ it->name.GetString(),
-                    //                              it->name.GetStringLength()
-                    //                              });
+                                    it->value))
                     return false;
-                }
             }
 
             ++it;
@@ -224,8 +215,6 @@ struct json_dearchiver::impl {
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
-            // debug_logi(stack.ssize(), "for-member: {}\n",
-            // it->name.GetString());
             if (!std::invoke(std::forward<Function>(f), it->name.GetString(),
                              it->value, std::forward<Args>(args)...))
                 return false;
@@ -398,28 +387,29 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string_sv());
     }
 
-    bool copy_string_to(plot_type_options& type) noexcept
+    template<typename Enum, typename Names>
+    bool copy_name_to(const Names&           names,
+                      Enum&                  out,
+                      const std::string_view what) noexcept
     {
-        for (auto i = 0, e = length(plot_type_option_names); i != e; ++i) {
-            if (string_equal_to(plot_type_option_names[i])) {
-                type = enum_cast<plot_type_options>(i);
+        for (std::size_t i = 0; i < std::size(names); ++i) {
+            if (string_equal_to(names[i])) {
+                out = enum_cast<Enum>(i);
                 return true;
             }
         }
 
-        return error("bad plot type {}", temp_string_sv());
+        return error("bad {} {}", what, temp_string_sv());
+    }
+
+    bool copy_string_to(plot_type_options& type) noexcept
+    {
+        return copy_name_to(plot_type_option_names, type, "plot type");
     }
 
     bool copy_string_to(port_option& type) noexcept
     {
-        for (auto i = 0, e = length(port_option_names); i != e; ++i) {
-            if (string_equal_to(port_option_names[i])) {
-                type = enum_cast<port_option>(i);
-                return true;
-            }
-        }
-
-        return error("bad input port type {}", temp_string_sv());
+        return copy_name_to(port_option_names, type, "port type");
     }
 
     template<std::size_t Length>
@@ -514,9 +504,9 @@ struct json_dearchiver::impl {
     }
 
     template<typename T>
-    bool optional_has_value(const std::optional<T>& v) noexcept
+    bool require(const std::optional<T>& v, std::string_view name) noexcept
     {
-        return v.has_value() or error("missing mandatory element");
+        return v.has_value() or error("missing element {}", name);
     }
 
     bool copy_real_to(std::optional<double>& dst) noexcept
@@ -703,6 +693,14 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    template<typename Tag>
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       Tag,
+                       parameter& /*p*/) noexcept
+    {
+        return true;
+    }
+
     bool read_dynamics(const rapidjson::Value& val,
                        qss_integrator_tag,
                        parameter& p) noexcept
@@ -721,42 +719,6 @@ struct json_dearchiver::impl {
                 return error("unknown element");
             }
         });
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_multiplier_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics qss multiplier");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_sum_2_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics_qss_sum");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_sum_3_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics qss sum");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_sum_4_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics qss sum");
-
-        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -830,24 +792,6 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_inverse_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics invert function");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_integer_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics integer function");
-
-        return true;
-    }
-
     bool read_dynamics(const rapidjson::Value& val,
                        qss_compare_tag,
                        parameter& p) noexcept
@@ -869,51 +813,10 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_sin_tag,
-                       parameter& /*p*/) noexcept
+    bool copy_string_to(counter::observation_type& type) noexcept
     {
-        auto_stack a(this, "dynamics sin function");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_cos_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics sin function");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_log_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics log function");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_exp_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics log function");
-
-        return true;
-    }
-
-    bool copy_string_to(std::optional<counter::observation_type>& type) noexcept
-    {
-        for (sz i = 0; i < std::size(counter::observation_type_names); ++i) {
-            if (string_equal_to(counter::observation_type_names[i])) {
-                type = enum_cast<counter::observation_type>(i);
-                return true;
-            }
-        }
-        return error("bad counter observation type {}", temp_string_sv());
+        return copy_name_to(counter::observation_type_names, type,
+                            "counter observation type");
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -922,13 +825,13 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics counter");
 
-        std::optional<counter::observation_type> type;
+        auto type = counter::observation_type{};
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("observation-type"sv == name)
                   return read_temp_string(value) && copy_string_to(type) &&
-                         copy(ordinal(*type),
+                         copy(ordinal(type),
                               p.integers[counter_tag::i_obs_type]);
 
               return error("unknown element");
@@ -1118,20 +1021,6 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_max_hold_tag,
-                       parameter& /*p*/) noexcept
-    {
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_min_hold_tag,
-                       parameter& /*p*/) noexcept
-    {
-        return true;
-    }
-
     bool read_dynamics(const rapidjson::Value& val,
                        qss_cross_tag,
                        parameter& p) noexcept
@@ -1152,15 +1041,6 @@ struct json_dearchiver::impl {
 
               return true;
           });
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_flipflop_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics qss flipflop");
-
-        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1196,14 +1076,6 @@ struct json_dearchiver::impl {
 
               return error("unknown element");
           });
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       zero_order_hold_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics zero_order_hold");
-        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1272,94 +1144,6 @@ struct json_dearchiver::impl {
 
               return error("unknown element");
           });
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       sqrt_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       atan_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       tan_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       tanh_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       sigmoid_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       division_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       atan2_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       abs_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       sign_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       minimum_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       maximum_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics static_fn_tag");
-        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1476,24 +1260,6 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_square_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics qss square");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       accumulator_2_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics accumulator 2");
-
-        return true;
-    }
-
     bool read_dynamics(const rapidjson::Value& val,
                        time_func_tag,
                        parameter& p) noexcept
@@ -1527,51 +1293,6 @@ struct json_dearchiver::impl {
             type = 2;
         else
             return error("bad time function {}", temp_string_sv());
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_and_2_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics logical and 2");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_or_2_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics logical or 2");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_and_3_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics logical and 3");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_or_3_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics logical or 3");
-
-        return true;
-    }
-
-    bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_invert_tag,
-                       parameter& /*p*/) noexcept
-    {
-        auto_stack a(this, "dynamics logical invert");
 
         return true;
     }
@@ -1815,39 +1536,6 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool try_read_child_hsm_sim_component(const rapidjson::Value& val,
-                                          const file_access&      files,
-                                          const component_access& ids,
-                                          component_id&           c_id) noexcept
-    {
-        auto_stack a(this, "try read child hsm or sim component");
-
-        name_str           reg_name;
-        directory_path_str dir_path;
-        file_path_str      file_path;
-
-        return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("path"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(reg_name);
-
-                     if ("directory"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(dir_path);
-
-                     if ("file"sv == name)
-                         return read_temp_string(value) &&
-                                copy_string_to(file_path);
-
-                     return true;
-                 }) &&
-               try_modeling_copy_component_id(files, ids, reg_name.sv(),
-                                              dir_path.sv(), file_path.sv(),
-                                              c_id);
-    }
-
     bool copy_string_to_simluation_wrapper_type(i64& p) noexcept
     {
         const auto* result = binary_find(
@@ -1895,7 +1583,7 @@ struct json_dearchiver::impl {
 
               case 3: {
                   auto c = undefined<component_id>();
-                  if (try_read_child_hsm_sim_component(value, files, ids, c)) {
+                  if (read_component_path(value, files, ids, c)) {
                       p.integers[simulation_wrapper_tag::id] = static_cast<i64>(
                         c);
                       return true;
@@ -1927,7 +1615,7 @@ struct json_dearchiver::impl {
             switch (idx) {
             case 0: {
                 component_id c;
-                if (try_read_child_hsm_sim_component(value, files, ids, c)) {
+                if (read_component_path(value, files, ids, c)) {
                     p.integers[hsm_wrapper_tag::id] = static_cast<i64>(c);
                     return true;
                 }
@@ -2023,7 +1711,7 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               optional_has_value(id) &&
+               require(id, "id") &&
                cache_model_mapping_add(*id, ordinal(c_id)) &&
                fix_child_name(generic, c);
     }
@@ -2080,12 +1768,12 @@ struct json_dearchiver::impl {
         return read_child_model_dynamics(val, files, ids, compo, gen, c);
     }
 
-    bool read_child_simple_or_grid_component(const rapidjson::Value& val,
-                                             const file_access&      files,
-                                             const component_access& ids,
-                                             component_id& c_id) noexcept
+    bool read_component_path(const rapidjson::Value& val,
+                             const file_access&      files,
+                             const component_access& ids,
+                             component_id&           c_id) noexcept
     {
-        auto_stack a(this, "child simple or grid component");
+        auto_stack a(this, "component path");
 
         name_str           reg_name;
         directory_path_str dir_path;
@@ -2126,16 +1814,10 @@ struct json_dearchiver::impl {
             return true;
 
         case component_type::generic:
-            return read_child_simple_or_grid_component(val, files, ids, c_id);
-
         case component_type::grid:
-            return read_child_simple_or_grid_component(val, files, ids, c_id);
-
         case component_type::graph:
-            return read_child_simple_or_grid_component(val, files, ids, c_id);
-
         case component_type::hsm:
-            return read_child_simple_or_grid_component(val, files, ids, c_id);
+            return read_component_path(val, files, ids, c_id);
 
         case component_type::simulation:
             break;
@@ -2301,7 +1983,7 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               optional_has_value(id_in_file) and
+               require(id_in_file, "id") and
                cache_srcs_mapping_add(*id_in_file, id);
     }
 
@@ -2459,7 +2141,7 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               optional_has_value(id_in_file) and
+               require(id_in_file, "id") and
                cache_srcs_mapping_add(*id_in_file, id);
     }
 
@@ -2498,7 +2180,7 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               optional_has_value(id_in_file) and
+               require(id_in_file, "id") and
                cache_srcs_mapping_add(*id_in_file, id);
     }
 
@@ -2529,7 +2211,7 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                read_random(value, rnd.type, rnd.reals, rnd.ints) &&
-               optional_has_value(id_in_file) &&
+               require(id_in_file, "id") &&
                cache_srcs_mapping_add(*id_in_file, id);
     }
 
@@ -2554,6 +2236,65 @@ struct json_dearchiver::impl {
         return std::nullopt;
     }
 
+    struct distribution_parameter {
+        std::string_view name;
+        bool             is_integer;
+        u8               index;
+    };
+
+    static std::span<const distribution_parameter> distribution_parameters(
+      const distribution_type type) noexcept
+    {
+        using dp = distribution_parameter;
+
+        static constexpr dp a_b[] = { { "a", false, 0 }, { "b", false, 1 } };
+        static constexpr dp int_a_b[] = { { "a", true, 0 }, { "b", true, 1 } };
+        static constexpr dp p[]       = { { "p", false, 0 } };
+        static constexpr dp t_p[]     = { { "t", true, 0 }, { "p", false, 0 } };
+        static constexpr dp n[]       = { { "n", false, 0 } };
+        static constexpr dp m_n[]    = { { "m", false, 0 }, { "n", false, 1 } };
+        static constexpr dp m_s[]    = { { "m", false, 0 }, { "s", false, 1 } };
+        static constexpr dp mean[]   = { { "mean", false, 0 } };
+        static constexpr dp lambda[] = { { "lambda", false, 0 } };
+        static constexpr dp alpha_beta[]  = { { "alpha", false, 0 },
+                                              { "beta", false, 1 } };
+        static constexpr dp mean_stddev[] = { { "mean", false, 0 },
+                                              { "stddev", false, 1 } };
+
+        switch (type) {
+        case distribution_type::bernouilli:
+        case distribution_type::geometric:
+            return p;
+        case distribution_type::binomial:
+        case distribution_type::negative_binomial:
+            return t_p;
+        case distribution_type::cauchy:
+        case distribution_type::exterme_value:
+        case distribution_type::uniform_real:
+        case distribution_type::weibull:
+            return a_b;
+        case distribution_type::chi_squared:
+        case distribution_type::student_t:
+            return n;
+        case distribution_type::exponential:
+            return lambda;
+        case distribution_type::fisher_f:
+            return m_n;
+        case distribution_type::gamma:
+            return alpha_beta;
+        case distribution_type::lognormal:
+            return m_s;
+        case distribution_type::normal:
+            return mean_stddev;
+        case distribution_type::poisson:
+            return mean;
+        case distribution_type::uniform_int:
+            return int_a_b;
+        }
+
+        unreachable();
+    }
+
     bool read_random(const rapidjson::Value& value,
                      distribution_type&      type,
                      std::span<real, 2>      reals,
@@ -2572,167 +2313,19 @@ struct json_dearchiver::impl {
         else
             return error("missing random distribution type");
 
-        switch (type) {
-        case distribution_type::uniform_int:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("a"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(ints[0]);
-                  if ("b"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(ints[1]);
-                  return true;
-              });
+        const auto params = distribution_parameters(type);
 
-        case distribution_type::uniform_real:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
+        return for_each_member(
+          value, [&](const auto name, const auto& member) noexcept -> bool {
+              for (const auto& p : params)
+                  if (p.name == name)
+                      return p.is_integer ? read_temp_i64(member) &&
+                                              copy_i64_to(ints[p.index])
+                                          : read_temp_real(member) &&
+                                              copy_real_to(reals[p.index]);
 
-        case distribution_type::bernouilli:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::binomial:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("t"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(ints[0]);
-                  if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::negative_binomial:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("t"sv == name)
-                      return read_temp_i64(value) && copy_i64_to(ints[0]);
-                  if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::geometric:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("p"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::poisson:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("mean"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::exponential:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("lambda"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::gamma:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("alpha"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("beta"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::weibull:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::exterme_value:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::normal:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("mean"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("stddev"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::lognormal:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("m"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("s"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::chi_squared:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-
-        case distribution_type::cauchy:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("a"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("b"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::fisher_f:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("m"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[1]);
-                  return true;
-              });
-
-        case distribution_type::student_t:
-            return for_each_member(
-              value, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("n"sv == name)
-                      return read_temp_real(value) && copy_real_to(reals[0]);
-                  return true;
-              });
-        }
-
-        return error("unknown distribution type {}", ordinal(type));
+              return true;
+          });
     }
 
     bool modeling_connect(generic_component&     compo,
@@ -2950,13 +2543,14 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               optional_has_value(src_id) &&
+               require(src_id, "source") &&
                get_y_port(ids, gen, *src_id, src_str_port, src_int_port,
                           src_port) &&
-               optional_has_value(dst_id) &&
+               require(dst_id, "destination") &&
                get_x_port(ids, gen, *dst_id, dst_str_port, dst_int_port,
                           dst_port) &&
-               optional_has_value(src_port) && optional_has_value(dst_port) &&
+               require(src_port, "port-source") &&
+               require(dst_port, "port-destination") &&
                gen.connections.can_alloc() &&
                modeling_connect(gen, *src_id, *src_port, *dst_id, *dst_port);
     }
@@ -2998,8 +2592,8 @@ struct json_dearchiver::impl {
                get_y_port(compo, str_port, port) &&
                get_y_port(ids, gen, src_id, src_str_port, src_int_port,
                           src_port) &&
-               gen.connections.can_alloc() && optional_has_value(src_port) &&
-               optional_has_value(port) &&
+               gen.connections.can_alloc() &&
+               require(src_port, "port-source") && require(port, "port") &&
                modeling_connect_output(gen, src_id, *src_port, *port);
     }
 
@@ -3041,8 +2635,8 @@ struct json_dearchiver::impl {
                get_x_port(compo, str_port, port) &&
                get_x_port(ids, gen, dst_id, dst_str_port, dst_int_port,
                           dst_port) &&
-               gen.connections.can_alloc() && optional_has_value(dst_port) &&
-               optional_has_value(port) &&
+               gen.connections.can_alloc() &&
+               require(dst_port, "port-destination") && require(port, "port") &&
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
@@ -3057,7 +2651,7 @@ struct json_dearchiver::impl {
         auto port       = undefined<port_id>();
         auto child_port = undefined<port_id>();
 
-        if (not read_child_simple_or_grid_component(val, files, ids, child))
+        if (not read_component_path(val, files, ids, child))
             return false;
 
         if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
@@ -3093,7 +2687,7 @@ struct json_dearchiver::impl {
         auto port       = undefined<port_id>();
         auto child_port = undefined<port_id>();
 
-        if (not read_child_simple_or_grid_component(val, files, ids, child))
+        if (not read_component_path(val, files, ids, child))
             return false;
 
         if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
@@ -4025,41 +3619,20 @@ struct json_dearchiver::impl {
 
     bool copy_string_to_sim_objective_method(simulation_component& sim) noexcept
     {
-        for (auto i = 0, e = length(optimization_method_names); i != e; ++i) {
-            if (string_equal_to(optimization_method_names[i])) {
-                sim.objective.method = enum_cast<optimization_method>(i);
-                return true;
-            }
-        }
-
-        return error("bad simulation component objective method: {}",
-                     temp_string_sv());
+        return copy_name_to(optimization_method_names, sim.objective.method,
+                            "simulation component objective method");
     }
 
     bool copy_string_to_optimization_type(optimization_type& type) noexcept
     {
-        for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
-            if (string_equal_to(optimization_type_names[i])) {
-                type = enum_cast<optimization_type>(i);
-                return true;
-            }
-        }
-
-        return error("bad simulation component objective type: {}",
-                     temp_string_sv());
+        return copy_name_to(optimization_type_names, type,
+                            "simulation component objective type");
     }
 
     bool copy_string_to_norm_type(norm_type& type) noexcept
     {
-        for (auto i = 0, e = length(norm_type_names); i != e; ++i) {
-            if (string_equal_to(norm_type_names[i])) {
-                type = enum_cast<norm_type>(i);
-                return true;
-            }
-        }
-
-        return error("bad simulation component objective type: {}",
-                     temp_string_sv());
+        return copy_name_to(norm_type_names, type,
+                            "simulation component objective norm");
     }
 
     bool copy_array_to(vector<optimization_type>&          types,
@@ -4416,11 +3989,11 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string_sv());
     }
 
-    bool read_input_port(const rapidjson::Value& val,
-                         component::port_type&   port,
-                         port_id                 id) noexcept
+    bool read_port(const rapidjson::Value& val,
+                   component::port_type&   port,
+                   port_id                 id) noexcept
     {
-        auto_stack s(this, "component input port");
+        auto_stack s(this, "component port");
 
         static constexpr std::string_view n[] = { "name", "type", "x", "y" };
 
@@ -4448,69 +4021,21 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool ports_can_alloc(component::port_type&   port,
-                         const rapidjson::Value& val) noexcept
+    bool read_ports(const rapidjson::Value& val,
+                    component::port_type&   port) noexcept
     {
-        return port.can_alloc(val.GetArray().Size()) or
-               error("can not allocate {} ports", val.GetArray().Size());
-    }
+        auto_stack s(this, "component ports");
 
-    bool read_input_ports(const rapidjson::Value& val,
-                          component::port_type&   port) noexcept
-    {
-        auto_stack s(this, "component input ports");
+        if (not is_value_array(val))
+            return false;
 
-        return is_value_array(val) && ports_can_alloc(port, val) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_input_port(value, port, port.alloc_id());
-                 });
-    }
+        if (not port.can_alloc(val.GetArray().Size()))
+            return error("can not allocate {} ports", val.GetArray().Size());
 
-    bool read_output_port(const rapidjson::Value& val,
-                          component::port_type&   port,
-                          port_id                 id) noexcept
-    {
-        auto_stack s(this, "component output port");
-
-        static constexpr std::string_view n[] = { "name", "type", "x", "y" };
-
-        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
-            switch (idx) {
-            case 0:
-                return read_temp_string(value) &&
-                       copy_string_to(port.get<port_str>(id));
-
-            case 1:
-                return read_temp_string(value) &&
-                       copy_string_to(port.get<port_option>(id));
-
-            case 2:
-                return read_temp_real(value) &&
-                       copy_real_to(port.get<position>(id).x);
-
-            case 3:
-                return read_temp_real(value) &&
-                       copy_real_to(port.get<position>(id).y);
-
-            default:
-                return error("unknown element");
-            }
-        });
-    }
-
-    bool read_output_ports(const rapidjson::Value& val,
-                           component::port_type&   port) noexcept
-    {
-        auto_stack s(this, "component output ports");
-
-        return is_value_array(val) && ports_can_alloc(port, val) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_output_port(value, port, port.alloc_id());
-                 });
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              return read_port(value, port, port.alloc_id());
+          });
     }
 
     bool read_component_colors(const rapidjson::Value& val,
@@ -4541,9 +4066,9 @@ struct json_dearchiver::impl {
               if ("sources"sv == name)
                   return read_sources(value, files, ids, compo_id);
               if ("x"sv == name)
-                  return read_input_ports(value, compo.x);
+                  return read_ports(value, compo.x);
               if ("y"sv == name)
-                  return read_output_ports(value, compo.y);
+                  return read_ports(value, compo.y);
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
@@ -4715,10 +4240,9 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) and
-               optional_has_value(name_opt) and
-               optional_has_value(tn_id_opt) and
-               optional_has_value(mdl_id_opt) and
-               optional_has_value(parameter_opt) and
+               require(name_opt, "name") and require(tn_id_opt, "access") and
+               require(mdl_id_opt, "access") and
+               require(parameter_opt, "parameter") and
                global_parameter_init(*tn_id_opt, *mdl_id_opt, name_opt->sv(),
                                      *parameter_opt);
     }
@@ -4889,7 +4413,7 @@ struct json_dearchiver::impl {
 
                      return error("unknown element {}", name);
                  }) &&
-               optional_has_value(parent_id) and optional_has_value(mdl_id) and
+               require(parent_id, "access") and require(mdl_id, "access") and
                plot_observation_init(plot, *parent_id, *mdl_id, c, t, str.sv());
     }
 
@@ -5020,9 +4544,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) and
-               optional_has_value(parent_id) and
-               optional_has_value(graph_tn_id) and
-               optional_has_value(mdl_id) and
+               require(parent_id, "graph") and
+               require(graph_tn_id, "access") and require(mdl_id, "access") and
                graph_observation_init(graph, *parent_id, *graph_tn_id, *mdl_id);
     }
 
@@ -5094,8 +4617,8 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) and
-               optional_has_value(parent_id) and
-               optional_has_value(grid_tn_id) and optional_has_value(mdl_id) and
+               require(parent_id, "grid") and require(grid_tn_id, "access") and
+               require(mdl_id, "access") and
                grid_observation_init(grid, *parent_id, *grid_tn_id, *mdl_id);
     }
 
