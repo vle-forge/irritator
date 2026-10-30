@@ -1457,7 +1457,6 @@ static bool is_link_created(const component_access& ids,
                   port_id, *child, connection::port{ .model = port_in });
                 !ret)
                 debug_log("fail to create link");
-            parent.state = component_status::modified;
             return true;
         } else {
             if (not ids.exists(child->id.compo_id))
@@ -1474,7 +1473,6 @@ static bool is_link_created(const component_access& ids,
                   port_id, *child, connection::port{ .compo = port_dst_id });
                 !ret)
                 debug_log("fail to create link\n");
-            parent.state = component_status::modified;
             return true;
         }
     } else {
@@ -1494,7 +1492,6 @@ static bool is_link_created(const component_access& ids,
                       port_id, *ch_src, connection::port{ .model = port_out });
                     !ret)
                     debug_log("fail to create link\n");
-                parent.state = component_status::modified;
                 return true;
             } else {
                 if (not ids.exists(ch_src->id.compo_id))
@@ -1510,7 +1507,6 @@ static bool is_link_created(const component_access& ids,
                       port_id, *ch_src, connection::port{ .compo = port_id });
                     !ret)
                     debug_log("fail to create link\n");
-                parent.state = component_status::modified;
                 return true;
             }
         } else {
@@ -1529,7 +1525,6 @@ static bool is_link_created(const component_access& ids,
                           *ch_dst, connection::port{ .model = port_in });
                         !ret)
                         debug_log("fail to create link\n");
-                    parent.state = component_status::modified;
                     return true;
                 } else {
                     if (not ids.exists(ch_dst->id.compo_id))
@@ -1546,7 +1541,6 @@ static bool is_link_created(const component_access& ids,
                           *ch_dst, connection::port{ .compo = port_dst_id });
                         !ret)
                         debug_log("fail to create link\n");
-                    parent.state = component_status::modified;
                     return true;
                 }
             } else {
@@ -1568,7 +1562,6 @@ static bool is_link_created(const component_access& ids,
                           *ch_dst, connection::port{ .model = port_in });
                         !ret)
                         debug_log("fail to create link\n");
-                    parent.state = component_status::modified;
                     return true;
                 } else {
                     if (not ids.exists(ch_dst->id.compo_id))
@@ -1586,7 +1579,6 @@ static bool is_link_created(const component_access& ids,
                           *ch_dst, connection::port{ .compo = port_in });
                         !ret)
                         debug_log("fail to create link\n");
-                    parent.state = component_status::modified;
                     return true;
                 }
             }

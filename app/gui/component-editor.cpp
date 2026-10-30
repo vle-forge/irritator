@@ -2254,10 +2254,11 @@ static auto display_component_editor(component_editor&      ed,
                         return;
 
                     if (action[component_editor_result_type::do_save_file]) {
-                        ids.components[tab->id]             = tab->compo;
+                        auto& compo       = ids.components[tab->id];
+                        compo             = tab->compo;
+                        compo.file_status = component_file_status::modified;
                         ids.component_file_paths[tab->id]   = tab->file;
                         ids.component_descriptions[tab->id] = tab->desc;
-                        ids.components[tab->id]             = tab->compo;
 
                         app.mod.files.read([&](const auto& fs, auto) noexcept {
                             if (auto ret = app.mod.save(ids, fs, tab->id);
@@ -2271,6 +2272,8 @@ static auto display_component_editor(component_editor&      ed,
                                            ret.error().value());
                                 });
                             } else {
+                                compo
+                                  .file_status = component_file_status::saved;
                                 log(log_level::notice, [&](auto& msg) {
                                     format(msg, "component: save {} success",
                                            tab->compo.name.sv());
@@ -2297,6 +2300,15 @@ static auto display_component_editor(component_editor&      ed,
                                  do_store_external_source]) {
                         ids.components[tab->id] = tab->compo;
                     }
+
+                    if (action
+                          [component_editor_result_type::do_store_component] or
+                        action
+                          [component_editor_result_type::do_store_file_path] or
+                        action[component_editor_result_type::
+                                 do_store_external_source])
+                        ids.components[tab->id]
+                          .file_status = component_file_status::modified;
                 });
             });
 

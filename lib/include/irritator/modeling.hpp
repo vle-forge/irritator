@@ -112,13 +112,20 @@ enum class component_type : u8 {
 
 constexpr int component_type_count = ordinal(component_type::simulation) + 1;
 
-enum class component_status : u8 {
-    unread,     ///< The component is not read (It is referenced by another
-                ///< component).
-    modified,   ///< The component is not saved.
-    unmodified, ///< or you show an internal component.
-    unreadable  ///< When an error occurred during load-component.
+/// Synchronization between a component in memory and its file.
+enum class component_file_status : u8 {
+    pending,    ///< Not read yet, or waiting for the components it depends on.
+    unreadable, ///< The file can not be opened or its content is invalid.
+    saved,      ///< Same content as its file.
+    modified,   ///< Changed since the last read or save, or not saved yet.
 };
+
+/// The component is read: its ports and content can be used.
+constexpr bool is_loaded(const component_file_status s) noexcept
+{
+    return s == component_file_status::saved or
+           s == component_file_status::modified;
+}
 
 enum class modeling_status : u8 { modified, unmodified };
 
@@ -908,7 +915,7 @@ struct component {
     } id = {};
 
     component_type   type  = component_type::none;
-    component_status state = component_status::unread;
+    component_file_status file_status = component_file_status::pending;
 
     /**< Each component stores potential external source. */
     external_source_definition srcs;

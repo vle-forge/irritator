@@ -16,6 +16,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <numeric>
 
 #include <boost/ut.hpp>
@@ -2838,10 +2839,64 @@ int main()
             expect(eq(ids.ssize(), 4));
 
             for (const auto id : ids)
-                expect(ids.components[id].state ==
-                       irt::component_status::unmodified)
+                expect(ids.components[id].file_status ==
+                       irt::component_file_status::saved)
                   << ids.components[id].name.sv();
         });
+    };
+
+    "modeling: the file status after reading the components"_test = [] {
+        auto callback = std::exchange(irt::on_error_callback, nullptr);
+
+        const auto temp_path = irt::temp_path_with_unlink{ "file-status"sv };
+        const auto dir       = std::filesystem::path(temp_path.sv()) / "lib";
+        std::filesystem::create_directories(dir);
+
+        const auto write = [&](const char* name, std::string_view json) {
+            std::ofstream(dir / name) << json;
+        };
+
+        const auto child_of = [](std::string_view file) {
+            return fmt::format(R"({{"name": "p", "type": "simple",
+                "children": [{{"id": 0, "type": "component",
+                "component-type": "simple", "directory": "lib",
+                "file": "{}"}}]}})",
+                               file);
+        };
+
+        write("good.irt", R"({"name": "good", "type": "simple"})");
+        write("bad.irt", R"({"name": "bad", "type": )");
+        write("uses-good.irt", child_of("good.irt"));
+        write("uses-bad.irt", child_of("bad.irt"));
+
+        irt::modeling mod;
+        mod.files.write([&](auto& fs) {
+            const auto reg_id                   = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg_id).path = temp_path.sv();
+        });
+
+        expect(fatal(mod.fill_components().has_value()));
+
+        mod.files.read([&](const auto& fs, auto) {
+            mod.ids.read([&](const auto& ids, auto) {
+                expect(eq(ids.ssize(), 4));
+
+                for (const auto id : ids) {
+                    const auto* f = fs.file_paths.try_to_get(
+                      ids.component_file_paths[id].file);
+                    expect(fatal(f != nullptr));
+
+                    const auto readable = f->path.sv() == "good.irt" or
+                                          f->path.sv() == "uses-good.irt";
+                    expect(ids.components[id].file_status ==
+                           (readable ? irt::component_file_status::saved
+                                     : irt::component_file_status::unreadable))
+                      << f->path.sv();
+                }
+            });
+        });
+
+        irt::on_error_callback = callback;
     };
 
     "json: the malformed files are refused"_test = [] {

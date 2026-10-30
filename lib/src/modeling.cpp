@@ -27,7 +27,7 @@ component::component(const component& other) noexcept
   , name{ other.name }
   , id{ other.id }
   , type{ other.type }
-  , state{ other.state }
+  , file_status{ other.file_status }
   , srcs{ other.srcs }
 {}
 
@@ -41,7 +41,7 @@ component::component(component&& other) noexcept
   , name{ other.name }
   , id{ other.id }
   , type{ other.type }
-  , state{ other.state }
+  , file_status{ other.file_status }
   , srcs{ std::exchange(other.srcs, external_source_definition{}) }
 {}
 
@@ -55,7 +55,7 @@ component& component::operator=(const component& other) noexcept
         name                   = other.name;
         id                     = other.id;
         type                   = other.type;
-        state                  = other.state;
+        file_status            = other.file_status;
         srcs                   = other.srcs;
     }
 
@@ -74,7 +74,7 @@ component& component::operator=(component&& other) noexcept
         name                   = other.name;
         id                     = other.id;
         type                   = other.type;
-        state                  = other.state;
+        file_status            = other.file_status;
         srcs = std::exchange(other.srcs, external_source_definition{});
     }
 
@@ -327,8 +327,6 @@ static auto load_component(const file_access& files,
                 return error_code(modeling_errc::component_load_error);
             }
 
-            compo.state = component_status::unmodified;
-
             auto desc_filename = filename;
             desc_filename.replace_extension(file_type::txt_file);
 
@@ -342,14 +340,14 @@ static auto load_component(const file_access& files,
                 desc.resize(fileview.size());
             }
         } else {
-            compo.state = component_status::unreadable;
+            compo.file_status = component_file_status::unreadable;
             return f.error();
         }
     } catch (const std::bad_alloc& /*e*/) {
-        compo.state = component_status::unreadable;
+        compo.file_status = component_file_status::unreadable;
         return make_error(modeling_errc::memory_error);
     } catch (...) {
-        compo.state = component_status::unreadable;
+        compo.file_status = component_file_status::unreadable;
         return make_error(modeling_errc::memory_error);
     }
 
@@ -388,6 +386,8 @@ status modeling::fill_components() noexcept
 
                       const auto compo_id = ids.alloc_component();
                       ids.component_file_paths[compo_id].file = f_id;
+                      ids.components[compo_id]
+                        .file_status = component_file_status::pending;
                   }
               }
 
@@ -422,60 +422,45 @@ status modeling::fill_components() noexcept
             return file_read_status.error();
 
         return files.read([&](const auto& fs, auto) noexcept -> status {
-            auto have_unread_component = ids.ssize() > 0;
+            // A component is read once all the components it depends on are
+            // read: loop until a pass reads nothing new.
+            for (auto have_read = true; have_read;) {
+                have_read = false;
 
-            while (have_unread_component) {
-                auto component_read   = 0;
-                have_unread_component = false;
-
-                for (auto id : ids) {
+                for (const auto id : ids) {
                     auto& compo = ids.components[id];
-                    if (compo.state == component_status::unmodified)
+                    if (compo.file_status != component_file_status::pending)
                         continue;
 
-                    auto& filepath = ids.component_file_paths[id];
-                    if (const auto f = make_file(fs, filepath); f.has_value()) {
-                        if (const auto ret = load_component(fs, ids, *f, id);
-                            ret.has_error()) {
-                            switch (compo.state) {
-                            case component_status::unread:
-                                log(log_level::warning, [&](auto& m) noexcept {
-                                    format(
-                                      m,
-                                      "modeling: need to read dependency for "
-                                      "component {} ({})",
-                                      compo.name.sv(), ordinal(id));
-                                });
-                                have_unread_component = true;
-                                break;
+                    const auto f = make_file(fs, ids.component_file_paths[id]);
+                    if (not f.has_value()) {
+                        compo.file_status = component_file_status::unreadable;
+                        continue;
+                    }
 
-                            case component_status::modified:
-                                have_unread_component = true;
-                                break;
-
-                            case component_status::unmodified:
-                                have_unread_component = true;
-                                break;
-
-                            case component_status::unreadable:
-                                log(log_level::warning, [&](auto& m) noexcept {
-                                    format(
-                                      m,
-                                      "modeling: fail to read component `{}'",
-                                      compo.name.sv());
-                                });
-                                break;
-                            }
-                        } else {
-                            ++component_read;
-                        }
-                    } else {
-                        have_unread_component = true;
+                    if (load_component(fs, ids, *f, id).has_value()) {
+                        have_read = true;
+                    } else if (compo.file_status ==
+                               component_file_status::unreadable) {
+                        log(log_level::warning, [&](auto& m) noexcept {
+                            format(m, "modeling: fail to read component `{}'",
+                                   f->sv());
+                        });
                     }
                 }
+            }
 
-                if (component_read == 0)
-                    return success();
+            for (const auto id : ids) {
+                auto& compo = ids.components[id];
+                if (compo.file_status == component_file_status::pending) {
+                    compo.file_status = component_file_status::unreadable;
+                    log(log_level::warning, [&](auto& m) noexcept {
+                        format(m,
+                               "modeling: component {} depends on an "
+                               "unreadable component",
+                               ordinal(id));
+                    });
+                }
             }
 
             return success();
@@ -862,8 +847,8 @@ expected<component_id> component_access::copy(
         dst.y.get<position>(new_id)    = pos;
     });
 
-    dst.name  = src.name;
-    dst.state = src.state;
+    dst.name        = src.name;
+    dst.file_status = component_file_status::modified;
 
     return dst_id;
 }
@@ -920,7 +905,7 @@ component_id component_access::alloc_component() noexcept
     auto& new_compo = components[new_compo_id];
     format(new_compo.name, "component-{}", get_index(new_compo_id));
     new_compo.type  = component_type::none;
-    new_compo.state = component_status::modified;
+    new_compo.file_status = component_file_status::modified;
     new_compo.x.clear();
     new_compo.y.clear();
 
@@ -1125,7 +1110,7 @@ void component_access::clear(const component_id compo_id) noexcept
     }
 
     compo.type  = component_type::none;
-    compo.state = component_status::modified;
+    compo.file_status = component_file_status::modified;
 }
 
 void component_access::free(const component_id compo_id) noexcept

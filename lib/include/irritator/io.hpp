@@ -15,13 +15,6 @@
 
 namespace irt {
 
-static inline constexpr const std::string_view component_status_string[] = {
-    "unread",
-    "modified",
-    "unmodified",
-    "unreadable"
-};
-
 static constexpr inline const char* component_type_names[] = {
     "none", "simple", "grid", "graph", "hsm", "simulation"
 };

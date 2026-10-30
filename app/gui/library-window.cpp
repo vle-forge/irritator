@@ -189,7 +189,7 @@ void library_window::show_file_component(const file_access&      fs,
     auto&       app      = container_of(this, &application::library_wnd);
     const bool  selected = app.component_ed.is_component_open(id);
     const auto& compo    = ids.components[id];
-    const auto  state    = compo.state;
+    const auto  status   = compo.file_status;
 
     ImGui::PushID(ordinal(id));
 
@@ -203,6 +203,8 @@ void library_window::show_file_component(const file_access&      fs,
                 app.mod.ids.write([&](auto& ids) noexcept {
                     if (ids.exists(id)) {
                         ids.component_colors[id] = im;
+                        ids.components[id]
+                          .file_status = component_file_status::modified;
                     }
                 });
             });
@@ -219,7 +221,7 @@ void library_window::show_file_component(const file_access&      fs,
         return;
 
     const auto name    = format_n<63>("{} ({})", c.name.sv(), f->path.sv());
-    const auto disable = state == component_status::unreadable;
+    const auto disable = not is_loaded(status);
     const auto flags   = disable ? ImGuiSelectableFlags_Disabled
                                  : ImGuiSelectableFlags_AllowDoubleClick;
 
@@ -236,22 +238,20 @@ void library_window::show_file_component(const file_access&      fs,
     ImGui::PushStyleColor(ImGuiCol_Text,
                           ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
 
-    switch (state) {
-    case component_status::unread:
+    switch (status) {
+    case component_file_status::pending:
         ImGui::SameLine();
-        ImGui::TextUnformatted(" (unread)");
+        ImGui::TextUnformatted(" (waiting)");
         break;
-    case component_status::modified:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (not-saved)");
-        break;
-    case component_status::unmodified:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (modified)");
-        break;
-    case component_status::unreadable:
+    case component_file_status::unreadable:
         ImGui::SameLine();
         ImGui::TextUnformatted(" (unreadable)");
+        break;
+    case component_file_status::saved:
+        break;
+    case component_file_status::modified:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (modified)");
         break;
     }
 

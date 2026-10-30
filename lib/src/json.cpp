@@ -79,6 +79,9 @@ struct json_reader {
 
     small_vector<small_string<255>, 16> stack;
 
+    /// The read failed because a component it depends on is not read yet.
+    bool missing_dependency = false;
+
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
@@ -1505,7 +1508,8 @@ struct json_reader {
             return error("unknown component in {} / {} / {}", reg, dir, file);
 
         const auto& c = ids.components[compo_id];
-        if (c.state != component_status::unmodified) {
+        if (not is_loaded(c.file_status)) {
+            missing_dependency = true;
             return error("need to read the component in {} / {} / {}", reg, dir,
                          file);
         }
@@ -3427,6 +3431,7 @@ struct json_reader {
                 sim.pj = std::move(*pj_opt);
                 return true;
             } else {
+                missing_dependency = true;
                 log(log_level::info, [&](auto& m) {
                     format(m,
                            "simulation-component: fail to load project "
@@ -4680,12 +4685,14 @@ struct json_reader {
 
         if (doc.IsObject() and
             read_component(doc.GetObject(), files, ids, compo_id)) {
-            compo.state = component_status::unmodified;
+            compo.file_status = component_file_status::saved;
             return success();
         }
 
         ids.clear(compo_id);
-        compo.state = component_status::unread;
+        compo.file_status = missing_dependency
+                              ? component_file_status::pending
+                              : component_file_status::unreadable;
         return error_code(modeling_errc::json_invalid_component_format);
     }
 
@@ -7328,7 +7335,8 @@ static status load_component(const file_access&     files,
 
     rapidjson::Document doc;
     if (auto ret = parse_json_data(json, doc); ret.has_error()) {
-        ids.components[compo_id].state = component_status::unreadable;
+        ids.components[compo_id]
+          .file_status = component_file_status::unreadable;
         return ret.error();
     }
 
