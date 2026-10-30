@@ -46,11 +46,11 @@ enum class connection_type : u8 {
     output_pack
 };
 
-struct json_dearchiver::impl {
-    json_dearchiver& self;
+struct json_reader {
+    project* m_pj = nullptr;
 
-    simulation* m_sim = nullptr;
-    project*    m_pj  = nullptr;
+    table<u64, u64>                            model_mapping;
+    table<u64, external_source_definition::id> srcs_mapping;
 
     std::string_view m_path;
 
@@ -71,9 +71,6 @@ struct json_dearchiver::impl {
     }
 
     small_vector<small_string<255>, 16> stack;
-
-    bool has_error                       = false;
-    bool has_missing_dependent_component = false;
 
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
@@ -99,15 +96,7 @@ struct json_dearchiver::impl {
                 [&](auto& msg) { format(msg, "- {}", e.sv()); });
         }
 
-        has_error = true;
-
         return false;
-    }
-
-    simulation& sim() const noexcept
-    {
-        debug::ensure(m_sim);
-        return *m_sim;
     }
 
     project& pj() const noexcept
@@ -116,33 +105,17 @@ struct json_dearchiver::impl {
         return *m_pj;
     }
 
-    impl(json_dearchiver& self_,
-         std::string_view path = std::string_view{}) noexcept
-      : self(self_)
-      , m_path(path)
+    explicit json_reader(const std::string_view path) noexcept
+      : m_path(path)
     {}
 
-    impl(json_dearchiver& self_,
-         simulation&      sim_,
-         std::string_view path = std::string_view{}) noexcept
-      : self(self_)
-      , m_sim(&sim_)
-      , m_path(path)
-    {}
-
-    impl(json_dearchiver& self_,
-         simulation&      sim_,
-         project&         pj_,
-         std::string_view path = std::string_view{}) noexcept
-      : self(self_)
-      , m_sim(&sim_)
-      , m_pj(&pj_)
+    json_reader(project& pj, const std::string_view path) noexcept
+      : m_pj(&pj)
       , m_path(path)
     {}
 
     struct auto_stack {
-        auto_stack(json_dearchiver::impl* r_,
-                   const std::string_view id) noexcept
+        auto_stack(json_reader* r_, const std::string_view id) noexcept
           : r(r_)
         {
             fatal::ensure(r->stack.can_alloc(1));
@@ -151,7 +124,7 @@ struct json_dearchiver::impl {
 
         ~auto_stack() noexcept { r->stack.pop_back(); }
 
-        json_dearchiver::impl* r = nullptr;
+        json_reader* r = nullptr;
     };
 
     template<typename Function, typename... Args>
@@ -1526,7 +1499,6 @@ struct json_dearchiver::impl {
 
         const auto& c = ids.components[compo_id];
         if (c.state != component_status::unmodified) {
-            has_missing_dependent_component = true;
             return error("need to read the component in {} / {} / {}", reg, dir,
                          file);
         }
@@ -1904,7 +1876,7 @@ struct json_dearchiver::impl {
 
     bool cache_model_mapping_sort() noexcept
     {
-        self.model_mapping.sort();
+        model_mapping.sort();
 
         return true;
     }
@@ -2075,7 +2047,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "cache srcs mapping add");
 
-        if (const auto* ptr = self.srcs_mapping.get(id_in_file)) {
+        if (const auto* ptr = srcs_mapping.get(id_in_file)) {
             if (*ptr != id)
                 return error("multiple external sources with identifier {}",
                              id_in_file);
@@ -2083,11 +2055,11 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        if (not(self.srcs_mapping.data.can_alloc(1) or
-                self.srcs_mapping.data.grow<2, 1>()))
+        if (not(srcs_mapping.data.can_alloc(1) or
+                srcs_mapping.data.grow<2, 1>()))
             return error("Failed to allocate more external sources");
 
-        self.srcs_mapping.set(id_in_file, id);
+        srcs_mapping.set(id_in_file, id);
         return true;
     }
 
@@ -2096,7 +2068,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "cache srcs mapping get");
 
-        if (const auto* ptr = self.srcs_mapping.get(id_in_file)) {
+        if (const auto* ptr = srcs_mapping.get(id_in_file)) {
             id = *ptr;
         } else {
             warning("unknown source (id: {})", id_in_file);
@@ -2374,7 +2346,7 @@ struct json_dearchiver::impl {
 
     bool cache_model_mapping_to(child_id& dst) noexcept
     {
-        if (auto* elem = self.model_mapping.get(temp_u64); elem) {
+        if (auto* elem = model_mapping.get(temp_u64); elem) {
             dst = enum_cast<child_id>(*elem);
             return true;
         }
@@ -2384,7 +2356,7 @@ struct json_dearchiver::impl {
 
     bool cache_model_mapping_to(std::optional<child_id>& dst) noexcept
     {
-        if (auto* elem = self.model_mapping.get(temp_u64); elem) {
+        if (auto* elem = model_mapping.get(temp_u64); elem) {
             dst = enum_cast<child_id>(*elem);
             return true;
         }
@@ -3438,7 +3410,6 @@ struct json_dearchiver::impl {
                 sim.pj = std::move(*pj_opt);
                 return true;
             } else {
-                has_missing_dependent_component = true;
                 log(log_level::info, [&](auto& m) {
                     format(m,
                            "simulation-component: fail to load project "
@@ -4081,9 +4052,9 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool cache_model_mapping_add(u64 id_in_file, u64 id) const noexcept
+    bool cache_model_mapping_add(u64 id_in_file, u64 id) noexcept
     {
-        self.model_mapping.data.emplace_back(id_in_file, id);
+        model_mapping.data.emplace_back(id_in_file, id);
         return true;
     }
 
@@ -4679,10 +4650,10 @@ struct json_dearchiver::impl {
     status parse_component(const rapidjson::Document& doc,
                            const file_access&         files,
                            component_access&          ids,
-                           component_id               compo_id,
-                           component&                 compo) noexcept
+                           component_id               compo_id) noexcept
     {
-        compo = component{};
+        auto& compo = ids.components[compo_id];
+        compo       = component{};
 
         if (not doc.IsObject()) {
             compo.state = component_status::unread;
@@ -4703,7 +4674,7 @@ struct json_dearchiver::impl {
                          const component_access&    ids) noexcept
     {
         pj().clear();
-        sim().clear();
+        pj().sim.clear();
 
         if (doc.IsObject() and read_project(doc.GetObject(), files, ids))
             return success();
@@ -4712,7 +4683,7 @@ struct json_dearchiver::impl {
     }
 };
 
-static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
+static expected<vector<char>> read_file(file& f) noexcept
 {
     debug::ensure(f.is_open());
     debug::ensure(f.get_mode()[file_open_options::read] or
@@ -4722,16 +4693,15 @@ static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
                              f.get_mode()[file_open_options::extended])))
         return error_code(std::errc::invalid_argument);
 
-    if (auto vec = f.read_entire_file(); vec.empty())
+    auto buffer = f.read_entire_file();
+    if (buffer.empty())
         return error_code(std::errc::io_error);
-    else
-        buffer = std::move(vec);
 
-    return success();
+    return buffer;
 }
 
-static status parse_json_data(std::span<char>      buffer,
-                              rapidjson::Document& doc) noexcept
+static status parse_json_data(std::span<const char> buffer,
+                              rapidjson::Document&  doc) noexcept
 {
     doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
@@ -4744,13 +4714,7 @@ static status parse_json_data(std::span<char>      buffer,
 //
 //
 
-struct json_archiver::impl {
-    json_archiver& self;
-
-    impl(json_archiver& self_) noexcept
-      : self{ self_ }
-    {}
-
+struct json_writer {
     template<typename Writer>
     void write(Writer& writer,
                const file_access& /*files*/,
@@ -7076,7 +7040,7 @@ struct json_archiver::impl {
     constexpr static std::array<float, 4> color_white{ 1.f, 1.f, 1.f, 0.f };
 
     template<typename Writer>
-    void do_project_save_parameters(Writer& w, project& pj) noexcept
+    void do_project_save_parameters(Writer& w, const project& pj) noexcept
     {
         w.Key("parameters");
 
@@ -7086,7 +7050,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_variable_observation(Writer& w, project& pj) noexcept
+    void do_project_save_variable_observation(Writer&        w,
+                                              const project& pj) noexcept
     {
         if (pj.variable_observers.empty())
             return;
@@ -7138,7 +7103,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_grid_observations(Writer& w, project& pj) noexcept
+    void do_project_save_grid_observations(Writer&        w,
+                                           const project& pj) noexcept
     {
         if (pj.grid_observers.empty())
             return;
@@ -7169,7 +7135,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_graph_observations(Writer& w, project& pj) noexcept
+    void do_project_save_graph_observations(Writer&        w,
+                                            const project& pj) noexcept
     {
         if (pj.graph_observers.empty())
             return;
@@ -7200,7 +7167,7 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_observations(Writer& w, project& pj) noexcept
+    void do_project_save_observations(Writer& w, const project& pj) noexcept
     {
         w.Key("observations");
 
@@ -7229,7 +7196,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void do_project_save_global_parameters(Writer& w, project& pj) noexcept
+    void do_project_save_global_parameters(Writer&        w,
+                                           const project& pj) noexcept
     {
         w.Key("global");
         w.StartArray();
@@ -7293,7 +7261,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     status do_project_save(Writer&                 w,
-                           project&                pj,
+                           const project&          pj,
                            const file_access&      files,
                            const component_access& ids,
                            const component_id      compo_id) noexcept
@@ -7340,347 +7308,219 @@ struct json_archiver::impl {
     }
 };
 
-void json_dearchiver::clear() noexcept
+static status load_component(const file_access&     files,
+                             component_access&      ids,
+                             const component_id     compo_id,
+                             std::span<const char>  json,
+                             const std::string_view path) noexcept
 {
-    buffer.clear();
-    stack.clear();
-
-    model_mapping.data.clear();
-    srcs_mapping.data.clear();
-}
-
-status json_dearchiver::operator()(const file_access& files,
-                                   component_access&  ids,
-                                   std::string_view   path,
-                                   const component_id compo_id,
-                                   component&         compo,
-                                   file&              io) noexcept
-{
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode()[file_open_options::read] or
-                  io.get_mode()[file_open_options::extended]);
-    clear();
+    debug::ensure(ids.exists(compo_id));
 
     rapidjson::Document doc;
-
-    if (auto ret = read_file_to_buffer(buffer, io); ret.has_error())
-        return ret.error();
-
-    if (auto ret = parse_json_data(std::span(buffer.data(), buffer.size()),
-                                   doc);
-        ret.has_error()) {
-        compo.state = component_status::unreadable;
+    if (auto ret = parse_json_data(json, doc); ret.has_error()) {
+        ids.components[compo_id].state = component_status::unreadable;
         return ret.error();
     }
 
-    json_dearchiver::impl i(*this, path);
-    if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
-        ret.has_error()) {
-        if (i.has_missing_dependent_component) {
-            compo.state = component_status::unread;
-        }
+    return json_reader(path).parse_component(doc, files, ids, compo_id);
+}
 
+static status load_project(project&                pj,
+                           const file_access&      files,
+                           const component_access& ids,
+                           std::span<const char>   json,
+                           const std::string_view  path) noexcept
+{
+    rapidjson::Document doc;
+    if (auto ret = parse_json_data(json, doc); ret.has_error())
         return ret.error();
+
+    return json_reader(pj, path).parse_project(doc, files, ids);
+}
+
+status load_component(const file_access&     files,
+                      component_access&      ids,
+                      const component_id     compo_id,
+                      file&                  io,
+                      const std::string_view path) noexcept
+{
+    auto buffer = read_file(io);
+    if (buffer.has_error())
+        return buffer.error();
+
+    return load_component(files, ids, compo_id,
+                          std::span<const char>(buffer->data(), buffer->size()),
+                          path);
+}
+
+status load_component(const file_access&    files,
+                      component_access&     ids,
+                      const component_id    compo_id,
+                      std::span<const char> json) noexcept
+{
+    return load_component(files, ids, compo_id, json, std::string_view{});
+}
+
+status load_project(project&                pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    file&                   io,
+                    const std::string_view  path) noexcept
+{
+    auto buffer = read_file(io);
+    if (buffer.has_error())
+        return buffer.error();
+
+    return load_project(pj, files, ids,
+                        std::span<const char>(buffer->data(), buffer->size()),
+                        path);
+}
+
+status load_project(project&                pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    std::span<const char>   json) noexcept
+{
+    return load_project(pj, files, ids, json, std::string_view{});
+}
+
+/** Calls @c fn with a rapidjson writer configured by @c print. */
+template<typename Stream, typename Function>
+static auto with_writer(Stream&                 os,
+                        const json_pretty_print print,
+                        Function&&              fn) noexcept
+{
+    if (print == json_pretty_print::off) {
+        rapidjson::Writer<Stream, rapidjson::UTF8<>, rapidjson::UTF8<>,
+                          rapidjson::CrtAllocator,
+                          rapidjson::kWriteNanAndInfFlag>
+          w(os);
+        return fn(w);
     }
 
-    return success();
-}
-
-status json_dearchiver::operator()(project&                pj,
-                                   const file_access&      files,
-                                   const component_access& ids,
-                                   std::string_view        path,
-                                   file&                   io) noexcept
-{
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode()[file_open_options::read] or
-                  io.get_mode()[file_open_options::extended]);
-    clear();
-
-    rapidjson::Document doc;
-
-    if (const auto ret = read_file_to_buffer(buffer, io); ret.has_error())
-        return ret.error();
-
-    if (const auto ret = parse_json_data(
-          std::span(buffer.data(), buffer.size()), doc);
-        ret.has_error())
-        return ret.error();
-
-    json_dearchiver::impl i(*this, pj.sim, pj, path);
-    return i.parse_project(doc, files, ids);
-}
-
-status json_dearchiver::operator()(const file_access& files,
-                                   component_access&  ids,
-                                   const component_id compo_id,
-                                   component&         compo,
-                                   std::span<char>    io) noexcept
-{
-    clear();
-    rapidjson::Document doc;
-
-    if (auto ret = parse_json_data(io, doc); ret.has_error()) {
-        compo.state = component_status::unreadable;
-        return ret.error();
-    }
-
-    json_dearchiver::impl i(*this);
-
-    if (const auto ret = i.parse_component(doc, files, ids, compo_id, compo);
-        ret.has_error()) {
-        if (i.has_missing_dependent_component) {
-            compo.state = component_status::unread;
-        }
-
-        return ret.error();
-    }
-
-    return success();
-}
-
-status json_dearchiver::operator()(project&                pj,
-                                   const file_access&      files,
-                                   const component_access& ids,
-                                   std::span<char>         io) noexcept
-{
-    clear();
-    rapidjson::Document doc;
-
-    if (const auto ret = parse_json_data(io, doc); ret.has_error())
-        return ret.error();
-
-    json_dearchiver::impl i(*this, pj.sim, pj);
-    return i.parse_project(doc, files, ids);
-}
-
-status json_archiver::operator()(const file_access&          files,
-                                 const component_access&     ids,
-                                 const component_id          compo_id,
-                                 file&                       io,
-                                 json_archiver::print_option print) noexcept
-{
-    clear();
-
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode()[file_open_options::write] or
-                  io.get_mode()[file_open_options::extended]);
-
-    if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
-                              io.get_mode()[file_open_options::extended])))
-        return make_error(std::errc::invalid_argument);
-
-    auto fp = io.to_file();
-    buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream, rapidjson::UTF8<>,
-                            rapidjson::UTF8<>, rapidjson::CrtAllocator,
+    rapidjson::PrettyWriter<Stream, rapidjson::UTF8<>, rapidjson::UTF8<>,
+                            rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
       w(os);
+    w.SetIndent(' ', 2);
+    if (print == json_pretty_print::indent_2_one_line_array)
+        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
 
-    json_archiver::impl i{ *this };
+    return fn(w);
+}
 
+static bool is_writable(const file& io) noexcept
+{
+    return io.is_open() and (io.get_mode()[file_open_options::write] or
+                             io.get_mode()[file_open_options::extended]);
+}
+
+static vector<char> to_vector(const rapidjson::StringBuffer& buffer) noexcept
+{
+    vector<char> out(static_cast<int>(buffer.GetSize()));
+    std::copy_n(buffer.GetString(), buffer.GetSize(), out.data());
+
+    return out;
+}
+
+template<typename Stream>
+static status save_component(Stream&                 os,
+                             const file_access&      files,
+                             const component_access& ids,
+                             const component_id      compo_id,
+                             const json_pretty_print print) noexcept
+{
     if (not ids.exists(compo_id))
         return make_error(modeling_errc::component_not_found);
 
-    const auto& compo = ids.components[compo_id];
-
-    switch (print) {
-    case json_archiver::print_option::indent_2:
-        w.SetIndent(' ', 2);
-        i.do_component_save(w, files, ids, compo_id, compo);
-        break;
-
-    case json_archiver::print_option::indent_2_one_line_array:
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        i.do_component_save(w, files, ids, compo_id, compo);
-        break;
-
-    default:
-        i.do_component_save(w, files, ids, compo_id, compo);
-        break;
-    }
+    with_writer(os, print, [&](auto& w) noexcept {
+        json_writer{}.do_component_save(w, files, ids, compo_id,
+                                        ids.components[compo_id]);
+    });
 
     return success();
 }
 
-status json_archiver::operator()(const file_access&          files,
-                                 const component_access&     ids,
-                                 const component_id          compo_id,
-                                 vector<char>&               out,
-                                 json_archiver::print_option print) noexcept
+template<typename Stream>
+static status save_project(Stream&                 os,
+                           const project&          pj,
+                           const file_access&      files,
+                           const component_access& ids,
+                           const json_pretty_print print) noexcept
 {
-    clear();
+    const auto head_id = pj.head();
 
+    if (not ids.exists(head_id))
+        return make_error(project_errc::empty_project);
+
+    const auto* parent = pj.tree_nodes.try_to_get(pj.tn_head());
+    if (not parent)
+        return make_error(project_errc::empty_project);
+
+    debug::ensure(head_id == parent->id);
+
+    return with_writer(os, print, [&](auto& w) noexcept {
+        return json_writer{}.do_project_save(w, pj, files, ids, head_id);
+    });
+}
+
+status save_component(const file_access&      files,
+                      const component_access& ids,
+                      const component_id      compo_id,
+                      file&                   io,
+                      const json_pretty_print print) noexcept
+{
+    if (not is_writable(io))
+        return make_error(std::errc::invalid_argument);
+
+    char                       buffer[4096];
+    rapidjson::FileWriteStream os(io.to_file(), buffer, sizeof(buffer));
+
+    return save_component(os, files, ids, compo_id, print);
+}
+
+expected<vector<char>> save_component(const file_access&      files,
+                                      const component_access& ids,
+                                      const component_id      compo_id,
+                                      const json_pretty_print print) noexcept
+{
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
-    json_archiver::impl i{ *this };
+    if (auto ret = save_component(buffer, files, ids, compo_id, print);
+        ret.has_error())
+        return ret.error();
 
-    if (not ids.exists(compo_id))
-        return make_error(modeling_errc::component_not_found);
-
-    const auto& compo = ids.components[compo_id];
-
-    switch (print) {
-    case json_archiver::print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        w.SetIndent(' ', 2);
-        i.do_component_save(w, files, ids, compo_id, compo);
-    } break;
-
-    case json_archiver::print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        i.do_component_save(w, files, ids, compo_id, compo);
-    } break;
-
-    default: {
-        rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                          rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                          rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        i.do_component_save(w, files, ids, compo_id, compo);
-    } break;
-    }
-
-    auto length = buffer.GetSize();
-    auto str    = buffer.GetString();
-    out.resize(static_cast<int>(length));
-    std::copy_n(str, length, out.data());
-
-    return success();
+    return to_vector(buffer);
 }
 
-status json_archiver::operator()(project&                pj,
-                                 const file_access&      files,
-                                 const component_access& ids,
-                                 file&                   io,
-                                 print_option            print_options) noexcept
+status save_project(const project&          pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    file&                   io,
+                    const json_pretty_print print) noexcept
 {
-    clear();
-
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode()[file_open_options::write] or
-                  io.get_mode()[file_open_options::extended]);
-
-    if (not(io.is_open() and (io.get_mode()[file_open_options::write] or
-                              io.get_mode()[file_open_options::extended])))
+    if (not is_writable(io))
         return make_error(std::errc::invalid_argument);
 
-    const auto head_id = pj.head();
+    char                       buffer[4096];
+    rapidjson::FileWriteStream os(io.to_file(), buffer, sizeof(buffer));
 
-    if (not ids.exists(head_id))
-        return make_error(project_errc::empty_project);
-
-    auto* parent = pj.tree_nodes.try_to_get(pj.tn_head());
-    if (not parent)
-        return make_error(project_errc::empty_project);
-
-    debug::ensure(head_id == parent->id);
-
-    auto fp = io.to_file();
-    clear();
-    buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream, rapidjson::UTF8<>,
-                            rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                            rapidjson::kWriteNanAndInfFlag>
-                        w(os);
-    json_archiver::impl i{ *this };
-
-    switch (print_options) {
-    case print_option::indent_2:
-        w.SetIndent(' ', 2);
-        return i.do_project_save(w, pj, files, ids, head_id);
-
-    case print_option::indent_2_one_line_array:
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        return i.do_project_save(w, pj, files, ids, head_id);
-
-    default:
-        return i.do_project_save(w, pj, files, ids, head_id);
-    }
+    return save_project(os, pj, files, ids, print);
 }
 
-status json_archiver::operator()(project&                pj,
-                                 const file_access&      files,
-                                 const component_access& ids,
-                                 vector<char>&           out,
-                                 print_option            print_options) noexcept
+expected<vector<char>> save_project(const project&          pj,
+                                    const file_access&      files,
+                                    const component_access& ids,
+                                    const json_pretty_print print) noexcept
 {
-    clear();
+    rapidjson::StringBuffer buffer;
+    buffer.Reserve(4096u);
 
-    const auto head_id = pj.head();
+    if (auto ret = save_project(buffer, pj, files, ids, print); ret.has_error())
+        return ret.error();
 
-    if (not ids.exists(head_id))
-        return make_error(project_errc::empty_project);
-
-    auto* parent = pj.tree_nodes.try_to_get(pj.tn_head());
-    if (not parent)
-        return make_error(project_errc::empty_project);
-
-    debug::ensure(head_id == parent->id);
-
-    rapidjson::StringBuffer rbuffer;
-    rbuffer.Reserve(4096u);
-    json_archiver::impl i{ *this };
-
-    switch (print_options) {
-    case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(rbuffer);
-        w.SetIndent(' ', 2);
-        irt_check(i.do_project_save(w, pj, files, ids, head_id));
-    } break;
-
-    case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                                rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(rbuffer);
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_check(i.do_project_save(w, pj, files, ids, head_id));
-    } break;
-
-    default: {
-        rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<>,
-                          rapidjson::UTF8<>, rapidjson::CrtAllocator,
-                          rapidjson::kWriteNanAndInfFlag>
-          w(rbuffer);
-        irt_check(i.do_project_save(w, pj, files, ids, head_id));
-    } break;
-    }
-
-    auto length = rbuffer.GetSize();
-    auto str    = rbuffer.GetString();
-    out.resize(length + 1);
-    std::copy_n(str, length, out.data());
-    out.back() = '\0';
-
-    return success();
-}
-
-void json_archiver::clear() noexcept
-{
-    buffer.clear();
-
-    model_mapping.data.clear();
-    srcs_mapping.data.clear();
+    return to_vector(buffer);
 }
 
 } //  irt

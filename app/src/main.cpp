@@ -184,7 +184,6 @@ class main_parameters
     irt::config_manager config;
 
     irt::modeling        mod;
-    irt::json_dearchiver json;
     irt::project         pj;
 
     std::optional<irt::real> begin;
@@ -257,7 +256,7 @@ private:
 
         return mod.ids.read([&](const auto& ids, auto) -> irt::status {
             return mod.files.read([&](const auto& fs, auto) -> irt::status {
-                return json(pj, fs, ids, filename, *file);
+                return irt::load_project(pj, fs, ids, *file, filename);
             });
         });
     }

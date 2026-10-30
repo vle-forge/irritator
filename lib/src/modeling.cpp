@@ -323,9 +323,7 @@ static auto load_component(const file_access& files,
         auto f = file::open(filename, file_mode{ file_open_options::read });
 
         if (f.has_value()) {
-            json_dearchiver j;
-
-            if (not j(files, ids, filename.sv(), compo_id, compo, *f)) {
+            if (not load_component(files, ids, compo_id, *f, filename.sv())) {
                 return error_code(modeling_errc::component_load_error);
             }
 
@@ -1156,8 +1154,7 @@ status modeling::save(const component_access& ids,
     if (cfile.has_error()) [[unlikely]]
         return cfile.error();
 
-    json_archiver j;
-    if (auto ret = j(fs, ids, id, *cfile); ret.has_error())
+    if (auto ret = save_component(fs, ids, id, *cfile); ret.has_error())
         return ret.error();
 
     auto dfile = file::open(filenames->description,

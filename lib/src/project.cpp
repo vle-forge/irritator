@@ -1969,10 +1969,9 @@ expected<project> project::load(const file_access&      fs,
     if (not file.has_value())
         return file.error();
 
-    json_dearchiver dearc;
-    project         pj{};
+    project pj{};
     pj.project_file = file_id;
-    const auto ret  = dearc(pj, fs, cs, filename->sv(), *file);
+    const auto ret  = load_project(pj, fs, cs, *file, filename->sv());
 
     return ret.has_value() ? expected<project>{ std::move(pj) } : ret.error();
 }
@@ -1987,8 +1986,7 @@ status project::load(const file_access&      fs,
         auto file = file::open(*filename, file_mode{ file_open_options::read });
 
         if (file.has_value()) {
-            json_dearchiver dearc;
-            return dearc(*this, fs, ids, filename->sv(), *file);
+            return load_project(*this, fs, ids, *file, filename->sv());
         } else
             return file.error();
     }
@@ -2005,10 +2003,8 @@ status project::save(const file_access&      fs,
                                file_mode{ file_open_options::write });
 
         if (file.has_value()) {
-            json_archiver arc;
-
-            return arc(*this, fs, ids, *file,
-                       json_archiver::print_option::indent_2_one_line_array);
+            return save_project(*this, fs, ids, *file,
+                                json_pretty_print::indent_2_one_line_array);
         } else
             return file.error();
     }

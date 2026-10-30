@@ -6,7 +6,6 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
-#include <irritator/archiver.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>

@@ -9,102 +9,78 @@
 #include <irritator/file.hpp>
 #include <irritator/modeling.hpp>
 
+#include <span>
+#include <string_view>
+
 namespace irt {
 
-class json_dearchiver
-{
-private:
-    vector<char> buffer;
-    vector<i32>  stack;
-
-    table<u64, u64>                            model_mapping;
-    table<u64, external_source_definition::id> srcs_mapping;
-
-    struct impl;
-
-public:
-    json_dearchiver() noexcept = default;
-
-    //! Load a component structure from a json file.
-    status operator()(const file_access& files,
-                      component_access&  ids,
-                      std::string_view   path,
-                      const component_id compo_id,
-                      component&         compo,
-                      file&              io) noexcept;
-
-    //! Load a project from a project json file.
-    status operator()(project&                pj,
-                      const file_access&      files,
-                      const component_access& ids,
-                      std::string_view        path,
-                      file&                   io) noexcept;
-
-    //! Load a component structure from a json file.
-    status operator()(const file_access& files,
-                      component_access&  ids,
-                      const component_id compo_id,
-                      component&         compo,
-                      std::span<char>    io) noexcept;
-
-    //! Load a project from a project json file.
-    status operator()(project&                pj,
-                      const file_access&      files,
-                      const component_access& ids,
-                      std::span<char>         io) noexcept;
-
-    void clear() noexcept;
+enum class json_pretty_print : u8 {
+    off,
+    indent_2,
+    /// Like @c indent_2 with the simple arrays on one line.
+    indent_2_one_line_array
 };
 
-class json_archiver
-{
-private:
-    vector<char> buffer;
+/**
+ * Reads the component @c compo_id from a json @c .irt file.
+ *
+ * On error, the component is left @c unreadable if the json is malformed and
+ * @c unread otherwise, for example when it depends on a component not read
+ * yet.
+ *
+ * @param path Only used in the log messages.
+ */
+status load_component(const file_access& files,
+                      component_access&  ids,
+                      component_id       compo_id,
+                      file&              io,
+                      std::string_view   path = {}) noexcept;
 
-    table<u64, u64>                            model_mapping;
-    table<u64, external_source_definition::id> srcs_mapping;
-    table<u64, hsm_id>                         sim_hsms_mapping;
+status load_component(const file_access&    files,
+                      component_access&     ids,
+                      component_id          compo_id,
+                      std::span<const char> json) noexcept;
 
-    struct impl;
+/**
+ * Reads a project from a json @c .pirt file. The project is cleared first.
+ *
+ * @param path Only used in the log messages.
+ */
+status load_project(project&                pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    file&                   io,
+                    std::string_view        path = {}) noexcept;
 
-public:
-    //! Control the json output stream (memory or file) pretty print.
-    enum class print_option : u8 {
-        off,                    //! disable pretty print.
-        indent_2,               //! enable pretty print, use 2 spaces as indent.
-        indent_2_one_line_array //! idem but merge simple array in one line.
-    };
+status load_project(project&                pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    std::span<const char>   json) noexcept;
 
-    //! Save a component structure into a json file.
-    status operator()(const file_access&      files,
-                      const component_access& ids,
-                      const component_id      compo_id,
-                      file&                   io,
-                      print_option print_options = print_option::off) noexcept;
+status save_component(
+  const file_access&      files,
+  const component_access& ids,
+  component_id            compo_id,
+  file&                   io,
+  json_pretty_print       print = json_pretty_print::off) noexcept;
 
-    //! Save a component structure into a json file.
-    status operator()(const file_access&      files,
-                      const component_access& ids,
-                      const component_id      compo_id,
-                      vector<char>&           out,
-                      print_option print_options = print_option::off) noexcept;
+expected<vector<char>> save_component(
+  const file_access&      files,
+  const component_access& ids,
+  component_id            compo_id,
+  json_pretty_print       print = json_pretty_print::off) noexcept;
 
-    //! Save a project from the current modeling.
-    status operator()(project&                pj,
-                      const file_access&      files,
-                      const component_access& ids,
-                      file&                   io,
-                      print_option print_options = print_option::off) noexcept;
+status save_project(const project&          pj,
+                    const file_access&      files,
+                    const component_access& ids,
+                    file&                   io,
+                    json_pretty_print print = json_pretty_print::off) noexcept;
 
-    //! Save a project from the current modeling.
-    status operator()(project&                pj,
-                      const file_access&      files,
-                      const component_access& ids,
-                      vector<char>&           buffer,
-                      print_option print_options = print_option::off) noexcept;
-
-    void clear() noexcept;
-};
+expected<vector<char>> save_project(
+  const project&          pj,
+  const file_access&      files,
+  const component_access& ids,
+  json_pretty_print       print = json_pretty_print::off) noexcept;
 
 } // namespace irt
 

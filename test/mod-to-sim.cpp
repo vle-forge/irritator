@@ -513,11 +513,11 @@ static irt::vector<char> json_save_component(irt::modeling&          mod,
 
     mod.files.read([&](const auto& files, auto) {
         mod.ids.read([&](const auto& ids, auto) {
-            irt::json_archiver j;
-            boost::ut::expect(
-              j(files, ids, id, out,
-                irt::json_archiver::print_option::indent_2_one_line_array)
-                .has_value());
+            auto ret = irt::save_component(
+              files, ids, id, irt::json_pretty_print::indent_2_one_line_array);
+            boost::ut::expect(ret.has_value());
+            if (ret.has_value())
+                out = std::move(*ret);
         });
     });
 
@@ -528,17 +528,12 @@ static irt::expected<irt::component_id> json_load_component(
   irt::modeling&         mod,
   const std::string_view json)
 {
-    irt::vector<char> buffer(static_cast<int>(json.size()));
-    std::copy_n(json.data(), json.size(), buffer.data());
-
     return mod.files.read(
       [&](const auto& files, auto) -> irt::expected<irt::component_id> {
           return mod.ids.write(
             [&](auto& ids) -> irt::expected<irt::component_id> {
-                const auto           id = ids.alloc_generic_component();
-                irt::json_dearchiver j;
-                if (auto ret = j(files, ids, id, ids.components[id],
-                                 std::span(buffer.data(), buffer.size()));
+                const auto id = ids.alloc_generic_component();
+                if (auto ret = irt::load_component(files, ids, id, json);
                     ret.has_error())
                     return ret.error();
 
@@ -1169,11 +1164,11 @@ int main()
 
         mod.files.read([&](const auto& files, auto) noexcept {
             mod.ids.read([&](const auto& ids, auto) noexcept {
-                irt::json_archiver j;
-                expect(
-                  j(pj, files, ids, buffer,
-                    irt::json_archiver::print_option::indent_2_one_line_array)
-                    .has_value());
+                auto ret = irt::save_project(
+                  pj, files, ids,
+                  irt::json_pretty_print::indent_2_one_line_array);
+                expect(fatal(ret.has_value()));
+                buffer = std::move(*ret);
             });
         });
 
@@ -1197,10 +1192,10 @@ int main()
 
             mod.files.read([&](const auto& files, auto) noexcept {
                 mod.ids.read([&](const auto& ids, auto) noexcept {
-                    irt::json_dearchiver j;
-                    expect(
-                      j(pj, files, ids, std::span(buffer.data(), buffer.size()))
-                        .has_value());
+                    expect(irt::load_project(pj, files, ids,
+                                             std::span<const char>(
+                                               buffer.data(), buffer.size()))
+                             .has_value());
                 });
             });
 
