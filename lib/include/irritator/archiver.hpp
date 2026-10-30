@@ -25,7 +25,7 @@ enum class json_pretty_print : u8 {
  * Reads the component @c compo_id from a json @c .irt file.
  *
  * On error, the component is left @c unreadable if the json is malformed and
- * @c unread otherwise, for example when it depends on a component not read
+ * @c pending otherwise, for example when it depends on a component not read
  * yet.
  *
  * @param path Only used in the log messages.
