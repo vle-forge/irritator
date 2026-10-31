@@ -166,6 +166,11 @@ status simulation_component::copy_to(
         if (not tn_mdl_opt.has_value())
             return make_error(simulation_errc::simulation_wrapper_output_error);
 
+        // The project of the component is never initialized, so its
+        // simulation observes nothing: the selections need their trajectory.
+        irt_check(embed_sims.sim.observe(
+          embed_sims.sim.models.get(tn_mdl_opt->second)));
+
         const auto new_id = embed_sims.selections.alloc_id();
 
         embed_sims.selections.get<model_id>(new_id) = tn_mdl_opt->second;

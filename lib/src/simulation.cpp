@@ -483,9 +483,13 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
           simulation_errc::
             simulation_wrapper_too_many_embedded_simulation_error);
 
-    return embedded_sims_alloc(*embed_sims, nb_sims)
-      .and_then(embedded_sims_copy_parameters, *embed_sims)
-      .and_then(embedded_sims_init, *embed_sims);
+    irt_check(embedded_sims_alloc(*embed_sims, nb_sims)
+                .and_then(embedded_sims_copy_parameters, *embed_sims)
+                .and_then(embedded_sims_init, *embed_sims));
+
+    state = run_state::initialized;
+
+    return success();
 }
 
 status simulation_wrapper::transition(simulation&           sim,

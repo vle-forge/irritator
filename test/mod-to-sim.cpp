@@ -2916,6 +2916,98 @@ int main()
         irt::on_error_callback = callback;
     };
 
+    "simulation: a wrapper runs its unobserved selections"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{ "sim-wrapper"sv };
+        const auto dir       = std::filesystem::path(temp_path.sv()) / "lib";
+        std::filesystem::create_directories(dir);
+
+        const auto write = [&](const char* name, std::string_view json) {
+            std::ofstream(dir / name) << json;
+        };
+
+        write("model.irt", R"({"name": "model", "type": "simple",
+            "children": [
+              {"id": 0, "name": "a", "configurable": true, "type": "constant",
+               "dynamics": {"value": 0.0, "offset": 0.0, "type": "constant"}},
+              {"id": 1, "name": "b", "configurable": true, "type": "constant",
+               "dynamics": {"value": 0.0, "offset": 0.0, "type": "constant"}},
+              {"id": 2, "name": "g", "observable": true, "type": "qss1_gain",
+               "dynamics": {"k": 1.0}}],
+            "connections": [{"type": "internal", "source": 0,
+              "port-source": 0, "destination": 2, "port-destination": 0}]})");
+
+        write("project.pirt", R"({"begin": 0.0, "end": 5.0,
+            "component-type": "simple", "component-path": "temp",
+            "component-directory": "lib", "component-file": "model.irt"})");
+
+        write("sim.irt", R"({"name": "sim", "type": "simulation",
+            "path": "temp", "directory": "lib", "file": "project.pirt",
+            "factors": [
+              {"name": "a", "type": "fixed", "access": ["a"],
+               "values": [1.0, 3.0, 2.0]},
+              {"name": "b", "type": "fixed", "access": ["b"], "values": [0.0]}],
+            "selections": [{"name": "g", "access": ["g"], "criteria": "max"}],
+            "objective": {"method": "simple", "type": "maximize",
+              "simple-parameters": {"primary": "g"}}})");
+
+        // As in the user files, only the run port of the wrapper is
+        // connected: the complete run type does not need an init message.
+        write("top.irt", R"({"name": "top", "type": "simple",
+            "children": [
+              {"id": 0, "type": "simulation_wrapper",
+               "dynamics": {"sim": {"path": "temp", "directory": "lib",
+                 "file": "sim.irt"}, "run-type": "complete",
+                 "factors": 2, "selections": 1}},
+              {"id": 1, "type": "constant",
+               "dynamics": {"value": 0.0, "offset": 1.0, "type": "constant"}},
+              {"id": 2, "name": "best", "observable": true, "type": "counter",
+               "dynamics": {}}],
+            "connections": [
+              {"type": "internal", "source": 1, "port-source": 0,
+               "destination": 0, "port-destination": 1},
+              {"type": "internal", "source": 0, "port-source": 0,
+               "destination": 2, "port-destination": 0}]})");
+
+        irt::modeling mod;
+        mod.files.write([&](auto& fs) {
+            const auto reg_id                   = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg_id).path = temp_path.sv();
+        });
+        expect(fatal(mod.fill_components().has_value()));
+
+        irt::project pj;
+        mod.ids.read([&](const auto& ids, auto) {
+            auto top = irt::undefined<irt::component_id>();
+            for (const auto id : ids)
+                if (ids.components[id].name.sv() == "top")
+                    top = id;
+
+            expect(fatal(irt::is_defined(top)));
+
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, top).has_value()));
+            });
+        });
+
+        pj.sim.limits.set_bound(0, 5);
+        expect(fatal(pj.simulation_init(mod).has_value()));
+
+        do {
+            expect(fatal(pj.sim.run().has_value()));
+        } while (not pj.sim.current_time_expired());
+
+        auto received = false;
+        for (const auto& mdl : pj.sim.models) {
+            if (mdl.type == irt::dynamics_type::counter) {
+                const auto& cpt = irt::get_dyn<irt::counter>(mdl);
+                received        = cpt.event_number > 0;
+                expect(eq(cpt.last_value, 3.0));
+            }
+        }
+
+        expect(received);
+    };
+
     "json: the malformed files are refused"_test = [] {
         auto callback = std::exchange(irt::on_error_callback, nullptr);
 
