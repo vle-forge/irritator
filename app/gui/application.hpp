@@ -564,17 +564,22 @@ public:
 private:
     file_selector file_select;
 
+    struct view;
+
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
-    ImVec2                start_selection;
-    ImVec2                end_selection;
-    ImVec2                canvas_sz;
-    bool                  run_selection  = false;
-    bool                  is_initialized = false;
+
+    node_editor::editor   m_editor;
+    vector<graph_node_id> m_nodes;
+    vector<graph_edge_id> m_edges;
+    vector<u32>           m_node_indices;
+
+    /// The positions owned by the view, indexed by the index of the vertices:
+    /// the component is read again at each frame.
+    vector<ImVec2>        m_positions;
+    vector<graph_node_id> m_position_ids;
 
     ImVec2 distance{ 15.f, 15.f };
-    ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
-    ImVec2 zoom{ 1.f, 1.f };
 
     std::atomic_flag task_is_running; // Allow only one task (new graph or new
                                       // automatic layout at the same time).
@@ -592,8 +597,7 @@ private:
                                   int              iteration) const noexcept;
 
     void clear_file_access() noexcept;
-    void center_camera() noexcept;
-    void auto_fit_camera() noexcept;
+    void build_graph(const graph_component& data) noexcept;
 
     bool show(application&, component&) noexcept;
     bool show_scale_free_menu(application& app) noexcept;
