@@ -130,6 +130,8 @@ private:
 
     enum class drag_type : u8 { none, nodes, box, link };
 
+    static constexpr const char* item_menu_id = "##node-editor-item-menu";
+
     bool begin_canvas(const char* str_id, u32 node_count) noexcept;
     void draw_grid() const noexcept;
     void draw_link(const bezier<ImVec2>& b, bool selected) const noexcept;
@@ -440,6 +442,21 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
                            not m_hovered_link and not m_hovered_input and
                            not m_hovered_output;
 
+    // A right click on a link or a node selects it and opens its menu: the
+    // right click on the background stays for the menu of the caller.
+    if (free_mouse and ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        if (m_hovered_node) {
+            if (not is_selected(*m_hovered_node))
+                select_node(*m_hovered_node, false);
+            ImGui::OpenPopup(item_menu_id);
+        } else if (m_hovered_link) {
+            if (std::ranges::find(m_selected_links, *m_hovered_link) ==
+                m_selected_links.end())
+                select_link(*m_hovered_link, false);
+            ImGui::OpenPopup(item_menu_id);
+        }
+    }
+
     if (free_mouse and ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (m_hovered_output) {
             m_drag             = drag_type::link;
@@ -529,9 +546,12 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
                   true);
 
         if (not ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            if (m_drag_from_output and m_hovered_input)
+            // A DEVS coupling never connects a model to itself.
+            if (m_drag_from_output and m_hovered_input and
+                m_hovered_input->node != m_drag_pin.node)
                 ev.link_created = link_request{ m_drag_pin, *m_hovered_input };
-            else if (not m_drag_from_output and m_hovered_output)
+            else if (not m_drag_from_output and m_hovered_output and
+                     m_hovered_output->node != m_drag_pin.node)
                 ev.link_created = link_request{ *m_hovered_output, m_drag_pin };
 
             m_drag = drag_type::none;

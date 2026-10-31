@@ -153,6 +153,12 @@ void editor::end_canvas(events& ev) noexcept
         ev.duplicate_selection = ImGui::IsKeyReleased(ImGuiKey_D);
     }
 
+    if (ImGui::BeginPopup(item_menu_id)) {
+        if (ImGui::MenuItem("Delete", "Del"))
+            ev.delete_selection = true;
+        ImGui::EndPopup();
+    }
+
     ImGui::EndChild();
 }
 
