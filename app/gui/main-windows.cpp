@@ -10,7 +10,6 @@
 // replicated in your app or by adding it to your imconfig.h file.
 
 #include "application.hpp"
-#include "imnodes.h"
 
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
@@ -419,7 +418,6 @@ int main(int, char**)
     io.Fonts->AddFontDefault();
 #endif
 
-    ImNodes::CreateContext();
     irt::log_history jn;
     if (irt::application app(jn); app.init()) {
         const auto icons_fonts = irt::get_font_icons();
@@ -596,7 +594,6 @@ int main(int, char**)
     WaitForLastSubmittedFrame();
 
     // Cleanup
-    ImNodes::DestroyContext();
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

@@ -10,7 +10,6 @@
 #include "application.hpp"
 #include "editor.hpp"
 #include "imgui.h"
-#include "imnodes.h"
 #include "internal.hpp"
 
 namespace irt {

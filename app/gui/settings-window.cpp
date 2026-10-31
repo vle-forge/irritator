@@ -8,14 +8,8 @@
 #include "internal.hpp"
 
 #include <imgui.h>
-#include <imnodes.h>
 
 namespace irt {
-
-static ImVec4 alpha(const ImVec4& vec, const float f) noexcept
-{
-    return ImVec4(vec.x, vec.y, vec.z, f);
-}
 
 static auto display_themes_selector(application& app) noexcept -> bool
 {
@@ -279,8 +273,6 @@ void apply_theme_MaterialYou_colors() noexcept;
 void apply_theme_FluentUITheme_colors() noexcept;
 void apply_theme_FluentUILightTheme_colors() noexcept;
 
-void apply_imnodes_theme_colors() noexcept;
-
 struct color_copy {
     ImVec4 color;
 
@@ -390,82 +382,6 @@ void settings_window::apply_style(const int theme) noexcept
           .invert_red_green()
           .to(cc[style_color::node_2_active]);
     });
-
-    apply_imnodes_theme_colors();
-}
-
-void apply_imnodes_theme_colors() noexcept
-{
-    ImGuiStyle& style  = ImGui::GetStyle();
-    ImVec4*     colors = style.Colors;
-    auto*       c      = ImNodes::GetStyle().Colors;
-
-    c[ImNodesCol_NodeBackground] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_Tab]);
-    c[ImNodesCol_NodeBackgroundHovered] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_TabHovered]);
-    c[ImNodesCol_NodeBackgroundSelected] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_TabSelected]);
-    c[ImNodesCol_NodeOutline] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_TabSelectedOverline]);
-
-    c[ImNodesCol_TitleBar] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_Separator]);
-    c[ImNodesCol_TitleBarHovered] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_SeparatorHovered]);
-    c[ImNodesCol_TitleBarSelected] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_SeparatorActive]);
-
-    c[ImNodesCol_Link] = ImGui::ColorConvertFloat4ToU32(colors[ImGuiCol_Tab]);
-    c[ImNodesCol_LinkHovered] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_TabHovered]);
-    c[ImNodesCol_LinkSelected] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_TabSelected]);
-
-    c[ImNodesCol_Pin] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_Separator]);
-    c[ImNodesCol_PinHovered] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_SeparatorHovered]);
-
-    c[ImNodesCol_BoxSelector] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_Header], 0.5f)); //?
-    c[ImNodesCol_BoxSelectorOutline] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_Header]); //?
-
-    c[ImNodesCol_GridBackground] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_WindowBg]);
-    c[ImNodesCol_GridLine] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_MenuBarBg]);
-    c[ImNodesCol_GridLinePrimary] = ImGui::ColorConvertFloat4ToU32(
-      colors[ImGuiCol_MenuBarBg]);
-
-    c[ImNodesCol_MiniMapBackground] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg] * 0.66f, 0.8f));
-    c[ImNodesCol_MiniMapBackgroundHovered] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg] * 0.5f, 0.8f));
-    c[ImNodesCol_MiniMapOutline] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg] * 0.66f, 0.8f));
-    c[ImNodesCol_MiniMapOutlineHovered] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg] * 0.66f, 0.8f));
-
-    c[ImNodesCol_MiniMapNodeBackground] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_Tab] * 0.66f, 0.8f));
-    c[ImNodesCol_MiniMapNodeBackgroundHovered] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_TabHovered] * 0.66f, 0.8f));
-    c[ImNodesCol_MiniMapNodeBackgroundSelected] = ImGui::
-      ColorConvertFloat4ToU32(
-        alpha(colors[ImGuiCol_TabSelected] * 0.66f, 0.8f));
-    c[ImNodesCol_MiniMapNodeOutline] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_TabSelectedOverline] * 0.66f, 0.1f));
-
-    c[ImNodesCol_MiniMapLink] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_Tab], 0.8f));
-    c[ImNodesCol_MiniMapLinkSelected] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_TabSelected], 0.8f));
-    c[ImNodesCol_MiniMapCanvas] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg], 0.8f));
-    c[ImNodesCol_MiniMapCanvasOutline] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_WindowBg], 0.8f));
 }
 
 // theme

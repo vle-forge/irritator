@@ -3,7 +3,6 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "imnodes.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -251,7 +250,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     io.Fonts->AddFontDefault();
 #endif
 
-    ImNodes::CreateContext();
     irt::log_history jn;
     if (irt::application app(jn); app.init()) {
         const auto icons_fonts = irt::get_font_icons();
@@ -340,7 +338,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
         }
     }
 
-    ImNodes::DestroyContext();
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();

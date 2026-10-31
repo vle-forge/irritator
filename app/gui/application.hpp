@@ -18,7 +18,6 @@
 #include "dialog.hpp"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
-#include "imnodes.h"
 #include "implot.h"
 #include "node-editor.hpp"
 #include <imgui.h>
