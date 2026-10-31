@@ -20,6 +20,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include "imnodes.h"
 #include "implot.h"
+#include "node-editor.hpp"
 #include <imgui.h>
 
 namespace irt {
@@ -757,10 +758,6 @@ private:
 class generic_simulation_editor
 {
 public:
-    generic_simulation_editor() noexcept;
-
-    ~generic_simulation_editor() noexcept;
-
     /**
      * Build the @c links and @c nodes vectors from the project tree_node.
      *
@@ -791,11 +788,12 @@ public:
 
     bool display(application& app, project_editor& pj_ed) noexcept;
 
+    /// The ports and the models of a link, as indices in @c nodes.
     struct link {
-        int out     = 0; /**<  use get_model_output_port/make_output_node_id. */
-        int in      = 0; /**< use get_model_input_port/make_input_node_id. */
-        int mdl_out = 0; /**< output model in nodes index. */
-        int mdl_in  = 0; /**< input model in nodes index. */
+        u32 out_node = 0;
+        u32 out_port = 0;
+        u32 in_node  = 0;
+        u32 in_port  = 0;
     };
 
     struct node {
@@ -804,17 +802,24 @@ public:
     };
 
 private:
-    ImNodesEditorContext* context = nullptr;
+    struct graph;
+
+    node_editor::editor editor;
 
     tree_node_id current = undefined<tree_node_id>();
 
-    vector<int>    selected_links;
-    vector<int>    selected_nodes;
     vector<link>   links;
     vector<node>   nodes;
     vector<link>   links_2nd;
     vector<node>   nodes_2nd;
     vector<ImVec2> displacements;
+
+    /// The world position of the nodes, indexed by the index of the model in
+    /// the simulation: it survives the rebuilds of @c nodes.
+    vector<ImVec2> positions;
+
+    /// The world position where the next new model is placed.
+    std::optional<ImVec2> new_model_position;
 
     int   automatic_layout_iteration       = 0;
     int   automatic_layout_iteration_limit = 2048;
@@ -826,8 +831,10 @@ private:
     bool show_identifiers      = true;
     bool show_internal_values  = false;
     bool show_parameter_values = false;
-    bool show_minimap          = true;
     bool can_edit_parameters   = true;
+
+    /// Set by the rebuild tasks: the editor caches refer to the old nodes.
+    bool need_reset = false;
 
     bool enable_show = true;  /**< @c false, the display of nodes and links are
                                  disabled. Mainly  use during @c rebuild or @c
@@ -836,9 +843,9 @@ private:
                                  progress. No other rebuild can occured. */
 
     void start_rebuild_task(application& app, project_editor& pj_ed) noexcept;
-    void show_nodes(application& app, project_editor& pj_ed) noexcept;
-    void show_links() noexcept;
+    void place_new_nodes(const project_editor& pj_ed) noexcept;
     void compute_automatic_layout() noexcept;
+    void compute_grid_layout() noexcept;
     int  show_menu(project_editor& pj_ed, const ImVec2 click_pos) noexcept;
 
     spin_mutex mutex;
