@@ -422,7 +422,7 @@ parameters. The QSS models exist in three orders with the prefixes `qss1_`,
 | `constant`                                  | `value`, `offset` (≥ 0), `type` and, for the `_n` types, `port`. |
 | `time_func`                                 | `function` (`time`, `square` or `sin`), `timestep`, `offset`. |
 | `hsm_wrapper`                               | `hsm`: a component reference to an `hsm` component; `i1`, `i2`, `r1`, `r2`, `timeout`; `source-id` when the machine uses a source. |
-| `simulation_wrapper`                        | `sim`: a component reference to a `simulation` component; `run-type` (`bag`, `complete`, `during`, `time` or `until`); `factors` and `selections`, their numbers. |
+| `simulation_wrapper`                        | `sim`: a component reference to a `simulation` component; `run-type` (`bag`, `complete`, `during`, `time` or `until`); `factors` and `selections`, their numbers. The input ports are `init`, `run` then the factors; the output ports are the factors then the selections. |
 
 The `constant` `type` is `constant`, `incoming_component_all`,
 `outcoming_component_all`, `incoming_component_n` or `outcoming_component_n`.

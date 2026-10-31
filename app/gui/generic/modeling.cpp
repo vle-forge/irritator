@@ -553,31 +553,26 @@ static bool show_node(const component_access&   ids,
             add_input_attribute("init", id, 0);
             add_input_attribute("run", id, 1);
 
-            for (sz i = 0, e = sim.factors.size(); i != e; ++i) {
-                add_input_attribute(factor_names[i].sv(), id,
-                                    static_cast<int>(i) + 2);
-            }
+            // Same order as the simulation_wrapper: the factors are
+            // iterated by identifier.
+            auto input_index = 2;
+            for (const auto factor_id : sim.factors)
+                add_input_attribute(factor_names[factor_id].sv(), id,
+                                    input_index++);
 
             ImGui::PushItemWidth(120.0f);
             up += show_parameter_editor(app, compo.srcs, c.id.mdl_type,
                                         gen.children_parameters[idx]);
             ImGui::PopItemWidth();
 
-            sz port_index = 0;
+            auto output_index = 0;
+            for (const auto factor_id : sim.factors)
+                add_output_attribute(factor_names[factor_id].sv(), id,
+                                     output_index++);
 
-            for (sz i = 0, e = sim.factors.size(); i < e; ++i) {
-                add_output_attribute(factor_names[i].sv(), id,
-                                     static_cast<int>(port_index));
-
-                ++port_index;
-            }
-
-            for (sz i = 0, e = sim.selections.size(); i < e; ++i) {
-                add_output_attribute(selection_names[i].sv(), id,
-                                     static_cast<int>(port_index));
-
-                ++port_index;
-            }
+            for (const auto selection_id : sim.selections)
+                add_output_attribute(selection_names[selection_id].sv(), id,
+                                     output_index++);
         } else {
             add_input_attribute("init", id, 0);
             add_input_attribute("run", id, 1);

@@ -2453,11 +2453,11 @@ int main()
     "simulation-component"_test = [] {
         simulation_component_tester(
           std::array{ 0.0, 1.0, 2.0, 1.0 }, std::array{ 1.0, 2.0, 3.0, 4.0 },
-          std::array{ 1.0, 6.0, 6.0, 1.0, 2.0, 2.0, 1.0, 4.0, 4.0 });
+          std::array{ 1.0, 2.0, 2.0, 1.0, 4.0, 4.0, 1.0, 6.0, 6.0 });
 
         simulation_component_tester(
           std::array{ 0.0, 1.0, 2.0, 1.0 }, std::array{ 5.0, 2.0, 3.0, 3.0 },
-          std::array{ 1.0, 7.0, 7.0, 1.0, 2.0, 2.0, 1.0, 5.0, 5.0 });
+          std::array{ 1.0, 2.0, 2.0, 1.0, 5.0, 5.0, 1.0, 7.0, 7.0 });
     };
     "project: the observation files of a complete run"_test = [] {
         const auto temp_path = irt::temp_path_with_unlink{ "obs-files"sv };
@@ -2965,7 +2965,7 @@ int main()
             "connections": [
               {"type": "internal", "source": 1, "port-source": 0,
                "destination": 0, "port-destination": 1},
-              {"type": "internal", "source": 0, "port-source": 0,
+              {"type": "internal", "source": 0, "port-source": 2,
                "destination": 2, "port-destination": 0}]})");
 
         irt::modeling mod;

@@ -645,21 +645,8 @@ static auto send(const embedded_simulation&        embed_sims,
     const pos_in_objective_function pos(embed_sims.selections.size());
     auto                            output_port_index = 0;
 
-    // Send the observation values of the best embedded simulation
-
-    for (const auto obj_fn_id : embed_sims.selections) {
-        const auto idx = pos(best_sub_id, obj_fn_id);
-        const auto val = objective_fn[idx];
-
-        if (auto ret = send_message(sim, wrapper.y[output_port_index], val);
-            ret.has_error())
-            return ret.error();
-
-        ++output_port_index;
-    }
-
-    // Send the parameters values of the best embedded simulation to the
-
+    // Same order as the output ports shown by the component editor: the
+    // factors values, then the selections values.
     const auto& sub_sims = embed_sims.embedded_sims.get<simulation>();
     for (const auto factor_id : embed_sims.factors) {
         const auto id  = embed_sims.factors.get<model_id>(factor_id);
@@ -672,6 +659,17 @@ static auto send(const embedded_simulation&        embed_sims,
 
         if (auto ret = send_message(sim, wrapper.y[output_port_index], msg[0],
                                     msg[1], msg[2]);
+            ret.has_error())
+            return ret.error();
+
+        ++output_port_index;
+    }
+
+    for (const auto obj_fn_id : embed_sims.selections) {
+        const auto idx = pos(best_sub_id, obj_fn_id);
+        const auto val = objective_fn[idx];
+
+        if (auto ret = send_message(sim, wrapper.y[output_port_index], val);
             ret.has_error())
             return ret.error();
 
