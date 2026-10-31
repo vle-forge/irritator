@@ -1203,20 +1203,6 @@ int generic_simulation_editor::show_menu(project_editor& pj_ed,
     return r;
 }
 
-// Names of the ports of the simulation_wrapper, numbered since they depend on
-// the factors and the selections of its simulation component.
-static constexpr std::string_view port_numbers[] = {
-    "0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",  "10",
-    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21",
-    "22", "23", "24", "25", "26", "27", "28", "29", "30", "31",
-};
-
-static constexpr std::string_view port_number(const u32 port) noexcept
-{
-    return port < std::size(port_numbers) ? port_numbers[port]
-                                          : std::string_view("?");
-}
-
 /// The view of the models of the simulation for the @c node_editor.
 struct generic_simulation_editor::graph {
     application&               app;
@@ -1252,55 +1238,22 @@ struct generic_simulation_editor::graph {
 
     u32 input_count(const u32 node) noexcept
     {
-        return dispatch(mdl(node), []<typename Dynamics>(Dynamics& dyn) -> u32 {
-            if constexpr (has_input_port<Dynamics>)
-                return static_cast<u32>(length(dyn.x));
-            else
-                return 0u;
-        });
+        return input_port_count(mdl(node));
     }
 
     u32 output_count(const u32 node) noexcept
     {
-        return dispatch(mdl(node), []<typename Dynamics>(Dynamics& dyn) -> u32 {
-            if constexpr (has_output_port<Dynamics>)
-                return static_cast<u32>(length(dyn.y));
-            else
-                return 0u;
-        });
+        return output_port_count(mdl(node));
     }
 
     std::string_view input_name(const u32 node, const u32 port) noexcept
     {
-        return dispatch(
-          mdl(node),
-          [port]<typename Dynamics>(Dynamics& /*dyn*/) -> std::string_view {
-              if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
-                  constexpr std::string_view names[] = { "init", "run" };
-                  return port < 2 ? names[port] : port_number(port);
-              } else if constexpr (has_input_port<Dynamics>) {
-                  const auto names = get_input_port_names<Dynamics>();
-                  return port < names.size() ? names[port] : std::string_view();
-              } else {
-                  return std::string_view();
-              }
-          });
+        return input_port_name(mdl(node), port);
     }
 
     std::string_view output_name(const u32 node, const u32 port) noexcept
     {
-        return dispatch(
-          mdl(node),
-          [port]<typename Dynamics>(Dynamics& /*dyn*/) -> std::string_view {
-              if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
-                  return port_number(port);
-              } else if constexpr (has_output_port<Dynamics>) {
-                  const auto names = get_output_port_names<Dynamics>();
-                  return port < names.size() ? names[port] : std::string_view();
-              } else {
-                  return std::string_view();
-              }
-          });
+        return output_port_name(mdl(node), port);
     }
 
     void content(const u32 node) noexcept

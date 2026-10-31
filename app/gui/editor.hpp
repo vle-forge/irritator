@@ -68,6 +68,20 @@ bool show_extented_constant_parameter(const component_access& ids,
                                       const component_id      id,
                                       parameter&              p) noexcept;
 
+/// The number of input ports of a model of a simulation.
+u32 input_port_count(const model& mdl) noexcept;
+
+/// The number of output ports of a model of a simulation.
+u32 output_port_count(const model& mdl) noexcept;
+
+/// The name of an input port of a model of a simulation. The ports of the
+/// @c simulation_wrapper, after @c init and @c run, are numbered.
+std::string_view input_port_name(const model& mdl, u32 port) noexcept;
+
+/// The name of an output port of a model of a simulation, numbered for the
+/// @c simulation_wrapper.
+std::string_view output_port_name(const model& mdl, u32 port) noexcept;
+
 } // irt
 
 #endif

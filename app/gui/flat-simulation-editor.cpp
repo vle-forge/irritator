@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "editor.hpp"
 #include "internal.hpp"
 
 #include <imgui.h>
@@ -10,10 +11,13 @@
 
 namespace irt {
 
-constexpr inline float  MW  = 50.f;
-constexpr inline float  MH  = 50.f;
-constexpr inline float  MW2 = MW / 2.f;
-constexpr inline float  MH2 = MW / 2.f;
+// The layout reserves the place of a DEVS node with a few ports for each
+// model.
+constexpr inline float MW  = 200.f;
+constexpr inline float MH  = 120.f;
+constexpr inline float MW2 = MW / 2.f;
+constexpr inline float MH2 = MH / 2.f;
+
 constexpr inline ImVec2 model_width_height(MW, MH);
 
 constexpr auto to_float(std::integral auto i) noexcept -> float
@@ -21,335 +25,174 @@ constexpr auto to_float(std::integral auto i) noexcept -> float
     return static_cast<float>(i);
 }
 
-void flat_simulation_editor::center_camera() noexcept
-{
-    const auto top_left_z     = top_left * zoom;
-    const auto bottom_right_z = bottom_right * zoom;
-    const auto space          = canvas_sz - (bottom_right_z - top_left_z);
+/// The view of all the models of the simulation for the @c node_editor, read
+/// only: the nodes can be moved but the simulation does not change.
+struct flat_simulation_editor::graph {
+    project_editor&         pj_ed;
+    flat_simulation_editor& ed;
 
-    scrolling = -top_left * zoom + space / 2.f;
-}
-
-void flat_simulation_editor::auto_fit_camera() noexcept
-{
-    const auto distance    = bottom_right - top_left;
-    const auto zoom_factor = canvas_sz / distance;
-
-    zoom = std::min(zoom_factor.x, zoom_factor.y);
-    zoom = std::clamp(zoom, 0.01f, 5.f);
-
-    const auto top_left_z     = top_left * zoom;
-    const auto bottom_right_z = bottom_right * zoom;
-    const auto space          = canvas_sz - (bottom_right_z - top_left_z);
-
-    scrolling = -top_left * zoom + space / 2.f;
-}
-
-static void draw_block_connections(
-  const simulation&                               sim,
-  const model_id                                  src,
-  const std::span<const ImVec2>                   positions,
-  const std::span<const node>                     block,
-  const ImVec2                                    origin,
-  const bitflags<flat_simulation_editor::action>& actions,
-  const float                                     zoom,
-  ImDrawList*                                     draw_list) noexcept
-{
-    const auto src_idx = get_index(src);
-
-    for (auto it = block.begin(), et = block.end(); it != et; ++it) {
-        if (const auto* dst = sim.models.try_to_get(it->model); dst) {
-            ImVec2 from(origin.x + (positions[src_idx][0] * zoom),
-                        origin.y + (positions[src_idx][1] * zoom));
-
-            ImVec2 to(origin.x + (positions[get_index(it->model)][0] * zoom),
-                      origin.y + (positions[get_index(it->model)][1] * zoom));
-
-            if (actions[flat_simulation_editor::action::use_bezier])
-                draw_list->AddBezierCubic(from,
-                                          from + ImVec2(+50.f, 0.f),
-                                          to + ImVec2(-50.f, 0.f),
-                                          to,
-                                          IM_COL32(0, 127, 0, 255),
-                                          1.0f);
-            else
-                draw_list->AddLine(from, to, IM_COL32(0, 127, 0, 255), 1.0f);
-        }
+    const model* mdl(const u32 node) const noexcept
+    {
+        return pj_ed.pj.sim.models.try_to_get(ed.nodes[node].mdl);
     }
-}
 
-static void draw_connections(
-  const simulation&                               sim,
-  const model&                                    mdl,
-  const std::span<const ImVec2>                   positions,
-  const ImVec2                                    origin,
-  const bitflags<flat_simulation_editor::action>& actions,
-  const float                                     zoom,
-  ImDrawList*                                     draw_list) noexcept
+    u32 node_count() const noexcept
+    {
+        return static_cast<u32>(ed.nodes.size());
+    }
+
+    ImVec2& position(const u32 node) noexcept { return ed.positions[node]; }
+
+    ImU32 title_color(const u32 node, const bool /*selected*/) const noexcept
+    {
+        return ed.nodes[node].color;
+    }
+
+    std::string_view title(const u32 node) const noexcept
+    {
+        const auto* m = mdl(node);
+        return m ? dynamics_type_names[ordinal(m->type)] : "?";
+    }
+
+    u32 input_count(const u32 node) const noexcept
+    {
+        const auto* m = mdl(node);
+        return m ? input_port_count(*m) : 0u;
+    }
+
+    u32 output_count(const u32 node) const noexcept
+    {
+        const auto* m = mdl(node);
+        return m ? output_port_count(*m) : 0u;
+    }
+
+    std::string_view input_name(const u32 node, const u32 port) const noexcept
+    {
+        const auto* m = mdl(node);
+        return m ? input_port_name(*m, port) : std::string_view();
+    }
+
+    std::string_view output_name(const u32 node, const u32 port) const noexcept
+    {
+        const auto* m = mdl(node);
+        return m ? output_port_name(*m, port) : std::string_view();
+    }
+
+    void content(const u32 /*node*/) const noexcept {}
+
+    template<typename Fn>
+    void for_each_link(Fn&& fn) const noexcept
+    {
+        for (const auto& l : ed.links)
+            fn(l.out_node, l.out_port, l.in_node, l.in_port);
+    }
+};
+
+void flat_simulation_editor::build_graph(const project_editor& pj_ed,
+                                         const data_type&      d) noexcept
 {
-    dispatch(
-      mdl,
-      [&]<typename Dynamics>(
-        Dynamics& dyn, const auto& sim, const auto src_mdl_id) {
-          if constexpr (has_output_port<Dynamics>) {
-              for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                  if (const auto* y = sim.output_ports.try_to_get(dyn.y[i])) {
-                      draw_block_connections(sim,
-                                             src_mdl_id,
-                                             positions,
-                                             y->connections,
-                                             origin,
-                                             actions,
-                                             zoom,
-                                             draw_list);
+    constexpr auto none = std::numeric_limits<u32>::max();
+    const auto&    sim  = pj_ed.pj.sim;
 
-                      for (auto* block = sim.nodes.try_to_get(y->next); block;
-                           block       = sim.nodes.try_to_get(block->next)) {
+    nodes.clear();
+    positions.clear();
+    links.clear();
 
-                          draw_block_connections(sim,
-                                                 src_mdl_id,
-                                                 positions,
-                                                 block->nodes,
-                                                 origin,
-                                                 actions,
-                                                 zoom,
-                                                 draw_list);
-                      }
-                  }
-              }
-          }
-      },
-      sim,
-      sim.models.get_id(mdl));
+    vector<u32> indices(sim.models.capacity(), none);
+
+    small_vector<const tree_node*, max_component_stack_size> stack;
+    if (const auto* head = pj_ed.pj.tree_nodes.try_to_get(pj_ed.pj.tn_head()))
+        stack.emplace_back(head);
+
+    while (not stack.empty()) {
+        const auto* cur   = stack.back();
+        const auto  tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
+        stack.pop_back();
+
+        for (const auto& ch : cur->children) {
+            if (ch.type != tree_node::child_node::type::model or
+                not sim.models.exists(ch.mdl))
+                continue;
+
+            const auto idx    = get_index(ch.mdl);
+            const auto center = idx < d.positions.size() ? d.positions[idx]
+                                                         : ImVec2();
+
+            const auto color = get_index(tn_id) < d.tn_colors.size()
+                                 ? d.tn_colors[tn_id]
+                                 : ImGui::GetColorU32(ImGuiCol_TitleBg);
+
+            indices[idx] = static_cast<u32>(nodes.size());
+            nodes.push_back(node{ .mdl = ch.mdl, .color = color });
+            positions.push_back(ImVec2(center.x - MW2, center.y - MH2));
+        }
+
+        if (auto* sibling = cur->tree.get_sibling(); sibling)
+            stack.emplace_back(sibling);
+
+        if (auto* child = cur->tree.get_child(); child)
+            stack.emplace_back(child);
+    }
+
+    for (u32 i = 0, e = static_cast<u32>(nodes.size()); i != e; ++i) {
+        dispatch(sim.models.get(nodes[i].mdl), [&]<typename Dynamics>(
+                                                 const Dynamics& dyn) noexcept {
+            if constexpr (has_output_port<Dynamics>) {
+                for (int p = 0, pe = length(dyn.y); p != pe; ++p) {
+                    sim.for_each(dyn.y[p], [&](auto& dst, auto dst_port) {
+                        const auto in = indices[get_index(sim.get_id(dst))];
+                        if (in != none)
+                            links.push_back(
+                              link{ .out_node = i,
+                                    .out_port = static_cast<u32>(p),
+                                    .in_node  = in,
+                                    .in_port  = static_cast<u32>(dst_port) });
+                    });
+                }
+            }
+        });
+    }
+
+    editor.reset();
+    editor.request_fit();
 }
 
 bool flat_simulation_editor::display(application&    app,
                                      project_editor& pj_ed) noexcept
 {
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
-
     if (not is_ready.test_and_set()) {
         rebuild(app, pj_ed);
         return false;
     }
 
-    if (not ImGui::BeginChild(
-          "flat-simulation",
-          ImVec2(canvas_sz.x, canvas_sz.y - ImGui::GetFrameHeight()))) {
-        ImGui::EndChild();
-        return false;
-    }
-
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
-
-    ImVec2 canvas_p1 =
-      ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
-
-    const ImGuiIO& io        = ImGui::GetIO();
-    ImDrawList*    draw_list = ImGui::GetWindowDrawList();
-
-    if (actions[action::camera_center])
-        center_camera();
-
-    if (actions[action::camera_auto_fit])
-        auto_fit_camera();
-
-    draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
-
-    ImGui::InvisibleButton("Canvas",
-                           canvas_sz,
-                           ImGuiButtonFlags_MouseButtonLeft |
-                             ImGuiButtonFlags_MouseButtonMiddle |
-                             ImGuiButtonFlags_MouseButtonRight);
-
-    const bool is_hovered = ImGui::IsItemHovered();
-    const bool is_active  = ImGui::IsItemActive();
-
-    const ImVec2 origin(canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y);
-    const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
-                                     io.MousePos.y - origin.y);
-
-    if (is_active and ImGui::IsMouseDragging(ImGuiMouseButton_Middle))
-        scrolling += io.MouseDelta;
-
-    if (is_hovered and io.MouseWheel != 0.f) {
-        zoom += io.MouseWheel * zoom * 0.1f;
-        zoom = std::clamp(zoom, 0.01f, 5.f);
-    }
-
-    const auto drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
-    if (drag_delta.x == 0.0f and drag_delta.y == 0.0f)
-        ImGui::OpenPopupOnItemClick("Flat simulation menu",
-                                    ImGuiPopupFlags_MouseButtonRight);
-
-    if (ImGui::BeginPopup("Flat simulation menu")) {
-        if (ImGui::BeginMenu("View")) {
-            if (ImGui::MenuItem("Auto fit camera"))
-                auto_fit_camera();
-            if (ImGui::MenuItem("Center camera"))
-                center_camera();
-
-            if (bool enabled = actions[action::use_grid];
-                ImGui::MenuItem("show grid", nullptr, &enabled))
-                actions.set(action::use_grid, enabled);
-
-            if (bool enabled = actions[action::use_bezier];
-                ImGui::MenuItem("bezier lines", nullptr, &enabled))
-                actions.set(action::use_bezier, enabled);
-
-            ImGui::EndMenu();
-        }
-        ImGui::EndPopup();
-    }
-
-    if (is_hovered) {
-        if (not run_selection and ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            run_selection   = true;
-            start_selection = io.MousePos;
-        }
-
-        if (run_selection and ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-            run_selection = false;
-            end_selection = io.MousePos;
-
-            if (start_selection == end_selection) {
-                selected_nodes.clear();
-            } else {
-                ImVec2 bmin{
-                    std::min(start_selection.x, end_selection.x),
-                    std::min(start_selection.y, end_selection.y),
-                };
-
-                ImVec2 bmax{
-                    std::max(start_selection.x, end_selection.x),
-                    std::max(start_selection.y, end_selection.y),
-                };
-
-                selected_nodes.clear();
-
-                data.read([&](const auto& d, const auto /*version*/) {
-                    for (const auto& mdl : pj_ed.pj.sim.models) {
-                        const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-                        const auto i      = get_index(mdl_id);
-
-                        ImVec2 p_min(
-                          origin.x + ((d.positions[i][0] - MW2) * zoom),
-                          origin.y + ((d.positions[i][1] - MH2) * zoom));
-
-                        ImVec2 p_max(
-                          origin.x + ((d.positions[i][0] + MW2) * zoom),
-                          origin.y + ((d.positions[i][1] + MH2) * zoom));
-
-                        if (p_min.x >= bmin.x and p_max.x < bmax.x and
-                            p_min.y >= bmin.y and p_max.y < bmax.y) {
-                            selected_nodes.emplace_back(mdl_id);
-                        }
-                    }
-                });
-            }
-        }
-    }
-
-    draw_list->PushClipRect(canvas_p0, canvas_p1, true);
-
-    if (actions[action::use_grid]) {
-        const float GRID_STEP = 64.0f;
-
-        for (float x = std::fmod(scrolling.x, GRID_STEP); x < canvas_sz.x;
-             x += GRID_STEP)
-            draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
-                               ImVec2(canvas_p0.x + x, canvas_p1.y),
-                               IM_COL32(200, 200, 200, 40));
-
-        for (float y = std::fmod(scrolling.y, GRID_STEP); y < canvas_sz.y;
-             y += GRID_STEP)
-            draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
-                               ImVec2(canvas_p1.x, canvas_p0.y + y),
-                               IM_COL32(200, 200, 200, 40));
-    }
-
-    data.read([&](const auto& d, const auto /*version*/) {
-        if (d.positions.empty())
-            return;
-
-        small_vector<const tree_node*, max_component_stack_size> stack;
-        stack.emplace_back(pj_ed.pj.tree_nodes.try_to_get(pj_ed.pj.tn_head()));
-
-        while (!stack.empty()) {
-            auto cur   = stack.back();
-            auto tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
-            stack.pop_back();
-
-            for (const auto& ch : cur->children) {
-                if (ch.type == tree_node::child_node::type::model) {
-                    const auto  mdl_id = ch.mdl;
-                    const auto* mdl    = pj_ed.pj.sim.models.try_to_get(mdl_id);
-                    const auto  i      = get_index(mdl_id);
-
-                    if (not mdl)
-                        continue;
-
-                    ImVec2 p_min(origin.x + ((d.positions[i][0] - MW2) * zoom),
-                                 origin.y + ((d.positions[i][1] - MH2) * zoom));
-
-                    ImVec2 p_max(origin.x + ((d.positions[i][0] + MW2) * zoom),
-                                 origin.y + ((d.positions[i][1] + MH2) * zoom));
-
-                    if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
-                        canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y) {
-                        draw_list->AddRectFilled(
-                          p_min, p_max, d.tn_colors[tn_id]);
-                        if (zoom > 3.f)
-                            draw_list->AddText(
-                              p_min + ImVec2(5.f, 5.f),
-                              IM_COL32(0, 0, 0, 255),
-                              dynamics_type_names[ordinal(mdl->type)]);
-                    }
-
-                    draw_connections(pj_ed.pj.sim,
-                                     *mdl,
-                                     std::span<const ImVec2>(
-                                       d.positions.begin(), d.positions.size()),
-                                     origin,
-                                     actions,
-                                     zoom,
-                                     draw_list);
-                }
-            }
-
-            if (auto* sibling = cur->tree.get_sibling(); sibling)
-                stack.emplace_back(sibling);
-
-            if (auto* child = cur->tree.get_child(); child)
-                stack.emplace_back(child);
+    // The layout task may not have written the data yet: the empty data are
+    // skipped to build the graph when they arrive.
+    data.read([&](const auto& d, const auto v) {
+        if (v != version and not d.tn_colors.empty()) {
+            version = v;
+            build_graph(pj_ed, d);
         }
     });
 
-    if (run_selection) {
-        end_selection = io.MousePos;
+    editor.read_only = true;
+    editor.min_zoom  = 0.01f;
 
-        if (start_selection == end_selection) {
-            selected_nodes.clear();
-        } else {
-            ImVec2 bmin{
-                std::min(start_selection.x, io.MousePos.x),
-                std::min(start_selection.y, io.MousePos.y),
-            };
+    if (ImGui::BeginChild("flat-simulation",
+                          ImVec2(0.f, -ImGui::GetFrameHeightWithSpacing()))) {
+        auto g = graph{ .pj_ed = pj_ed, .ed = *this };
+        (void)editor.show("flat-simulation-graph", g);
 
-            ImVec2 bmax{
-                std::max(start_selection.x, io.MousePos.x),
-                std::max(start_selection.y, io.MousePos.y),
-            };
+        if (editor.is_background_hovered() and
+            ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            ImGui::OpenPopup("Flat simulation menu");
 
-            draw_list->AddRectFilled(bmin, bmax, IM_COL32(200, 0, 0, 127));
+        if (ImGui::BeginPopup("Flat simulation menu")) {
+            if (ImGui::MenuItem("Auto fit camera"))
+                editor.request_fit();
+            ImGui::MenuItem("Show minimap", "", &editor.show_minimap);
+            ImGui::EndPopup();
         }
     }
-
-    draw_list->PopClipRect();
     ImGui::EndChild();
 
     display_status();
@@ -871,38 +714,20 @@ void flat_simulation_editor::rebuild(application&    app,
 {
     app.add_gui_task([&]() {
         data.write([&](auto& d) {
-            const auto mdls = pj_ed.pj.sim.models.size();
-            const auto tns  = pj_ed.pj.tree_nodes.size();
+            // Indexed by identifiers: the capacity covers the holes.
+            const auto mdls = pj_ed.pj.sim.models.capacity();
+            const auto tns  = pj_ed.pj.tree_nodes.capacity();
 
             clear(d, mdls, tns);
 
             compute_rects(app, pj_ed, d);
             compute_colors(d, pj_ed.pj.tree_nodes);
-
-            rect_bound bound;
-            for (const auto& p : d.positions) {
-                bound.update(p.x - MW2, p.y - MH2);
-                bound.update(p.x + MW2, p.y + MH2);
-            }
-
-            top_left     = bound.top_left();
-            bottom_right = bound.bottom_right();
-
-            auto_fit_camera();
         });
     });
 }
 
 void flat_simulation_editor::display_status() noexcept
 {
-    ImGui::TextFormat(
-      "zoom: {} position: {},{} top-left: {},{} bottom-right: {},{}",
-      zoom,
-      top_left.x + scrolling.x,
-      top_left.y + scrolling.y,
-      top_left.x,
-      top_left.y,
-      bottom_right.x,
-      bottom_right.y);
+    ImGui::TextFormat("models: {} connections: {}", nodes.size(), links.size());
 }
 }

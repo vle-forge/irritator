@@ -1150,4 +1150,69 @@ bool show_parameter_editor(application&     app,
       p);
 }
 
+// The ports of the simulation_wrapper depend on the factors and the
+// selections of its simulation component: they are numbered.
+static constexpr std::string_view port_numbers[] = {
+    "0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",  "10",
+    "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21",
+    "22", "23", "24", "25", "26", "27", "28", "29", "30", "31",
+};
+
+static constexpr std::string_view port_number(const u32 port) noexcept
+{
+    return port < std::size(port_numbers) ? port_numbers[port]
+                                          : std::string_view("?");
+}
+
+u32 input_port_count(const model& mdl) noexcept
+{
+    return dispatch(mdl, []<typename Dynamics>(const Dynamics& dyn) -> u32 {
+        if constexpr (has_input_port<Dynamics>)
+            return static_cast<u32>(length(dyn.x));
+        else
+            return 0u;
+    });
+}
+
+u32 output_port_count(const model& mdl) noexcept
+{
+    return dispatch(mdl, []<typename Dynamics>(const Dynamics& dyn) -> u32 {
+        if constexpr (has_output_port<Dynamics>)
+            return static_cast<u32>(length(dyn.y));
+        else
+            return 0u;
+    });
+}
+
+std::string_view input_port_name(const model& mdl, const u32 port) noexcept
+{
+    return dispatch(
+      mdl, [port]<typename Dynamics>(const Dynamics&) -> std::string_view {
+          if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
+              constexpr std::string_view names[] = { "init", "run" };
+              return port < 2 ? names[port] : port_number(port);
+          } else if constexpr (has_input_port<Dynamics>) {
+              const auto names = get_input_port_names<Dynamics>();
+              return port < names.size() ? names[port] : std::string_view();
+          } else {
+              return std::string_view();
+          }
+      });
+}
+
+std::string_view output_port_name(const model& mdl, const u32 port) noexcept
+{
+    return dispatch(
+      mdl, [port]<typename Dynamics>(const Dynamics&) -> std::string_view {
+          if constexpr (std::is_same_v<Dynamics, simulation_wrapper>) {
+              return port_number(port);
+          } else if constexpr (has_output_port<Dynamics>) {
+              const auto names = get_output_port_names<Dynamics>();
+              return port < names.size() ? names[port] : std::string_view();
+          } else {
+              return std::string_view();
+          }
+      });
+}
+
 } // irt

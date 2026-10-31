@@ -917,13 +917,6 @@ private:
 class flat_simulation_editor
 {
 public:
-    enum class action : u32 {
-        camera_center,
-        camera_auto_fit,
-        use_grid,
-        use_bezier,
-    };
-
     bool display(application& app, project_editor& pj_ed) noexcept;
     void display_status() noexcept;
 
@@ -939,32 +932,40 @@ private:
         vector<ImVec2> cache_positions;
     };
 
-    void center_camera() noexcept;
-    void auto_fit_camera() noexcept;
+    /// A model of the simulation and the color of its tree node.
+    struct node {
+        model_id mdl   = undefined<model_id>();
+        ImU32    color = 0;
+    };
+
+    struct link {
+        u32 out_node = 0;
+        u32 out_port = 0;
+        u32 in_node  = 0;
+        u32 in_port  = 0;
+    };
+
+    struct graph;
 
     void compute_rects(application&    app,
                        project_editor& pj_ed,
                        data_type&      d) noexcept;
     void rebuild(application& app, project_editor& pj_ed) noexcept;
+    void build_graph(const project_editor& pj_ed, const data_type& d) noexcept;
 
     shared_buffer<data_type> data;
 
     ImVec2 distance{ 15.f, 15.f };      /// distance between two nodes
     ImVec2 tn_distance{ 100.f, 100.f }; /// distance between two tree nodes
-    ImVec2 scrolling{ 0.f, 0.f };       /// top left position in canvas
-    ImVec2 canvas_sz{ 0.f, 0.f };       /// canvas size
-    float  zoom = 1.f;
 
-    ImVec2 start_selection;
-    ImVec2 end_selection;
+    node_editor::editor editor;
+    vector<node>        nodes;
+    vector<link>        links;
 
-    ImVec2 top_left;
-    ImVec2 bottom_right;
-
-    vector<model_id> selected_nodes;
-    bitflags<action> actions;
-
-    bool run_selection = false;
+    /// The top-left positions of the nodes, copied from the layout of @c data
+    /// to be moved in the view.
+    vector<ImVec2> positions;
+    u64            version = std::numeric_limits<u64>::max();
 
     std::atomic_flag is_ready = ATOMIC_FLAG_INIT;
 };
