@@ -52,7 +52,7 @@ bool editor::begin_canvas(const char* str_id, const u32 node_count) noexcept
 
     if (ImGui::IsItemHovered() and io.MouseWheel != 0.f) {
         const auto zoom = std::clamp(
-          m_camera.zoom * (1.f + io.MouseWheel * 0.1f), 0.05f, 1.f);
+          m_camera.zoom * (1.f + io.MouseWheel * 0.1f), min_zoom, max_zoom);
         m_camera.zoom_at(m_canvas.min, io.MousePos, zoom);
     }
 
@@ -141,12 +141,43 @@ void editor::draw_link(const bezier<ImVec2>& b,
       selected ? 3.f : 1.5f);
 }
 
+void editor::draw_straight_link(const ImVec2 from,
+                                const ImVec2 to,
+                                const bool   selected,
+                                const float  arrow_gap) const noexcept
+{
+    auto*      dl  = ImGui::GetWindowDrawList();
+    const auto col = selected ? ImGui::GetColorU32(ImGuiCol_PlotLinesHovered)
+                              : ImGui::GetColorU32(ImGuiCol_Text, 0.6f);
+
+    dl->AddLine(from, to, col, selected ? 3.f : 1.5f);
+
+    const auto dx  = to.x - from.x;
+    const auto dy  = to.y - from.y;
+    const auto len = std::sqrt(dx * dx + dy * dy);
+
+    if (arrow_gap < 0.f or len <= arrow_gap + 1.f)
+        return;
+
+    // The arrow stops at the border of the destination, approximated by a
+    // circle of the node half size.
+    const auto ux  = dx / len;
+    const auto uy  = dy / len;
+    const auto tip = ImVec2(to.x - ux * arrow_gap, to.y - uy * arrow_gap);
+    const auto a   = 8.f;
+    dl->AddTriangleFilled(
+      tip,
+      ImVec2(tip.x - ux * a - uy * a * 0.5f, tip.y - uy * a + ux * a * 0.5f),
+      ImVec2(tip.x - ux * a + uy * a * 0.5f, tip.y - uy * a - ux * a * 0.5f),
+      col);
+}
+
 void editor::end_canvas(events& ev) noexcept
 {
     const auto has_selection = not m_selected_nodes.empty() or
                                not m_selected_links.empty();
 
-    if (has_selection and
+    if (has_selection and not read_only and
         ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
         not ImGui::GetIO().WantTextInput) {
         ev.delete_selection    = ImGui::IsKeyReleased(ImGuiKey_Delete);

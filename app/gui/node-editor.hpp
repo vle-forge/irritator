@@ -45,8 +45,14 @@ struct events {
  * [0, node_count()[ and the links by their order in @c for_each_link().
  *
  * @c content() draws the optional ImGui widgets of a node; it is called only
- * for the visible nodes at full zoom. An optional @c title_color(node,
- * selected) returning an @c ImU32 overrides the color of the title bar.
+ * for the visible nodes at full zoom. Optional members change the drawing:
+ * - @c title_color(node, selected) returning an @c ImU32 overrides the color
+ *   of the title bar;
+ * - @c compact_size(node) returning a @c std::optional<float> draws the node
+ *   as a square of this world size, without ports: its links go from center
+ *   to center and a shift-drag from it to another compact node creates one;
+ * - @c directed() returning @c true draws an arrow at the end of the links
+ *   between compact nodes.
  */
 template<typename A>
 concept graph_adapter = requires(A         a,
@@ -114,6 +120,15 @@ public:
 
     bool show_minimap = true;
 
+    /// No link can be created or deleted, the nodes can be moved.
+    bool read_only = false;
+
+    float min_zoom = 0.05f;
+
+    /// Over one, the widgets of the nodes keep their size: only the views of
+    /// compact nodes use a larger zoom.
+    float max_zoom = 1.f;
+
 private:
     struct node_cache {
         float width          = 160.f;
@@ -135,6 +150,10 @@ private:
     bool begin_canvas(const char* str_id, u32 node_count) noexcept;
     void draw_grid() const noexcept;
     void draw_link(const bezier<ImVec2>& b, bool selected) const noexcept;
+    void draw_straight_link(ImVec2 from,
+                            ImVec2 to,
+                            bool   selected,
+                            float  arrow_gap) const noexcept;
     void end_canvas(events& ev) noexcept;
 
     /// Lays out the widgets of a node in a region of width @c limit: the
@@ -159,7 +178,50 @@ private:
     void select_link(u32 link, bool add) noexcept;
 
     template<graph_adapter A>
+    static std::optional<float> compact_size(A& adapter, u32 node) noexcept
+    {
+        if constexpr (requires { adapter.compact_size(node); })
+            return adapter.compact_size(node);
+        else
+            return std::nullopt;
+    }
+
+    template<graph_adapter A>
+    static bool is_directed(A& adapter) noexcept
+    {
+        if constexpr (requires { adapter.directed(); })
+            return adapter.directed();
+        else
+            return false;
+    }
+
+    /// The world size of a node.
+    template<graph_adapter A>
+    ImVec2 extent(A& adapter, const u32 node) const noexcept
+    {
+        if (const auto s = compact_size(adapter, node))
+            return ImVec2(*s, *s);
+
+        return node_size(node, adapter.input_count(node),
+                         adapter.output_count(node));
+    }
+
+    /// The screen center of a node.
+    template<graph_adapter A>
+    ImVec2 center(A& adapter, const u32 node) const noexcept
+    {
+        const auto p = m_camera.to_screen(m_canvas.min, adapter.position(node));
+        const auto s = extent(adapter, node);
+
+        return ImVec2(p.x + s.x * m_camera.zoom * 0.5f,
+                      p.y + s.y * m_camera.zoom * 0.5f);
+    }
+
+    template<graph_adapter A>
     void fit(A& adapter) noexcept;
+
+    template<graph_adapter A>
+    void draw_compact_node(A& adapter, u32 node, float size) noexcept;
 
     template<graph_adapter A>
     void draw_links(A& adapter) noexcept;
@@ -223,8 +285,7 @@ events editor::show(const char* str_id, A& adapter) noexcept
         for (u32 i = 0, e = adapter.node_count(); i != e; ++i) {
             const auto p    = m_camera.to_screen(m_canvas.min,
                                                  adapter.position(i));
-            const auto size = node_size(i, adapter.input_count(i),
-                                        adapter.output_count(i));
+            const auto size = extent(adapter, i);
             const auto r    = rect<ImVec2>{ p,
                                             ImVec2(p.x + size.x * m_camera.zoom,
                                                    p.y + size.y * m_camera.zoom) };
@@ -262,8 +323,7 @@ void editor::fit(A& adapter) noexcept
     auto r = rect<ImVec2>{ adapter.position(0), adapter.position(0) };
     for (u32 i = 0; i != n; ++i) {
         const auto p = adapter.position(i);
-        const auto s = node_size(i, adapter.input_count(i),
-                                 adapter.output_count(i));
+        const auto s = extent(adapter, i);
 
         r.min.x = std::min(r.min.x, p.x);
         r.min.y = std::min(r.min.y, p.y);
@@ -277,7 +337,7 @@ void editor::fit(A& adapter) noexcept
     const auto canvas_h = m_canvas.max.y - m_canvas.min.y;
 
     m_camera.zoom = std::clamp(std::min(canvas_w / w, canvas_h / h) * 0.9f,
-                               0.05f, 1.f);
+                               min_zoom, max_zoom);
     m_camera.scrolling.x = canvas_w * 0.5f -
                            (r.min.x + w * 0.5f) * m_camera.zoom;
     m_camera.scrolling.y = canvas_h * 0.5f -
@@ -287,17 +347,56 @@ void editor::fit(A& adapter) noexcept
 template<graph_adapter A>
 void editor::draw_links(A& adapter) noexcept
 {
-    const auto mouse   = ImGui::GetIO().MousePos;
-    const auto tangent = 50.f * m_camera.zoom;
-    u32        link    = 0;
+    const auto mouse    = ImGui::GetIO().MousePos;
+    const auto tangent  = 50.f * m_camera.zoom;
+    const auto directed = is_directed(adapter);
+    u32        link     = 0;
 
     m_hovered_link.reset();
     m_hovered_link_distance = 6.f;
 
     adapter.for_each_link([&](const u32 out_node, const u32 out_port,
                               const u32 in_node, const u32 in_port) noexcept {
-        const auto index = link++;
-        const auto from  = output_pin(
+        const auto index    = link++;
+        const auto selected = std::ranges::find(m_selected_links, index) !=
+                              m_selected_links.end();
+        const auto out_size = compact_size(adapter, out_node);
+        const auto in_size  = compact_size(adapter, in_node);
+
+        if (out_size or in_size) {
+            const auto from = out_size
+                                ? center(adapter, out_node)
+                                : output_pin(
+                                    m_camera.to_screen(
+                                      m_canvas.min, adapter.position(out_node)),
+                                    out_node, adapter.input_count(out_node),
+                                    out_port);
+            const auto to   = in_size ? center(adapter, in_node)
+                                      : input_pin(m_camera.to_screen(
+                                                  m_canvas.min,
+                                                  adapter.position(in_node)),
+                                                  in_port);
+
+            if (not overlaps(make_rect(from, to), m_canvas))
+                return;
+
+            const auto gap = directed and in_size
+                               ? *in_size * m_camera.zoom * 0.5f
+                               : -1.f;
+            draw_straight_link(from, to, selected, gap);
+
+            if (m_mouse_enabled) {
+                if (const auto d = distance_to_segment(mouse, from, to);
+                    d < m_hovered_link_distance) {
+                    m_hovered_link_distance = d;
+                    m_hovered_link          = index;
+                }
+            }
+
+            return;
+        }
+
+        const auto from = output_pin(
           m_camera.to_screen(m_canvas.min, adapter.position(out_node)),
           out_node, adapter.input_count(out_node), out_port);
         const auto to = input_pin(
@@ -307,8 +406,6 @@ void editor::draw_links(A& adapter) noexcept
         if (not overlaps(bounds(b), m_canvas))
             return;
 
-        const auto selected = std::ranges::find(m_selected_links, index) !=
-                              m_selected_links.end();
         draw_link(b, selected);
 
         if (m_mouse_enabled and contains(bounds(b), mouse)) {
@@ -322,8 +419,49 @@ void editor::draw_links(A& adapter) noexcept
 }
 
 template<graph_adapter A>
+void editor::draw_compact_node(A&          adapter,
+                               const u32   node,
+                               const float size) noexcept
+{
+    auto*      dl       = ImGui::GetWindowDrawList();
+    const auto selected = is_selected(node);
+    const auto p = m_camera.to_screen(m_canvas.min, adapter.position(node));
+    const auto w = std::max(size * m_camera.zoom, 3.f);
+    const auto q = ImVec2(p.x + w, p.y + w);
+
+    auto color = ImGui::GetColorU32(selected ? ImGuiCol_TitleBgActive
+                                             : ImGuiCol_TitleBg);
+    if constexpr (requires { adapter.title_color(node, selected); })
+        color = adapter.title_color(node, selected);
+
+    dl->AddRectFilled(p, q, color);
+    if (selected)
+        dl->AddRect(p, q, ImGui::GetColorU32(ImGuiCol_ButtonActive), 0.f, 0,
+                    2.f);
+
+    const auto title = std::string_view(adapter.title(node));
+    const auto text  = ImGui::CalcTextSize(title.data(),
+                                           title.data() + title.size());
+
+    if (text.x + 4.f < w and text.y < w)
+        dl->AddText(
+          ImVec2(p.x + (w - text.x) * 0.5f, p.y + (w - text.y) * 0.5f),
+          ImGui::GetColorU32(ImGuiCol_Text), title.data(),
+          title.data() + title.size());
+
+    if (m_mouse_enabled and
+        contains(rect<ImVec2>{ p, q }, ImGui::GetIO().MousePos))
+        m_hovered_node = node;
+}
+
+template<graph_adapter A>
 void editor::draw_node(A& adapter, const u32 node) noexcept
 {
+    if (const auto size = compact_size(adapter, node)) {
+        draw_compact_node(adapter, node, *size);
+        return;
+    }
+
     auto*      dl      = ImGui::GetWindowDrawList();
     const auto inputs  = adapter.input_count(node);
     const auto outputs = adapter.output_count(node);
@@ -444,7 +582,8 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
 
     // A right click on a link or a node selects it and opens its menu: the
     // right click on the background stays for the menu of the caller.
-    if (free_mouse and ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+    if (free_mouse and not read_only and
+        ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         if (m_hovered_node) {
             if (not is_selected(*m_hovered_node))
                 select_node(*m_hovered_node, false);
@@ -458,11 +597,16 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
     }
 
     if (free_mouse and ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        if (m_hovered_output) {
+        if (not read_only and m_hovered_node and io.KeyShift and
+            compact_size(adapter, *m_hovered_node)) {
+            m_drag             = drag_type::link;
+            m_drag_pin         = pin{ *m_hovered_node, 0 };
+            m_drag_from_output = true;
+        } else if (not read_only and m_hovered_output) {
             m_drag             = drag_type::link;
             m_drag_pin         = *m_hovered_output;
             m_drag_from_output = true;
-        } else if (m_hovered_input) {
+        } else if (not read_only and m_hovered_input) {
             m_drag             = drag_type::link;
             m_drag_pin         = *m_hovered_input;
             m_drag_from_output = false;
@@ -513,8 +657,7 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
             for (u32 i = 0, e = adapter.node_count(); i != e; ++i) {
                 const auto p = m_camera.to_screen(m_canvas.min,
                                                   adapter.position(i));
-                const auto s = node_size(i, adapter.input_count(i),
-                                         adapter.output_count(i));
+                const auto s = extent(adapter, i);
                 const auto r = rect<ImVec2>{ p, ImVec2(
                                                   p.x + s.x * m_camera.zoom,
                                                   p.y + s.y * m_camera.zoom) };
@@ -527,6 +670,21 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
     } break;
 
     case drag_type::link: {
+        if (compact_size(adapter, m_drag_pin.node)) {
+            draw_straight_link(center(adapter, m_drag_pin.node), io.MousePos,
+                               true, -1.f);
+
+            if (not ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                if (m_hovered_node and *m_hovered_node != m_drag_pin.node and
+                    compact_size(adapter, *m_hovered_node))
+                    ev.link_created = link_request{ m_drag_pin,
+                                                    pin{ *m_hovered_node, 0 } };
+
+                m_drag = drag_type::none;
+            }
+            break;
+        }
+
         const auto start   = m_drag_from_output
                                ? output_pin(m_camera.to_screen(
                                             m_canvas.min,
@@ -572,8 +730,7 @@ void editor::draw_minimap(A& adapter) noexcept
     auto world = rect<ImVec2>{ adapter.position(0), adapter.position(0) };
     for (u32 i = 0; i != n; ++i) {
         const auto p = adapter.position(i);
-        const auto s = node_size(i, adapter.input_count(i),
-                                 adapter.output_count(i));
+        const auto s = extent(adapter, i);
         world.min.x  = std::min(world.min.x, p.x);
         world.min.y  = std::min(world.min.y, p.y);
         world.max.x  = std::max(world.max.x, p.x + s.x);
@@ -617,8 +774,7 @@ void editor::draw_minimap(A& adapter) noexcept
 
     for (u32 i = 0; i != n; ++i) {
         const auto p = adapter.position(i);
-        const auto s = node_size(i, adapter.input_count(i),
-                                 adapter.output_count(i));
+        const auto s = extent(adapter, i);
         dl->AddRectFilled(to_map(p), to_map(ImVec2(p.x + s.x, p.y + s.y)),
                           ImGui::GetColorU32(is_selected(i)
                                                ? ImGuiCol_TitleBgActive
