@@ -37,6 +37,7 @@ struct events {
     std::optional<link_request> link_created;
     bool                        delete_selection    = false;
     bool                        duplicate_selection = false;
+    bool                        nodes_moved         = false;
 };
 
 /**
@@ -44,7 +45,8 @@ struct events {
  * [0, node_count()[ and the links by their order in @c for_each_link().
  *
  * @c content() draws the optional ImGui widgets of a node; it is called only
- * for the visible nodes at full zoom.
+ * for the visible nodes at full zoom. An optional @c title_color(node,
+ * selected) returning an @c ImU32 overrides the color of the title bar.
  */
 template<typename A>
 concept graph_adapter = requires(A         a,
@@ -84,6 +86,13 @@ public:
     }
 
     void clear_selection() noexcept;
+
+    /// Adds @c node to the selection.
+    void select(const u32 node) noexcept
+    {
+        if (not is_selected(node))
+            select_node(node, true);
+    }
 
     /// To call when the nodes of the adapter are rebuilt: the cached sizes and
     /// the selection refer to the previous indices.
@@ -181,6 +190,7 @@ private:
     drag_type m_drag = drag_type::none;
     pin       m_drag_pin;
     bool      m_drag_from_output = false;
+    bool      m_drag_moved       = false;
     ImVec2    m_drag_start;
 
     float m_saved_work_max_x    = 0.f;
@@ -326,10 +336,13 @@ void editor::draw_node(A& adapter, const u32 node) noexcept
     const auto mouse        = ImGui::GetIO().MousePos;
 
     dl->AddRectFilled(p, q, ImGui::GetColorU32(ImGuiCol_WindowBg), rounding);
-    dl->AddRectFilled(
-      p, ImVec2(q.x, title_bottom),
-      ImGui::GetColorU32(selected ? ImGuiCol_TitleBgActive : ImGuiCol_TitleBg),
-      rounding, ImDrawFlags_RoundCornersTop);
+    auto title_color = ImGui::GetColorU32(selected ? ImGuiCol_TitleBgActive
+                                                   : ImGuiCol_TitleBg);
+    if constexpr (requires { adapter.title_color(node, selected); })
+        title_color = adapter.title_color(node, selected);
+
+    dl->AddRectFilled(p, ImVec2(q.x, title_bottom), title_color, rounding,
+                      ImDrawFlags_RoundCornersTop);
     dl->AddRect(
       p, q,
       ImGui::GetColorU32(selected ? ImGuiCol_ButtonActive : ImGuiCol_Border),
@@ -439,7 +452,8 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
         } else if (m_hovered_node) {
             if (not is_selected(*m_hovered_node) or ctrl)
                 select_node(*m_hovered_node, ctrl);
-            m_drag = drag_type::nodes;
+            m_drag       = drag_type::nodes;
+            m_drag_moved = false;
         } else if (m_hovered_link) {
             select_link(*m_hovered_link, ctrl);
         } else {
@@ -463,8 +477,10 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
                 pos.x += dx;
                 pos.y += dy;
             }
+            m_drag_moved = m_drag_moved or dx != 0.f or dy != 0.f;
         } else {
-            m_drag = drag_type::none;
+            ev.nodes_moved = m_drag_moved;
+            m_drag         = drag_type::none;
         }
         break;
 

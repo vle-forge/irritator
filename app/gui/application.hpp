@@ -711,7 +711,6 @@ public:
                                   const component&           compo,
                                   const generic_component_id gid,
                                   const generic_component&   gen) noexcept;
-    ~generic_component_editor_data() noexcept;
 
     bool show(component_editor& ed,
               const component_access&,
@@ -720,7 +719,53 @@ public:
                              const component_access&,
                              component& compo) noexcept;
 
-    ImNodesEditorContext* context = nullptr;
+    /// A node of the graph: an input or an output port of the component, or
+    /// one of its children.
+    struct node {
+        enum class kind : u8 { input, output, child };
+
+        kind     type  = kind::child;
+        child_id child = undefined<child_id>();
+        port_id  port  = undefined<port_id>();
+
+        constexpr bool operator==(const node&) const noexcept = default;
+    };
+
+    /// A connection between two nodes. @c index is the position of the
+    /// connection in its container: @c connections, @c input_connections or
+    /// @c output_connections according to @c type.
+    struct link {
+        enum class kind : u8 { internal, input, output };
+
+        kind type     = kind::internal;
+        u32  index    = 0;
+        u32  out_node = 0;
+        u32  out_port = 0;
+        u32  in_node  = 0;
+        u32  in_port  = 0;
+    };
+
+    /// The positions owned by the view: the component is read again at each
+    /// frame and receives them only when the view writes it.
+    template<typename Id>
+    struct positions {
+        vector<Id>     ids;
+        vector<ImVec2> values;
+    };
+
+    struct graph;
+
+    node_editor::editor editor;
+
+    vector<node> nodes;
+    vector<link> links;
+    vector<u32>  child_nodes;
+    vector<u32>  x_nodes;
+    vector<u32>  y_nodes;
+
+    positions<child_id> child_positions;
+    positions<port_id>  x_positions;
+    positions<port_id>  y_positions;
 
 public:
     enum {
@@ -731,8 +776,6 @@ public:
         force_update_position,
     };
 
-    ImVector<int>    selected_links;
-    ImVector<int>    selected_nodes;
     vector<child_id> update_position_list;
 
     std::unique_ptr<component>         m_compo_buffer;
