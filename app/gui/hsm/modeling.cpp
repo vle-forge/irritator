@@ -249,25 +249,10 @@ static bool show_ports(hsm_t::condition_action& p) noexcept
     return false;
 }
 
-static constexpr int make_state(hsm_t::state_id id) noexcept
-{
-    return static_cast<int>(id);
-}
-
-static constexpr hsm_t::state_id get_state(int idx) noexcept
-{
-    return static_cast<hsm_t::state_id>(idx);
-}
-
 enum class transition_type : u8 {
     super_transition = 0b001,
     if_transition    = 0b010,
     else_transition  = 0b100,
-};
-
-struct output {
-    hsm_t::state_id output;
-    transition_type type;
 };
 
 struct transition {
@@ -275,45 +260,6 @@ struct transition {
     hsm_t::state_id output;
     transition_type type;
 };
-
-static constexpr int make_input(hsm_t::state_id id) noexcept
-{
-    return static_cast<int>(id << 16);
-}
-
-static constexpr hsm_t::state_id get_input(int idx) noexcept
-{
-    return static_cast<hsm_t::state_id>((idx >> 16) & 0xff);
-}
-
-static constexpr int make_output(hsm_t::state_id id,
-                                 transition_type type) noexcept
-{
-    return static_cast<int>((static_cast<u8>(type) << 8) | id);
-}
-
-static constexpr output get_output(int idx) noexcept
-{
-    return output{ .output = static_cast<u8>(idx & 0xff),
-                   .type   = static_cast<transition_type>((idx >> 8) & 0xff) };
-}
-
-static constexpr int make_transition(hsm_t::state_id from,
-                                     hsm_t::state_id to,
-                                     transition_type type) noexcept
-{
-    return make_input(to) | make_output(from, type);
-}
-
-static constexpr transition get_transition(int idx) noexcept
-{
-    const auto input  = get_input(idx);
-    const auto output = get_output(idx);
-
-    return transition{ .input  = input,
-                       .output = output.output,
-                       .type   = output.type };
-}
 
 /** Get the first unused state in the HSM. */
 static constexpr auto get_first_available(
@@ -710,158 +656,201 @@ static bool show_state_condition(hsm_t::condition_action& condition) noexcept
     return old_condition != condition;
 }
 
-void hsm_component_editor_data::show_hsm() noexcept
+static bool is_unknown(const ImVec2 p) noexcept
 {
-    ImNodes::BeginNode(make_state(0));
-    ImNodes::BeginNodeTitleBar();
-    ImGui::TextUnformatted("Initial state");
-    ImNodes::EndNodeTitleBar();
-
-    ImNodes::BeginOutputAttribute(
-      make_output(0, transition_type::super_transition),
-      ImNodesPinShape_CircleFilled);
-    ImGui::TextUnformatted("start");
-    ImNodes::EndOutputAttribute();
-    ImNodes::EndNode();
-
-    const auto with_details =
-      m_options.test(hsm_component_editor_data::display_action_label);
-
-    for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
-         ++i) {
-        if (m_enabled[i] == false)
-            continue;
-
-        ImNodes::BeginNode(make_state(i));
-        ImNodes::BeginNodeTitleBar();
-        ImGui::TextFormat("{} (id: {})", m_hsm.names[i].sv(), i);
-        ImNodes::EndNodeTitleBar();
-
-        ImNodes::BeginInputAttribute(make_input(i),
-                                     ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("in");
-        ImNodes::EndInputAttribute();
-
-        if (with_details and m_hsm.machine.states[i].enter_action.type !=
-                               hsm_t::action_type::none)
-            display_action(m_hsm.machine.states[i].enter_action, "on enter");
-
-        show_condition(m_hsm.machine.states[i].condition);
-        if (m_options.test(hsm_component_editor_data::display_condition_label))
-            show_complete_condition(m_hsm.machine.states[i].condition);
-
-        ImNodes::BeginOutputAttribute(
-          make_output(i, transition_type::if_transition),
-          ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("if condition is valid do");
-        ImNodes::EndOutputAttribute();
-
-        if (with_details and
-            m_hsm.machine.states[i].if_action.type != hsm_t::action_type::none)
-            display_action(m_hsm.machine.states[i].if_action, "");
-
-        ImNodes::BeginOutputAttribute(
-          make_output(i, transition_type::else_transition),
-          ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("Otherwise do");
-        ImNodes::EndOutputAttribute();
-
-        if (with_details) {
-            if (m_hsm.machine.states[i].else_action.type !=
-                hsm_t::action_type::none)
-                display_action(m_hsm.machine.states[i].else_action, "");
-            if (m_hsm.machine.states[i].exit_action.type !=
-                hsm_t::action_type::none)
-                display_action(m_hsm.machine.states[i].exit_action, "on exit");
-        }
-
-        ImNodes::EndNode();
-    }
-
-    if (m_hsm.machine.states[0].sub_id != hsm_t::invalid_state_id) {
-        ImNodes::Link(make_transition(0,
-                                      m_hsm.machine.states[0].sub_id,
-                                      transition_type::super_transition),
-                      make_output(0, transition_type::super_transition),
-                      make_input(m_hsm.machine.states[0].sub_id));
-    }
-
-    for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
-         ++i) {
-        if (m_enabled[i] == false)
-            continue;
-
-        if (m_hsm.machine.states[i].if_transition != hsm_t::invalid_state_id) {
-            ImNodes::Link(make_transition(i,
-                                          m_hsm.machine.states[i].if_transition,
-                                          transition_type::if_transition),
-                          make_output(i, transition_type::if_transition),
-                          make_input(m_hsm.machine.states[i].if_transition));
-        }
-
-        if (m_hsm.machine.states[i].else_transition !=
-            hsm_t::invalid_state_id) {
-            ImNodes::Link(
-              make_transition(i,
-                              m_hsm.machine.states[i].else_transition,
-                              transition_type::else_transition),
-              make_output(i, transition_type::else_transition),
-              make_input(m_hsm.machine.states[i].else_transition));
-        }
-    }
+    return std::isnan(p.x);
 }
 
-static bool is_link_created(hsm_component& hsm) noexcept
-{
-    auto u = 0;
-    int  output_idx, input_idx;
+/// The view of the state machine for the @c node_editor: the initial state is
+/// the node of the start transition, the other nodes are the used states.
+struct hsm_component_editor_data::graph {
+    hsm_component_editor_data& ed;
+    small_string<127>          buffer;
+    int                        changes = 0;
 
-    if (ImNodes::IsLinkCreated(&output_idx, &input_idx)) {
-        auto out = get_output(output_idx);
-        auto in  = get_input(input_idx);
+    state_id state(const u32 node) const noexcept { return ed.m_nodes[node]; }
 
-        switch (out.type) {
-        case transition_type::super_transition:
-            debug::ensure(out.output == 0);
+    u32 node_count() const noexcept
+    {
+        return static_cast<u32>(ed.m_nodes.size());
+    }
 
-            if (hsm.machine.states[0].sub_id != hsm_t::invalid_state_id)
-                hsm.machine.states[hsm.machine.states[0].sub_id].super_id =
-                  hsm_t::invalid_state_id;
+    ImVec2& position(const u32 node) noexcept
+    {
+        const auto id = state(node);
+        auto&      p  = ed.m_positions[id];
 
-            hsm.machine.states[in].super_id       = 0;
-            hsm.machine.states[out.output].sub_id = in;
-            ++u;
-            break;
+        if (is_unknown(p))
+            p = ImVec2(ed.m_hsm.positions[id].x, ed.m_hsm.positions[id].y);
 
-        case transition_type::if_transition:
-            hsm.machine.states[out.output].if_transition = in;
-            ++u;
-            break;
+        return p;
+    }
 
-        case transition_type::else_transition:
-            hsm.machine.states[out.output].else_transition = in;
-            ++u;
-            break;
+    std::string_view title(const u32 node) noexcept
+    {
+        const auto id = state(node);
+        if (id == 0)
+            return "Initial state";
+
+        format(buffer, "{} (id: {})", ed.m_hsm.names[id].sv(), id);
+        return buffer.sv();
+    }
+
+    u32 input_count(const u32 node) const noexcept
+    {
+        return state(node) == 0 ? 0u : 1u;
+    }
+
+    u32 output_count(const u32 node) const noexcept
+    {
+        return state(node) == 0 ? 1u : 2u;
+    }
+
+    std::string_view input_name(const u32 /*node*/,
+                                const u32 /*port*/) const noexcept
+    {
+        return "in";
+    }
+
+    std::string_view output_name(const u32 node, const u32 port) const noexcept
+    {
+        if (state(node) == 0)
+            return "start";
+
+        return port == 0 ? "if condition is valid do" : "Otherwise do";
+    }
+
+    void content(const u32 node) noexcept
+    {
+        const auto id = state(node);
+        if (id == 0)
+            return;
+
+        auto&      s       = ed.m_hsm.machine.states[id];
+        const auto details = ed.m_options.test(display_action_label);
+
+        if (details and s.enter_action.type != hsm_t::action_type::none)
+            display_action(s.enter_action, "on enter");
+
+        show_condition(s.condition);
+        if (ed.m_options.test(display_condition_label))
+            show_complete_condition(s.condition);
+
+        if (details) {
+            if (s.if_action.type != hsm_t::action_type::none)
+                display_action(s.if_action, "if");
+            if (s.else_action.type != hsm_t::action_type::none)
+                display_action(s.else_action, "else");
+            if (s.exit_action.type != hsm_t::action_type::none)
+                display_action(s.exit_action, "on exit");
         }
     }
 
-    return u > 0;
+    template<typename Fn>
+    void for_each_link(Fn&& fn) const noexcept
+    {
+        for (const auto& l : ed.m_links) {
+            const auto port = l.type ==
+                                  ordinal(transition_type::else_transition)
+                                ? 1u
+                                : 0u;
+            fn(ed.node_of(l.from), port, ed.node_of(l.to), 0u);
+        }
+    }
+};
+
+u32 hsm_component_editor_data::node_of(const state_id id) const noexcept
+{
+    for (u32 i = 0, e = static_cast<u32>(m_nodes.size()); i != e; ++i)
+        if (m_nodes[i] == id)
+            return i;
+
+    return 0;
+}
+
+void hsm_component_editor_data::build_graph() noexcept
+{
+    vector<state_id> nodes;
+    nodes.push_back(0);
+    for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e; ++i)
+        if (m_enabled[i])
+            nodes.push_back(i);
+
+    if (not std::ranges::equal(nodes, m_nodes)) {
+        m_nodes = std::move(nodes);
+        m_editor.reset();
+    }
+
+    const auto old_size = m_links.size();
+    m_links.clear();
+
+    const auto& states = m_hsm.machine.states;
+    if (states[0].sub_id != hsm_t::invalid_state_id)
+        m_links.push_back(
+          { .from = 0,
+            .to   = states[0].sub_id,
+            .type = ordinal(transition_type::super_transition) });
+
+    for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
+         ++i) {
+        if (not m_enabled[i])
+            continue;
+
+        if (states[i].if_transition != hsm_t::invalid_state_id)
+            m_links.push_back(
+              { .from = i,
+                .to   = states[i].if_transition,
+                .type = ordinal(transition_type::if_transition) });
+
+        if (states[i].else_transition != hsm_t::invalid_state_id)
+            m_links.push_back(
+              { .from = i,
+                .to   = states[i].else_transition,
+                .type = ordinal(transition_type::else_transition) });
+    }
+
+    if (m_links.size() != old_size)
+        m_editor.clear_selection();
+}
+
+static bool connect(hsm_component&        hsm,
+                    const hsm_t::state_id from,
+                    const u32             port,
+                    const hsm_t::state_id to) noexcept
+{
+    auto& states = hsm.machine.states;
+
+    if (from == 0) {
+        if (states[0].sub_id != hsm_t::invalid_state_id)
+            states[states[0].sub_id].super_id = hsm_t::invalid_state_id;
+
+        states[to].super_id = 0;
+        states[0].sub_id    = to;
+    } else if (port == 0) {
+        states[from].if_transition = to;
+    } else {
+        states[from].else_transition = to;
+    }
+
+    return true;
 }
 
 bool hsm_component_editor_data::show_menu() noexcept
 {
     auto u = 0;
 
-    const bool open_popup =
-      ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
-      ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
+    const bool open_popup = ImGui::IsWindowFocused(
+                              ImGuiFocusedFlags_RootAndChildWindows) and
+                            m_editor.is_background_hovered() and
+                            ImGui::IsMouseClicked(ImGuiMouseButton_Right);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
-    if (!ImGui::IsAnyItemHovered() && open_popup)
+    if (open_popup)
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
-        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+        const auto click_pos = m_editor.to_world(
+          ImGui::GetMousePosOnOpeningCurrentPopup());
 
         if (auto id = get_first_available(m_enabled); id.has_value()) {
             if (ImGui::MenuItem("new state")) {
@@ -877,7 +866,7 @@ bool hsm_component_editor_data::show_menu() noexcept
                 m_hsm.positions[id.value()].x = click_pos.x;
                 m_hsm.positions[id.value()].y = click_pos.y;
                 m_hsm.names[id.value()].clear();
-                ImNodes::SetNodeScreenSpacePos(id.value(), click_pos);
+                m_positions[id.value()] = click_pos;
             }
 
             auto action_lbl = m_options.test(display_action_label);
@@ -889,6 +878,8 @@ bool hsm_component_editor_data::show_menu() noexcept
                   "Display condition labels", nullptr, &condition_lbl))
                 m_options.set(display_condition_label, condition_lbl);
         }
+
+        ImGui::MenuItem("Show minimap", "", &m_editor.show_minimap);
 
         ImGui::EndPopup();
     }
@@ -902,66 +893,43 @@ bool hsm_component_editor_data::show_graph() noexcept
 {
     auto u = 0;
 
-    ImNodes::EditorContextSet(m_context);
-    ImNodes::BeginNodeEditor();
+    build_graph();
 
-    const auto is_editor_hovered =
-      ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
-      ImNodes::IsEditorHovered();
+    auto       g  = graph{ .ed = *this, .buffer = {}, .changes = 0 };
+    const auto ev = m_editor.show("hsm-graph", g);
+    u += g.changes;
 
     u += show_menu();
-    show_hsm();
-    ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
-    ImNodes::EndNodeEditor();
-    u += is_link_created(m_hsm);
 
-    int num_selected_links = ImNodes::NumSelectedLinks();
-    int num_selected_nodes = ImNodes::NumSelectedNodes();
-
-    if (num_selected_nodes == 0) {
-        m_selected_nodes.clear();
-        ImNodes::ClearNodeSelection();
+    if (ev.link_created) {
+        const auto from = m_nodes[ev.link_created->out.node];
+        const auto to   = m_nodes[ev.link_created->in.node];
+        u += connect(m_hsm, from, ev.link_created->out.port, to);
     }
 
-    if (num_selected_links == 0) {
-        m_selected_links.clear();
-        ImNodes::ClearLinkSelection();
-    }
+    if (ev.delete_selection) {
+        for (const auto i : m_editor.selected_links()) {
+            const auto& l = m_links[i];
+            u += remove_link(
+              m_hsm, transition{ .input  = l.to,
+                                 .output = l.from,
+                                 .type = enum_cast<transition_type>(l.type) });
+        }
 
-    if (is_editor_hovered and not ImGui::IsAnyItemHovered()) {
-        if (num_selected_nodes > 0) {
-            m_selected_nodes.resize(num_selected_nodes, 0);
-            ImNodes::GetSelectedNodes(m_selected_nodes.begin());
-
-            if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-                for (auto idx : m_selected_nodes) {
-                    if (idx != 0)
-                        u += remove_state(m_hsm, get_state(idx), m_enabled);
-                }
+        for (const auto i : m_editor.selected_nodes()) {
+            if (const auto id = m_nodes[i]; id != 0) {
+                u += remove_state(m_hsm, id, m_enabled);
+                m_positions[id] = ImVec2(
+                  std::numeric_limits<float>::quiet_NaN(),
+                  std::numeric_limits<float>::quiet_NaN());
             }
         }
 
-        if (num_selected_links > 0) {
-            m_selected_links.resize(num_selected_links, 0);
-            ImNodes::GetSelectedLinks(m_selected_links.begin());
-
-            if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-                auto need_clear = false;
-
-                for (auto idx : m_selected_links) {
-                    if (idx != 0) {
-                        u += remove_link(m_hsm, get_transition(idx));
-                        need_clear = true;
-                    }
-                }
-
-                if (need_clear) {
-                    m_selected_links.clear();
-                    ImNodes::ClearLinkSelection();
-                }
-            }
-        }
+        m_editor.clear_selection();
     }
+
+    if (ev.nodes_moved)
+        ++u;
 
     return u > 0;
 }
@@ -996,14 +964,14 @@ bool hsm_component_editor_data::show_panel(component& compo) noexcept
 
     if (ImGui::CollapsingHeader("selected states",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        for (int i = 0, e = m_selected_nodes.Size; i != e; ++i) {
-            const auto id    = get_state(m_selected_nodes[i]);
+        for (const auto node : m_editor.selected_nodes()) {
+            const auto id    = m_nodes[node];
             auto&      state = m_hsm.machine.states[id];
 
             if (id == 0)
                 continue;
 
-            ImGui::PushID(i);
+            ImGui::PushID(static_cast<int>(id));
 
             name_str name = m_hsm.names[id];
             if (ImGui::InputSmallString("Name", name)) {
@@ -1236,13 +1204,10 @@ static void update_enabled_states(const hierarchical_state_machine& hsm,
 void hsm_component_editor_data::write(application& app,
                                       component&   compo) noexcept
 {
-    // Get the state positions from the ImNodes layers
-
     for (auto i = 1, e = length(m_hsm.machine.states); i != e; ++i) {
-        if (m_enabled[i]) {
-            const auto pos       = ImNodes::GetNodeEditorSpacePos(get_state(i));
-            m_hsm.positions[i].x = pos.x;
-            m_hsm.positions[i].y = pos.y;
+        if (m_enabled[i] and not is_unknown(m_positions[i])) {
+            m_hsm.positions[i].x = m_positions[i].x;
+            m_hsm.positions[i].y = m_positions[i].y;
         }
     }
 
@@ -1277,38 +1242,14 @@ hsm_component_editor_data::hsm_component_editor_data(
   , m_id(id)
   , m_hsm_id(hid)
 {
-    m_context = ImNodes::EditorContextCreate();
-    ImNodes::EditorContextSet(m_context);
-    ImNodes::PushAttributeFlag(
-      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
-
-    ImNodesIO& io                           = ImNodes::GetIO();
-    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
-    io.MultipleSelectModifier.Modifier      = &ImGui::GetIO().KeyCtrl;
-
-    ImNodesStyle& style = ImNodes::GetStyle();
-    style.Flags |=
-      ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
+    m_positions.fill(ImVec2(std::numeric_limits<float>::quiet_NaN(),
+                            std::numeric_limits<float>::quiet_NaN()));
 
     m_hsm.machine.states[0].super_id = hsm_t::invalid_state_id;
     m_hsm.machine.top_state          = 0;
 
     m_enabled.fill(false);
     update_enabled_states(m_hsm.machine, m_enabled);
-
-    for (auto i = 0, e = length(m_hsm.machine.states); i != e; ++i)
-        if (m_enabled[i])
-            ImNodes::SetNodeEditorSpacePos(
-              get_state(i), ImVec2(m_hsm.positions[i].x, m_hsm.positions[i].y));
-}
-
-hsm_component_editor_data::~hsm_component_editor_data() noexcept
-{
-    if (m_context) {
-        ImNodes::EditorContextSet(m_context);
-        ImNodes::PopAttributeFlag();
-        ImNodes::EditorContextFree(m_context);
-    }
 }
 
 } // namespace irt

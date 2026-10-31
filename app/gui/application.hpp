@@ -660,7 +660,6 @@ public:
     hsm_component_editor_data(const component_id     id,
                               const hsm_component_id hid,
                               const hsm_component&   hsm) noexcept;
-    ~hsm_component_editor_data() noexcept;
 
     bool show(component_editor& ed,
               const component_access&,
@@ -670,7 +669,21 @@ public:
                              component& compo) noexcept;
 
 private:
-    void show_hsm() noexcept;
+    using state_id = hierarchical_state_machine::state_id;
+
+    /// A transition drawn as a link: @c type is the output pin of @c from,
+    /// the start of the machine for the initial state, the if or the else
+    /// transition for the other states.
+    struct transition_link {
+        state_id from = 0;
+        state_id to   = 0;
+        u8       type = 0;
+    };
+
+    struct graph;
+
+    void build_graph() noexcept;
+    u32  node_of(state_id id) const noexcept;
     bool show_menu() noexcept;
     bool show_graph() noexcept;
     bool show_panel(component&) noexcept;
@@ -679,14 +692,18 @@ private:
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
-    ImNodesEditorContext* m_context = nullptr;
+    node_editor::editor m_editor;
+
+    vector<state_id>        m_nodes;
+    vector<transition_link> m_links;
+
+    /// The positions owned by the view, the component being read again at
+    /// each frame. A NaN marks a position to read from @c m_hsm.
+    std::array<ImVec2, max_number_of_state> m_positions;
 
     /** An editable @c hsm_component. */
     hsm_component m_hsm;
     u64           m_version = std::numeric_limits<u64>::max();
-
-    ImVector<int> m_selected_links;
-    ImVector<int> m_selected_nodes;
 
     ImVector<hierarchical_state_machine::state_id> m_stack;
 
