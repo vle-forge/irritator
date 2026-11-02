@@ -57,22 +57,6 @@ struct file_output {
     }
 };
 
-bool function_ref_called = false;
-
-struct function_ref_class {
-    bool baz_called = false;
-
-    bool qux_called = false;
-};
-
-struct function_ref_multiple_operator {
-    int i;
-
-    void operator()(bool) { i = 1; }
-
-    void operator()(double) { i++; }
-};
-
 struct global_allocator_t {
     size_t allocation_size   = 0;
     int    allocation_number = 0;

@@ -299,56 +299,6 @@ auto make_lambda(L&& l) noexcept
     return f;
 }
 
-//! An efficient, type-erasing, non-owning reference to a callable. This is
-//! intended for use as the type of a function parameter that is not used
-//! after the function in question returns.
-//!
-//! This class does not own the callable, so it is not in general safe to
-//! store a function_ref.
-template<typename Fn>
-class function_ref;
-
-template<typename Ret, typename... Params>
-class function_ref<Ret(Params...) noexcept>
-{
-    Ret (*callback)(void* callable, Params... params) = nullptr;
-    void* callable                                    = nullptr;
-
-    template<typename Callable>
-    static Ret callback_fn(void* callable, Params... params) noexcept
-    {
-        return (*reinterpret_cast<Callable*>(callable))(
-          std::forward<Params>(params)...);
-    }
-
-public:
-    function_ref() = default;
-    function_ref(std::nullptr_t) {}
-
-    template<typename Callable>
-    function_ref(
-      Callable&& callable,
-      // This is not the copy-constructor.
-      std::enable_if_t<!std::is_same<std::remove_cvref_t<Callable>,
-                                     function_ref>::value>* = nullptr,
-      // Functor must be callable and return a suitable type.
-      std::enable_if_t<std::is_void<Ret>::value ||
-                       std::is_convertible<decltype(std::declval<Callable>()(
-                                             std::declval<Params>()...)),
-                                           Ret>::value>* = nullptr)
-      : callback(callback_fn<std::remove_reference_t<Callable>>)
-      , callable(&callable)
-    {}
-
-    Ret operator()(Params... params) const
-    {
-        debug::ensure(callable);
-        return callback(callable, std::forward<Params>(params)...);
-    }
-
-    explicit operator bool() const { return callback; }
-};
-
 /// Small exact fraction class (signed 32-bit integers), designed for
 /// capturing a time step (dt) in a graphical interface without relying on
 /// approximate floating-point representation. Always kept in reduced form
