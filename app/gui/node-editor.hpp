@@ -39,6 +39,9 @@ struct events {
     bool                        delete_selection    = false;
     bool                        duplicate_selection = false;
     bool                        nodes_moved         = false;
+
+    /// The node double-clicked, for example to open a composite node.
+    std::optional<u32> node_activated;
 };
 
 /**
@@ -762,6 +765,10 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
             ImGui::OpenPopup(item_menu_id);
         }
     }
+
+    if (free_mouse and m_hovered_node and
+        ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        ev.node_activated = *m_hovered_node;
 
     if (free_mouse and ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         if (not read_only and m_hovered_node and io.KeyShift and
