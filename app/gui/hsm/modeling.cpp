@@ -272,54 +272,158 @@ static constexpr auto get_first_available(
     return std::nullopt;
 }
 
-static bool remove_state(hsm_component&  hsm,
+static ImVec2 unknown_position() noexcept
+{
+    return ImVec2(std::numeric_limits<float>::quiet_NaN(),
+                  std::numeric_limits<float>::quiet_NaN());
+}
+
+static bool is_unknown(const ImVec2 p) noexcept { return std::isnan(p.x); }
+
+/// @return true if @c id is @c ancestor or one of its sub states.
+static bool is_descendant(const hsm_t&          m,
+                          const hsm_t::state_id id,
+                          const hsm_t::state_id ancestor) noexcept
+{
+    auto s = id;
+
+    // The bound protects from a cycle in a component not yet checked.
+    for (int i = 0;
+         i != hsm_t::max_number_of_state and s != hsm_t::invalid_state_id;
+         ++i, s = m.states[s].super_id)
+        if (s == ancestor)
+            return true;
+
+    return false;
+}
+
+static int count_sub_states(const hsm_component&  hsm,
+                            std::span<const bool> enabled,
+                            const hsm_t::state_id parent) noexcept
+{
+    auto n = 0;
+
+    for (u8 i = 1; i != hsm_t::max_number_of_state; ++i)
+        if (enabled[i] and hsm.machine.states[i].super_id == parent)
+            ++n;
+
+    return n;
+}
+
+static auto first_sub_state(const hsm_component&  hsm,
+                            std::span<const bool> enabled,
+                            const hsm_t::state_id parent,
+                            const hsm_t::state_id except) noexcept
+  -> hsm_t::state_id
+{
+    for (u8 i = 1; i != hsm_t::max_number_of_state; ++i)
+        if (i != except and enabled[i] and
+            hsm.machine.states[i].super_id == parent)
+            return i;
+
+    return hsm_t::invalid_state_id;
+}
+
+/// @return The number of levels below @c id, 0 for a leaf.
+static int height_of(const hsm_component&  hsm,
+                     std::span<const bool> enabled,
+                     const hsm_t::state_id id) noexcept
+{
+    const auto depth  = hsm.machine.depth_of(id);
+    auto       height = 0;
+
+    for (u8 i = 1; i != hsm_t::max_number_of_state; ++i)
+        if (enabled[i] and is_descendant(hsm.machine, i, id))
+            height = std::max(height, hsm.machine.depth_of(i) - depth);
+
+    return height;
+}
+
+template<std::size_t N>
+static void append_label(const hsm_component&  hsm,
+                         const hsm_t::state_id id,
+                         small_string<N>&      out) noexcept
+{
+    if (id == hsm.machine.top_state)
+        out.append("Root");
+    else if (hsm.names[id].empty())
+        out.append(format_n<16>("state {}", id).sv());
+    else
+        out.append(hsm.names[id].sv());
+}
+
+/// Appends the path of @c id from the top state, e.g. "Root/Marche/Tic".
+template<std::size_t N>
+static void append_path(const hsm_component&  hsm,
+                        const hsm_t::state_id id,
+                        small_string<N>&      out) noexcept
+{
+    std::array<hsm_t::state_id, hsm_t::max_depth> path;
+    auto                                          n = 0;
+
+    for (auto s = id; s != hsm_t::invalid_state_id and n < hsm_t::max_depth;
+         s      = hsm.machine.states[s].super_id)
+        path[n++] = s;
+
+    for (auto i = n - 1; i >= 0; --i) {
+        append_label(hsm, path[i], out);
+        if (i > 0)
+            out.push_back('/');
+    }
+}
+
+/// Removes the state @c id and its sub states.
+static void remove_state(hsm_component&  hsm,
                          hsm_t::state_id id,
                          std::span<bool> enabled) noexcept
 {
-    debug::ensure(id != 0);
+    debug::ensure(id != hsm.machine.top_state);
 
-    // If id is the first sub-child, we need a new one.
-    if (hsm.machine.states[0].sub_id == id) {
-        for (u8 i = 1; i != hsm_t::max_number_of_state; ++i) {
-            if (i != id and enabled[i]) {
-                hsm.machine.states[0].sub_id   = i;
-                hsm.machine.states[i].super_id = 0;
-            }
-        }
-    }
+    auto& states = hsm.machine.states;
 
-    // Remove any reference to the state @c id.
-    for (u8 i = 1; i != hsm_t::max_number_of_state; ++i) {
-        if (enabled[i]) {
-            if (hsm.machine.states[i].super_id == id)
-                hsm.machine.states[i].super_id = hsm_t::invalid_state_id;
-            if (hsm.machine.states[i].sub_id == id)
-                hsm.machine.states[i].sub_id = hsm_t::invalid_state_id;
-            if (hsm.machine.states[i].if_transition == id)
-                hsm.machine.states[i].if_transition = hsm_t::invalid_state_id;
-            if (hsm.machine.states[i].else_transition == id)
-                hsm.machine.states[i].else_transition = hsm_t::invalid_state_id;
-        }
+    for (u8 i = 1; i != hsm_t::max_number_of_state; ++i)
+        if (enabled[i] and states[i].super_id == id)
+            remove_state(hsm, i, enabled);
+
+    if (const auto parent = states[id].super_id;
+        parent != hsm_t::invalid_state_id and states[parent].sub_id == id)
+        states[parent].sub_id = first_sub_state(hsm, enabled, parent, id);
+
+    for (u8 i = 0; i != hsm_t::max_number_of_state; ++i) {
+        if (states[i].if_transition == id)
+            states[i].if_transition = hsm_t::invalid_state_id;
+        if (states[i].else_transition == id)
+            states[i].else_transition = hsm_t::invalid_state_id;
     }
 
     hsm.machine.clear_state(id);
     hsm.names[id].clear();
     hsm.positions[id].reset();
     enabled[id] = false;
+}
 
-    return true;
+/// Moves the state @c id and its sub states under @c parent.
+static void move_state(hsm_component&        hsm,
+                       std::span<const bool> enabled,
+                       const hsm_t::state_id id,
+                       const hsm_t::state_id parent) noexcept
+{
+    auto&      states = hsm.machine.states;
+    const auto old    = states[id].super_id;
+
+    if (states[old].sub_id == id)
+        states[old].sub_id = first_sub_state(hsm, enabled, old, id);
+
+    states[id].super_id = parent;
+    if (states[parent].sub_id == hsm_t::invalid_state_id)
+        states[parent].sub_id = id;
 }
 
 static bool remove_link(hsm_component& hsm, transition t) noexcept
 {
     switch (t.type) {
     case transition_type::super_transition:
-        debug::ensure(t.output == hsm.machine.top_state);
-        debug::ensure(hsm.machine.states[t.output].super_id ==
-                      hsm_t::invalid_state_id);
-
-        hsm.machine.states[t.output].sub_id  = hsm_t::invalid_state_id;
-        hsm.machine.states[t.input].super_id = hsm_t::invalid_state_id;
+        hsm.machine.states[t.output].sub_id = hsm_t::invalid_state_id;
         return true;
 
     case transition_type::if_transition:
@@ -656,54 +760,95 @@ static bool show_state_condition(hsm_t::condition_action& condition) noexcept
     return old_condition != condition;
 }
 
-static bool is_unknown(const ImVec2 p) noexcept
-{
-    return std::isnan(p.x);
-}
-
-/// The view of the state machine for the @c node_editor: the initial state is
-/// the node of the start transition, the other nodes are the used states.
+/// The view of a level of the state machine for the @c node_editor.
 struct hsm_component_editor_data::graph {
     hsm_component_editor_data& ed;
     small_string<127>          buffer;
-    int                        changes = 0;
+    std::array<ImU32, 2>       composite_colors = {};
 
-    state_id state(const u32 node) const noexcept { return ed.m_nodes[node]; }
+    const view_node& node(const u32 i) const noexcept { return ed.m_nodes[i]; }
+
+    bool is_composite(const state_id id) const noexcept
+    {
+        return count_sub_states(ed.m_hsm, ed.m_enabled, id) > 0;
+    }
 
     u32 node_count() const noexcept
     {
         return static_cast<u32>(ed.m_nodes.size());
     }
 
-    ImVec2& position(const u32 node) noexcept
+    ImVec2& position(const u32 i) noexcept
     {
-        const auto id = state(node);
-        auto&      p  = ed.m_positions[id];
+        const auto& n = node(i);
 
+        if (n.kind == node_kind::target)
+            return ed.m_target_positions[n.id];
+
+        // The position of a composite state is the one of its level parent:
+        // its initial pseudo state has its own position.
+        if (n.kind == node_kind::initial and n.id != ed.m_hsm.machine.top_state)
+            return ed.m_initial_position;
+
+        auto& p = ed.m_positions[n.id];
         if (is_unknown(p))
-            p = ImVec2(ed.m_hsm.positions[id].x, ed.m_hsm.positions[id].y);
+            p = ImVec2(ed.m_hsm.positions[n.id].x, ed.m_hsm.positions[n.id].y);
 
         return p;
     }
 
-    std::string_view title(const u32 node) noexcept
+    ImU32 title_color(const u32 i, const bool selected) const noexcept
     {
-        const auto id = state(node);
-        if (id == 0)
+        const auto& n = node(i);
+
+        if (n.kind == node_kind::target)
+            return ImGui::GetColorU32(ImGuiCol_FrameBg);
+
+        if (n.kind == node_kind::state and is_composite(n.id))
+            return composite_colors[selected];
+
+        return ImGui::GetColorU32(selected ? ImGuiCol_TitleBgActive
+                                           : ImGuiCol_TitleBg);
+    }
+
+    std::string_view title(const u32 i) noexcept
+    {
+        const auto& n = node(i);
+
+        switch (n.kind) {
+        case node_kind::initial:
             return "Initial state";
 
-        format(buffer, "{} (id: {})", ed.m_hsm.names[id].sv(), id);
-        return buffer.sv();
+        case node_kind::target:
+            buffer = "goto ";
+            append_path(ed.m_hsm, n.id, buffer);
+            return buffer.sv();
+
+        case node_kind::state:
+            format(buffer, "{} (id: {})", ed.m_hsm.names[n.id].sv(), n.id);
+            return buffer.sv();
+        }
+
+        unreachable();
     }
 
-    u32 input_count(const u32 node) const noexcept
+    u32 input_count(const u32 i) const noexcept
     {
-        return state(node) == 0 ? 0u : 1u;
+        return node(i).kind == node_kind::initial ? 0u : 1u;
     }
 
-    u32 output_count(const u32 node) const noexcept
+    u32 output_count(const u32 i) const noexcept
     {
-        return state(node) == 0 ? 1u : 2u;
+        switch (node(i).kind) {
+        case node_kind::initial:
+            return 1u;
+        case node_kind::state:
+            return 2u;
+        case node_kind::target:
+            return 0u;
+        }
+
+        unreachable();
     }
 
     std::string_view input_name(const u32 /*node*/,
@@ -712,22 +857,26 @@ struct hsm_component_editor_data::graph {
         return "in";
     }
 
-    std::string_view output_name(const u32 node, const u32 port) const noexcept
+    std::string_view output_name(const u32 i, const u32 port) const noexcept
     {
-        if (state(node) == 0)
+        if (node(i).kind == node_kind::initial)
             return "start";
 
         return port == 0 ? "if condition is valid do" : "Otherwise do";
     }
 
-    void content(const u32 node) noexcept
+    void content(const u32 i) noexcept
     {
-        const auto id = state(node);
-        if (id == 0)
+        const auto& n = node(i);
+        if (n.kind != node_kind::state)
             return;
 
-        auto&      s       = ed.m_hsm.machine.states[id];
+        auto&      s       = ed.m_hsm.machine.states[n.id];
         const auto details = ed.m_options.test(display_action_label);
+
+        if (const auto subs = count_sub_states(ed.m_hsm, ed.m_enabled, n.id);
+            subs > 0)
+            ImGui::TextDisabled("%d sub states (double-click to open)", subs);
 
         if (details and s.enter_action.type != hsm_t::action_type::none)
             display_action(s.enter_action, "on enter");
@@ -749,63 +898,124 @@ struct hsm_component_editor_data::graph {
     template<typename Fn>
     void for_each_link(Fn&& fn) const noexcept
     {
+        const auto& states = ed.m_hsm.machine.states;
+
         for (const auto& l : ed.m_links) {
-            const auto port = l.type ==
+            const auto port      = l.type ==
                                   ordinal(transition_type::else_transition)
-                                ? 1u
-                                : 0u;
-            fn(ed.node_of(l.from), port, ed.node_of(l.to), 0u);
+                                     ? 1u
+                                     : 0u;
+            const auto from_kind = l.type ==
+                                       ordinal(
+                                         transition_type::super_transition)
+                                     ? node_kind::initial
+                                     : node_kind::state;
+            const auto to_kind   = states[l.to].super_id == ed.m_level
+                                     ? node_kind::state
+                                     : node_kind::target;
+
+            fn(ed.node_of(l.from, from_kind), port, ed.node_of(l.to, to_kind),
+               0u);
         }
     }
 };
 
-u32 hsm_component_editor_data::node_of(const state_id id) const noexcept
+u32 hsm_component_editor_data::node_of(const state_id  id,
+                                       const node_kind kind) const noexcept
 {
     for (u32 i = 0, e = static_cast<u32>(m_nodes.size()); i != e; ++i)
-        if (m_nodes[i] == id)
+        if (m_nodes[i].id == id and m_nodes[i].kind == kind)
             return i;
 
     return 0;
 }
 
+void hsm_component_editor_data::open_level(const state_id id) noexcept
+{
+    m_level            = id;
+    m_initial_position = unknown_position();
+    m_target_positions.fill(unknown_position());
+    m_editor.clear_selection();
+    m_editor.request_fit();
+}
+
 void hsm_component_editor_data::build_graph() noexcept
 {
-    vector<state_id> nodes;
-    nodes.push_back(0);
+    const auto& states = m_hsm.machine.states;
+
+    // An undo or a removal may delete the opened level.
+    if (m_level != m_hsm.machine.top_state and not m_enabled[m_level])
+        open_level(m_hsm.machine.top_state);
+
+    vector<view_node> nodes;
+    nodes.push_back(view_node{ .id = m_level, .kind = node_kind::initial });
     for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e; ++i)
-        if (m_enabled[i])
-            nodes.push_back(i);
+        if (m_enabled[i] and states[i].super_id == m_level)
+            nodes.push_back(view_node{ .id = i, .kind = node_kind::state });
+
+    const auto state_end = static_cast<int>(nodes.size());
+    for (auto i = 1; i < state_end; ++i) {
+        const auto& s = states[nodes[i].id];
+
+        for (const auto t : { s.if_transition, s.else_transition }) {
+            const auto target = view_node{ .id = t, .kind = node_kind::target };
+
+            if (t != hsm_t::invalid_state_id and
+                states[t].super_id != m_level and
+                std::ranges::find(nodes, target) == nodes.end())
+                nodes.push_back(target);
+        }
+    }
 
     if (not std::ranges::equal(nodes, m_nodes)) {
         m_nodes = std::move(nodes);
         m_editor.reset();
+
+        // The initial pseudo state goes on the left of the sub states and the
+        // targets on their right.
+        auto min = ImVec2(0.f, 0.f), max = ImVec2(0.f, 0.f);
+        for (auto i = 1; i < state_end; ++i) {
+            const auto& p = m_hsm.positions[m_nodes[i].id];
+            min           = i == 1 ? ImVec2(p.x, p.y)
+                                   : ImVec2(std::min(min.x, p.x), std::min(min.y, p.y));
+            max           = i == 1 ? ImVec2(p.x, p.y)
+                                   : ImVec2(std::max(max.x, p.x), std::max(max.y, p.y));
+        }
+
+        if (is_unknown(m_initial_position))
+            m_initial_position = ImVec2(min.x - 300.f, min.y);
+
+        auto row = 0.f;
+        for (auto i = state_end, e = static_cast<int>(m_nodes.size()); i < e;
+             ++i)
+            if (auto& p = m_target_positions[m_nodes[i].id]; is_unknown(p))
+                p = ImVec2(max.x + 400.f, min.y + 120.f * row++);
     }
 
     const auto old_size = m_links.size();
     m_links.clear();
 
-    const auto& states = m_hsm.machine.states;
-    if (states[0].sub_id != hsm_t::invalid_state_id)
+    if (const auto first = states[m_level].sub_id;
+        first != hsm_t::invalid_state_id and states[first].super_id == m_level)
         m_links.push_back(
-          { .from = 0,
-            .to   = states[0].sub_id,
+          { .from = m_level,
+            .to   = first,
             .type = ordinal(transition_type::super_transition) });
 
-    for (u8 i = 1, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
-         ++i) {
-        if (not m_enabled[i])
-            continue;
+    for (auto i = 1; i < state_end; ++i) {
+        const auto  id = m_nodes[i].id;
+        const auto& s  = states[id];
 
-        if (states[i].if_transition != hsm_t::invalid_state_id)
+        if (s.if_transition != hsm_t::invalid_state_id)
             m_links.push_back(
-              { .from = i,
-                .to   = states[i].if_transition,
+              { .from = id,
+                .to   = s.if_transition,
                 .type = ordinal(transition_type::if_transition) });
 
-        if (states[i].else_transition != hsm_t::invalid_state_id)
+        if (s.else_transition != hsm_t::invalid_state_id)
             m_links.push_back(
-              { .from = i,
-                .to   = states[i].else_transition,
+              { .from = id,
+                .to   = s.else_transition,
                 .type = ordinal(transition_type::else_transition) });
     }
 
@@ -813,26 +1023,33 @@ void hsm_component_editor_data::build_graph() noexcept
         m_editor.clear_selection();
 }
 
-static bool connect(hsm_component&        hsm,
-                    const hsm_t::state_id from,
-                    const u32             port,
-                    const hsm_t::state_id to) noexcept
+void hsm_component_editor_data::show_breadcrumb() noexcept
 {
-    auto& states = hsm.machine.states;
+    std::array<state_id, hsm_t::max_depth> path;
+    auto                                   n = 0;
 
-    if (from == 0) {
-        if (states[0].sub_id != hsm_t::invalid_state_id)
-            states[states[0].sub_id].super_id = hsm_t::invalid_state_id;
+    for (auto s = m_level;
+         s != hsm_t::invalid_state_id and n < hsm_t::max_depth;
+         s = m_hsm.machine.states[s].super_id)
+        path[n++] = s;
 
-        states[to].super_id = 0;
-        states[0].sub_id    = to;
-    } else if (port == 0) {
-        states[from].if_transition = to;
-    } else {
-        states[from].else_transition = to;
+    for (auto i = n - 1; i >= 0; --i) {
+        small_string<64> label;
+        append_label(m_hsm, path[i], label);
+
+        ImGui::PushID(path[i]);
+        if (i == 0)
+            ImGui::TextUnformatted(label.c_str());
+        else if (ImGui::SmallButton(label.c_str()))
+            open_level(path[i]);
+        ImGui::PopID();
+
+        if (i > 0) {
+            ImGui::SameLine();
+            ImGui::TextUnformatted(">");
+            ImGui::SameLine();
+        }
     }
-
-    return true;
 }
 
 bool hsm_component_editor_data::show_menu() noexcept
@@ -852,32 +1069,40 @@ bool hsm_component_editor_data::show_menu() noexcept
         const auto click_pos = m_editor.to_world(
           ImGui::GetMousePosOnOpeningCurrentPopup());
 
-        if (auto id = get_first_available(m_enabled); id.has_value()) {
-            if (ImGui::MenuItem("new state")) {
-                m_enabled[id.value()] = true;
-                ++u;
+        const auto id        = get_first_available(m_enabled);
+        const auto can_level = m_hsm.machine.depth_of(m_level) + 1 <
+                               hsm_t::max_depth;
 
-                debug::ensure(m_hsm.machine.top_state == 0);
+        if (ImGui::MenuItem("new state", nullptr, false,
+                            id.has_value() and can_level)) {
+            auto& states   = m_hsm.machine.states;
+            m_enabled[*id] = true;
+            ++u;
 
-                if (m_hsm.machine.states[0].sub_id == hsm_t::invalid_state_id)
-                    m_hsm.machine.states[0].sub_id = id.value();
-                (void)m_hsm.machine.set_state(id.value(), 0);
+            if (states[m_level].sub_id == hsm_t::invalid_state_id)
+                states[m_level].sub_id = *id;
+            (void)m_hsm.machine.set_state(*id, m_level);
 
-                m_hsm.positions[id.value()].x = click_pos.x;
-                m_hsm.positions[id.value()].y = click_pos.y;
-                m_hsm.names[id.value()].clear();
-                m_positions[id.value()] = click_pos;
-            }
-
-            auto action_lbl = m_options.test(display_action_label);
-            if (ImGui::MenuItem("Display action labels", nullptr, &action_lbl))
-                m_options.set(display_action_label, action_lbl);
-
-            auto condition_lbl = m_options.test(display_condition_label);
-            if (ImGui::MenuItem(
-                  "Display condition labels", nullptr, &condition_lbl))
-                m_options.set(display_condition_label, condition_lbl);
+            m_hsm.positions[*id].x = click_pos.x;
+            m_hsm.positions[*id].y = click_pos.y;
+            m_hsm.names[*id].clear();
+            m_positions[*id] = click_pos;
         }
+
+        if (m_level != m_hsm.machine.top_state and
+            ImGui::MenuItem("Open the parent level"))
+            open_level(m_hsm.machine.states[m_level].super_id);
+
+        ImGui::Separator();
+
+        auto action_lbl = m_options.test(display_action_label);
+        if (ImGui::MenuItem("Display action labels", nullptr, &action_lbl))
+            m_options.set(display_action_label, action_lbl);
+
+        auto condition_lbl = m_options.test(display_condition_label);
+        if (ImGui::MenuItem("Display condition labels", nullptr,
+                            &condition_lbl))
+            m_options.set(display_condition_label, condition_lbl);
 
         if (ImGui::MenuItem("Grid layout"))
             m_editor.request_grid_layout();
@@ -895,22 +1120,43 @@ bool hsm_component_editor_data::show_menu() noexcept
     return u > 0;
 }
 
-bool hsm_component_editor_data::show_graph() noexcept
+bool hsm_component_editor_data::show_graph(application& app) noexcept
 {
-    auto u = 0;
+    auto  u      = 0;
+    auto& states = m_hsm.machine.states;
 
+    // The breadcrumb may change the level: the graph is built after.
+    show_breadcrumb();
     build_graph();
 
-    auto       g  = graph{ .ed = *this, .buffer = {}, .changes = 0 };
+    auto g = graph{ .ed = *this, .buffer = {}, .composite_colors = {} };
+    app.config.vars.colors.read(
+      [&](const auto& colors, const auto /*v*/) noexcept {
+          g.composite_colors[0] = to_ImU32(colors[style_color::node_2]);
+          g.composite_colors[1] = to_ImU32(colors[style_color::node_2_active]);
+      });
+
     const auto ev = m_editor.show("hsm-graph", g);
-    u += g.changes;
 
     u += show_menu();
 
     if (ev.link_created) {
         const auto from = m_nodes[ev.link_created->out.node];
         const auto to   = m_nodes[ev.link_created->in.node];
-        u += connect(m_hsm, from, ev.link_created->out.port, to);
+
+        if (from.kind == node_kind::initial) {
+            if (to.kind == node_kind::state) {
+                states[m_level].sub_id = to.id;
+                ++u;
+            }
+        } else if (from.kind == node_kind::state and
+                   to.id != m_hsm.machine.top_state) {
+            if (ev.link_created->out.port == 0)
+                states[from.id].if_transition = to.id;
+            else
+                states[from.id].else_transition = to.id;
+            ++u;
+        }
     }
 
     if (ev.delete_selection) {
@@ -923,15 +1169,25 @@ bool hsm_component_editor_data::show_graph() noexcept
         }
 
         for (const auto i : m_editor.selected_nodes()) {
-            if (const auto id = m_nodes[i]; id != 0) {
-                u += remove_state(m_hsm, id, m_enabled);
-                m_positions[id] = ImVec2(
-                  std::numeric_limits<float>::quiet_NaN(),
-                  std::numeric_limits<float>::quiet_NaN());
+            if (const auto n = m_nodes[i];
+                n.kind == node_kind::state and m_enabled[n.id]) {
+                remove_state(m_hsm, n.id, m_enabled);
+                m_positions[n.id] = unknown_position();
+                ++u;
             }
         }
 
         m_editor.clear_selection();
+    }
+
+    if (ev.node_activated) {
+        const auto n = m_nodes[*ev.node_activated];
+
+        if (n.kind == node_kind::state)
+            open_level(n.id);
+        else if (n.kind == node_kind::target and
+                 states[n.id].super_id != hsm_t::invalid_state_id)
+            open_level(states[n.id].super_id);
     }
 
     if (ev.nodes_moved)
@@ -968,14 +1224,51 @@ bool hsm_component_editor_data::show_panel(component& compo) noexcept
         }
     }
 
+    const auto top = m_hsm.machine.top_state;
+
+    // Shows the states accepted by @c accept with their path and returns the
+    // state selected by the user.
+    const auto combo_state = [&](const char* label, const state_id current,
+                                 auto&& accept) -> std::optional<state_id> {
+        small_string<127> preview;
+        if (current == hsm_t::invalid_state_id)
+            preview = "None";
+        else
+            append_path(m_hsm, current, preview);
+
+        std::optional<state_id> ret;
+        if (ImGui::BeginCombo(label, preview.c_str())) {
+            if (accept(hsm_t::invalid_state_id) and
+                ImGui::Selectable("None", current == hsm_t::invalid_state_id))
+                ret = hsm_t::invalid_state_id;
+
+            for (u8 i = 0; i != hsm_t::max_number_of_state; ++i) {
+                if (not(i == top or m_enabled[i]) or not accept(i))
+                    continue;
+
+                small_string<127> path;
+                append_path(m_hsm, i, path);
+
+                ImGui::PushID(i);
+                if (ImGui::Selectable(path.c_str(), i == current))
+                    ret = i;
+                ImGui::PopID();
+            }
+
+            ImGui::EndCombo();
+        }
+
+        return ret;
+    };
+
     if (ImGui::CollapsingHeader("selected states",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         for (const auto node : m_editor.selected_nodes()) {
-            const auto id    = m_nodes[node];
-            auto&      state = m_hsm.machine.states[id];
-
-            if (id == 0)
+            if (m_nodes[node].kind != node_kind::state)
                 continue;
+
+            const auto id    = m_nodes[node].id;
+            auto&      state = m_hsm.machine.states[id];
 
             ImGui::PushID(static_cast<int>(id));
 
@@ -986,14 +1279,51 @@ bool hsm_component_editor_data::show_panel(component& compo) noexcept
             }
             ImGui::LabelFormat("Id", "{}", static_cast<unsigned>(id));
 
-            ImGui::LabelFormat(
-              "super-id",
-              "{}",
-              static_cast<u32>(m_hsm.machine.states[id].super_id));
-            ImGui::LabelFormat(
-              "sub-id",
-              "{}",
-              static_cast<u32>(m_hsm.machine.states[id].sub_id));
+            ImGui::SeparatorText("Hierarchy");
+
+            const auto height = height_of(m_hsm, m_enabled, id);
+            if (const auto p = combo_state(
+                  "Parent", state.super_id,
+                  [&](const state_id c) noexcept {
+                      return c != hsm_t::invalid_state_id and
+                             not is_descendant(m_hsm.machine, c, id) and
+                             m_hsm.machine.depth_of(c) + 1 + height <
+                               hsm_t::max_depth;
+                  });
+                p.has_value() and *p != state.super_id) {
+                move_state(m_hsm, m_enabled, id, *p);
+                ++u;
+            }
+
+            if (count_sub_states(m_hsm, m_enabled, id) > 0) {
+                if (const auto s = combo_state(
+                      "Initial state", state.sub_id, [&](const state_id c) {
+                          return c != hsm_t::invalid_state_id and
+                                 m_hsm.machine.states[c].super_id == id;
+                      })) {
+                    state.sub_id = *s;
+                    ++u;
+                }
+            }
+
+            const auto is_target = [&](const state_id c) noexcept {
+                return c != top;
+            };
+
+            if (const auto t = combo_state("If transition", state.if_transition,
+                                           is_target)) {
+                state.if_transition = *t;
+                ++u;
+            }
+
+            if (const auto t = combo_state("Else transition",
+                                           state.else_transition, is_target)) {
+                state.else_transition = *t;
+                ++u;
+            }
+
+            if (ImGui::Button("Open"))
+                open_level(id);
 
             ImGui::SeparatorText("Condition");
             u += show_state_condition(state.condition);
@@ -1019,87 +1349,100 @@ bool hsm_component_editor_data::show_panel(component& compo) noexcept
     return u > 0;
 }
 
+static const char* hierarchy_error_message(const simulation_errc ec) noexcept
+{
+    switch (ec) {
+    case simulation_errc::hsm_top_state_error:
+        return "the top state is undefined";
+    case simulation_errc::hsm_hierarchy_error:
+        return "a cycle or more than 8 levels in the hierarchy";
+    case simulation_errc::hsm_initial_state_error:
+        return "a composite state without initial state";
+    case simulation_errc::hsm_transition_error:
+        return "a transition from or to the top state";
+    default:
+        return "unknown error";
+    }
+}
+
 bool hsm_component_editor_data::valid() noexcept
 {
-    debug::ensure(m_hsm.machine.states[0].super_id == hsm_t::invalid_state_id);
+    const auto& states     = m_hsm.machine.states;
+    auto        have_error = false;
 
+    if (const auto ec = m_hsm.machine.find_error();
+        ec != simulation_errc::none) {
+        ImGui::TextFormat("Hierarchy: {}", hierarchy_error_message(ec));
+        have_error = true;
+    }
+
+    // A state is reached by a transition or as the initial state of a
+    // reached composite state.
     small_vector<hsm_t::state_id, max_number_of_state> stack;
     std::array<bool, max_number_of_state>              read;
     read.fill(false);
-    read[0] = true;
 
-    debug::ensure(m_hsm.machine.states[0].if_transition ==
-                  hsm_t::invalid_state_id);
-    debug::ensure(m_hsm.machine.states[0].else_transition ==
-                  hsm_t::invalid_state_id);
-    debug::ensure(m_hsm.machine.states[0].super_id == hsm_t::invalid_state_id);
-
-    const auto init_s     = m_hsm.machine.states[0].sub_id;
-    auto       have_error = false;
-
-    if (init_s == hsm_t::invalid_state_id) {
+    const auto top = m_hsm.machine.top_state;
+    if (states[top].sub_id == hsm_t::invalid_state_id) {
         ImGui::LabelFormat("Initiale state", "State machine is empty");
-        have_error = true;
-    } else {
-        stack.emplace_back(m_hsm.machine.states[0].sub_id);
+        return false;
+    }
 
-        while (not stack.empty()) {
-            auto top = stack.back();
-            stack.pop_back();
+    read[top] = true;
+    stack.emplace_back(states[top].sub_id);
 
-            switch (m_hsm.machine.states[top].condition.type) {
-            case hierarchical_state_machine::condition_type::none:
-                break;
+    while (not stack.empty()) {
+        const auto id = stack.back();
+        stack.pop_back();
 
-            case hierarchical_state_machine::condition_type::port:
-                if (not have_if_transition(m_hsm.machine.states[top])) {
-                    ImGui::TextFormat("state {}: connect if-condition",
-                                      (u32)top);
-                    have_error = true;
-                }
-                break;
+        if (read[id])
+            continue;
 
-            case hierarchical_state_machine::condition_type::sigma:
-                if (not have_if_transition(m_hsm.machine.states[top])) {
-                    ImGui::TextFormat("state {}: connect if-condition",
-                                      (u32)top);
-                    have_error = true;
-                }
-                break;
+        read[id]      = true;
+        const auto& s = states[id];
 
-            case hierarchical_state_machine::condition_type::equal_to:
-            case hierarchical_state_machine::condition_type::not_equal_to:
-            case hierarchical_state_machine::condition_type::greater:
-            case hierarchical_state_machine::condition_type::greater_equal:
-            case hierarchical_state_machine::condition_type::less:
-            case hierarchical_state_machine::condition_type::less_equal:
-                if (not have_if_transition(m_hsm.machine.states[top])) {
-                    ImGui::TextFormat("state {}: connect if-condition",
-                                      (u32)top);
-                    have_error = true;
-                }
-                if (not have_else_transition(m_hsm.machine.states[top])) {
-                    ImGui::TextFormat("state {}: connect else-condition",
-                                      (u32)top);
-                    have_error = true;
-                }
-                break;
+        switch (s.condition.type) {
+        case hsm_t::condition_type::none:
+            break;
+
+        case hsm_t::condition_type::port:
+        case hsm_t::condition_type::sigma:
+            if (not have_if_transition(s)) {
+                ImGui::TextFormat("state {}: connect if-condition", id);
+                have_error = true;
             }
+            break;
 
-            read[top] = true;
+        case hsm_t::condition_type::equal_to:
+        case hsm_t::condition_type::not_equal_to:
+        case hsm_t::condition_type::greater:
+        case hsm_t::condition_type::greater_equal:
+        case hsm_t::condition_type::less:
+        case hsm_t::condition_type::less_equal:
+            if (not have_if_transition(s)) {
+                ImGui::TextFormat("state {}: connect if-condition", id);
+                have_error = true;
+            }
+            if (not have_else_transition(s)) {
+                ImGui::TextFormat("state {}: connect else-condition", id);
+                have_error = true;
+            }
+            break;
+        }
 
-            if (m_hsm.machine.states[top].if_transition !=
-                  hsm_t::invalid_state_id &&
-                read[m_hsm.machine.states[top].if_transition] == false)
-                stack.emplace_back(m_hsm.machine.states[top].if_transition);
-            if (m_hsm.machine.states[top].else_transition !=
-                  hsm_t::invalid_state_id &&
-                read[m_hsm.machine.states[top].else_transition] == false)
-                stack.emplace_back(m_hsm.machine.states[top].else_transition);
+        for (const auto next : { s.if_transition, s.else_transition, s.sub_id })
+            if (next != hsm_t::invalid_state_id and not read[next])
+                stack.emplace_back(next);
+    }
+
+    for (u8 i = 1; i != max_number_of_state; ++i) {
+        if (m_enabled[i] and not read[i]) {
+            ImGui::TextFormat("state {}: unreachable", i);
+            have_error = true;
         }
     }
 
-    return not have_error and read == m_enabled;
+    return not have_error;
 }
 
 bool hsm_component_editor_data::show(component_editor& ed,
@@ -1119,7 +1462,7 @@ bool hsm_component_editor_data::show(component_editor& ed,
     if (ImGui::BeginChild("##table-editor", ImVec2(0, table_heigth), false)) {
         if (ImGui::BeginTabBar("##hsm-editor")) {
             if (ImGui::BeginTabItem("Editor")) {
-                if (show_graph()) {
+                if (show_graph(app)) {
                     write(app, compo);
                     ++u;
                 }
@@ -1210,8 +1553,9 @@ static void update_enabled_states(const hierarchical_state_machine& hsm,
 void hsm_component_editor_data::write(application& app,
                                       component&   compo) noexcept
 {
-    for (auto i = 1, e = length(m_hsm.machine.states); i != e; ++i) {
-        if (m_enabled[i] and not is_unknown(m_positions[i])) {
+    for (auto i = 0, e = length(m_hsm.machine.states); i != e; ++i) {
+        if ((i == m_hsm.machine.top_state or m_enabled[i]) and
+            not is_unknown(m_positions[i])) {
             m_hsm.positions[i].x = m_positions[i].x;
             m_hsm.positions[i].y = m_positions[i].y;
         }
@@ -1248,8 +1592,9 @@ hsm_component_editor_data::hsm_component_editor_data(
   , m_id(id)
   , m_hsm_id(hid)
 {
-    m_positions.fill(ImVec2(std::numeric_limits<float>::quiet_NaN(),
-                            std::numeric_limits<float>::quiet_NaN()));
+    m_positions.fill(unknown_position());
+    m_target_positions.fill(unknown_position());
+    m_initial_position = unknown_position();
 
     m_hsm.machine.states[0].super_id = hsm_t::invalid_state_id;
     m_hsm.machine.top_state          = 0;

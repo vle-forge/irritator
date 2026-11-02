@@ -564,7 +564,7 @@ private:
     using state_id = hierarchical_state_machine::state_id;
 
     /// A transition drawn as a link: @c type is the output pin of @c from,
-    /// the start of the machine for the initial state, the if or the else
+    /// the start of the level for its initial state, the if or the else
     /// transition for the other states.
     struct transition_link {
         state_id from = 0;
@@ -572,12 +572,26 @@ private:
         u8       type = 0;
     };
 
+    /// The editor shows one level of the hierarchy: the initial pseudo state
+    /// of the level, the sub states of the level and the targets of their
+    /// transitions outside the level.
+    enum class node_kind : u8 { initial, state, target };
+
+    struct view_node {
+        state_id  id   = 0;
+        node_kind kind = node_kind::state;
+
+        bool operator==(const view_node&) const noexcept = default;
+    };
+
     struct graph;
 
     void build_graph() noexcept;
-    u32  node_of(state_id id) const noexcept;
+    u32  node_of(state_id id, node_kind kind) const noexcept;
+    void open_level(state_id id) noexcept;
+    void show_breadcrumb() noexcept;
     bool show_menu() noexcept;
-    bool show_graph() noexcept;
+    bool show_graph(application& app) noexcept;
     bool show_panel(component&) noexcept;
     bool valid() noexcept;
 
@@ -586,18 +600,24 @@ private:
 
     node_editor::editor m_editor;
 
-    vector<state_id>        m_nodes;
+    vector<view_node>       m_nodes;
     vector<transition_link> m_links;
 
     /// The positions owned by the view, the component being read again at
     /// each frame. A NaN marks a position to read from @c m_hsm.
     std::array<ImVec2, max_number_of_state> m_positions;
 
+    /// The positions of the initial pseudo state and of the target nodes of
+    /// the current level: not saved, they are placed when the level opens.
+    ImVec2                                  m_initial_position;
+    std::array<ImVec2, max_number_of_state> m_target_positions;
+
+    /// The super state whose sub states are shown, the top state at first.
+    state_id m_level = 0;
+
     /** An editable @c hsm_component. */
     hsm_component m_hsm;
     u64           m_version = std::numeric_limits<u64>::max();
-
-    ImVector<hierarchical_state_machine::state_id> m_stack;
 
     std::array<bool, max_number_of_state> m_enabled;
 
