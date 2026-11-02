@@ -7,7 +7,9 @@
 
 #include <boost/ut.hpp>
 
+#include <array>
 #include <numbers>
+#include <span>
 
 struct v2 {
     float x = 0.f;
@@ -79,6 +81,46 @@ int main()
         expect(lt(std::abs(before.x - after.x), 1e-4f));
         expect(lt(std::abs(before.y - after.y), 1e-4f));
     };
+    "layout: the grid"_test = [] {
+        expect(eq(grid_columns(0u), 1u));
+        expect(eq(grid_columns(1u), 1u));
+        expect(eq(grid_columns(4u), 2u));
+        expect(eq(grid_columns(5u), 3u));
+
+        const auto p = grid_position(4u, 3u, v2{ 10.f, 20.f });
+        expect(eq(p.x, 10.f) and eq(p.y, 20.f));
+    };
+
+    "layout: two linked nodes reach the ideal distance"_test = [] {
+        std::array<v2, 2> centers{ v2{ 0.f, 0.f }, v2{ 1000.f, 0.f } };
+        std::array<v2, 2> moves{};
+        const auto        edges = [](auto&& fn) { fn(0u, 1u); };
+
+        for (int i = 0; i < 200; ++i)
+            force_directed_step(std::span<v2>(centers), std::span<v2>(moves),
+                                edges, 100.f, 50.f * (1.f - i / 200.f));
+
+        const auto d = std::abs(centers[1].x - centers[0].x);
+        expect(lt(std::abs(d - 100.f), 1.f)) << d;
+    };
+
+    "layout: superposed nodes are separated"_test = [] {
+        std::array<v2, 3> centers{};
+        std::array<v2, 3> moves{};
+        const auto        edges = [](auto&& /*fn*/) {};
+
+        for (int i = 0; i < 50; ++i)
+            force_directed_step(std::span<v2>(centers), std::span<v2>(moves),
+                                edges, 100.f, 10.f);
+
+        for (std::size_t a = 0; a < 3; ++a)
+            for (std::size_t b = a + 1; b < 3; ++b) {
+                const auto dx = centers[a].x - centers[b].x;
+                const auto dy = centers[a].y - centers[b].y;
+                expect(gt(std::sqrt(dx * dx + dy * dy), 50.f));
+            }
+    };
+
     "projection: null angles keep the points"_test = [] {
         irt::projection_3d p;
         p.update_matrices({ 0.f, 0.f, 0.f }, { 1.f, 2.f, 3.f });

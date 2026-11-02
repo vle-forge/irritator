@@ -954,106 +954,6 @@ static int disconnect(project_editor&                                pj_ed,
     return ret;
 }
 
-void generic_simulation_editor::compute_automatic_layout() noexcept
-{
-    if (nodes.empty())
-        return;
-
-    /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
-       Fruchterman and Edward M. Reingold in Software--Pratice and
-       Experience, Vol. 21(1 1), 1129-1164 (november 1991).
-       */
-
-    const auto size      = nodes.size();
-    const auto tmp       = std::sqrt(size);
-    const auto column    = static_cast<int>(tmp);
-    const auto line      = column;
-    const auto remaining = size - (column * line);
-
-    const float W    = static_cast<float>(column) * automatic_layout_x_distance;
-    const float L    = static_cast<float>(line) +
-                       ((remaining > 0) ? automatic_layout_y_distance : 0.f);
-    const float area = W * L;
-    const float k_square = area / static_cast<float>(size);
-    const float k        = std::sqrt(k_square);
-
-    displacements.resize(size);
-
-    const auto pos = [&](const sz node) noexcept -> ImVec2& {
-        return positions[get_index(nodes[node].mdl)];
-    };
-
-    float t = 1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
-
-    for (sz i_v = 0; i_v < size; ++i_v) {
-        displacements[i_v].x = 0.f;
-        displacements[i_v].y = 0.f;
-
-        for (sz i_u = 0; i_u < size; ++i_u) {
-            if (i_u != i_v) {
-                const auto delta = ImVec2{ pos(i_v).x - pos(i_u).x,
-                                           pos(i_v).y - pos(i_u).y };
-
-                if (std::isnormal(delta.x) and std::isnormal(delta.y)) {
-                    const float d2    = delta.x * delta.x + delta.y * delta.y;
-                    const float coeff = k_square / d2;
-
-                    displacements[i_v].x += coeff * delta.x;
-                    displacements[i_v].y += coeff * delta.y;
-                }
-            }
-        }
-    }
-
-    for (const auto& l : links) {
-        const float dx = pos(l.in_node).x - pos(l.out_node).x;
-        const float dy = pos(l.in_node).y - pos(l.out_node).y;
-
-        if (std::isnormal(dx) and std::isnormal(dy)) {
-            const float d2    = dx * dx / dy * dy;
-            const float coeff = std::sqrt(d2) / k;
-
-            displacements[l.out_node].x += dx * coeff;
-            displacements[l.out_node].y += dy * coeff;
-            displacements[l.in_node].x -= dx * coeff;
-            displacements[l.in_node].y -= dy * coeff;
-        }
-    }
-
-    for (sz i_v = 0; i_v < size; ++i_v) {
-        const auto d2 = displacements[i_v].x * displacements[i_v].x +
-                        displacements[i_v].y * displacements[i_v].y;
-        const auto d = std::sqrt(d2);
-
-        if (d > t) {
-            const float coeff = t / d;
-            displacements[i_v].x *= coeff;
-            displacements[i_v].y *= coeff;
-        }
-
-        pos(i_v).x += displacements[i_v].x;
-        pos(i_v).y += displacements[i_v].y;
-    }
-}
-
-void generic_simulation_editor::compute_grid_layout() noexcept
-{
-    const auto size = nodes.size();
-    if (size == 0)
-        return;
-
-    const auto column = std::max(
-      sz{ 1 },
-      static_cast<sz>(std::floor(std::sqrt(static_cast<float>(size)))));
-
-    for (sz i = 0; i != size; ++i)
-        positions[get_index(nodes[i].mdl)] = ImVec2(
-          static_cast<float>(i % column) * grid_layout_x_distance,
-          static_cast<float>(i / column) * grid_layout_y_distance);
-
-    editor.request_fit();
-}
-
 /// The models without position, new or never shown, take the position of the
 /// last context menu or a place on a grid after the other nodes.
 void generic_simulation_editor::place_new_nodes(
@@ -1076,11 +976,10 @@ void generic_simulation_editor::place_new_nodes(
             p = *new_model_position;
             new_model_position.reset();
         } else {
-            const auto column = std::max(
-              sz{ 1 },
-              static_cast<sz>(std::floor(std::sqrt(static_cast<float>(e)))));
-            p = ImVec2(static_cast<float>(i % column) * grid_layout_x_distance,
-                       static_cast<float>(i / column) * grid_layout_y_distance);
+            p = node_editor::grid_position(
+              static_cast<u32>(i),
+              node_editor::grid_columns(static_cast<u32>(e)),
+              ImVec2(grid_layout_x_distance, grid_layout_y_distance));
             ++placed;
         }
     }
@@ -1175,11 +1074,11 @@ int generic_simulation_editor::show_menu(project_editor& pj_ed,
         ImGui::OpenPopup("Context menu");
 
     if (ImGui::BeginPopup("Context menu")) {
-        if (ImGui::MenuItem("Force grid layout"))
-            compute_grid_layout();
+        if (ImGui::MenuItem("Grid layout"))
+            editor.request_grid_layout();
 
-        if (ImGui::MenuItem("Force automatic layout"))
-            automatic_layout_iteration = automatic_layout_iteration_limit;
+        if (ImGui::MenuItem("Automatic layout"))
+            editor.request_force_layout();
 
         ImGui::MenuItem("Show internal values", "", &show_internal_values);
         ImGui::MenuItem("Show internal parameters", "", &show_parameter_values);
@@ -1380,11 +1279,6 @@ bool generic_simulation_editor::display(application&    app,
                 editor.reset();
 
             place_new_nodes(pj_ed);
-
-            if (automatic_layout_iteration > 0) {
-                compute_automatic_layout();
-                --automatic_layout_iteration;
-            }
 
             auto g = graph{
                 .app = app, .pj_ed = pj_ed, .ed = *this, .title_buffer = {}

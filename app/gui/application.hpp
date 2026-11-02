@@ -479,20 +479,11 @@ private:
 
     ImVec2 distance{ 15.f, 15.f };
 
-    std::atomic_flag task_is_running; // Allow only one task (new graph or new
-                                      // automatic layout at the same time).
-
-    i32 iteration_limit     = 100'000;
-    i32 time_limit_ms       = 1'000;
-    i32 update_frequence_ms = 0'16;
+    std::atomic_flag task_is_running; // Allow only one task to build a new
+                                      // graph at the same time.
 
     graph_component_id graph_id = undefined<graph_component_id>();
     component_id       m_id     = undefined<component_id>();
-
-    void automatic_layout_task(application& app) noexcept;
-    bool compute_automatic_layout(graph_component& graph,
-                                  vector<ImVec2>&  displacements,
-                                  int              iteration) const noexcept;
 
     void clear_file_access() noexcept;
     void build_graph(const graph_component& data) noexcept;
@@ -699,12 +690,6 @@ public:
     std::unique_ptr<component>         m_compo_buffer;
     std::unique_ptr<generic_component> m_generic_buffer;
 
-    int   automatic_layout_iteration_limit = 2048;
-    float automatic_layout_x_distance      = 350.f;
-    float automatic_layout_y_distance      = 350.f;
-    float grid_layout_x_distance           = 240.f;
-    float grid_layout_y_distance           = 200.f;
-
     std::bitset<6> options;
 
 private:
@@ -773,7 +758,6 @@ private:
     vector<node>   nodes;
     vector<link>   links_2nd;
     vector<node>   nodes_2nd;
-    vector<ImVec2> displacements;
 
     /// The world position of the nodes, indexed by the index of the model in
     /// the simulation: it survives the rebuilds of @c nodes.
@@ -782,12 +766,8 @@ private:
     /// The world position where the next new model is placed.
     std::optional<ImVec2> new_model_position;
 
-    int   automatic_layout_iteration       = 0;
-    int   automatic_layout_iteration_limit = 2048;
-    float automatic_layout_x_distance      = 350.f;
-    float automatic_layout_y_distance      = 350.f;
-    float grid_layout_x_distance           = 240.f;
-    float grid_layout_y_distance           = 200.f;
+    float grid_layout_x_distance = 240.f;
+    float grid_layout_y_distance = 200.f;
 
     bool show_identifiers      = true;
     bool show_internal_values  = false;
@@ -805,8 +785,6 @@ private:
 
     void start_rebuild_task(application& app, project_editor& pj_ed) noexcept;
     void place_new_nodes(const project_editor& pj_ed) noexcept;
-    void compute_automatic_layout() noexcept;
-    void compute_grid_layout() noexcept;
     int  show_menu(project_editor& pj_ed, const ImVec2 click_pos) noexcept;
 
     spin_mutex mutex;

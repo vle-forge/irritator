@@ -18,129 +18,6 @@
 
 namespace irt {
 
-static void update_bound(graph_component& graph, std::integral auto i) noexcept
-{
-    graph.top_left_limit[0]     = std::min(graph.top_left_limit[0],
-                                           graph.g.node_positions[i][0] -
-                                             graph.g.node_areas[i]);
-    graph.top_left_limit[1]     = std::min(graph.top_left_limit[1],
-                                           graph.g.node_positions[i][1] -
-                                             graph.g.node_areas[i]);
-    graph.bottom_right_limit[0] = std::max(graph.bottom_right_limit[0],
-                                           graph.g.node_positions[i][0] +
-                                             graph.g.node_areas[i]);
-    graph.bottom_right_limit[1] = std::max(graph.bottom_right_limit[1],
-                                           graph.g.node_positions[i][1] +
-                                             graph.g.node_areas[i]);
-}
-
-bool graph_component_editor_data::compute_automatic_layout(
-  graph_component& graph,
-  vector<ImVec2>&  displacements,
-  int              iteration) const noexcept
-{
-    const auto size = graph.g.nodes.size();
-    if (size < 2)
-        return false;
-
-    const auto sqrt_size = std::sqrt(static_cast<float>(size));
-    const auto W         = (sqrt_size + 1.f) * distance.x;
-    const auto L         = (sqrt_size + 1.f) * distance.y;
-    const auto area      = W * L;
-    const auto k_square  = area / static_cast<float>(size);
-    const auto k         = std::sqrt(k_square);
-
-    const auto t = (1.f - (static_cast<float>(iteration) /
-                           static_cast<float>(iteration_limit))) *
-                   (1.f - (static_cast<float>(iteration) /
-                           static_cast<float>(iteration_limit)));
-
-    for (const auto v_edge_id : graph.g.edges) {
-        const auto& v_edge = graph.g.edges_nodes[get_index(v_edge_id)];
-
-        if (not graph.g.nodes.exists(v_edge[1].first))
-            continue;
-
-        const auto v       = get_index(v_edge[1].first);
-        displacements[v].x = 0.f;
-        displacements[v].y = 0.f;
-
-        for (const auto u_edge_id : graph.g.edges) {
-            const auto& u_edge = graph.g.edges_nodes[get_index(u_edge_id)];
-            if (not graph.g.nodes.exists(u_edge[0].first))
-                continue;
-
-            const auto u = get_index(u_edge[0].first);
-            if (u != v) {
-                const auto delta = ImVec2{
-                    graph.g.node_positions[v][0] - graph.g.node_positions[u][0],
-                    graph.g.node_positions[v][1] - graph.g.node_positions[u][1]
-                };
-
-                if (delta.x && delta.y) {
-                    const float d2    = delta.x * delta.x + delta.y * delta.y;
-                    const float coeff = k_square / d2;
-
-                    displacements[v].x += std::clamp(coeff * delta.x,
-                                                     -distance.x, distance.x);
-                    displacements[v].y += std::clamp(coeff * delta.y,
-                                                     -distance.y, distance.y);
-                }
-            }
-        }
-    }
-
-    for (const auto edge_id : graph.g.edges) {
-        const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
-
-        const auto  u  = get_index(edge[0].first);
-        const auto  v  = get_index(edge[1].first);
-        const float dx = graph.g.node_positions[v][0] -
-                         graph.g.node_positions[u][0];
-        const float dy = graph.g.node_positions[v][1] -
-                         graph.g.node_positions[u][1];
-
-        if (dx && dy) {
-            const float coeff = std::sqrt((dx * dx) / (dy * dy)) / k;
-
-            auto move_v_x = dx * coeff;
-            auto move_v_y = dy * coeff;
-            auto move_u_x = dx * coeff;
-            auto move_u_y = dy * coeff;
-
-            displacements[v].x -= std::clamp(move_v_x, -distance.x, distance.x);
-            displacements[v].y -= std::clamp(move_v_y, -distance.y, distance.y);
-            displacements[u].x += std::clamp(move_u_x, -distance.x, distance.x);
-            displacements[u].y += std::clamp(move_u_y, -distance.y, distance.y);
-        }
-    }
-
-    bool have_big_displacement = false;
-    for (const auto edge_id : graph.g.edges) {
-        const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
-
-        const auto  v = get_index(edge[1].first);
-        const float d = std::sqrt((displacements[v].x * displacements[v].x) +
-                                  (displacements[v].y * displacements[v].y));
-
-        if (d > t) {
-            const float coeff = t / d;
-            displacements[v].x *= coeff;
-            displacements[v].y *= coeff;
-        }
-
-        if (displacements[v].x > 10.f or displacements[v].y > 10.f)
-            have_big_displacement = true;
-
-        graph.g.node_positions[v][0] += displacements[v].x;
-        graph.g.node_positions[v][1] += displacements[v].y;
-
-        update_bound(graph, v);
-    }
-
-    return have_big_displacement or iteration < iteration_limit;
-}
-
 void show_project_params_menu(graph_component& graph) noexcept
 {
     static const char* names[] = { "in-out", "name", "name+suffix" };
@@ -668,45 +545,6 @@ void save_dot_file(application&       app,
     });
 }
 
-void graph_component_editor_data::automatic_layout_task(
-  application& app) noexcept
-{
-    if (not task_is_running.test_and_set()) {
-        auto g_ptr = std::make_unique<graph_component>(m_graph);
-
-        app.add_gui_task([this, g = std::move(g_ptr)]() {
-            namespace sc = std::chrono;
-
-            auto       displacements = vector<ImVec2>(g->g.nodes.size());
-            const auto start         = sc::system_clock::now();
-            auto       next_update   = sc::milliseconds{ 0 };
-
-            for (i32 iteration = 0; iteration < iteration_limit; ++iteration) {
-                if (not compute_automatic_layout(*g, displacements, iteration))
-                    break;
-
-                const auto now = sc::system_clock::now();
-                const auto ms  = sc::duration_cast<sc::milliseconds>(now -
-                                                                     start);
-                if (ms >= sc::milliseconds{ time_limit_ms })
-                    break;
-
-                next_update += ms;
-                if (next_update > sc::milliseconds{ update_frequence_ms }) {
-                    if (m_graph_2nd.try_request()) {
-                        next_update  = sc::milliseconds{ 0 };
-                        auto to_move = graph_component(*g);
-
-                        m_graph_2nd.fulfill(std::move(to_move));
-                    }
-                }
-            }
-
-            task_is_running.clear();
-        });
-    }
-}
-
 bool graph_component_editor_data::graph_component_editor_data::show(
   application& app,
   component&   compo) noexcept
@@ -760,28 +598,14 @@ bool graph_component_editor_data::graph_component_editor_data::show(
         }
 
         if (ImGui::BeginMenu("Display##Menu")) {
-            ImGui::BeginDisabled(task_is_running.test());
+            if (ImGui::MenuItem("Grid layout"))
+                m_editor.request_grid_layout();
+
             if (ImGui::MenuItem("Automatic layout"))
-                automatic_layout_task(app);
-            ImGui::EndDisabled();
+                m_editor.request_force_layout();
 
             if (ImGui::MenuItem("Auto-fit"))
                 m_editor.request_fit();
-
-            ImGui::SeparatorText("Automatic Layout");
-
-            if (ImGui::InputInt("iteration limit", &iteration_limit)) {
-                iteration_limit = std::clamp(iteration_limit, 1'000, 100'000);
-            }
-
-            if (ImGui::InputInt("time limit (ms)", &time_limit_ms)) {
-                time_limit_ms = std::clamp(time_limit_ms, 0'500, 10'000);
-            }
-
-            if (ImGui::InputInt("draw frequence (ms)", &update_frequence_ms)) {
-                update_frequence_ms = std::clamp(update_frequence_ms, 0'160,
-                                                 1'000);
-            }
 
             ImGui::SeparatorText("Drawing settings");
 

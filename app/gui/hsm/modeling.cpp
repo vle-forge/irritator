@@ -879,6 +879,12 @@ bool hsm_component_editor_data::show_menu() noexcept
                 m_options.set(display_condition_label, condition_lbl);
         }
 
+        if (ImGui::MenuItem("Grid layout"))
+            m_editor.request_grid_layout();
+
+        if (ImGui::MenuItem("Automatic layout"))
+            m_editor.request_force_layout();
+
         ImGui::MenuItem("Show minimap", "", &m_editor.show_minimap);
 
         ImGui::EndPopup();

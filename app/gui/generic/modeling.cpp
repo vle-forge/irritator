@@ -389,6 +389,20 @@ struct generic_component_editor_data::graph {
         });
     }
 
+    int layout_column(const u32 i) const noexcept
+    {
+        switch (node(i).type) {
+        case node_kind::input:
+            return -1;
+        case node_kind::output:
+            return 1;
+        case node_kind::child:
+            break;
+        }
+
+        return 0;
+    }
+
     ImU32 title_color(const u32 i, const bool selected) noexcept
     {
         const auto is_model = node(i).type == node_kind::child and
@@ -636,52 +650,6 @@ static bool remove_links(generic_component& gen, editor_data& data) noexcept
     data.editor.clear_selection();
 
     return u > 0;
-}
-
-static bool compute_grid_layout(const component&         compo,
-                                const generic_component& gen,
-                                editor_data&             data) noexcept
-{
-    const auto size = gen.children.size();
-    if (size == 0)
-        return false;
-
-    const auto column = std::max(
-      sz{ 1 },
-      static_cast<sz>(std::floor(std::sqrt(static_cast<float>(size)))));
-
-    sz i = 0;
-    for (const auto& c : gen.children) {
-        const auto pos = ImVec2(
-          static_cast<float>(i % column) * data.grid_layout_x_distance,
-          static_cast<float>(i / column) * data.grid_layout_y_distance);
-
-        get_position(data.child_positions, gen.children.get_id(c),
-                     [] { return ImVec2(); }) = pos;
-        ++i;
-    }
-
-    // The ports of the component frame the children: inputs on the left,
-    // outputs on the right.
-    const auto right = static_cast<float>(column + 1) *
-                       data.grid_layout_x_distance;
-    auto y = 0.f;
-    for (const auto id : compo.x) {
-        get_position(data.x_positions, id, [] { return ImVec2(); }) = ImVec2(
-          -data.grid_layout_x_distance, y);
-        y += data.grid_layout_y_distance * 0.5f;
-    }
-
-    y = 0.f;
-    for (const auto id : compo.y) {
-        get_position(data.y_positions, id,
-                     [] { return ImVec2(); }) = ImVec2(right, y);
-        y += data.grid_layout_y_distance * 0.5f;
-    }
-
-    data.editor.request_fit();
-
-    return true;
 }
 
 static bool add_component_to_current(const component_access& ids,
@@ -1026,7 +994,6 @@ static bool show_popup_menuitem(const component_access&        ids,
                                 application&                   app,
                                 generic_component_editor_data& data,
                                 const component_id             parent_id,
-                                const component&               compo,
                                 generic_component&             gen) noexcept
 {
     auto u = 0;
@@ -1052,8 +1019,11 @@ static bool show_popup_menuitem(const component_access&        ids,
             if (ImGui::MenuItem("Delete selected nodes"))
                 u += remove_nodes(gen, data);
 
-        if (ImGui::MenuItem("Force grid layout"))
-            u += compute_grid_layout(compo, gen, data);
+        if (ImGui::MenuItem("Grid layout"))
+            data.editor.request_grid_layout();
+
+        if (ImGui::MenuItem("Automatic layout"))
+            data.editor.request_force_layout();
 
         ImGui::MenuItem("Show minimap", "", &data.editor.show_minimap);
 
@@ -1258,7 +1228,7 @@ static bool show_component_editor(component_editor&       ed,
     const auto ev = data.editor.show("generic-graph", g);
     u += g.changes;
 
-    u += show_popup_menuitem(ids, app, data, compo_id, compo, gen);
+    u += show_popup_menuitem(ids, app, data, compo_id, gen);
 
     if (ev.link_created)
         u += connect(ids, gen, data, *ev.link_created);

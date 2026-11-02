@@ -11,6 +11,7 @@
 
 #include <imgui.h>
 
+#include <chrono>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -52,7 +53,10 @@ struct events {
  *   as a square of this world size, without ports: its links go from center
  *   to center and a shift-drag from it to another compact node creates one;
  * - @c directed() returning @c true draws an arrow at the end of the links
- *   between compact nodes.
+ *   between compact nodes;
+ * - @c layout_column(node) returning an @c int places the node, in the grid
+ *   layout, in a column on the left (negative) or on the right (positive) of
+ *   the grid, for example the ports of a component.
  */
 template<typename A>
 concept graph_adapter = requires(A         a,
@@ -106,6 +110,25 @@ public:
 
     /// Centers and zooms the camera on all the nodes at the next frame.
     void request_fit() noexcept { m_fit_requested = true; }
+
+    /// Places the nodes on a square grid at the next frame, whose cell is
+    /// the largest node with a margin. The frame returns @c nodes_moved.
+    void request_grid_layout() noexcept { m_placement = placement::grid; }
+
+    /// Moves the nodes with a force-directed placement over the next frames:
+    /// the linked nodes attract each other and all the nodes repulse each
+    /// other. The last frame returns @c nodes_moved.
+    void request_force_layout(const u32 iterations = 500) noexcept
+    {
+        m_placement        = placement::force;
+        m_force_iterations = iterations;
+        m_force_total      = iterations;
+    }
+
+    bool is_layout_running() const noexcept
+    {
+        return m_placement == placement::force;
+    }
 
     /// True when the mouse is over the canvas but not over a node, a link or
     /// a widget: the place to open the context menu of the caller.
@@ -187,6 +210,15 @@ private:
     }
 
     template<graph_adapter A>
+    static int layout_column(A& adapter, u32 node) noexcept
+    {
+        if constexpr (requires { adapter.layout_column(node); })
+            return adapter.layout_column(node);
+        else
+            return 0;
+    }
+
+    template<graph_adapter A>
     static bool is_directed(A& adapter) noexcept
     {
         if constexpr (requires { adapter.directed(); })
@@ -221,6 +253,13 @@ private:
     void fit(A& adapter) noexcept;
 
     template<graph_adapter A>
+    void grid_layout(A& adapter) noexcept;
+
+    /// @return true when the placement is finished.
+    template<graph_adapter A>
+    bool force_layout(A& adapter) noexcept;
+
+    template<graph_adapter A>
     void draw_compact_node(A& adapter, u32 node, float size) noexcept;
 
     template<graph_adapter A>
@@ -240,6 +279,14 @@ private:
     vector<u32>        m_selected_nodes;
     vector<u32>        m_selected_links;
     vector<u32>        m_visible;
+    vector<ImVec2>     m_layout_centers;
+    vector<ImVec2>     m_layout_moves;
+
+    enum class placement : u8 { none, grid, force };
+
+    placement m_placement        = placement::none;
+    u32       m_force_iterations = 0;
+    u32       m_force_total      = 0;
 
     camera<ImVec2> m_camera;
     rect<ImVec2>   m_canvas;
@@ -272,6 +319,19 @@ events editor::show(const char* str_id, A& adapter) noexcept
     events ev;
 
     if (begin_canvas(str_id, adapter.node_count())) {
+        if (m_placement == placement::grid) {
+            grid_layout(adapter);
+            m_placement     = placement::none;
+            m_fit_requested = true;
+            ev.nodes_moved  = true;
+        } else if (m_placement == placement::force) {
+            if (force_layout(adapter)) {
+                m_placement    = placement::none;
+                ev.nodes_moved = true;
+            }
+            m_fit_requested = true;
+        }
+
         if (m_fit_requested) {
             fit(adapter);
             m_fit_requested = false;
@@ -342,6 +402,113 @@ void editor::fit(A& adapter) noexcept
                            (r.min.x + w * 0.5f) * m_camera.zoom;
     m_camera.scrolling.y = canvas_h * 0.5f -
                            (r.min.y + h * 0.5f) * m_camera.zoom;
+}
+
+template<graph_adapter A>
+void editor::grid_layout(A& adapter) noexcept
+{
+    const auto n     = adapter.node_count();
+    auto       cell  = ImVec2(0.f, 0.f);
+    u32        count = 0;
+
+    for (u32 i = 0; i != n; ++i) {
+        if (layout_column(adapter, i) == 0) {
+            const auto e = extent(adapter, i);
+            cell.x       = std::max(cell.x, e.x);
+            cell.y       = std::max(cell.y, e.y);
+            ++count;
+        }
+    }
+
+    // Half of the largest node separates two cells.
+    cell.x *= 1.5f;
+    cell.y *= 1.5f;
+
+    const auto columns = grid_columns(count);
+    auto       left    = 0.f;
+    u32        index   = 0;
+
+    for (u32 i = 0; i != n; ++i) {
+        if (layout_column(adapter, i) == 0)
+            adapter.position(i) = grid_position(index++, columns, cell);
+        else if (layout_column(adapter, i) < 0)
+            left = std::max(left, extent(adapter, i).x * 1.5f);
+    }
+
+    const auto right = static_cast<float>(columns) * cell.x;
+    auto       y_l   = 0.f;
+    auto       y_r   = 0.f;
+
+    for (u32 i = 0; i != n; ++i) {
+        const auto column = layout_column(adapter, i);
+        if (column == 0)
+            continue;
+
+        const auto e = extent(adapter, i);
+        auto&      y = column < 0 ? y_l : y_r;
+
+        adapter.position(i) = ImVec2(column < 0 ? -left : right, y);
+        y += e.y * 1.5f;
+    }
+}
+
+template<graph_adapter A>
+bool editor::force_layout(A& adapter) noexcept
+{
+    namespace sc = std::chrono;
+
+    const auto n = adapter.node_count();
+    if (n < 2 or m_force_iterations == 0)
+        return true;
+
+    m_layout_centers.resize(n);
+    m_layout_moves.resize(n);
+
+    auto mean = 0.f;
+    for (u32 i = 0; i != n; ++i) {
+        const auto p        = adapter.position(i);
+        const auto e        = extent(adapter, i);
+        m_layout_centers[i] = ImVec2(p.x + e.x * 0.5f, p.y + e.y * 0.5f);
+        mean += std::max(e.x, e.y);
+    }
+
+    // The ideal distance between two linked nodes leaves half a node between
+    // them.
+    const auto k = 1.5f * mean / static_cast<float>(n);
+
+    const auto edges = [&](auto&& fn) noexcept {
+        adapter.for_each_link(
+          [&](const u32 out, const u32 /*out_port*/, const u32 in,
+              const u32 /*in_port*/) noexcept { fn(out, in); });
+    };
+
+    // The iterations of a frame fit in a budget to keep the interface fluid
+    // with large graphs.
+    const auto start  = sc::steady_clock::now();
+    const auto budget = sc::milliseconds{ 8 };
+    auto       stable = false;
+
+    while (m_force_iterations > 0 and not stable and
+           sc::steady_clock::now() - start < budget) {
+        const auto temperature = k * static_cast<float>(m_force_iterations) /
+                                 static_cast<float>(m_force_total);
+
+        stable = force_directed_step(std::span<ImVec2>(m_layout_centers),
+                                     std::span<ImVec2>(m_layout_moves), edges,
+                                     k, temperature) < k * 1e-3f;
+        --m_force_iterations;
+    }
+
+    for (u32 i = 0; i != n; ++i) {
+        const auto e        = extent(adapter, i);
+        adapter.position(i) = ImVec2(m_layout_centers[i].x - e.x * 0.5f,
+                                     m_layout_centers[i].y - e.y * 0.5f);
+    }
+
+    if (stable)
+        m_force_iterations = 0;
+
+    return m_force_iterations == 0;
 }
 
 template<graph_adapter A>
@@ -640,7 +807,7 @@ void editor::handle_mouse(A& adapter, events& ev) noexcept
             }
             m_drag_moved = m_drag_moved or dx != 0.f or dy != 0.f;
         } else {
-            ev.nodes_moved = m_drag_moved;
+            ev.nodes_moved = ev.nodes_moved or m_drag_moved;
             m_drag         = drag_type::none;
         }
         break;

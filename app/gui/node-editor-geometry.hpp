@@ -8,7 +8,9 @@
 #include <algorithm>
 #include <cmath>
 #include <concepts>
+#include <cstdint>
 #include <limits>
+#include <span>
 
 // Free of any ImGui dependency to be unit tested: the functions work with any
 // two dimensional vector type with public @c x and @c y float members.
@@ -156,6 +158,105 @@ struct camera {
         scrolling.y      = screen.y - canvas_origin.y - world.y * zoom;
     }
 };
+
+/// The number of columns of the most square grid holding @c count cells.
+constexpr std::uint32_t grid_columns(const std::uint32_t count) noexcept
+{
+    std::uint32_t columns = 1;
+    while (columns * columns < count)
+        ++columns;
+
+    return columns;
+}
+
+template<vec2 V>
+constexpr V grid_position(const std::uint32_t index,
+                          const std::uint32_t columns,
+                          const V             cell) noexcept
+{
+    return V{ static_cast<float>(index % columns) * cell.x,
+              static_cast<float>(index / columns) * cell.y };
+}
+
+/// One iteration of the force-directed placement of Fruchterman and Reingold
+/// (Graph drawing by force-directed placement, Software: Practice and
+/// Experience, 21(11), 1991): the nodes repulse each other with a force
+/// @c k²/d, the linked nodes attract each other with a force @c d²/k, and a
+/// node moves at most of @c temperature.
+///
+/// The repulsion costs O(n²): enough for the hundreds of nodes of a
+/// component, the caller spreads the iterations over several frames.
+///
+/// @param centers The centers of the nodes, moved in place.
+/// @param moves A buffer of the size of @c centers.
+/// @param for_each_edge Calls its argument with the two nodes of each edge.
+/// @param k The ideal distance between two linked nodes.
+/// @return The largest move of a node.
+template<vec2 V, typename ForEachEdge>
+float force_directed_step(std::span<V>  centers,
+                          std::span<V>  moves,
+                          ForEachEdge&& for_each_edge,
+                          const float   k,
+                          const float   temperature) noexcept
+{
+    const auto n       = centers.size();
+    const auto k2      = k * k;
+    const auto epsilon = k * 1e-3f;
+
+    for (std::size_t v = 0; v != n; ++v) {
+        moves[v] = V{ 0.f, 0.f };
+
+        for (std::size_t u = 0; u != n; ++u) {
+            if (u == v)
+                continue;
+
+            auto dx = centers[v].x - centers[u].x;
+            auto dy = centers[v].y - centers[u].y;
+            auto d  = std::sqrt(dx * dx + dy * dy);
+
+            // Superposed nodes push each other apart in an arbitrary but
+            // opposite direction.
+            if (d < epsilon) {
+                dx = v < u ? -epsilon : epsilon;
+                dy = static_cast<float>(v % 3) * epsilon;
+                d  = std::sqrt(dx * dx + dy * dy);
+            }
+
+            const auto f = k2 / (d * d);
+            moves[v].x += dx * f;
+            moves[v].y += dy * f;
+        }
+    }
+
+    for_each_edge([&](const std::size_t a, const std::size_t b) noexcept {
+        if (a == b or a >= n or b >= n)
+            return;
+
+        const auto dx = centers[b].x - centers[a].x;
+        const auto dy = centers[b].y - centers[a].y;
+        const auto f  = std::sqrt(dx * dx + dy * dy) / k;
+
+        moves[a].x += dx * f;
+        moves[a].y += dy * f;
+        moves[b].x -= dx * f;
+        moves[b].y -= dy * f;
+    });
+
+    auto largest = 0.f;
+    for (std::size_t v = 0; v != n; ++v) {
+        const auto d = std::sqrt(moves[v].x * moves[v].x +
+                                 moves[v].y * moves[v].y);
+        if (d <= 0.f)
+            continue;
+
+        const auto step = std::min(d, temperature);
+        centers[v].x += moves[v].x / d * step;
+        centers[v].y += moves[v].y / d * step;
+        largest = std::max(largest, step);
+    }
+
+    return largest;
+}
 
 } // namespace irt::node_editor
 
