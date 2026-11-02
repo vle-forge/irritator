@@ -804,6 +804,11 @@ struct hsm_component_editor_data::graph {
         if (n.kind == node_kind::target)
             return ImGui::GetColorU32(ImGuiCol_FrameBg);
 
+        if (n.kind == node_kind::state and ed.m_test.running and
+            ed.m_hsm.machine.is_in_state(ed.m_test.exec, n.id))
+            return ImGui::GetColorU32(selected ? ImGuiCol_PlotHistogramHovered
+                                               : ImGuiCol_PlotHistogram);
+
         if (n.kind == node_kind::state and is_composite(n.id))
             return composite_colors[selected];
 
@@ -1180,6 +1185,10 @@ bool hsm_component_editor_data::show_graph(application& app) noexcept
         m_editor.clear_selection();
     }
 
+    // A move of the nodes does not change the behaviour of the machine.
+    if (u > 0)
+        stop_test();
+
     if (ev.node_activated) {
         const auto n = m_nodes[*ev.node_activated];
 
@@ -1445,6 +1454,186 @@ bool hsm_component_editor_data::valid() noexcept
     return not have_error;
 }
 
+void hsm_component_editor_data::log_test_step(const std::string_view event,
+                                              const status& ret) noexcept
+{
+    auto& exec = m_test.exec;
+
+    small_string<127> line;
+    format(line, "t={:<8.3g} {:<10} -> ", m_test.t, event);
+
+    if (not ret) {
+        line.append("error, test stopped");
+        m_test.running = false;
+    } else {
+        append_path(m_hsm, exec.current_state, line);
+
+        for (auto i = 0; i < exec.messages; ++i)
+            line.append(format_n<32>("  y{}={:.3g}", exec.message_ports[i],
+                                     exec.message_values[i])
+                          .sv());
+    }
+
+    exec.messages = 0;
+    m_test.log.force_enqueue(line);
+}
+
+void hsm_component_editor_data::stop_test() noexcept
+{
+    if (m_test.running) {
+        m_test.running = false;
+        m_test.log.force_enqueue(
+          small_string<127>("state machine modified: test stopped"));
+    }
+}
+
+void hsm_component_editor_data::restart_test() noexcept
+{
+    auto& exec = m_test.exec;
+
+    m_test.log.clear();
+    m_test.t       = 0;
+    m_test.running = false;
+
+    if (m_hsm.machine.find_error() != simulation_errc::none or
+        m_hsm.machine.is_using_source())
+        return;
+
+    exec.clear();
+    exec.i1        = m_hsm.i1;
+    exec.i2        = m_hsm.i2;
+    exec.r1        = m_hsm.r1;
+    exec.r2        = m_hsm.r2;
+    exec.timer     = m_hsm.timeout;
+    m_test.running = true;
+
+    // The machine does not read an external source: an empty one is enough.
+    external_source srcs;
+    log_test_step("start", m_hsm.machine.start(exec, srcs));
+
+    // As the hsm_wrapper, the completion of the initial state runs after the
+    // output of the messages of the enter actions.
+    const auto& leaf = m_hsm.machine.states[exec.current_state];
+    if (m_test.running and
+        leaf.condition.type != hsm_t::condition_type::port and
+        leaf.condition.type != hsm_t::condition_type::sigma and
+        not leaf.is_terminal())
+        log_test_step("completion",
+                      m_hsm.machine.run_to_completion(exec, false, srcs));
+}
+
+void hsm_component_editor_data::step_test(
+  const std::optional<int> port) noexcept
+{
+    if (not m_test.running)
+        return;
+
+    auto&           exec = m_test.exec;
+    external_source srcs;
+
+    if (port.has_value()) {
+        // The ports are stored in big endian order as in the hsm_wrapper.
+        const auto bit  = static_cast<std::size_t>(3 - *port);
+        exec.ports[bit] = m_test.inputs[*port];
+        exec.values.set(bit);
+
+        const auto event = format_n<32>("x{}={:.3g}", *port,
+                                        m_test.inputs[*port]);
+        log_test_step(event.sv(),
+                      m_hsm.machine.run_to_completion(exec, true, srcs));
+    } else {
+        const auto dt = exec.next_timer();
+        if (time_domain<time>::is_infinity(dt))
+            return;
+
+        m_test.t += dt;
+        exec.advance_timers(dt);
+        log_test_step("timer",
+                      m_hsm.machine.run_to_completion(exec, false, srcs));
+    }
+}
+
+void hsm_component_editor_data::show_test() noexcept
+{
+    if (valid())
+        ImGui::TextUnformatted("Valid state machine");
+
+    if (m_hsm.machine.is_using_source()) {
+        ImGui::TextDisabled(
+          "Test unavailable: the state machine reads an external source");
+        return;
+    }
+
+    const auto can_run = m_hsm.machine.find_error() == simulation_errc::none;
+    if (can_run and not m_test.running and m_test.log.empty())
+        restart_test();
+
+    ImGui::Separator();
+
+    ImGui::BeginDisabled(not can_run);
+    if (ImGui::Button("Restart"))
+        restart_test();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::TextFormat("t = {:.3g}", m_test.t);
+
+    auto& exec = m_test.exec;
+
+    ImGui::BeginDisabled(not m_test.running);
+    for (auto i = 0; i < 4; ++i) {
+        ImGui::PushID(i);
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.f);
+        ImGui::InputReal("##value", &m_test.inputs[i]);
+        ImGui::SameLine();
+        if (ImGui::Button(format_n<16>("Send x{}", i).c_str()))
+            step_test(i);
+        ImGui::PopID();
+
+        if (i < 3)
+            ImGui::SameLine();
+    }
+
+    const auto next = exec.next_timer();
+    ImGui::BeginDisabled(time_domain<time>::is_infinity(next));
+    if (ImGui::Button(format_n<32>("Next timer (+{:.3g})", next).c_str()))
+        step_test(std::nullopt);
+    ImGui::EndDisabled();
+    ImGui::EndDisabled();
+
+    if (m_test.running) {
+        small_string<127> active;
+        append_path(m_hsm, exec.current_state, active);
+        ImGui::LabelFormat("Active", "{}", active.sv());
+
+        small_string<255> timers;
+        for (auto s = exec.current_state; s != hsm_t::invalid_state_id;
+             s      = m_hsm.machine.states[s].super_id) {
+            const auto d = m_hsm.machine.depth_of(s);
+            if (d < hsm_t::max_depth and
+                not time_domain<time>::is_infinity(exec.timers[d])) {
+                append_label(m_hsm, s, timers);
+                timers.append(format_n<32>(" {:.3g}  ", exec.timers[d]).sv());
+            }
+        }
+        ImGui::LabelFormat("Timers", "{}",
+                           timers.empty() ? "none" : timers.sv());
+
+        ImGui::LabelFormat("Registers", "i1={} i2={} r1={:.3g} r2={:.3g}",
+                           exec.i1, exec.i2, exec.r1, exec.r2);
+        ImGui::LabelFormat("Input ports", "{:04b}", exec.values.to_ulong());
+    }
+
+    ImGui::SeparatorText("Log");
+    if (ImGui::BeginChild("##log", ImVec2(0, 0), ImGuiChildFlags_Borders)) {
+        for (const auto& line : m_test.log)
+            ImGui::TextUnformatted(line.c_str());
+
+        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+            ImGui::SetScrollHereY(1.f);
+    }
+    ImGui::EndChild();
+}
+
 bool hsm_component_editor_data::show(component_editor& ed,
                                      const component_access& /*ids*/,
                                      component& compo) noexcept
@@ -1470,8 +1659,7 @@ bool hsm_component_editor_data::show(component_editor& ed,
             }
 
             if (ImGui::BeginTabItem("Test")) {
-                if (not valid())
-                    ImGui::TextFormat("Error in HSM");
+                show_test();
                 ImGui::EndTabItem();
             }
 
@@ -1494,6 +1682,7 @@ bool hsm_component_editor_data::show_selected_nodes(
 
     read(app, compo);
     if (show_panel(compo)) {
+        stop_test();
         write(app, compo);
         ++u;
     }

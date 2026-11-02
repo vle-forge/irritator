@@ -595,6 +595,26 @@ private:
     bool show_panel(component&) noexcept;
     bool valid() noexcept;
 
+    /// A run of the machine alone, step by step, in the test tab. It follows
+    /// the @c hsm_wrapper: a step is a message on an input port or the
+    /// expiration of the next timer.
+    struct test {
+        hierarchical_state_machine::execution     exec;
+        small_ring_buffer<small_string<127>, 128> log;
+        std::array<real, 4>                       inputs  = { 1, 1, 1, 1 };
+        time                                      t       = 0;
+        bool                                      running = false;
+    };
+
+    void show_test() noexcept;
+    void restart_test() noexcept;
+    void stop_test() noexcept;
+
+    /// Sends a message on the input port @c port or, if @c port is empty,
+    /// wakes up the next timer.
+    void step_test(std::optional<int> port) noexcept;
+    void log_test_step(std::string_view event, const status& ret) noexcept;
+
     void read(application& app, component&) noexcept;
     void write(application& app, component&) noexcept;
 
@@ -614,6 +634,8 @@ private:
 
     /// The super state whose sub states are shown, the top state at first.
     state_id m_level = 0;
+
+    test m_test;
 
     /** An editable @c hsm_component. */
     hsm_component m_hsm;
