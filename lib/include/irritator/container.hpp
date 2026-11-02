@@ -441,14 +441,48 @@ public:
     constexpr value_type value() const noexcept { return m_value; }
 };
 
+/**
+ * The default memory resource of all containers. Allocations go through two
+ * replaceable functions so a host application (for example a game engine
+ * with its own allocator) can take over the whole memory of irritator.
+ *
+ * @code
+ * irt::new_delete_memory_resource::instance().set_functions({
+ *   [](std::size_t b, std::size_t a) noexcept { return my_malloc(b, a); },
+ *   [](void* p, std::size_t, std::size_t) noexcept { my_free(p); } });
+ * @endcode
+ */
 class new_delete_memory_resource
 {
 public:
+    struct functions {
+        void* (*allocate)(std::size_t bytes,
+                          std::size_t alignment) noexcept  = nullptr;
+        void (*deallocate)(void*       p,
+                           std::size_t bytes,
+                           std::size_t alignment) noexcept = nullptr;
+    };
+
     class data
     {
     private:
-        std::size_t allocated   = 0;
-        std::size_t deallocated = 0;
+        functions fn{ &default_allocate, &default_deallocate };
+
+        std::atomic<std::size_t> allocated   = 0;
+        std::atomic<std::size_t> deallocated = 0;
+
+        static void* default_allocate(std::size_t bytes,
+                                      std::size_t alignment) noexcept
+        {
+            return std::pmr::new_delete_resource()->allocate(bytes, alignment);
+        }
+
+        static void default_deallocate(void*       p,
+                                       std::size_t bytes,
+                                       std::size_t alignment) noexcept
+        {
+            std::pmr::new_delete_resource()->deallocate(p, bytes, alignment);
+        }
 
     public:
         void* allocate(
@@ -459,9 +493,8 @@ public:
                           debug::enable_ensure == true) {
                 return debug_allocate(bytes, alignment);
             } else {
-                allocated += bytes;
-                return std::pmr::new_delete_resource()->allocate(bytes,
-                                                                 alignment);
+                allocated.fetch_add(bytes, std::memory_order_relaxed);
+                return fn.allocate(bytes, alignment);
             }
         }
 
@@ -474,17 +507,37 @@ public:
                           debug::enable_ensure == true) {
                 debug_deallocate(p, bytes, alignment);
             } else {
-                deallocated += bytes;
-                return std::pmr::new_delete_resource()->deallocate(p, bytes,
-                                                                   alignment);
+                deallocated.fetch_add(bytes, std::memory_order_relaxed);
+                fn.deallocate(p, bytes, alignment);
             }
+        }
+
+        /**
+         * Replaces the allocation functions. A function left to @c nullptr
+         * restores the default @c std::pmr::new_delete_resource.
+         *
+         * @return false if memory is still alive: freeing a block with
+         * another allocator than the one that built it would corrupt the
+         * heap. Call it before the first allocation or after the last
+         * deallocation.
+         */
+        bool set_functions(const functions& f) noexcept
+        {
+            if (allocated.load(std::memory_order_relaxed) !=
+                deallocated.load(std::memory_order_relaxed))
+                return false;
+
+            fn.allocate   = f.allocate ? f.allocate : &default_allocate;
+            fn.deallocate = f.deallocate ? f.deallocate : &default_deallocate;
+            return true;
         }
 
         void release() noexcept {}
 
         std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
         {
-            return std::make_pair(allocated, deallocated);
+            return std::make_pair(allocated.load(std::memory_order_relaxed),
+                                  deallocated.load(std::memory_order_relaxed));
         }
 
     private:

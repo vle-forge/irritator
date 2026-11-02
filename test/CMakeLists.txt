@@ -53,6 +53,7 @@ irritator_add_test(test-dama dama.cpp)
 irritator_add_test(test-dot-parser dot-parser-test.cpp)
 irritator_add_test(test-expected expected-tests.cpp)
 irritator_add_test(test-external-sources external-sources.cpp)
+irritator_add_test(test-memory-resource memory-resource.cpp)
 irritator_add_test(test-mod-to-sim mod-to-sim.cpp)
 irritator_add_test(test-node-editor node-editor.cpp)
 target_include_directories(test-node-editor PRIVATE
