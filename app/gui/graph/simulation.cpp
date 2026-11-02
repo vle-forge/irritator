@@ -24,7 +24,7 @@ bool show_local_observers(application&    app,
                           const component_access& /*ids*/,
                           tree_node& tn,
                           const component& /*compo*/,
-                          const graph_component& cgraph) noexcept
+                          const graph_component& /*cgraph*/) noexcept
 {
     auto       to_del      = std::optional<graph_observer_id>();
     auto       is_modified = 0;
@@ -95,8 +95,6 @@ bool show_local_observers(application&    app,
                             .tn_id       = ed.pj.tree_nodes.get_id(tn),
                             .graph_obs_id =
                               ed.pj.graph_observers.get_id(graph) });
-
-                        g_ed.update(app, cgraph.g);
                     } else {
                         log(log_level::error, [](auto& msg) {
                             msg = "project: too many graph editor opened. "

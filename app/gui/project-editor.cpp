@@ -1099,17 +1099,8 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                 }
 
                 if (selected) {
-                    if (m_selected_tree_node != old_selected_tree_node) {
-                        const auto compo_id = selected->id;
-                        app.mod.ids.read([&](const auto& ids, auto) noexcept {
-                            const auto& c = ids.components[compo_id];
-                            if (c.type == component_type::graph) {
-                                auto& graph_compo = ids.graph_components.get(
-                                  c.id.graph_id);
-                                graph_ed.update(app, graph_compo.g);
-                            }
-                        });
-                    }
+                    if (m_selected_tree_node != old_selected_tree_node)
+                        graph_ed.request_update();
 
                     if (ImGui::BeginTabItem("Component parameters")) {
                         show_local_simulation_settings(app, *this, *selected);

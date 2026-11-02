@@ -341,28 +341,22 @@ private:
     } m_need_save = save_option::none;
 };
 
-/** A class shared between modeling, simulation and observation layer.
- *
- * The @c graph_editor use a ImGui::BeginChild()/ImGui::EndChild() to display to
- * display the graph.
+/** Displays the graph component of a simulation, colored by its components
+ * or by the values of a @c graph_observer. The 3D positions of the vertices
+ * are projected in 2D: dragging the background with the right button rotates
+ * the graph.
  */
 class graph_editor
 {
 public:
-    constexpr static inline auto selection_buffer_size = 128u;
-
     enum class show_result_type : u8 {
         none,            //!< No change - No close.
         edited,          //!< Component is changed - Update state.
         request_to_close //!< The window must be closed.
     };
 
-    enum class option : u8 { show_grid, show_help };
-
-    graph_editor() noexcept;
-
     /** Display the simulation @c tree-node and @c graph-observer into an
-     * @c ImGui::BeginChild window.
+     * @c ImGui::Begin window.
      *
      * @return A status if the user close the window, edit the simulation or
      * keep open window.
@@ -383,83 +377,37 @@ public:
               tree_node&      tn,
               graph_observer& obs) noexcept;
 
-    /** Thread-safe Copy and apply transformation of the graph @c g. A @c job
-     * performs the task in a thread-safe way. Do not delete the @c g until the
-     * job. */
-    void update(application& app, const graph& g) noexcept;
+    /** Rebuilds the projected graph at the next display, for example when the
+     * user selects another graph component. */
+    void request_update() noexcept { m_dirty = true; }
 
 private:
-    /** A projection class to build @c data_type::nodes position in 2D from the
-     * 3D position of the graph nodes. */
-    projection_3d proj;
+    struct view;
 
-    /** Top left corner position in canvas. */
-    ImVec2 scrolling       = { 0, 0 };
-    ImVec2 canvas_sz       = { 0, 0 };
-    ImVec2 start_selection = { 0, 0 };
-    ImVec2 end_selection   = { 0, 0 };
+    node_editor::editor m_editor;
+    projection_3d       m_proj;
 
-    struct data_type {
-        /** Each node stores the projection in 2D position @c (x,y) from the @c
-         * graph node position 3D @c (x,y,z). */
-        vector<std::array<float, 2>> nodes;
+    vector<graph_node_id>       m_nodes;
+    vector<u32>                 m_node_indices;
+    vector<ImVec2>              m_positions;
+    vector<std::pair<u32, u32>> m_edges;
 
-        std::array<float, 3> top_left;
-        std::array<float, 3> bottom_right;
-        std::array<float, 3> center;
-    };
+    bool m_dirty     = true;
+    bool m_rotating  = false;
+    bool m_dock_init = false;
 
-    shared_buffer<data_type> nodes_locker;
+    void build(const graph& g) noexcept;
 
-    vector<graph_node_id> selected_nodes;
-    vector<graph_edge_id> selected_edges;
+    /** @return true if the user asks to clone the display in a window. */
+    bool show_canvas(application&          app,
+                     const graph&          g,
+                     const graph_observer* obs,
+                     bool                  can_clone) noexcept;
 
-    graph_id g = undefined<graph_id>();
-
-    float zoom      = { 1 };
-    float grid_step = { 64 };
-
-    bitflags<option> flags;
-
-    bool run_selection = false;
-    bool dock_init     = false;
-
-    enum class popup_options : u8 {
-        show_graph_modication,
-        show_make_project_global_window
-    };
-
-    void auto_fit_camera() noexcept;
-    void center_camera() noexcept;
-    void reset_camera(application& app, const graph& g) noexcept;
-
-    bool initialize_canvas(ImVec2 top_left,
-                           ImVec2 bottom_right,
-                           ImU32  color) noexcept;
-    void draw_grid(ImVec2 top_left, ImVec2 bottom_right, ImU32 color) noexcept;
-    void draw_graph(const graph&          g,
-                    ImVec2                top_left,
-                    ImU32                 color,
-                    ImU32                 node_color,
-                    ImU32                 edge_color,
-                    const graph_observer& obs) noexcept;
-    void draw_graph(const graph& g,
-                    ImVec2       top_left,
-                    ImU32        color,
-                    ImU32        node_color,
-                    ImU32        edge_color,
-                    application& app) noexcept;
-    bool draw_popup(application&                  app,
-                    graph&                        g,
-                    ImVec2                        top_left,
-                    const bitflags<popup_options> opt = {}) noexcept;
-    bool draw_popup(application&                  app,
-                    const graph&                  g,
-                    ImVec2                        top_left,
-                    const bitflags<popup_options> opt = {}) noexcept;
-    void draw_selection(const graph& g,
-                        ImVec2       top_left,
-                        ImU32        background_selection_color) noexcept;
+    void clone(application&    app,
+               project_editor& ed,
+               tree_node&      tn,
+               graph_observer& obs) noexcept;
 };
 
 class grid_component_editor_data
@@ -1136,7 +1084,6 @@ public:
                    project&&              project_) noexcept;
 
     ~project_editor() noexcept;
-
 
     void set_title_name(const std::string_view name) noexcept;
 
