@@ -234,6 +234,19 @@ int main()
     //  - `expect` is only called from the test thread, never from a task.
     // -----------------------------------------------------------------------
 
+    "ordered: captures are destroyed before wait_empty returns"_test = [] {
+        irt::task_manager tm(mono_tm);
+        tm.start();
+        std::atomic_int destroyed{ 0 };
+
+        for (int i = 0; i < 64; ++i)
+            expect(tm.ordered(0).add([c = destruction_counter(destroyed)] {}));
+
+        tm.ordered(0).wait_empty();
+        expect(eq(destroyed.load(), 64));
+        tm.shutdown();
+    };
+
     "ordered: tasks run once, in submission order"_test = [] {
         irt::task_manager tm(mono_tm);
         tm.start();
@@ -592,6 +605,22 @@ int main()
     // -----------------------------------------------------------------------
     // Task system: unordered lists
     // -----------------------------------------------------------------------
+
+    "unordered: captures are destroyed before wait_completion returns"_test =
+      [] {
+          irt::task_manager tm(mono_tm);
+          tm.start();
+          std::atomic_int destroyed{ 0 };
+
+          for (int i = 0; i < 64; ++i)
+              expect(
+                tm.unordered(0).add([c = destruction_counter(destroyed)] {}));
+
+          tm.unordered(0).submit();
+          tm.unordered(0).wait_completion();
+          expect(eq(destroyed.load(), 64));
+          tm.shutdown();
+      };
 
     "unordered: every task of a batch runs exactly once"_test = [] {
         irt::task_manager tm(mono_tm);

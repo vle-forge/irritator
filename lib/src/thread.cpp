@@ -115,15 +115,14 @@ void ordered_worker::start() noexcept
         m_initialized.store(true, std::memory_order_release);
 
         while (true) {
-            task t; // destroyed at each iteration: captures do not outlive it
+            task t;
             if (!m_list->pop(t))
                 break;
 
             const auto start = std::chrono::steady_clock::now();
-            try {
-                t();
-            } catch (...) {
-            }
+            t();
+            // Before notify_done(): the captures must not outlive wait_empty().
+            t.reset();
             const auto
               ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                      std::chrono::steady_clock::now() - start)
@@ -278,10 +277,10 @@ void unordered_worker::start() noexcept
                     found = true;
 
                     const auto start = std::chrono::steady_clock::now();
-                    try {
-                        t();
-                    } catch (...) {
-                    }
+                    t();
+                    // Before notify_done(): the captures must not outlive
+                    // wait_completion().
+                    t.reset();
                     const auto
                       ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                              std::chrono::steady_clock::now() - start)
