@@ -8,10 +8,50 @@
 
 #include <boost/ut.hpp>
 
+#include <array>
+#include <memory>
 #include <numeric>
 #include <string_view>
 
 using namespace std::literals;
+
+/// A bump memory resource: each pair (Length, ID) owns its own buffer.
+template<std::size_t Length, int ID = 0>
+struct arena_resource {
+    struct data {
+        alignas(std::max_align_t) std::array<std::byte, Length> buffer;
+        std::size_t used        = 0;
+        std::size_t deallocated = 0;
+
+        void* allocate(std::size_t bytes, std::size_t alignment) noexcept
+        {
+            void*       p     = buffer.data() + used;
+            std::size_t space = buffer.size() - used;
+            if (not std::align(alignment, bytes, p, space))
+                return nullptr;
+            used = buffer.size() - space + bytes;
+            return p;
+        }
+
+        void deallocate(void*, std::size_t bytes, std::size_t) noexcept
+        {
+            deallocated += bytes;
+        }
+
+        void release() noexcept { used = 0; }
+
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return { used, deallocated };
+        }
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
 
 struct counted {
     static inline int live = 0;
@@ -406,10 +446,10 @@ int main()
     };
 
     "allocator"_test = [] {
-        using a1 = irt::allocator<irt::monotonic_small_buffer<64u>>;
-        using a2 = irt::allocator<irt::monotonic_small_buffer<64u>>;
-        using b1 = irt::allocator<irt::monotonic_small_buffer<32u>>;
-        using b2 = irt::allocator<irt::monotonic_small_buffer<32u>>;
+        using a1 = irt::allocator<arena_resource<64u>>;
+        using a2 = irt::allocator<arena_resource<64u>>;
+        using b1 = irt::allocator<arena_resource<32u>>;
+        using b2 = irt::allocator<arena_resource<32u>>;
 
         using sub_1 = a1::memory_resource_type;
         using sub_2 = a2::memory_resource_type;
@@ -428,10 +468,10 @@ int main()
         expect(neq(ptr_2, ptr_3));
         expect(neq(ptr_2, ptr_4));
 
-        using id_a1 = irt::allocator<irt::monotonic_small_buffer<64u, 1>>;
-        using id_a2 = irt::allocator<irt::monotonic_small_buffer<64u, 1>>;
-        using id_b1 = irt::allocator<irt::monotonic_small_buffer<64u, 2>>;
-        using id_b2 = irt::allocator<irt::monotonic_small_buffer<64u, 2>>;
+        using id_a1 = irt::allocator<arena_resource<64u, 1>>;
+        using id_a2 = irt::allocator<arena_resource<64u, 1>>;
+        using id_b1 = irt::allocator<arena_resource<64u, 2>>;
+        using id_b2 = irt::allocator<arena_resource<64u, 2>>;
 
         using id_sub_1 = id_a1::memory_resource_type;
         using id_sub_2 = id_a2::memory_resource_type;
@@ -700,8 +740,8 @@ int main()
         expect(v2[5] == 5);
     };
 
-    "vector<T>-monotonic_allocator"_test = [] {
-        using fixed_alloc = irt::allocator<irt::monotonic_small_buffer<8192u>>;
+    "vector<T>-arena_allocator"_test = [] {
+        using fixed_alloc = irt::allocator<arena_resource<8192u>>;
 
         irt::vector<int, fixed_alloc> v(8, irt::reserve_tag);
         expect(v.empty());

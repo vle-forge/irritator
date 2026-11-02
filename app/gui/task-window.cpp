@@ -379,10 +379,6 @@ static void show_memory() noexcept
     ImGui::TableHeadersRow();
 
     show_memory_row<allocator<new_delete_memory_resource>>("global");
-    show_memory_row<allocator<monotonic_small_buffer<1024 * 1024, 1>>>(
-      "thread-1");
-    show_memory_row<allocator<monotonic_small_buffer<1024 * 1024, 2>>>(
-      "thread-2");
 
     ImGui::EndTable();
 }

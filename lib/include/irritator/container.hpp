@@ -554,246 +554,65 @@ public:
     }
 };
 
-template<std::size_t max_blocks_per_chunk,
-         std::size_t largest_required_pool_block>
-class synchronized_pool_resource
-{
-public:
-    class data
-    {
-    private:
-        std::pmr::synchronized_pool_resource mr{ std::pmr::pool_options{
-          max_blocks_per_chunk, largest_required_pool_block } };
-
-        std::size_t allocated   = 0;
-        std::size_t deallocated = 0;
-
-    public:
-        void* allocate(
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            allocated += bytes;
-            return mr.allocate(bytes, alignment);
-        }
-
-        void deallocate(
-          void*       p,
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            deallocated += bytes;
-            return mr.deallocate(p, bytes, alignment);
-        }
-
-        void release() noexcept {}
-
-        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
-        {
-            return std::make_pair(allocated, deallocated);
-        }
-
-    private:
-        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
-        void  debug_deallocate(void*       p,
-                               std::size_t bytes,
-                               std::size_t alignment) noexcept;
-    };
-
-    static data& instance() noexcept
-    {
-        static data d;
-        return d;
-    }
-};
-
-template<std::size_t max_blocks_per_chunk,
-         std::size_t largest_required_pool_block>
-class unsynchronized_pool_resource
-{
-public:
-    class data
-    {
-    private:
-        std::pmr::unsynchronized_pool_resource mr{ std::pmr::pool_options{
-          max_blocks_per_chunk, largest_required_pool_block } };
-
-        std::size_t allocated   = 0;
-        std::size_t deallocated = 0;
-
-    public:
-        void* allocate(
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            allocated += bytes;
-            return mr.allocate(bytes, alignment);
-        }
-
-        void deallocate(
-          void*       p,
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            deallocated += bytes;
-            return mr.deallocate(p, bytes, alignment);
-        }
-
-        void release() noexcept {}
-
-        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
-        {
-            return std::make_pair(allocated, deallocated);
-        }
-
-    private:
-        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
-        void  debug_deallocate(void*       p,
-                               std::size_t bytes,
-                               std::size_t alignment) noexcept;
-    };
-
-    static data& instance() noexcept
-    {
-        static data d;
-        return d;
-    }
-};
-
-template<std::size_t Length = 1024u * 1024u, int ID = 0>
-class monotonic_small_buffer
-{
-public:
-    static inline constexpr std::size_t size = Length;
-    static inline constexpr int         id   = ID;
-
-    static_assert(Length > 0);
-
-    class data
-    {
-    private:
-        std::array<std::byte, Length> buffer;
-
-        std::pmr::monotonic_buffer_resource mr{
-            buffer.data(), buffer.size(), std::pmr::new_delete_resource()
-        };
-
-        std::size_t allocated   = 0;
-        std::size_t deallocated = 0;
-
-    public:
-        void* allocate(
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            allocated += bytes;
-            return mr.allocate(bytes, alignment);
-        }
-
-        void deallocate(
-          void*       p,
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            deallocated += bytes;
-
-            return mr.deallocate(p, bytes, alignment);
-        }
-
-        void release() noexcept { mr.release(); }
-
-        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
-        {
-            return std::make_pair(allocated, deallocated);
-        }
-
-    private:
-        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
-        void  debug_deallocate(void*       p,
-                               std::size_t bytes,
-                               std::size_t alignment) noexcept;
-    };
-
-    static data& instance() noexcept
-    {
-        static data d;
-        return d;
-    }
-};
-
-template<int ID = 0>
-class monotonic_buffer
-{
-public:
-    static inline constexpr int id = ID;
-
-    class data
-    {
-    private:
-        std::pmr::monotonic_buffer_resource mr{
-            std::pmr::new_delete_resource()
-        };
-
-        std::size_t allocated   = 0;
-        std::size_t deallocated = 0;
-
-    public:
-        void* allocate(
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            allocated += bytes;
-            return mr.allocate(bytes, alignment);
-        }
-
-        void deallocate(
-          void*       p,
-          std::size_t bytes,
-          std::size_t alignment = alignof(std::max_align_t)) noexcept
-        {
-            deallocated += bytes;
-
-            return mr.deallocate(p, bytes, alignment);
-        }
-
-        void release() noexcept { mr.release(); }
-
-        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
-        {
-            return std::make_pair(allocated, deallocated);
-        }
-
-    private:
-        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
-        void  debug_deallocate(void*       p,
-                               std::size_t bytes,
-                               std::size_t alignment) noexcept;
-    };
-
-    static data& instance() noexcept
-    {
-        static data d;
-        return d;
-    }
-};
-
 /**
  * A stateless allocator class to wrap static memory resource.
  *
  * @verbatim
- *                                +----------+
- *                                |new-delete|
- *                                +----^-----+
- * +-----------+        +---------+        |
- * |vector<T,A>+------->|allocator+--------+
- * +-----------+ static +---------+ static |
- *                                +----v-----+
- *                                |fixed-size|
- *                                +----------+
+ * +-----------+        +---------+        +-----------------+
+ * |vector<T,A>+------->|allocator+------->|MemoryResource   |
+ * +-----------+ static +---------+ static |  ::instance()   |
+ *                                         +-----------------+
  * @endverbatim
  *
- * Enable the @c IRRITATOR_ENABLE_DEBUG preprocessor variable to enable a debug
- * for all allocation/deallocation for each memory resource.
+ * A @c MemoryResource provides a @c static @c instance() function whose
+ * returned object implements:
+ * - @c void* @c allocate(std::size_t bytes, std::size_t alignment) noexcept,
+ *   returning @c nullptr on failure;
+ * - @c void @c deallocate(void* p, std::size_t bytes, std::size_t alignment)
+ *   noexcept;
+ * - @c void @c release() noexcept, frees all the memory at once or does
+ *   nothing;
+ * - @c std::pair<std::size_t,std::size_t> @c get_memory_usage() noexcept,
+ *   the allocated and deallocated bytes.
+ *
+ * @code
+ * struct arena_resource {
+ *     struct data {
+ *         std::array<std::byte, 4096> buffer;
+ *         std::size_t                 used = 0;
+ *
+ *         void* allocate(std::size_t bytes, std::size_t alignment) noexcept
+ *         {
+ *             void*       p     = buffer.data() + used;
+ *             std::size_t space = buffer.size() - used;
+ *             if (not std::align(alignment, bytes, p, space))
+ *                 return nullptr;
+ *             used = buffer.size() - space + bytes;
+ *             return p;
+ *         }
+ *
+ *         void deallocate(void*, std::size_t, std::size_t) noexcept {}
+ *         void release() noexcept { used = 0; }
+ *
+ *         std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+ *         {
+ *             return { used, 0 };
+ *         }
+ *     };
+ *
+ *     static data& instance() noexcept
+ *     {
+ *         static data d;
+ *         return d;
+ *     }
+ * };
+ *
+ * irt::vector<int, irt::allocator<arena_resource>> v;
+ * @endcode
+ *
+ * The default @c new_delete_memory_resource forwards to replaceable functions
+ * to plug the allocator of a host application. Enable the @c
+ * IRRITATOR_ENABLE_DEBUG preprocessor variable to log its allocations.
  */
 template<typename MemoryResource = new_delete_memory_resource>
 struct allocator {

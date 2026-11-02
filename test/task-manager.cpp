@@ -16,8 +16,6 @@
 
 using namespace std::chrono_literals;
 
-using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
-
 constexpr auto mono_tm   = irt::task_manager_options{ .list_count   = 1,
                                                       .worker_count = 4 };
 constexpr auto double_tm = irt::task_manager_options{ .list_count   = 2,
@@ -65,7 +63,7 @@ int main()
     using namespace boost::ut;
 
     "data-task-copy-capture"_test = [] {
-        irt::data_array<data_task, data_task_id, heap_mr> d(32);
+        irt::data_array<data_task, data_task_id> d(32);
 
         int a = 16;
         int b = 32;
@@ -85,7 +83,7 @@ int main()
     };
 
     "data-task-reference-capture"_test = [] {
-        irt::data_array<data_task_ref, data_task_id, heap_mr> d(32);
+        irt::data_array<data_task_ref, data_task_id> d(32);
 
         int a = 16;
         int b = 32;
