@@ -3,8 +3,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "node-editor-geometry.hpp"
+#include "projection-3d.hpp"
 
 #include <boost/ut.hpp>
+
+#include <numbers>
 
 struct v2 {
     float x = 0.f;
@@ -75,5 +78,40 @@ int main()
         expect(eq(cam.zoom, 1.f));
         expect(lt(std::abs(before.x - after.x), 1e-4f));
         expect(lt(std::abs(before.y - after.y), 1e-4f));
+    };
+    "projection: null angles keep the points"_test = [] {
+        irt::projection_3d p;
+        p.update_matrices({ 0.f, 0.f, 0.f }, { 1.f, 2.f, 3.f });
+
+        const auto r = p.compute(4.f, -5.f, 6.f);
+        expect(eq(r[0], 4.f) and eq(r[1], -5.f) and eq(r[2], 6.f));
+    };
+
+    "projection: a quarter turn around y"_test = [] {
+        irt::projection_3d p;
+        p.update_matrices({ 0.f, std::numbers::pi_v<float> / 2.f, 0.f },
+                          { 1.f, 2.f, 3.f });
+
+        const auto r = p.compute(2.f, 2.f, 3.f);
+        expect(lt(std::abs(r[0] - 1.f), 1e-5f));
+        expect(lt(std::abs(r[1] - 2.f), 1e-5f));
+        expect(lt(std::abs(r[2] - 2.f), 1e-5f));
+    };
+
+    "projection: the rotation keeps the distances"_test = [] {
+        irt::projection_3d p;
+        p.update_matrices({ 0.3f, -1.2f, 2.5f }, { 1.f, 2.f, 3.f });
+
+        const auto c = p.compute(1.f, 2.f, 3.f);
+        expect(lt(std::abs(c[0] - 1.f), 1e-5f));
+        expect(lt(std::abs(c[1] - 2.f), 1e-5f));
+        expect(lt(std::abs(c[2] - 3.f), 1e-5f));
+
+        const auto r  = p.compute(4.f, -2.f, 3.f);
+        const auto dx = r[0] - 1.f;
+        const auto dy = r[1] - 2.f;
+        const auto dz = r[2] - 3.f;
+        expect(
+          lt(std::abs(std::sqrt(dx * dx + dy * dy + dz * dz) - 5.f), 1e-4f));
     };
 }
