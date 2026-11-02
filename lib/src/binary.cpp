@@ -585,7 +585,7 @@ void binary_serialize(Ar& ar, hierarchical_state_machine::execution& e) noexcept
 {
     using hsm = hierarchical_state_machine;
 
-    ar(e.i1, e.i2, e.r1, e.r2, e.timer, e.ports, e.message_values,
+    ar(e.i1, e.i2, e.r1, e.r2, e.timer, e.timers, e.ports, e.message_values,
        e.message_ports);
 
     i32 messages = e.messages;

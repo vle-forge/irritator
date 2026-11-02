@@ -325,8 +325,15 @@ A state:
 | `enter`, `exit`, `if`, `else` | Actions, see below.                                     |
 | `condition`           | Condition that selects the `if` or the `else` branch.           |
 | `if-transition`, `else-transition` | Next state, 255 for none.                          |
-| `super-id`, `sub-id`  | Parent and first child states, 255 for none.                    |
-| `x`, `y`              | Position in the editor.                                         |
+| `super-id`, `sub-id`  | Parent and initial child states, 255 for none.                  |
+| `x`, `y`              | Position in the editor, in the level of the parent state.       |
+
+The states form a tree under `top`, of at most 8 levels. Entering a state
+enters its `sub-id` too. The simulation follows the UML semantics: the active
+states, from the deepest one, try to consume an event until one consumes it;
+a transition exits the states up to the least common ancestor of the source and
+the target, runs the `if` or `else` action, then enters the states down to the
+target. Each active state with a timeout condition keeps its own timer.
 
 An action or a condition has `var-1`, `var-2` and `type`, three integers
 whose values are the enumerations `hierarchical_state_machine::variable`

@@ -7477,6 +7477,9 @@ public:
     static constexpr const u8 invalid_state_id    = 255;
     static constexpr const u8 max_constants       = 8;
 
+    /// The maximum number of levels of the hierarchy, the top state included.
+    static constexpr const u8 max_depth = 8;
+
     struct top_state_error {};
     struct next_state_error {};
     struct empty_value_error {};
@@ -7812,6 +7815,12 @@ public:
         real r2    = 0.0;
         time timer = time_domain<time>::infinity;
 
+        /// The remaining durations of the timers of the active states with a
+        /// @c condition_type::sigma, indexed by their depth in the hierarchy:
+        /// the timer of a super state survives the transitions of its sub
+        /// states.
+        std::array<time, max_depth> timers = infinite_timers();
+
         std::array<real, 4> ports; //<! Stores value of input messages in big
                                    //<! endian order. ports[0] is port_3 etc..
 
@@ -7861,6 +7870,26 @@ public:
             disallow_transition  = false;
 
             messages = 0;
+            timers   = infinite_timers();
+        }
+
+        void advance_timers(const time elapsed) noexcept
+        {
+            for (auto& t : timers)
+                if (not time_domain<time>::is_infinity(t))
+                    t -= elapsed;
+        }
+
+        constexpr time next_timer() const noexcept
+        {
+            return *std::ranges::min_element(timers);
+        }
+
+        static constexpr std::array<time, max_depth> infinite_timers() noexcept
+        {
+            std::array<time, max_depth> ret;
+            ret.fill(time_domain<time>::infinity);
+            return ret;
         }
     };
 
@@ -7881,12 +7910,15 @@ public:
         top_state = invalid_state_id;
     }
 
-    //! Dispatches an event.
-    //!
-    //! @return return true if the event was processed, otherwise
-    //! false. If the automata is badly defined, return an
-    //! modeling error or @c empty_value_error if the external
-    //! source fail to update the buffer.
+    /** Dispatches an event with the UML semantics: the active states,
+     * from the deepest one, try to consume the event until one consumes it.
+     * A @c wake_up goes only to the deepest active state whose timer is
+     * expired.
+     *
+     * @return @c true if a state consumed the event, an error if the
+     * automata is badly defined or if the external source fails to update
+     * the buffer.
+     */
     expected<bool> dispatch(const event_type e,
                             execution&       exec,
                             external_source& srcs) noexcept;
@@ -7895,14 +7927,24 @@ public:
     /// an event.
     bool is_dispatching(execution& state) const noexcept;
 
-    //! Transitions the state machine. This function can not be
-    //! called from Enter / Exit events in the state handler.
-    //!
-    //! @c return @c empty_value_error if the external source
-    //! fail to update the buffer.
-    status transition(state_id         target,
-                      execution&       exec,
-                      external_source& srcs) noexcept;
+    /** Runs the machine to completion after a DEVS transition: the expired
+     * timers first, then the @c input_changed event if @c input_received,
+     * then the completion events of the newly entered states.
+     */
+    status run_to_completion(execution&       exec,
+                             bool             input_received,
+                             external_source& srcs) noexcept;
+
+    /** Starts an external UML transition from the dispatching state to
+     * @c target: exits the active states up to the least common ancestor,
+     * then runs the @c effect. The caller enters the states down to
+     * @c target. This function can not be called from enter or exit
+     * actions.
+     */
+    status transition(state_id            target,
+                      const state_action& effect,
+                      execution&          exec,
+                      external_source&    srcs) noexcept;
 
     /// Set a handler for a state ID. This function will
     /// overwrite the current state handler. \param id state id
@@ -7932,7 +7974,31 @@ public:
                           execution&       exec,
                           external_source& srcs) noexcept;
 
-    int    steps_to_common_root(state_id source, state_id target) noexcept;
+    /// @return The lowest proper ancestor of @c source which is also a proper
+    /// ancestor of @c target, or @c invalid_state_id.
+    state_id find_lca(state_id source, state_id target) const noexcept;
+
+    /// @return The number of super states of @c id, 0 for the top state.
+    int depth_of(state_id id) const noexcept;
+
+    /** Checks the hierarchy before a simulation: a top state, no cycle, at
+     * most @c max_depth levels, an initial sub state for each composite
+     * state, and no transition from or to the top state.
+     *
+     * @return The first error or @c simulation_errc::none. Unlike
+     * @c check(), it does not call the error callback: an editor can call
+     * it at each frame.
+     */
+    simulation_errc find_error() const noexcept;
+
+    status check() const noexcept
+    {
+        if (const auto ec = find_error(); ec != simulation_errc::none)
+            return make_error(ec);
+
+        return success();
+    }
+
     status on_enter_sub_state(execution& state, external_source& srcs) noexcept;
 
     void affect_action(const state_action& action, execution& exec) noexcept;
@@ -12332,6 +12398,8 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
+        irt_check((*machine)->check());
+
         if ((*machine)->flags[hierarchical_state_machine::option::use_source]) {
             irt_check(sim.srcs.initialize_source(*this, exec.source_value,
                                                  exec.src_data));
@@ -12339,26 +12407,19 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 
         irt_check((*machine)->start(exec, sim.srcs));
 
-        sigma = time_domain<time>::infinity;
+        // The completion event of the initial state runs at the first
+        // transition, after the output of the messages of the enter actions.
+        const auto& leaf            = (*machine)->states[exec.current_state];
+        const auto  have_completion = leaf.condition.type !=
+                                       hierarchical_state_machine::
+                                         condition_type::port and
+                                     leaf.condition.type !=
+                                       hierarchical_state_machine::
+                                         condition_type::sigma and
+                                     not leaf.is_terminal();
 
-        if (exec.current_state !=
-              hierarchical_state_machine::invalid_state_id and
-            not(*machine)->states[exec.current_state].is_terminal()) {
-            switch ((*machine)->states[exec.current_state].condition.type) {
-            case hierarchical_state_machine::condition_type::sigma:
-                sigma = exec.timer;
-                break;
-            case irt::hierarchical_state_machine::condition_type::port:
-                sigma = time_domain<time>::infinity;
-                break;
-            default:
-                sigma = time_domain<time>::zero;
-                break;
-            }
-        }
-
-        if (exec.messages > 0)
-            sigma = time_domain<time>::zero;
+        sigma = exec.messages > 0 or have_completion ? time_domain<time>::zero
+                                                     : exec.next_timer();
 
         return success();
     } else {
@@ -12373,10 +12434,12 @@ inline status hsm_wrapper::transition(simulation& sim,
 {
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
+        auto input_received = false;
 
         for (int i = 0, e = length(x); i != e; ++i) {
             const auto lst = get_message(sim, x[i]);
             if (not lst.empty()) {
+                input_received = true;
                 exec.values.set(e - 1 - i, true);
 
                 for (auto& elem : lst)
@@ -12385,62 +12448,16 @@ inline status hsm_wrapper::transition(simulation& sim,
         }
 
         exec.messages = 0;
-        bool wait_timer, wait_msg, is_terminal;
 
-        do {
-            exec.previous_state = exec.current_state;
+        // sigma - r is exact for the internal events (r is null): the timer
+        // which defines sigma expires exactly.
+        if (not time_domain<time>::is_infinity(sigma))
+            exec.advance_timers(sigma - r);
 
-            switch ((*machine)->states[exec.current_state].condition.type) {
-            case irt::hierarchical_state_machine::condition_type::sigma:
-                exec.timer = r;
-                if (r == 0.0) {
-                    irt_check((*machine)->dispatch(
-                      hierarchical_state_machine::event_type::wake_up, exec,
-                      sim.srcs));
-                } else {
-                    debug::ensure(exec.values.any());
+        irt_check(
+          (*machine)->run_to_completion(exec, input_received, sim.srcs));
 
-                    irt_check((*machine)->dispatch(
-                      hierarchical_state_machine::event_type::input_changed,
-                      exec, sim.srcs));
-                }
-                break;
-
-            case irt::hierarchical_state_machine::condition_type::port:
-                if (exec.values.any()) {
-                    irt_check((*machine)->dispatch(
-                      hierarchical_state_machine::event_type::input_changed,
-                      exec, sim.srcs));
-                }
-                break;
-
-            default:
-                irt_check((*machine)->dispatch(
-                  hierarchical_state_machine::event_type::internal, exec,
-                  sim.srcs));
-                break;
-            }
-
-            debug::ensure(exec.current_state !=
-                          hierarchical_state_machine::invalid_state_id);
-
-            wait_timer = (*machine)
-                           ->states[exec.current_state]
-                           .condition.type ==
-                         hierarchical_state_machine::condition_type::sigma;
-
-            wait_msg = (*machine)->states[exec.current_state].condition.type ==
-                       hierarchical_state_machine::condition_type::port;
-
-            is_terminal = (*machine)->states[exec.current_state].is_terminal();
-
-        } while (not(wait_timer or wait_msg or is_terminal));
-
-        sigma = exec.messages ? 0.0
-                : wait_timer  ? exec.timer
-                : wait_msg    ? time_domain<time>::infinity
-                : is_terminal ? time_domain<time>::infinity
-                              : 0.0;
+        sigma = exec.messages > 0 ? time_domain<time>::zero : exec.next_timer();
 
         return success();
     } else {
