@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <forward_list>
 #include <iterator>
+#include <new>
 #include <numeric>
 #include <string_view>
 #include <type_traits>
@@ -31,6 +32,7 @@ namespace irt {
 /// Requirements:
 /// - Callable must fit in Size bytes
 /// - Callable must be nothrow movable (for noexcept guarantee)
+/// - Calling is noexcept: the callable catches its own exceptions
 ///
 /// Example:
 ///   lambda_function f([x = 42](int y) {
@@ -155,91 +157,102 @@ template<typename L>
 using deduce_signature_t = typename lambda_signature<
   decltype(&std::remove_reference_t<L>::operator())>::type;
 
+template<typename T>
+struct is_lambda_function : std::false_type {};
+
+template<typename Sig, std::size_t Size, std::size_t Align>
+struct is_lambda_function<lambda_function<Sig, Size, Align>>
+  : std::true_type {};
+
 template<typename R, typename... Args, std::size_t Size, std::size_t Align>
 class lambda_function<R(Args...), Size, Align>
 {
     static_assert(Align != 0, "Align must be non-zero");
     static_assert((Align & (Align - 1)) == 0, "Align must be power of two");
 
-    alignas(Align) std::byte m_storage[Size];
-
     struct vtable_t {
-        R (*invoke)(const void*, Args&&...) noexcept;
+        R (*invoke)(void*, Args&&...) noexcept;
         void (*destroy)(void*) noexcept;
         void (*move_construct)(void* dst, void* src) noexcept;
-    } m_vtbl{};
+    };
 
-    bool m_engaged = false;
+    alignas(Align) std::byte m_storage[Size];
+    const vtable_t* m_vtbl = nullptr;
 
     template<typename L>
-    static R invoke_fn(const void* p, Args&&... args) noexcept
+    static L* get(void* p) noexcept
     {
-        auto const* lp = static_cast<L const*>(p);
+        return std::launder(static_cast<L*>(p));
+    }
 
+    template<typename L>
+    static R invoke_fn(void* p, Args&&... args) noexcept
+    {
         if constexpr (std::is_void_v<R>) {
-            (*lp)(std::forward<Args>(args)...);
+            (*get<L>(p))(std::forward<Args>(args)...);
         } else {
-            return (*lp)(std::forward<Args>(args)...);
+            return (*get<L>(p))(std::forward<Args>(args)...);
         }
     }
 
     template<typename L>
     static void destroy_fn(void* p) noexcept
     {
-        static_cast<L*>(p)->~L();
+        get<L>(p)->~L();
     }
 
     template<typename L>
     static void move_construct_fn(void* dst, void* src) noexcept
     {
-        auto* s = static_cast<L*>(src);
+        auto* s = get<L>(src);
 
         ::new (dst) L(std::move(*s));
-        destroy_fn<L>(src);
+        s->~L();
     }
 
+    template<typename L>
+    static constexpr vtable_t vtable_of{ &invoke_fn<L>, &destroy_fn<L>,
+                                         &move_construct_fn<L> };
+
     template<typename T>
-    static constexpr bool is_lambda_like_v =
-      std::is_class_v<T> && requires { &T::operator(); };
+    static constexpr bool
+      is_lambda_like_v = std::is_class_v<T> and
+                         not is_lambda_function<T>::value and
+                         requires { &T::operator(); };
+
+    void steal(lambda_function& other) noexcept
+    {
+        if (other.m_vtbl) {
+            other.m_vtbl->move_construct(m_storage, other.m_storage);
+            m_vtbl = std::exchange(other.m_vtbl, nullptr);
+        }
+    }
 
 public:
     using result_type = R;
 
-    constexpr lambda_function() noexcept = default;
+    lambda_function() noexcept = default;
 
     lambda_function(const lambda_function&)            = delete;
     lambda_function& operator=(const lambda_function&) = delete;
 
-    constexpr lambda_function(lambda_function&& other) noexcept
-    {
-        if (other.m_engaged) {
-            other.m_vtbl.move_construct(m_storage, other.m_storage);
-            m_vtbl          = other.m_vtbl;
-            m_engaged       = true;
-            other.m_engaged = false;
-        }
-    }
+    lambda_function(lambda_function&& other) noexcept { steal(other); }
 
-    constexpr lambda_function& operator=(lambda_function&& other) noexcept
+    lambda_function& operator=(lambda_function&& other) noexcept
     {
         if (this != &other) {
             reset();
-            if (other.m_engaged) {
-                other.m_vtbl.move_construct(m_storage, other.m_storage);
-                m_vtbl          = other.m_vtbl;
-                m_engaged       = true;
-                other.m_engaged = false;
-            }
+            steal(other);
         }
         return *this;
     }
 
-    ~lambda_function() { reset(); }
+    ~lambda_function() noexcept { reset(); }
 
     template<typename L,
              typename T                                 = std::decay_t<L>,
              std::enable_if_t<is_lambda_like_v<T>, int> = 0>
-    constexpr lambda_function(L&& l) noexcept
+    lambda_function(L&& l) noexcept
     {
         emplace(std::forward<L>(l));
     }
@@ -247,36 +260,40 @@ public:
     template<typename L,
              typename T                                 = std::decay_t<L>,
              std::enable_if_t<is_lambda_like_v<T>, int> = 0>
-    constexpr void emplace(L&& l) noexcept
+    void emplace(L&& l) noexcept
     {
         using U = std::decay_t<L>;
 
         static_assert(sizeof(U) <= Size, "Too small buffer for lambda");
         static_assert(alignof(U) <= Align, "Too large alignement for lambda");
+        static_assert(std::is_nothrow_move_constructible_v<U>,
+                      "Lambda captures must be nothrow movable");
+        static_assert(std::is_invocable_r_v<R, U&, Args...>,
+                      "Lambda does not match the signature");
 
         reset();
         ::new (m_storage) U(std::forward<L>(l));
-
-        m_vtbl =
-          vtable_t{ &invoke_fn<U>, &destroy_fn<U>, &move_construct_fn<U> };
-        m_engaged = true;
+        m_vtbl = &vtable_of<U>;
     }
 
-    constexpr R operator()(Args... args) const noexcept
+    /// An exception thrown by the callable calls @c std::terminate: catch it
+    /// inside the lambda.
+    R operator()(Args... args) noexcept
     {
-        debug::ensure(m_engaged);
+        debug::ensure(m_vtbl);
 
-        return m_vtbl.invoke(m_storage, std::forward<Args>(args)...);
+        return m_vtbl->invoke(m_storage, std::forward<Args>(args)...);
     }
 
-    constexpr explicit operator bool() const noexcept { return m_engaged; }
-
-    constexpr void reset() noexcept
+    constexpr explicit operator bool() const noexcept
     {
-        if (m_engaged) {
-            m_vtbl.destroy(m_storage);
-            m_engaged = false;
-        }
+        return m_vtbl != nullptr;
+    }
+
+    void reset() noexcept
+    {
+        if (m_vtbl)
+            std::exchange(m_vtbl, nullptr)->destroy(m_storage);
     }
 };
 

@@ -56,6 +56,31 @@ static bool wait_until(Pred&& pred, std::chrono::milliseconds timeout = 5s)
     return true;
 }
 
+// Counts its destructions, but not the ones of a moved-from instance.
+struct destruction_counter {
+    std::atomic_int* destroyed;
+
+    explicit destruction_counter(std::atomic_int& d) noexcept
+      : destroyed(&d)
+    {}
+    destruction_counter(destruction_counter&& o) noexcept
+      : destroyed(std::exchange(o.destroyed, nullptr))
+    {}
+    destruction_counter(const destruction_counter&)            = delete;
+    destruction_counter& operator=(const destruction_counter&) = delete;
+    destruction_counter& operator=(destruction_counter&&)      = delete;
+
+    // The busy wait widens the window where a worker would still destroy the
+    // captures after it reported the task as done.
+    ~destruction_counter() noexcept
+    {
+        if (destroyed) {
+            spin_for(std::chrono::microseconds(500));
+            destroyed->fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+};
+
 // ---------------------------------------------------------------------------
 
 int main()
@@ -100,6 +125,44 @@ int main()
 
         expect(eq(a, 160));
         expect(eq(b, 320));
+    };
+
+    "lambda-function-mutable"_test = [] {
+        irt::lambda_function<int(int)> f([n = 0](int x) mutable noexcept {
+            n += x;
+            return n;
+        });
+
+        expect(eq(f(2), 2));
+        expect(eq(f(3), 5));
+    };
+
+    "lambda-function-move-and-reset"_test = [] {
+        std::atomic_int destroyed{ 0 };
+
+        {
+            irt::task a([c = destruction_counter(destroyed)] {});
+            irt::task b(std::move(a));
+            expect(not a);
+            expect(static_cast<bool>(b));
+
+            irt::task c;
+            c = std::move(b);
+            expect(eq(destroyed.load(), 0));
+
+            c.reset();
+            expect(not c);
+            expect(eq(destroyed.load(), 1));
+        }
+
+        expect(eq(destroyed.load(), 1));
+    };
+
+    "lambda-function-size"_test = [] {
+        constexpr auto align = alignof(std::max_align_t);
+        constexpr auto size  = (64u + sizeof(void*) + align - 1u) / align;
+
+        static_assert(sizeof(irt::task) == size * align);
     };
 
     "spin-lock"_test = [] {
