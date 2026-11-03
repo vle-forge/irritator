@@ -3243,6 +3243,34 @@ int main()
         expect(eq(r.events, 0));
     };
 
+    "files: remove a file from the disk and the library"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{ "remove-file"sv };
+
+        irt::modeling mod;
+
+        mod.files.write([&](auto& fs) {
+            const auto reg                   = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg).path = temp_path.sv();
+
+            const auto dir               = fs.alloc_dir(reg);
+            fs.dir_paths.get(dir).parent = reg;
+            fs.dir_paths.get(dir).path   = "remove-file";
+            fs.create_directories(dir);
+
+            const auto file = fs.alloc_file(dir, "a.pirt",
+                                            irt::file_type::project_file);
+
+            const auto dir_path = std::filesystem::path(temp_path.sv()) /
+                                  "remove-file";
+            std::ofstream(dir_path / "a.pirt") << "{}";
+
+            fs.remove_file(file);
+            expect(not std::filesystem::exists(dir_path / "a.pirt"));
+            expect(not fs.file_paths.exists(file));
+            expect(fs.dir_paths.get(dir).children.empty());
+        });
+    };
+
     "simulation: the factors target the models with a first real"_test = [] {
         using irt::dynamics_type;
         using irt::simulation_component;

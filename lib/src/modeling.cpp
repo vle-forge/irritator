@@ -679,7 +679,9 @@ void file_access::remove_file(const file_path_id id) noexcept
                 debug::ensure(not d->path.empty());
                 debug::ensure(not r->path.empty());
 
-                if (not(f->path.empty() and d->path.empty() and
+                // An empty part would make the path relative to the
+                // current directory and remove another file.
+                if (not(f->path.empty() or d->path.empty() or
                         r->path.empty())) {
                     std::error_code ec;
 
