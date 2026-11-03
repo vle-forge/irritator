@@ -770,104 +770,74 @@ static auto compute_embedded_simulation_results(
  *
  * * * * * */
 
+/// Normalizes in place the values of each selection, so that a greater value
+/// is always better and the selections share the same scale. The NaN values
+/// (selections without observation) are ignored and stay NaN.
+static void normalize_weighted_sum(const embedded_simulation& embed_sims,
+                                   std::span<real> objective_fn) noexcept
+{
+    const pos_in_objective_function pos(embed_sims.selections.size());
+    const auto& params = embed_sims.objective.weighted_sum_params;
+
+    for (const auto obj_fn_id : embed_sims.selections) {
+        const auto is_max = params.types[get_index(obj_fn_id)] ==
+                            optimization_type::maximize;
+
+        auto n       = 0;
+        auto sum     = 0.0;
+        auto sq_sum  = 0.0;
+        auto min_val = std::numeric_limits<real>::max();
+        auto max_val = std::numeric_limits<real>::lowest();
+
+        for (const auto sub_id : embed_sims.embedded_sims) {
+            const auto val = objective_fn[pos(sub_id, obj_fn_id)];
+            if (std::isnan(val))
+                continue;
+
+            ++n;
+            sum += val;
+            sq_sum += val * val;
+            min_val = std::min(min_val, val);
+            max_val = std::max(max_val, val);
+        }
+
+        if (n == 0)
+            continue;
+
+        const auto mean    = sum / n;
+        const auto [center,
+                    scale] = params.norm == norm_type::min_max
+                               ? std::pair{ is_max ? min_val : max_val,
+                                            max_val - min_val }
+                               : std::pair{ mean,
+                                            std::sqrt(std::max(
+                                              0.0, sq_sum / n - mean * mean)) };
+        const auto div     = scale < 1e-10 ? 1e-10 : scale;
+
+        for (const auto sub_id : embed_sims.embedded_sims) {
+            auto& val = objective_fn[pos(sub_id, obj_fn_id)];
+            val       = is_max ? (val - center) / div : (center - val) / div;
+        }
+    }
+}
+
+/// Selects the sub-simulation with the best weighted sum of the normalized
+/// values. The values sent on the ports stay the observed ones: the
+/// normalization works on a copy.
 static auto compute_weighted_sum_objective(
-  const embedded_simulation& embed_sims,
-  std::span<real>            objective_fn) noexcept
+  const embedded_simulation&  embed_sims,
+  const std::span<const real> objective_fn) noexcept
   -> expected<embedded_simulation::sub_id>
 {
     const pos_in_objective_function pos(embed_sims.selections.size());
 
-    debug::ensure(embed_sims.objective.weighted_sum_params.types.size() ==
-                  embed_sims.selections.size());
-    debug::ensure(embed_sims.objective.weighted_sum_params.weights.size() ==
-                  embed_sims.selections.size());
+    auto normalized = vector<real>();
+    if (not normalized.resize(objective_fn.size()))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
 
-    // If min-max linearization
-
-    if (embed_sims.objective.weighted_sum_params.norm == norm_type::min_max) {
-        for (const auto obj_fn_id : embed_sims.selections) {
-            const auto is_max = embed_sims.objective.weighted_sum_params
-                                  .types[get_index(obj_fn_id)] ==
-                                optimization_type::maximize;
-
-            auto min_val = std::numeric_limits<real>::max();
-            auto max_val = std::numeric_limits<real>::lowest();
-
-            for (const auto sub_id : embed_sims.embedded_sims) {
-                const auto idx = pos(sub_id, obj_fn_id);
-                const auto val = objective_fn[idx];
-
-                min_val = std::min(min_val, val);
-                max_val = std::max(max_val, val);
-            }
-
-            const auto diff = max_val - min_val;
-            const auto div  = diff < 1e-10 ? 1e-10 : diff;
-
-            if (is_max) {
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx    = pos(sub_id, obj_fn_id);
-                    objective_fn[idx] = (objective_fn[idx] - min_val) / div;
-                }
-            } else {
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx    = pos(sub_id, obj_fn_id);
-                    objective_fn[idx] = (max_val - objective_fn[idx]) / div;
-                }
-            }
-        }
-    } else {
-        for (const auto obj_fn_id : embed_sims.selections) {
-            const auto is_max = embed_sims.objective.weighted_sum_params
-                                  .types[get_index(obj_fn_id)] ==
-                                optimization_type::maximize;
-
-            if (is_max) {
-                auto sum    = 0.0;
-                auto sq_sum = 0.0;
-
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx = pos(sub_id, obj_fn_id);
-
-                    sum += objective_fn[idx];
-                    sq_sum += objective_fn[idx] * objective_fn[idx];
-                }
-
-                const auto mean    = sum / embed_sims.embedded_sims.size();
-                const auto std_dev = std::sqrt(sq_sum /
-                                               embed_sims.embedded_sims.size());
-                const auto div     = std_dev < 1e-10 ? 1e-10 : std_dev;
-
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx = pos(sub_id, obj_fn_id);
-
-                    objective_fn[idx] = (objective_fn[idx] - mean) / div;
-                }
-            } else {
-                auto sum    = 0.0;
-                auto sq_sum = 0.0;
-
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx = pos(sub_id, obj_fn_id);
-
-                    sum += objective_fn[idx];
-                    sq_sum += objective_fn[idx] * objective_fn[idx];
-                }
-
-                const auto mu    = sum / embed_sims.embedded_sims.size();
-                const auto sigma = std::sqrt(
-                  sq_sum / embed_sims.embedded_sims.size() - mu * mu);
-
-                const auto div = sigma < 1e-10 ? 1e-10 : sigma;
-
-                for (const auto sub_id : embed_sims.embedded_sims) {
-                    const auto idx = pos(sub_id, obj_fn_id);
-
-                    objective_fn[idx] = (mu - objective_fn[idx]) / div;
-                }
-            }
-        }
-    }
+    std::copy_n(objective_fn.data(), objective_fn.size(), normalized.data());
+    normalize_weighted_sum(embed_sims, normalized);
 
     const auto is_max = embed_sims.objective.type ==
                         optimization_type::maximize;
@@ -882,20 +852,12 @@ static auto compute_weighted_sum_objective(
             const auto w = embed_sims.objective.weighted_sum_params
                              .weights[get_index(obj_fn_id)];
 
-            const auto idx = pos(sub_id, obj_fn_id);
-            value += w * objective_fn[idx];
+            value += w * normalized[pos(sub_id, obj_fn_id)];
         }
 
-        if (is_max) {
-            if (value > best_value) {
-                best_value  = value;
-                best_sub_id = sub_id;
-            }
-        } else {
-            if (value < best_value) {
-                best_value  = value;
-                best_sub_id = sub_id;
-            }
+        if (is_max ? value > best_value : value < best_value) {
+            best_value  = value;
+            best_sub_id = sub_id;
         }
     }
 

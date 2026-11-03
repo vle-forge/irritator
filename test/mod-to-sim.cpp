@@ -3186,6 +3186,29 @@ int main()
         }
     };
 
+    "simulation: the weighted sum normalizes each selection alike"_test = [] {
+        // Maximize g (weight 0.7) and minimize the same g (weight 0.3): with
+        // the same scale for both, the best scenario has the largest g.
+        for (const auto norm : { "z-score"sv, "min-max"sv }) {
+            const auto objective = std::string(R"({"method": "weighted-sum",
+                "type": "maximize", "weighted-sum-parameters": {"norm": ")") +
+                                   std::string(norm) + R"(",
+                "types": ["maximize", "minimize"],
+                "weights": [0.7, 0.3]}})";
+
+            const auto r = run_wrapper(
+              { .selections    = R"({"name": "g", "access": ["g"],
+                    "criteria": "max"}, {"name": "h", "access": ["g"],
+                    "criteria": "max"})",
+                .nb_selections = 2,
+                .objective     = objective });
+
+            expect(fatal(r.initialized)) << norm;
+            expect(eq(r.events, 1)) << norm;
+            expect(eq(r.last_value, 3.0)) << norm;
+        }
+    };
+
     "simulation: the epsilon constrained method without candidate"_test = [] {
         const auto r = run_wrapper(
           { .objective = R"({"method": "epsilon-constrained",
