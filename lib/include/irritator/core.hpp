@@ -1904,11 +1904,14 @@ public:
     virtual void rewind(const simulation& sim) noexcept = 0;
 };
 
+/// The result of a selection computed from its observation trajectory. The
+/// direction of the optimization belongs to the objective: @c min_last and
+/// @c max_last both take the last observation value.
 enum class criteria_type {
-    min_last, //!< Min value for the last observation value (one real).
-    max_last, //!< Max value for the Last observation value (one real).
+    min_last, //!< Last observation value (one real).
+    max_last, //!< Last observation value (one real).
     min,      //!< Observation value with the lowest value (one real).
-    max,      //!< Observation value with the hightest value (one real).
+    max,      //!< Observation value with the highest value (one real).
 };
 
 enum class factor_type : u8 {
@@ -2373,6 +2376,7 @@ struct embedded_simulation {
     struct embedded_model_observation {
         vector<resampled_sample> values; /*<! Raw output simulation. */
 
+        /// @return NaN without observation.
         real compute_result(const criteria_type type) const noexcept;
     };
 
@@ -8061,24 +8065,28 @@ struct hsm_wrapper {
     raw_sample observation(time t, time e) const noexcept;
 };
 
-/// A wrapper to a simulation object in @c simulation::sims array.
+/// A wrapper to an @c embedded_simulation of the @c simulation::sims array.
 ///
-/// This dynamics allows to embed a simulation engine into the current
-/// simulation graph. The embedded simulation can be controlled via
-/// input port to initialize and run the simulation (with different run
-/// modes).
+/// This dynamics embeds an experimental design into the current simulation
+/// graph: one sub-simulation per combination of the factors values (cross
+/// product). After a run, the objective selects the best sub-simulation and
+/// the wrapper sends its factors values and its selections results.
 ///
-/// The simulation must have only one public parameter and only one
-/// observation message. The observation message will be copied to the
-/// @c y[0] output port.
+/// - The results leave the wrapper after the value of the run message, a
+///   delay (zero for the until run type where the value is a date).
+/// - A selection without observation excludes its sub-simulation from the
+///   choice. Without any eligible sub-simulation, for example when no
+///   sub-simulation satisfies the epsilon constraints, nothing is sent.
+/// - A new factor value on @c x[2..] restarts the sub-simulations at the next
+///   run message.
 struct simulation_wrapper {
-    /** x[0] is used to initialize the simulation, x[1] is used to run
-     * the simulation, x[2..] are used to send assign new value to the
-     * public parameter of the embedded simulation. */
+    /** x[0] initializes the sub-simulations, x[1] runs them according to the
+     * @c run_type, x[2..] give a new value to each factor (combined with the
+     * factor according to its @c factor_type). */
     small_vector<input_port, 12> x;
 
-    /** y[0..] are used to send the public parameter of the embedded
-     * simulation according to the selection criteria. */
+    /** y[0..] send the factors values of the best sub-simulation, then the
+     * results of its selections. */
     small_vector<output_port_id, 12> y;
 
     /** Identifier of the source of the simulation to run. This

@@ -176,13 +176,7 @@ static status embedded_sims_alloc(embedded_simulation& embed_sims,
 static status embedded_sims_copy_parameters(
   embedded_simulation& embed_sims) noexcept
 {
-    const auto nb_sims = embed_sims.embedded_sims.size();
-    auto&      sims    = embed_sims.embedded_sims.get<simulation>();
-
-    if (std::cmp_not_equal(nb_sims, embed_sims.embedded_sims.size()))
-        return make_error(
-          simulation_errc::
-            simulation_wrapper_embedded_simulation_initialization_error);
+    auto& sims = embed_sims.embedded_sims.get<simulation>();
 
     struct parameters {
         factor_id id       = undefined<factor_id>();
@@ -242,7 +236,7 @@ static status embedded_sims_copy_parameters(
         ++i;
     }
 
-    dlogln(0, "emedded_sim = {}", embed_sims.embedded_sims.size());
+    dlogln(0, "embedded_sim = {}", embed_sims.embedded_sims.size());
     dlogln(0, "parameters  = {}", embed_sims.input_parameters.size());
 
     dlog(0, "{:^12}", "subid");
@@ -694,8 +688,8 @@ static auto compute_embedded_simulation_results(
     const pos_in_objective_function pos(objective_fn_size);
 
     // For each embedded simulation, for each objective function element,
-    // computes result of the observation trajectory according to tge
-    // criteria_type and fill the objective funiton.
+    // computes result of the observation trajectory according to the
+    // criteria_type and fill the objective function.
 
     auto& sim_obs = embed_sims.embedded_sims
                       .get<embedded_simulation::simulation_observation>();
@@ -736,7 +730,7 @@ static auto compute_embedded_simulation_results(
         }
     }
 
-    dlogln(0, "compute embedeed selection");
+    dlogln(0, "compute embedded selection");
     dlog(4, "|{:^12}|", "sub-id");
     for (const auto obj_fn_id : embed_sims.selections) {
         dlog(0, "{:^12}|", embed_sims.selections.get<name_str>(obj_fn_id).sv());
