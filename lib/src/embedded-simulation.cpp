@@ -833,12 +833,10 @@ static auto compute_weighted_sum_objective(
     std::copy_n(objective_fn.data(), objective_fn.size(), normalized.data());
     normalize_weighted_sum(embed_sims, normalized);
 
-    const auto is_max = embed_sims.objective.type ==
-                        optimization_type::maximize;
-
+    // The normalization already turned each selection into a greater is
+    // better value: the global optimization type does not apply here.
     auto best_sub_id = undefined<embedded_simulation::sub_id>();
-    auto best_value  = is_max ? std::numeric_limits<real>::lowest()
-                              : std::numeric_limits<real>::max();
+    auto best_value  = std::numeric_limits<real>::lowest();
 
     for (const auto sub_id : embed_sims.embedded_sims) {
         auto value = 0.0;
@@ -849,7 +847,7 @@ static auto compute_weighted_sum_objective(
             value += w * normalized[pos(sub_id, obj_fn_id)];
         }
 
-        if (is_max ? value > best_value : value < best_value) {
+        if (value > best_value) {
             best_value  = value;
             best_sub_id = sub_id;
         }

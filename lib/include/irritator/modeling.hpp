@@ -1648,6 +1648,10 @@ public:
      * simulations factors and selections. */
     status copy_to(embedded_simulation& sim) const noexcept;
 
+    /// The factors change the first real parameter of the model: only these
+    /// dynamics use it as a value or a delay.
+    static bool can_be_factor(const dynamics_type type) noexcept;
+
     using factor_t = id_data_array<void,
                                    factor_id,
                                    allocator<new_delete_memory_resource>,

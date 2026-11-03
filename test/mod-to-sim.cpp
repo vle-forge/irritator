@@ -252,11 +252,15 @@ static void simulation_component_tester(
         auto& compo    = ids.components[compo_id];
         auto& sim      = ids.sim_components.get(compo.id.sim_id);
 
-        mod.files.read([&](const auto& fs, auto) {
-            auto exp_pj = irt::project::load(fs, ids, project_file_id);
-            expect(fatal(exp_pj.has_value()));
-            expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
-        });
+        // Twice, as the editor does when the project file is selected
+        // again: the cleared selections get new keys.
+        for (auto i = 0; i < 2; ++i) {
+            mod.files.read([&](const auto& fs, auto) {
+                auto exp_pj = irt::project::load(fs, ids, project_file_id);
+                expect(fatal(exp_pj.has_value()));
+                expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
+            });
+        }
 
         expect(fatal(eq(sim.factors.size(), 2u)));
         expect(fatal(ge(sim.selections.size(), 1u)));
@@ -299,6 +303,20 @@ static void simulation_component_tester(
         sim.objective.method                = irt::optimization_method::simple;
         sim.objective.type                  = irt::optimization_type::maximize;
         sim.objective.simple_params.primary = plus;
+
+        {
+            irt::embedded_simulation embed;
+            expect(fatal(sim.copy_to(embed).has_value()));
+            expect(fatal(
+              embed.selections.exists(embed.objective.simple_params.primary)));
+            expect(embed.selections.exists(
+              embed.objective.epsilon_constrained_params.primary));
+            expect(
+              eq(embed.selections
+                   .get<irt::name_str>(embed.objective.simple_params.primary)
+                   .sv(),
+                 "+"sv));
+        }
 
         sim.file_id = project_file_id;
 
@@ -3188,25 +3206,29 @@ int main()
 
     "simulation: the weighted sum normalizes each selection alike"_test = [] {
         // Maximize g (weight 0.7) and minimize the same g (weight 0.3): with
-        // the same scale for both, the best scenario has the largest g.
-        for (const auto norm : { "z-score"sv, "min-max"sv }) {
-            const auto objective = std::string(R"({"method": "weighted-sum",
-                "type": "maximize", "weighted-sum-parameters": {"norm": ")") +
-                                   std::string(norm) + R"(",
+        // the same scale for both, the best scenario has the largest g. The
+        // global type does not apply, the selections carry the direction.
+        for (const auto type : { "maximize"sv, "minimize"sv })
+            for (const auto norm : { "z-score"sv, "min-max"sv }) {
+                const auto
+                  objective = std::string(R"({"method": "weighted-sum",
+                "type": ")") + std::string(type) +
+                              R"(", "weighted-sum-parameters": {"norm": ")" +
+                              std::string(norm) + R"(",
                 "types": ["maximize", "minimize"],
                 "weights": [0.7, 0.3]}})";
 
-            const auto r = run_wrapper(
-              { .selections    = R"({"name": "g", "access": ["g"],
+                const auto r = run_wrapper(
+                  { .selections    = R"({"name": "g", "access": ["g"],
                     "criteria": "max"}, {"name": "h", "access": ["g"],
                     "criteria": "max"})",
-                .nb_selections = 2,
-                .objective     = objective });
+                    .nb_selections = 2,
+                    .objective     = objective });
 
-            expect(fatal(r.initialized)) << norm;
-            expect(eq(r.events, 1)) << norm;
-            expect(eq(r.last_value, 3.0)) << norm;
-        }
+                expect(fatal(r.initialized)) << norm;
+                expect(eq(r.events, 1)) << norm;
+                expect(eq(r.last_value, 3.0)) << norm;
+            }
     };
 
     "simulation: the epsilon constrained method without candidate"_test = [] {
@@ -3219,6 +3241,20 @@ int main()
         expect(fatal(r.initialized));
         expect(r.ended);
         expect(eq(r.events, 0));
+    };
+
+    "simulation: the factors target the models with a first real"_test = [] {
+        using irt::dynamics_type;
+        using irt::simulation_component;
+
+        expect(simulation_component::can_be_factor(dynamics_type::constant));
+        expect(simulation_component::can_be_factor(dynamics_type::queue));
+        expect(simulation_component::can_be_factor(dynamics_type::generator));
+        expect(
+          simulation_component::can_be_factor(dynamics_type::qss2_integrator));
+        expect(not simulation_component::can_be_factor(dynamics_type::counter));
+        expect(
+          not simulation_component::can_be_factor(dynamics_type::qss1_sum_2));
     };
 
     "simulation: a wrapper refuses an empty design"_test = [] {

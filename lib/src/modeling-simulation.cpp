@@ -11,6 +11,14 @@
 
 namespace irt {
 
+bool simulation_component::can_be_factor(const dynamics_type type) noexcept
+{
+    return any_equal(type, dynamics_type::constant, dynamics_type::queue,
+                     dynamics_type::generator, dynamics_type::qss1_integrator,
+                     dynamics_type::qss2_integrator,
+                     dynamics_type::qss3_integrator);
+}
+
 status simulation_component::assign(project&& pj_to_move) noexcept
 {
     pj = std::move(pj_to_move);
@@ -29,13 +37,7 @@ status simulation_component::assign(project&& pj_to_move) noexcept
                 not pj.sim.models.exists(mdls[idx]))
                 continue;
 
-            const auto& mdl      = pj.sim.models.get(mdls[idx]);
-            const auto  can_edit = any_equal(
-              mdl.type, dynamics_type::constant, dynamics_type::queue,
-              dynamics_type::generator, dynamics_type::qss1_integrator,
-              dynamics_type::qss2_integrator, dynamics_type::qss3_integrator);
-
-            if (not can_edit)
+            if (not can_be_factor(pj.sim.models.get(mdls[idx]).type))
                 continue;
 
             if (not factors.can_alloc(1) and not factors.grow<2, 1>(1))
@@ -159,6 +161,9 @@ status simulation_component::copy_to(
         }
     }
 
+    vector<std::pair<selection_id, selection_id>> copied_ids(selections.ssize(),
+                                                             reserve_tag);
+
     for (const auto id : selections) {
         const auto& path       = selections.get<unique_id_path>(id);
         const auto  tn_mdl_opt = pj.get_model_path(path);
@@ -172,6 +177,11 @@ status simulation_component::copy_to(
           embed_sims.sim.models.get(tn_mdl_opt->second)));
 
         const auto new_id = embed_sims.selections.alloc_id();
+        copied_ids.emplace_back(id, new_id);
+
+        // The objective vectors (weights, epsilons...) are indexed by the
+        // index of the selections.
+        debug::ensure(get_index(new_id) == get_index(id));
 
         embed_sims.selections.get<model_id>(new_id) = tn_mdl_opt->second;
         embed_sims.selections.get<name_str>(new_id) = selections.get<name_str>(
@@ -181,6 +191,19 @@ status simulation_component::copy_to(
     }
 
     embed_sims.objective = objective;
+
+    // A cleared container keeps on incrementing its keys: the identifiers of
+    // the copied selections differ from those of the component.
+    embed_sims.objective.simple_params.primary = undefined<selection_id>();
+    embed_sims.objective.epsilon_constrained_params
+      .primary = undefined<selection_id>();
+
+    for (const auto& [id, new_id] : copied_ids) {
+        if (id == objective.simple_params.primary)
+            embed_sims.objective.simple_params.primary = new_id;
+        if (id == objective.epsilon_constrained_params.primary)
+            embed_sims.objective.epsilon_constrained_params.primary = new_id;
+    }
 
     return success();
 }

@@ -3962,16 +3962,14 @@ struct json_reader {
             sim.objective.epsilon_constrained_params.operations.resize(
               nb, operation_type::less_equal);
 
+            // The method can change in the editor: each primary needs a
+            // valid selection, not only the one of the current method.
             if (not sim.selections.exists(
                   sim.objective.epsilon_constrained_params.primary))
                 sim.objective.epsilon_constrained_params
-                  .primary = undefined<selection_id>();
-        }
+                  .primary = *sim.selections.begin();
 
-        if (sim.objective.method == optimization_method::simple) {
-            const auto sel_id = sim.objective.simple_params.primary;
-            if (not sim.selections.exists(sel_id) and
-                not sim.selections.empty())
+            if (not sim.selections.exists(sim.objective.simple_params.primary))
                 sim.objective.simple_params.primary = *sim.selections.begin();
         }
 
