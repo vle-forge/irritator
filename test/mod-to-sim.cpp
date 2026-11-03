@@ -584,6 +584,140 @@ struct tee_sink final : irt::observation_sink {
     }
 };
 
+/// The setup of a simulation wrapper above a component where a gain @c g
+/// observes the constant @c a: the selection @c g equals the factor @c a.
+struct wrapper_setup {
+    std::string_view run_type      = "complete";
+    std::string_view factors       = R"({"name": "a", "type": "fixed",
+        "access": ["a"], "values": [1.0, 3.0, 2.0]})";
+    int              nb_factors    = 1;
+    std::string_view selections    = R"({"name": "g", "access": ["g"],
+        "criteria": "max"})";
+    int              nb_selections = 1;
+    std::string_view objective     = R"({"method": "simple",
+        "type": "maximize", "simple-parameters": {"primary": "g"}})";
+    double           run_value     = 0.0; //!< sent at t = 1 on the run port
+};
+
+/// What the counter connected to the first selection port received.
+struct wrapper_result {
+    bool   initialized = false;
+    bool   ended       = false; //!< the parent simulation reached its end
+    bool   failed      = false; //!< a step of the parent simulation failed
+    long   events      = 0;
+    double last_value  = 0.0;
+};
+
+static wrapper_result run_wrapper(const wrapper_setup& s) noexcept
+{
+    // The failures are part of the result, not a reason to break.
+    const auto callback = std::exchange(irt::on_error_callback, nullptr);
+    const auto restore  = irt::scope_exit(
+      [&]() noexcept { irt::on_error_callback = callback; });
+
+    const auto temp_path = irt::temp_path_with_unlink{ "wrapper-setup"sv };
+    const auto dir       = std::filesystem::path(temp_path.sv()) / "lib";
+    std::filesystem::create_directories(dir);
+
+    const auto write = [&](const char* name, const std::string& json) {
+        std::ofstream(dir / name) << json;
+    };
+
+    write("model.irt", R"({"name": "model", "type": "simple",
+        "children": [
+          {"id": 0, "name": "a", "configurable": true, "type": "constant",
+           "dynamics": {"value": 0.0, "offset": 0.0, "type": "constant"}},
+          {"id": 1, "name": "g", "observable": true, "type": "qss1_gain",
+           "dynamics": {"k": 1.0}}],
+        "connections": [{"type": "internal", "source": 0,
+          "port-source": 0, "destination": 1, "port-destination": 0}]})");
+
+    write("project.pirt", R"({"begin": 0.0, "end": 5.0,
+        "component-type": "simple", "component-path": "temp",
+        "component-directory": "lib", "component-file": "model.irt"})");
+
+    write("sim.irt", std::string(R"({"name": "sim", "type": "simulation",
+        "path": "temp", "directory": "lib", "file": "project.pirt",
+        "factors": [)") +
+                       std::string(s.factors) + R"(], "selections": [)" +
+                       std::string(s.selections) + R"(], "objective": )" +
+                       std::string(s.objective) + "}");
+
+    write("top.irt", std::string(R"({"name": "top", "type": "simple",
+        "children": [
+          {"id": 0, "type": "simulation_wrapper",
+           "dynamics": {"sim": {"path": "temp", "directory": "lib",
+             "file": "sim.irt"}, "run-type": ")") +
+                       std::string(s.run_type) + R"(", "factors": )" +
+                       std::to_string(s.nb_factors) + R"(, "selections": )" +
+                       std::to_string(s.nb_selections) + R"(}},
+          {"id": 1, "type": "constant",
+           "dynamics": {"value": )" +
+                       std::to_string(s.run_value) + R"(, "offset": 1.0,
+             "type": "constant"}},
+          {"id": 2, "name": "best", "observable": true, "type": "counter",
+           "dynamics": {}}],
+        "connections": [
+          {"type": "internal", "source": 1, "port-source": 0,
+           "destination": 0, "port-destination": 1},
+          {"type": "internal", "source": 0, "port-source": )" +
+                       std::to_string(s.nb_factors) + R"(,
+           "destination": 2, "port-destination": 0}]})");
+
+    wrapper_result ret;
+
+    irt::modeling mod;
+    mod.files.write([&](auto& fs) {
+        const auto reg_id                   = fs.alloc_registred("temp", 0);
+        fs.registred_paths.get(reg_id).path = temp_path.sv();
+    });
+
+    if (mod.fill_components().has_error())
+        return ret;
+
+    irt::project pj;
+    auto         set = false;
+    mod.ids.read([&](const auto& ids, auto) {
+        for (const auto id : ids)
+            if (ids.components[id].name.sv() == "top")
+                mod.files.read([&](const auto& fs, auto) {
+                    set = pj.set(ids, fs, id).has_value();
+                });
+    });
+
+    if (not set)
+        return ret;
+
+    pj.sim.limits.set_bound(0, 5);
+    ret.initialized = pj.simulation_init(mod).has_value();
+    if (not ret.initialized)
+        return ret;
+
+    // A wrapper that never stops rescheduling itself at the same date hangs
+    // the parent simulation: the bound turns it into a failed expectation.
+    for (int step = 0; step < 10'000; ++step) {
+        if (pj.sim.run().has_error()) {
+            ret.failed = true;
+            break;
+        }
+
+        if (pj.sim.current_time_expired()) {
+            ret.ended = true;
+            break;
+        }
+    }
+
+    for (const auto& mdl : pj.sim.models) {
+        if (mdl.type == irt::dynamics_type::counter) {
+            const auto& cpt = irt::get_dyn<irt::counter>(mdl);
+            ret.events      = cpt.event_number;
+            ret.last_value  = cpt.last_value;
+        }
+    }
+
+    return ret;
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -3006,6 +3140,34 @@ int main()
         }
 
         expect(received);
+    };
+
+    "simulation: a wrapper with one factor and one selection"_test = [] {
+        const auto r = run_wrapper({});
+
+        expect(fatal(r.initialized));
+        expect(r.ended);
+        expect(eq(r.events, 1));
+        expect(eq(r.last_value, 3.0));
+    };
+
+    "simulation: the epsilon constrained method without candidate"_test = [] {
+        const auto r = run_wrapper(
+          { .objective = R"({"method": "epsilon-constrained",
+              "type": "maximize", "epsilon-constrained-parameters": {
+                "epsilons": [100.0], "operations": ["greater-equal"],
+                "primary": "g"}})" });
+
+        expect(fatal(r.initialized));
+        expect(r.ended);
+        expect(eq(r.events, 0));
+    };
+
+    "simulation: a wrapper refuses an empty design"_test = [] {
+        const auto r = run_wrapper({ .factors = R"({"name": "a",
+            "type": "fixed", "access": ["a"], "values": []})" });
+
+        expect(not r.initialized);
     };
 
     "json: the malformed files are refused"_test = [] {

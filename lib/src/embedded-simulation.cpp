@@ -431,8 +431,9 @@ simulation_wrapper::simulation_wrapper(const simulation_wrapper& other) noexcept
   , run{ other.run }
 {}
 
-auto compute_simulation_number =
-  [](const embedded_simulation& embed_sims) noexcept -> sz {
+static auto compute_simulation_number(
+  const embedded_simulation& embed_sims) noexcept -> sz
+{
     auto nb = sz{ 1 };
 
     for (const auto id : embed_sims.factors) {
@@ -457,7 +458,34 @@ auto compute_simulation_number =
     }
 
     return nb;
-};
+}
+
+/// The ports and the objective must match the component: the selections of
+/// the objective and the ports of the factors and the selections.
+static bool is_valid_objective(const embedded_simulation& embed_sims) noexcept
+{
+    const auto& obj = embed_sims.objective;
+    const auto  n   = embed_sims.selections.size();
+
+    switch (obj.method) {
+    case optimization_method::simple:
+        return embed_sims.selections.exists(obj.simple_params.primary);
+
+    case optimization_method::epsilon_constrained:
+        return embed_sims.selections.exists(
+                 obj.epsilon_constrained_params.primary) and
+               std::cmp_equal(obj.epsilon_constrained_params.epsilons.size(),
+                              n) and
+               std::cmp_equal(obj.epsilon_constrained_params.operations.size(),
+                              n);
+
+    case optimization_method::weighted_sum:
+        return std::cmp_equal(obj.weighted_sum_params.types.size(), n) and
+               std::cmp_equal(obj.weighted_sum_params.weights.size(), n);
+    }
+
+    return false;
+}
 
 status simulation_wrapper::initialize(simulation& sim) noexcept
 {
@@ -467,21 +495,24 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
         return make_error(
           simulation_errc::simulation_wrapper_embedded_simulation_search_error);
 
-    if (x.size() <= 2)
+    if (std::cmp_not_equal(x.size(), embed_sims->factors.size() + 2))
         return make_error(simulation_errc::simulation_wrapper_input_error);
 
-    if (y.size() <= 2)
+    if (embed_sims->selections.empty() or
+        std::cmp_not_equal(y.size(), embed_sims->factors.size() +
+                                       embed_sims->selections.size()))
         return make_error(simulation_errc::simulation_wrapper_output_error);
 
-    const auto nb_sims = compute_simulation_number(*embed_sims);
-
-    embed_sims->embedded_sims.clear();
-
-    if (not embed_sims->embedded_sims.can_alloc(nb_sims) and
-        not embed_sims->embedded_sims.grow<2, 1>(nb_sims))
+    if (not is_valid_objective(*embed_sims))
         return make_error(
           simulation_errc::
-            simulation_wrapper_too_many_embedded_simulation_error);
+            simulation_wrapper_embedded_simulation_initialization_error);
+
+    // A factor without value (empty fixed values or random count) leaves no
+    // scenario to simulate.
+    const auto nb_sims = compute_simulation_number(*embed_sims);
+    if (nb_sims == 0)
+        return make_error(simulation_errc::simulation_wrapper_input_error);
 
     irt_check(embedded_sims_alloc(*embed_sims, nb_sims)
                 .and_then(embedded_sims_copy_parameters, *embed_sims)
@@ -499,10 +530,12 @@ status simulation_wrapper::transition(simulation&           sim,
 {
     auto* embed_sims = sim.sims.try_to_get(sim_id);
 
+    if (not embed_sims)
+        return make_error(
+          simulation_errc::simulation_wrapper_embedded_simulation_search_error);
+
     if (state == run_state::finish)
         sigma = time_domain<time>::infinity;
-
-    debug::ensure(x.size() == embed_sims->input_parameters.size() + 2);
 
     const auto init_msg = get_message(sim, x[ordinal(input_init)]);
     const auto run_msg  = get_message(sim, x[ordinal(input_run)]);
@@ -584,7 +617,8 @@ status simulation_wrapper::transition(simulation&           sim,
 real embedded_simulation::embedded_model_observation::compute_result(
   const criteria_type type) const noexcept
 {
-    debug::ensure(std::cmp_greater(values.size(), 0));
+    if (values.empty())
+        return std::numeric_limits<real>::quiet_NaN();
 
     auto ret = real{};
 
@@ -695,14 +729,13 @@ static auto compute_embedded_simulation_results(
     const auto objective_fn_size = embed_sims.selections.size();
     const auto simulation_size   = embed_sims.embedded_sims.size();
     const auto size              = objective_fn_size * simulation_size;
-    auto       objective_fn      = vector<real>(size);
+    auto       objective_fn      = vector<real>();
 
-    // debug::ensure(objective_fn.size() > 1);
-
-    // if (std::cmp_not_equal(objective_fn.size(), size))
-    //     return make_error(
-    //       simulation_errc::
-    //         simulation_wrapper_too_many_embedded_simulation_error);
+    // NaN marks a selection without observation: the comparisons then never
+    // select its sub-simulation.
+    if (not objective_fn.resize(size, std::numeric_limits<real>::quiet_NaN()))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
 
     const pos_in_objective_function pos(objective_fn_size);
 
@@ -953,25 +986,18 @@ static auto filter(const embedded_simulation& embed_sims,
 
     auto ret = vector<embedded_simulation::sub_id>(max_size, reserve_tag);
 
-    auto& sim_obs = embed_sims.embedded_sims
-                      .get<embedded_simulation::simulation_observation>();
-
     for (const auto sub_id : embed_sims.embedded_sims) {
         auto all_obj_valid = true;
 
         for (const auto obj_fn_id : embed_sims.selections) {
-            const auto obj_fn_idx = get_index(obj_fn_id);
-            const auto mdl_id = embed_sims.selections.get<model_id>(obj_fn_id);
+            const auto idx = pos(sub_id, obj_fn_id);
+            const auto val = objective_fn[idx];
 
-            if (sim_obs[sub_id].get(mdl_id)) {
-                const auto idx = pos(sub_id, obj_fn_id);
-                const auto val = objective_fn[idx];
-
-                if (not embed_sims.objective.epsilon_constrained_params.valid(
-                      obj_fn_idx, val)) {
-                    all_obj_valid = false;
-                    break;
-                }
+            if (std::isnan(val) or
+                not embed_sims.objective.epsilon_constrained_params.valid(
+                  get_index(obj_fn_id), val)) {
+                all_obj_valid = false;
+                break;
             }
         }
 
@@ -1108,8 +1134,9 @@ status simulation_wrapper::lambda(simulation& sim) noexcept
 {
     const auto* embed_sims = sim.sims.try_to_get(sim_id);
 
-    debug::ensure(y.size() == embed_sims->input_parameters.size() +
-                                embed_sims->selections.size());
+    if (not embed_sims)
+        return make_error(
+          simulation_errc::simulation_wrapper_embedded_simulation_search_error);
 
     switch (embed_sims->objective.method) {
     case optimization_method::epsilon_constrained:
@@ -1128,6 +1155,10 @@ status simulation_wrapper::lambda(simulation& sim) noexcept
 status simulation_wrapper::finalize(simulation& sim) noexcept
 {
     auto* embed_sims = sim.sims.try_to_get(sim_id);
+
+    // Nothing to finalize after a failed initialization.
+    if (not embed_sims)
+        return success();
 
     auto& sims    = embed_sims->embedded_sims.get<simulation>();
     auto& sim_obs = embed_sims->embedded_sims
