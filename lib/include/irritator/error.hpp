@@ -110,6 +110,7 @@ enum class simulation_errc : std::int16_t {
                                     which loop, a self-transition included. */
     hsm_run_to_completion_error, /**< More than @c
                                     max_run_to_completion_steps events. */
+    hsm_output_overflow_error,   /**< More than 4 messages in a transition. */
 
     queue_ta_error,
 

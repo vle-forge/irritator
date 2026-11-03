@@ -934,6 +934,9 @@ status hierarchical_state_machine::start(execution&       exec,
         irt_check(on_enter_sub_state(exec, srcs));
     }
 
+    if (exec.message_overflow)
+        return make_error(simulation_errc::hsm_output_overflow_error);
+
     return success();
 }
 
@@ -982,6 +985,9 @@ expected<bool> hierarchical_state_machine::dispatch(
         } while ((exec.next_state = states[exec.current_state].sub_id) !=
                  invalid_state_id);
     }
+
+    if (exec.message_overflow)
+        return make_error(simulation_errc::hsm_output_overflow_error);
 
     return is_consumed;
 }
@@ -1275,8 +1281,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         break;
 
     case action_type::output: {
-        // @TODO May returns a buffer full.
-        debug::ensure(0 <= e.messages and e.messages < 4);
+        debug::ensure(0 <= e.messages);
         debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
 
         const u8 port = ordinal(action.var1) - 1u;

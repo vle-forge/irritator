@@ -7851,15 +7851,23 @@ public:
         state_id previous_state       = invalid_state_id;
         bool     disallow_transition  = false;
 
+        /// A transition tried to send more messages than the buffer holds:
+        /// @c start and @c dispatch fail instead of losing them.
+        bool message_overflow = false;
+
         constexpr void push_message(real               value,
                                     std::integral auto port) noexcept
         {
-            debug::ensure(not(messages >= 4 or std::cmp_less(port, 0) or
-                              std::cmp_greater(port, 4)));
+            debug::ensure(
+              not(std::cmp_less(port, 0) or std::cmp_greater(port, 4)));
 
-            if (messages >= 4 or std::cmp_less(port, 0) or
-                std::cmp_greater(port, 4))
+            if (std::cmp_less(port, 0) or std::cmp_greater(port, 4))
                 return;
+
+            if (messages >= std::ssize(message_values)) {
+                message_overflow = true;
+                return;
+            }
 
             message_values[messages] = value;
             message_ports[messages]  = port;
@@ -7877,6 +7885,7 @@ public:
             current_source_state = invalid_state_id;
             previous_state       = invalid_state_id;
             disallow_transition  = false;
+            message_overflow     = false;
 
             messages = 0;
             timers   = infinite_timers();

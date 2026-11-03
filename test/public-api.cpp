@@ -2224,6 +2224,91 @@ int main()
         }
     };
 
+    "hsm_output_overflow"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // A hierarchy of n levels whose enter actions send a message each.
+        const auto make = [](hsm_t& h, const irt::u8 n) {
+            for (irt::u8 i = 0u; i != n; ++i) {
+                const auto super = i == 0u ? hsm_t::invalid_state_id
+                                           : static_cast<irt::u8>(i - 1u);
+                const auto sub   = i + 1u == n ? hsm_t::invalid_state_id
+                                               : static_cast<irt::u8>(i + 1u);
+                expect(!!h.set_state(i, super, sub));
+                h.states[i].enter_action.set_output(var::port_0, 1.f);
+            }
+
+            h.states[n - 1u].condition.set(0b1000u, 0b1000u);
+        };
+
+        {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            make(h, 4u);
+            expect(!!h.start(exec, srcs));
+            expect(eq(exec.messages, 4));
+            expect(not exec.message_overflow);
+        }
+
+        {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            make(h, 5u);
+
+            const auto callback = std::exchange(irt::on_error_callback,
+                                                nullptr);
+            expect(not h.start(exec, srcs));
+            irt::on_error_callback = callback;
+
+            expect(exec.message_overflow);
+        }
+    };
+
+    "hsm_output_overflow_stops_the_simulation"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // root 0 > (A 1 -> B 2 -> C 3 -> D 4): at t = 1, the timer of A
+        // runs the exit of A, B and C and the enter of B, C and D.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        for (const irt::u8 i : { 1u, 2u, 3u, 4u })
+            expect(!!h.set_state(i, 0u));
+
+        h.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        h.states[1u].condition.set_timer();
+        h.states[1u].if_transition = 2u;
+        h.states[1u].exit_action.set_output(var::port_0, 1.f);
+
+        for (const irt::u8 i : { 2u, 3u }) {
+            h.states[i].enter_action.set_output(var::port_0, 1.f);
+            h.states[i].exit_action.set_output(var::port_0, 1.f);
+            h.states[i].if_transition = i + 1u;
+        }
+
+        h.states[4u].enter_action.set_output(var::port_0, 1.f);
+        h.states[4u].condition.set(0b1000u, 0b1000u);
+
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+        expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        expect(not run_until(sim, 10.0));
+        irt::on_error_callback = callback;
+
+        expect(eq(out.event_number, 0));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
