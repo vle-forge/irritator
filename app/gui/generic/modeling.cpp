@@ -609,8 +609,6 @@ static bool remove_nodes(generic_component& gen, editor_data& data) noexcept
         }
     }
 
-    data.editor.clear_selection();
-
     return u > 0;
 }
 
@@ -646,8 +644,6 @@ static bool remove_links(generic_component& gen, editor_data& data) noexcept
             break;
         }
     }
-
-    data.editor.clear_selection();
 
     return u > 0;
 }
@@ -1012,12 +1008,16 @@ static bool show_popup_menuitem(const component_access&        ids,
           ImGui::GetMousePosOnOpeningCurrentPopup());
 
         if (not data.editor.selected_links().empty())
-            if (ImGui::MenuItem("Delete selected links"))
+            if (ImGui::MenuItem("Delete selected links")) {
                 u += remove_links(gen, data);
+                data.editor.clear_selection();
+            }
 
         if (not data.editor.selected_nodes().empty())
-            if (ImGui::MenuItem("Delete selected nodes"))
+            if (ImGui::MenuItem("Delete selected nodes")) {
                 u += remove_nodes(gen, data);
+                data.editor.clear_selection();
+            }
 
         if (ImGui::MenuItem("Grid layout"))
             data.editor.request_grid_layout();
@@ -1236,6 +1236,7 @@ static bool show_component_editor(component_editor&       ed,
     if (ev.delete_selection) {
         u += remove_links(gen, data);
         u += remove_nodes(gen, data);
+        data.editor.clear_selection();
     }
 
     if (ev.nodes_moved)
