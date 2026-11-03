@@ -3151,6 +3151,41 @@ int main()
         expect(eq(r.last_value, 3.0));
     };
 
+    "simulation: a wrapper runs the until run type"_test = [] {
+        // The value of the run message is a date of the sub-simulations: the
+        // results leave the wrapper at once.
+        const auto r = run_wrapper({ .run_type = "until", .run_value = 5.0 });
+
+        expect(fatal(r.initialized));
+        expect(r.ended);
+        expect(not r.failed);
+        expect(eq(r.events, 1));
+        expect(eq(r.last_value, 3.0));
+    };
+
+    "simulation: a wrapper runs the during run type"_test = [] {
+        // The value of the run message is a duration: the results leave the
+        // wrapper after it, once.
+        const auto r = run_wrapper({ .run_type = "during", .run_value = 2.0 });
+
+        expect(fatal(r.initialized));
+        expect(r.ended);
+        expect(not r.failed);
+        expect(eq(r.events, 1));
+        expect(eq(r.last_value, 3.0));
+    };
+
+    "simulation: a wrapper runs the bag and time run types"_test = [] {
+        for (const auto run_type : { "bag"sv, "time"sv }) {
+            const auto r = run_wrapper({ .run_type = run_type });
+
+            expect(fatal(r.initialized)) << run_type;
+            expect(r.ended) << run_type;
+            expect(not r.failed) << run_type;
+            expect(le(r.events, 1)) << run_type;
+        }
+    };
+
     "simulation: the epsilon constrained method without candidate"_test = [] {
         const auto r = run_wrapper(
           { .objective = R"({"method": "epsilon-constrained",

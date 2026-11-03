@@ -39,7 +39,34 @@ static status copy_history(
     });
 }
 
-static status run_complete(embedded_simulation& embed_sims) noexcept
+/// A sub-simulation is over when it reaches its end or when no event remains:
+/// it is then finalized once and never runs again.
+static bool is_over(const simulation& sim) noexcept
+{
+    return sim.current_time_expired() or sim.sched.empty();
+}
+
+/// Without any more event the date is infinite, and simulation::finalize()
+/// needs a date: the date of the last event (see simulation_player).
+static status finish(
+  simulation&                                  sim,
+  embedded_simulation::simulation_observation& sim_obs) noexcept
+{
+    if (time_domain<time>::is_infinity(sim.current_time()))
+        sim.current_time(sim.last_time());
+
+    if (not time_domain<time>::is_infinity(sim.current_time()))
+        irt_check(sim.finalize());
+
+    return copy_history(sim, sim_obs);
+}
+
+/// Runs each sub-simulation while @a keep_running(sim, start, steps) is true,
+/// where @a start is its date before the run and @a steps the number of
+/// bags already run.
+template<typename Predicate>
+static status run_each(embedded_simulation& embed_sims,
+                       Predicate&&          keep_running) noexcept
 {
     auto& sims    = embed_sims.embedded_sims.get<simulation>();
     auto& sim_obs = embed_sims.embedded_sims
@@ -50,139 +77,58 @@ static status run_complete(embedded_simulation& embed_sims) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
-        if (sim.current_time_expired())
+        if (is_over(sim))
             continue;
 
-        do {
+        const auto start = sim.current_time();
+        for (int steps = 0;
+             not is_over(sim) and keep_running(sim, start, steps); ++steps) {
             irt_check(sim.run());
             update_observations(sim);
-        } while (not sim.current_time_expired());
-
-        if (sim.current_time_expired()) {
-            irt_check(sim.finalize());
-            irt_check(copy_history(sim, sim_o));
         }
+
+        irt_check(is_over(sim) ? finish(sim, sim_o) : copy_history(sim, sim_o));
     }
 
     return success();
+}
+
+static status run_complete(embedded_simulation& embed_sims) noexcept
+{
+    return run_each(embed_sims,
+                    [](const simulation&, time, int) noexcept { return true; });
 }
 
 static status run_bag(embedded_simulation& embed_sims) noexcept
 {
-    auto& sims    = embed_sims.embedded_sims.get<simulation>();
-    auto& sim_obs = embed_sims.embedded_sims
-                      .get<embedded_simulation::simulation_observation>();
-
-    for (const auto id : embed_sims.embedded_sims) {
-        const auto idx   = get_index(id);
-        auto&      sim   = sims[idx];
-        auto&      sim_o = sim_obs[idx];
-
-        if (sim.current_time_expired())
-            continue;
-
-        irt_check(sim.run());
-        update_observations(sim);
-
-        if (sim.current_time_expired()) {
-            irt_check(sim.finalize());
-        }
-
-        irt_check(copy_history(sim, sim_o));
-    }
-
-    return success();
+    return run_each(embed_sims, [](const simulation&, time,
+                                   int steps) noexcept { return steps == 0; });
 }
 
 static status run_time(embedded_simulation& embed_sims) noexcept
 {
-    auto& sims    = embed_sims.embedded_sims.get<simulation>();
-    auto& sim_obs = embed_sims.embedded_sims
-                      .get<embedded_simulation::simulation_observation>();
-
-    for (const auto id : embed_sims.embedded_sims) {
-        const auto idx   = get_index(id);
-        auto&      sim   = sims[idx];
-        auto&      sim_o = sim_obs[idx];
-        const auto t     = sim.current_time();
-
-        if (sim.current_time_expired())
-            continue;
-
-        while (not sim.current_time_expired() and sim.current_time() == t) {
-            irt_check(sim.run());
-            update_observations(sim);
-        }
-
-        if (sim.current_time_expired()) {
-            irt_check(sim.finalize());
-        }
-
-        irt_check(copy_history(sim, sim_o));
-    }
-
-    return success();
+    return run_each(embed_sims,
+                    [](const simulation& sim, time start, int) noexcept {
+                        return sim.current_time() == start;
+                    });
 }
 
 static status run_until(embedded_simulation& embed_sims,
                         const time           until) noexcept
 {
-    auto& sims    = embed_sims.embedded_sims.get<simulation>();
-    auto& sim_obs = embed_sims.embedded_sims
-                      .get<embedded_simulation::simulation_observation>();
-
-    for (const auto id : embed_sims.embedded_sims) {
-        const auto idx   = get_index(id);
-        auto&      sim   = sims[idx];
-        auto&      sim_o = sim_obs[idx];
-
-        if (sim.current_time_expired())
-            continue;
-
-        while (not sim.current_time_expired() and sim.current_time() < until) {
-            irt_check(sim.run());
-            update_observations(sim);
-        }
-
-        if (sim.current_time_expired()) {
-            irt_check(sim.finalize());
-        }
-
-        irt_check(copy_history(sim, sim_o));
-    }
-
-    return success();
+    return run_each(embed_sims,
+                    [until](const simulation& sim, time, int) noexcept {
+                        return sim.current_time() < until;
+                    });
 }
 
 static status run_during(embedded_simulation& embed_sims,
                          const time           during) noexcept
 {
-    auto& sims    = embed_sims.embedded_sims.get<simulation>();
-    auto& sim_obs = embed_sims.embedded_sims
-                      .get<embedded_simulation::simulation_observation>();
-
-    for (const auto id : embed_sims.embedded_sims) {
-        const auto idx   = get_index(id);
-        auto&      sim   = sims[idx];
-        auto&      sim_o = sim_obs[idx];
-        const auto limit = sim.current_time() + during;
-
-        if (sim.current_time_expired())
-            continue;
-
-        while (not sim.current_time_expired() and sim.current_time() < limit) {
-            irt_check(sim.run());
-            update_observations(sim);
-        }
-
-        if (sim.current_time_expired()) {
-            irt_check(sim.finalize());
-        }
-
-        irt_check(copy_history(sim, sim_o));
-    }
-
-    return success();
+    return run_each(embed_sims,
+                    [during](const simulation& sim, time start, int) noexcept {
+                        return sim.current_time() < start + during;
+                    });
 }
 
 static status embedded_sims_alloc(embedded_simulation& embed_sims,
@@ -526,7 +472,7 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
 status simulation_wrapper::transition(simulation&           sim,
                                       [[maybe_unused]] time t,
                                       [[maybe_unused]] time e,
-                                      [[maybe_unused]] time r) noexcept
+                                      time                  r) noexcept
 {
     auto* embed_sims = sim.sims.try_to_get(sim_id);
 
@@ -534,8 +480,9 @@ status simulation_wrapper::transition(simulation&           sim,
         return make_error(
           simulation_errc::simulation_wrapper_embedded_simulation_search_error);
 
-    if (state == run_state::finish)
-        sigma = time_domain<time>::infinity;
+    // The results were just sent (r == 0): wait for the next run message.
+    // Otherwise the pending results keep their date.
+    sigma = r == zero ? time_domain<time>::infinity : r;
 
     const auto init_msg = get_message(sim, x[ordinal(input_init)]);
     const auto run_msg  = get_message(sim, x[ordinal(input_run)]);
@@ -545,7 +492,6 @@ status simulation_wrapper::transition(simulation&           sim,
 
         if (not i_param_msg.empty()) {
             embed_sims->input_parameters[i].value = i_param_msg.back()[0];
-            sigma                                 = r;
             state                                 = run_state::input_changed;
         }
     }
@@ -561,42 +507,50 @@ status simulation_wrapper::transition(simulation&           sim,
         sigma = time_domain<time>::infinity;
     }
 
-    if (not run_msg.empty()) {
-        const auto time_param = get_min_message(run_msg);
-        sigma = time_domain<time>::is_infinity(time_param) ? zero : time_param;
+    if (run_msg.empty())
+        return success();
 
-        switch (run) {
-        case run_type::complete:
-            if (state == run_state::input_changed) {
-                const auto ret = embedded_sims_copy_parameters(*embed_sims)
-                                   .and_then(embedded_sims_init, *embed_sims);
+    // The factors are copied into the sub-simulations at their
+    // initialization: a new factor value restarts them.
+    if (state == run_state::input_changed) {
+        const auto ret = embedded_sims_copy_parameters(*embed_sims)
+                           .and_then(embedded_sims_init, *embed_sims);
 
-                if (ret.has_error())
-                    return ret.error();
+        if (ret.has_error())
+            return ret.error();
 
-                state = run_state::initialized;
-            }
+        state = run_state::initialized;
+    }
 
-            if (state == run_state::initialized) {
-                state   = run_state::running;
-                auto st = run_complete(*embed_sims);
-                state   = run_state::finish;
-                return st;
-            }
-            break;
+    const auto time_param = get_min_message(run_msg);
 
-        case run_type::bag:
-            return run_bag(*embed_sims);
+    // The value of the message delays the results except for the until run
+    // type where it is a date of the sub-simulations.
+    sigma = time_domain<time>::is_infinity(time_param) or run == run_type::until
+              ? zero
+              : time_param;
 
-        case run_type::time:
-            return run_time(*embed_sims);
-
-        case run_type::until:
-            return run_until(*embed_sims, time_param);
-
-        case run_type::during:
-            return run_during(*embed_sims, time_param);
+    switch (run) {
+    case run_type::complete:
+        if (state == run_state::initialized) {
+            state   = run_state::running;
+            auto st = run_complete(*embed_sims);
+            state   = run_state::finish;
+            return st;
         }
+        return success();
+
+    case run_type::bag:
+        return run_bag(*embed_sims);
+
+    case run_type::time:
+        return run_time(*embed_sims);
+
+    case run_type::until:
+        return run_until(*embed_sims, time_param);
+
+    case run_type::during:
+        return run_during(*embed_sims, time_param);
     }
 
     return success();
@@ -1169,13 +1123,11 @@ status simulation_wrapper::finalize(simulation& sim) noexcept
         auto&      sim   = sims[idx];
         auto&      sim_o = sim_obs[idx];
 
-        if (sim.finalize().has_error())
-            return make_error(
-              simulation_errc::
-                simulation_wrapper_embedded_simulation_finalization_error);
+        // An over sub-simulation is already finalized by its last run.
+        if (is_over(sim))
+            continue;
 
-        update_observations(sim);
-        if (copy_history(sim, sim_o).has_error())
+        if (finish(sim, sim_o).has_error())
             return make_error(
               simulation_errc::
                 simulation_wrapper_embedded_simulation_finalization_error);
