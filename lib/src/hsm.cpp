@@ -997,30 +997,43 @@ status hierarchical_state_machine::run_to_completion(
   bool             input_received,
   external_source& srcs) noexcept
 {
+    const auto can_recheck = [this](const state_id id) noexcept {
+        return have_completion(states[id]) and not states[id].is_terminal();
+    };
+
     // The completion event of a state is generated once, when the state is
-    // entered: a terminal state at the beginning already sent its own.
-    auto completion = have_completion(states[exec.current_state]) and
-                      not states[exec.current_state].is_terminal();
+    // entered: a terminal state at the beginning already sent its own. The
+    // condition of a state already entered is checked again last, because the
+    // timers and the message can change the variables it reads.
+    auto entered = false;
+    auto recheck = can_recheck(exec.current_state);
 
     for (;;) {
         const auto before   = exec.current_state;
         exec.previous_state = before;
 
-        if (exec.next_timer() <= 0.0) {
+        if (entered) {
+            entered = false;
+            irt_check(dispatch(event_type::internal, exec, srcs));
+        } else if (exec.next_timer() <= 0.0) {
             irt_check(dispatch(event_type::wake_up, exec, srcs));
+            recheck = can_recheck(exec.current_state);
         } else if (input_received) {
             input_received = false;
             if (exec.values.any())
                 irt_check(dispatch(event_type::input_changed, exec, srcs));
-        } else if (completion) {
-            completion = false;
+            recheck = can_recheck(exec.current_state);
+        } else if (recheck) {
+            recheck = false;
             irt_check(dispatch(event_type::internal, exec, srcs));
         } else {
             break;
         }
 
-        if (exec.current_state != before)
-            completion = have_completion(states[exec.current_state]);
+        if (exec.current_state != before) {
+            entered = have_completion(states[exec.current_state]);
+            recheck = false;
+        }
     }
 
     return success();

@@ -7931,9 +7931,12 @@ public:
     /// an event.
     bool is_dispatching(execution& state) const noexcept;
 
-    /** Runs the machine to completion after a DEVS transition: the expired
-     * timers first, then the @c input_changed event if @c input_received,
-     * then the completion events of the newly entered states.
+    /** Runs the machine to completion after a DEVS transition. The completion
+     * event of a newly entered state goes first, so the machine is stable when
+     * it handles the next expired timer, then the @c input_changed event if
+     * @c input_received. The condition of the current state is checked again
+     * last, since the timers and the message can change the variables it
+     * reads.
      */
     status run_to_completion(execution&       exec,
                              bool             input_received,
