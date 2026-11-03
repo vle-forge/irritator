@@ -520,10 +520,13 @@ void application::try_set_component_as_project(const file_access& /*files*/,
                         if (const auto ret = pj->set(ids, fs, id);
                             ret.has_error()) {
                             log(log_level::error, [&](auto& m) {
-                                format(m, "project: error during import ({}))",
+                                format(m, "project: error during import ({})",
                                        ret.error());
                             });
 
+                            // Otherwise the request stays pending and no other
+                            // project can be opened.
+                            new_project_req.fail();
                             return;
                         }
 
@@ -571,6 +574,7 @@ void application::try_open_project_window(const file_access& /*files*/,
                                        ret.error());
                             });
 
+                            new_project_req.fail();
                             return;
                         }
 
