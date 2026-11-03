@@ -25,6 +25,7 @@ set(public_irritator_header
 set(private_irritator_sources
     src/binary.cpp
     src/dot-parser.cpp
+    src/embedded-simulation.cpp
     src/error.cpp
     src/external_source.cpp
     src/filesystem.cpp
@@ -46,7 +47,6 @@ set(private_irritator_sources
     src/parameter.cpp
     src/project.cpp
     src/project-simulation.cpp
-    src/simulation.cpp
     src/simulation-player.cpp
     src/thread.cpp
     src/variable-observer.cpp)
