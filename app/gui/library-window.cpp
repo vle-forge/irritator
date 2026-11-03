@@ -100,23 +100,10 @@ static void show_component_popup_menu(application&            app,
                         if (is_undefined(filep.file))
                             return;
 
+                        // Also forgets the file, otherwise the library keeps
+                        // an entry to a file that no longer exists.
                         app.mod.files.write([&](auto& fs) noexcept {
-                            const auto file = make_file(fs, filep);
-                            if (file.has_value()) {
-                                auto ec       = std::error_code{};
-                                auto std_path = file->to_std_path();
-
-                                if (std::filesystem::exists(std_path, ec)) {
-                                    std::filesystem::remove(std_path, ec);
-                                    log(log_level::notice,
-                                        [&](auto& msg) noexcept {
-                                            format(msg,
-                                                   "library: File `{}' removed "
-                                                   "from component list",
-                                                   file->sv());
-                                        });
-                                }
-                            }
+                            fs.remove_file(filep.file);
                         });
 
                         ids.free(compo_id);
@@ -169,11 +156,9 @@ void library_window::show_file_project(const file_access&      fs,
                     }
                 }
 
-                app.add_gui_task([&app, &file_id]() noexcept {
-                    app.mod.files.write([&](auto& fs) noexcept {
-                        if (const auto file = fs.file_paths.try_to_get(file_id))
-                            fs.remove_file(file_id);
-                    });
+                app.add_gui_task([&app, file_id]() noexcept {
+                    app.mod.files.write(
+                      [&](auto& fs) noexcept { fs.remove_file(file_id); });
                 });
             }
         }
@@ -359,7 +344,7 @@ void library_window::show_dirpath_content(
         for (const auto file_id : dir.children) {
             const auto* file = fs.file_paths.try_to_get(file_id);
             if (file == nullptr)
-                return;
+                continue;
 
             ImGui::PushID(file);
 
@@ -459,8 +444,8 @@ static auto is_component_used_in_projects(
     for (const auto& pj : app.pjs) {
         stack.clear();
         auto* head = pj.pj.tree_nodes.try_to_get(pj.pj.tn_head());
-        if (head->id == id)
-            return true;
+        if (head == nullptr)
+            continue;
 
         stack.push_back(head);
         while (not stack.empty()) {
@@ -659,8 +644,16 @@ void library_window::add_open_file(const file_path_id file_id,
 auto library_window::get_open_file(const file_path_id file_id) noexcept
   -> std::optional<file_target>
 {
-    if (auto* ret = open_file_list.get(file_id))
-        return *ret;
+    auto& app = container_of(this, &application::library_wnd);
+
+    if (auto* ret = open_file_list.get(file_id)) {
+        // The project windows are closed without notifying the library.
+        const auto* pj = app.pjs.try_to_get(ret->pj_id);
+        if (pj and pj->pj.project_file == file_id)
+            return *ret;
+
+        open_file_list.erase(file_id);
+    }
 
     return std::nullopt;
 }
