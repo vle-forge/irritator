@@ -2089,6 +2089,141 @@ int main()
         expect(eq((int)b.hsmw.exec.current_state, 3));
     };
 
+    "hsm_completion_cycle_check"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        const auto cycle = irt::simulation_errc::hsm_completion_cycle_error;
+        const auto none  = irt::simulation_errc::none;
+
+        // root 0 > (A 1, B 2): the completion transitions without guard
+        // A -> B -> A never stop.
+        {
+            hsm_t h;
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            h.states[1u].if_transition = 2u;
+            h.states[2u].if_transition = 1u;
+            expect(h.find_error() == cycle);
+
+            // A chain is valid.
+            h.states[2u].if_transition = hsm_t::invalid_state_id;
+            expect(h.find_error() == none);
+
+            // A self-transition re-enters A for ever.
+            h.states[2u].if_transition = 2u;
+            expect(h.find_error() == cycle);
+        }
+
+        // root 0 > (S 1 > A 2, B 3): A has no transition, its completion
+        // goes to S, which leaves to B, and B goes back to S, so to A.
+        {
+            hsm_t h;
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u, 2u));
+            expect(!!h.set_state(2u, 1u));
+            expect(!!h.set_state(3u, 0u));
+            h.states[1u].if_transition = 3u;
+            h.states[3u].if_transition = 1u;
+            expect(h.find_error() == cycle);
+
+            // A port condition of A does not stop its completion: it is
+            // ignored, and A then has no completion event at all.
+            h.states[2u].condition.set(0b1000u, 0b1000u);
+            expect(h.find_error() == none);
+        }
+
+        // A guard or a timer makes the transition uncertain.
+        {
+            hsm_t h;
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            h.states[1u].condition.set_equal_to(var::var_i1, 0);
+            h.states[1u].if_transition = 2u;
+            h.states[2u].if_transition = 1u;
+            expect(h.find_error() == none);
+
+            h.states[1u].condition.set_timer();
+            expect(h.find_error() == none);
+        }
+    };
+
+    "hsm_run_to_completion_is_bounded"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+
+        // root 0 > (A 1, B 2): the guards of A and B are always true.
+        {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            h.states[1u].condition.set_equal_to(var::var_i1, 0);
+            h.states[1u].if_transition = 2u;
+            h.states[2u].condition.set_equal_to(var::var_i1, 0);
+            h.states[2u].if_transition = 1u;
+
+            expect(h.find_error() == irt::simulation_errc::none);
+            expect(!!h.start(exec, srcs));
+            expect(not h.run_to_completion(exec, false, srcs));
+        }
+
+        // root 0 > (A 1, B 2): two timers of null duration.
+        {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            for (const irt::u8 i : { 1u, 2u }) {
+                h.states[i].enter_action.set_affect(var::var_timer, 0.f);
+                h.states[i].condition.set_timer();
+            }
+            h.states[1u].if_transition = 2u;
+            h.states[2u].if_transition = 1u;
+
+            expect(h.find_error() == irt::simulation_errc::none);
+            expect(!!h.start(exec, srcs));
+            expect(not h.run_to_completion(exec, false, srcs));
+        }
+
+        irt::on_error_callback = callback;
+
+        // root 0 > (A 1, B 2, C 3): A goes to B while i1 <= 9 and B
+        // increments i1, then A leaves to C.
+        {
+            hsm_t                h;
+            hsm_t::execution     exec;
+            irt::external_source srcs;
+
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            expect(!!h.set_state(3u, 0u));
+            h.states[1u].condition.set_less_equal(var::var_i1, 9);
+            h.states[1u].if_transition   = 2u;
+            h.states[1u].else_transition = 3u;
+            h.states[2u].enter_action.set_plus(var::var_i1, 1);
+            h.states[2u].if_transition = 1u;
+            h.states[3u].condition.set(0b1000u, 0b1000u);
+
+            expect(h.find_error() == irt::simulation_errc::none);
+            expect(!!h.start(exec, srcs));
+            expect(!!h.run_to_completion(exec, false, srcs));
+            expect(eq((int)exec.current_state, 3));
+            expect(eq(exec.i1, 10));
+        }
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;

@@ -7484,6 +7484,11 @@ public:
     /// The maximum number of levels of the hierarchy, the top state included.
     static constexpr const u8 max_depth = 8;
 
+    /// Bounds the events of one @c run_to_completion: a cycle of guarded
+    /// completion transitions or of null timers is not found by
+    /// @c find_error.
+    static constexpr const int max_run_to_completion_steps = 65536;
+
     struct top_state_error {};
     struct next_state_error {};
     struct empty_value_error {};
@@ -7990,7 +7995,8 @@ public:
 
     /** Checks the hierarchy before a simulation: a top state, no cycle, at
      * most @c max_depth levels, an initial sub state for each composite
-     * state, and no transition from or to the top state.
+     * state, no transition from or to the top state, and no cycle of
+     * completion transitions without guard (a self-transition included).
      *
      * @return The first error or @c simulation_errc::none. Unlike
      * @c check(), it does not call the error callback: an editor can call

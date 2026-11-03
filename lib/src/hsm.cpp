@@ -1008,6 +1008,10 @@ status hierarchical_state_machine::run_to_completion(
     auto entered = false;
     auto recheck = can_recheck(exec.current_state);
 
+    // The cycles with a guard or with null timers are not found by
+    // find_error: the number of events stops them.
+    auto steps = 0;
+
     for (;;) {
         const auto before   = exec.current_state;
         exec.previous_state = before;
@@ -1029,6 +1033,9 @@ status hierarchical_state_machine::run_to_completion(
         } else {
             break;
         }
+
+        if (++steps > max_run_to_completion_steps)
+            return make_error(simulation_errc::hsm_run_to_completion_error);
 
         if (exec.current_state != before) {
             entered = have_completion(states[exec.current_state]);
@@ -1640,6 +1647,72 @@ int hierarchical_state_machine::depth_of(state_id id) const noexcept
     return depth;
 }
 
+static simulation_errc find_completion_cycle(const hsm_t& hsm) noexcept
+{
+    using state_id = hsm_t::state_id;
+
+    constexpr auto max_number_of_state = hsm_t::max_number_of_state;
+    constexpr auto invalid_state_id    = hsm_t::invalid_state_id;
+
+    const auto& states = hsm.states;
+
+    // A leaf with a completion event has at most one certain completion
+    // transition, the first one without guard from the leaf to the top: these
+    // transitions form a functional graph, whose cycles are found in linear
+    // time (find_error runs at each frame of the editor).
+    std::array<state_id, max_number_of_state> next;
+    next.fill(invalid_state_id);
+
+    for (int i = 0; i != max_number_of_state; ++i) {
+        const auto id = static_cast<state_id>(i);
+
+        if ((id != hsm.top_state and states[i].super_id == invalid_state_id) or
+            states[i].sub_id != invalid_state_id or
+            not have_completion(states[i]))
+            continue;
+
+        for (auto s = id; s != invalid_state_id; s = states[s].super_id) {
+            const auto& st = states[s];
+
+            if (not have_completion(st))
+                continue;
+
+            if (st.condition.type != hsm_t::condition_type::none)
+                break;
+
+            if (st.if_transition == invalid_state_id)
+                continue;
+
+            auto target = st.if_transition;
+            while (states[target].sub_id != invalid_state_id)
+                target = states[target].sub_id;
+
+            if (have_completion(states[target]))
+                next[i] = target;
+
+            break;
+        }
+    }
+
+    std::array<state_id, max_number_of_state> visited_from;
+    visited_from.fill(invalid_state_id);
+
+    for (int i = 0; i != max_number_of_state; ++i) {
+        const auto start = static_cast<state_id>(i);
+        auto       s     = start;
+
+        while (s != invalid_state_id and visited_from[s] == invalid_state_id) {
+            visited_from[s] = start;
+            s               = next[s];
+        }
+
+        if (s != invalid_state_id and visited_from[s] == start)
+            return simulation_errc::hsm_completion_cycle_error;
+    }
+
+    return simulation_errc::none;
+}
+
 simulation_errc hierarchical_state_machine::find_error() const noexcept
 {
     const auto is_valid = [](const state_id id) noexcept {
@@ -1682,7 +1755,7 @@ simulation_errc hierarchical_state_machine::find_error() const noexcept
                 return simulation_errc::hsm_transition_error;
     }
 
-    return simulation_errc::none;
+    return find_completion_cycle(*this);
 }
 
 } // namespace irt

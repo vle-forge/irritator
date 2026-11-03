@@ -1369,6 +1369,8 @@ static const char* hierarchy_error_message(const simulation_errc ec) noexcept
         return "a composite state without initial state";
     case simulation_errc::hsm_transition_error:
         return "a transition from or to the top state";
+    case simulation_errc::hsm_completion_cycle_error:
+        return "a cycle of completion transitions without condition";
     default:
         return "unknown error";
     }

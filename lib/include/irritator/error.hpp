@@ -106,6 +106,10 @@ enum class simulation_errc : std::int16_t {
     hsm_hierarchy_error,     /**< A cycle or more than @c max_depth levels. */
     hsm_initial_state_error, /**< A composite state without initial state. */
     hsm_transition_error,    /**< A transition from or to the top state. */
+    hsm_completion_cycle_error,  /**< Completion transitions without guard
+                                    which loop, a self-transition included. */
+    hsm_run_to_completion_error, /**< More than @c
+                                    max_run_to_completion_steps events. */
 
     queue_ta_error,
 
