@@ -52,11 +52,8 @@ static bool display_factor_single(single_factor& factor,
 
     ImGui::BeginDisabled(not can_edit);
 
-    const auto copy = factor.value;
-    if (ImGui::InputReal("##single", &factor.value)) {
-        debug::ensure(copy != factor.value);
+    if (ImGui::InputReal("##single", &factor.value))
         ++u;
-    }
 
     ImGui::EndDisabled();
 
@@ -82,8 +79,8 @@ static bool display_factor_fixed(fixed_factor& factor,
     if (ImGui::BeginPopup("Edit values")) {
         auto size = static_cast<int>(factor.values.size());
 
-        if (ImGui::InputInt("length", &size) &&
-            size != static_cast<int>(factor.values.size()) &&
+        if (ImGui::InputInt("length", &size) and size >= 0 and
+            size != static_cast<int>(factor.values.size()) and
             size < external_source_chunk_size) {
             factor.values.resize(size, 0.0);
             ++u;
@@ -161,10 +158,31 @@ bool simulation_component_editor_data::display_objective(
         ImGui::EndCombo();
     }
 
+    if (m_sim.objective.method == optimization_method::weighted_sum) {
+        auto&      norm         = m_sim.objective.weighted_sum_params.norm;
+        const auto preview_norm = name_str(norm_type_names[ordinal(norm)]);
+
+        if (ImGui::BeginCombo("normalization", preview_norm.c_str())) {
+            for (auto i = 0, e = length(norm_type_names); i != e; ++i) {
+                const auto label    = name_str(norm_type_names[i]);
+                const auto selected = i == ordinal(norm);
+
+                if (ImGui::Selectable(label.c_str(), selected) and
+                    not selected) {
+                    norm = enum_cast<norm_type>(i);
+                    ++u;
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+
     const auto preview_type = name_str(
       optimization_type_names[ordinal(m_sim.objective.type)]);
 
-    if (ImGui::BeginCombo("type", preview_type.c_str())) {
+    // The weighted sum takes the direction of each selection instead.
+    if (m_sim.objective.method != optimization_method::weighted_sum and
+        ImGui::BeginCombo("type", preview_type.c_str())) {
         for (auto i = 0, e = length(optimization_type_names); i != e; ++i) {
             const auto label    = name_str(optimization_type_names[i]);
             const auto selected = i == ordinal(m_sim.objective.type);
@@ -214,11 +232,9 @@ bool simulation_component_editor_data::display_parameter_table(
             const auto  idx           = get_index(id);
             const auto* mdl           = pj.sim.models.try_to_get(models[idx]);
             const auto  is_accessible = mdl != nullptr;
-            const auto  can_edit = is_accessible and
-                                   any_equal(mdl->type, dynamics_type::constant,
-                                             dynamics_type::qss1_integrator,
-                                             dynamics_type::qss2_integrator,
-                                             dynamics_type::qss3_integrator);
+            const auto  can_edit      = is_accessible and
+                                  simulation_component::can_be_factor(
+                                    mdl->type);
 
             ImGui::PushID(idx);
 
@@ -372,7 +388,10 @@ bool simulation_component_editor_data::display_observation_table(
                          ++i) {
                         const auto label    = name_str(operation_type_names[i]);
                         const auto selected = i ==
-                                              ordinal(m_sim.objective.type);
+                                              ordinal(
+                                                m_sim.objective
+                                                  .epsilon_constrained_params
+                                                  .operations[idx]);
                         if (ImGui::Selectable(label.c_str(), selected)) {
                             if (not selected) {
                                 ++u;
@@ -533,7 +552,9 @@ bool simulation_component_editor_data::display_observation_table(
                          i != e; ++i) {
                         const auto label = name_str(optimization_type_names[i]);
                         const auto selected = i ==
-                                              ordinal(m_sim.objective.type);
+                                              ordinal(m_sim.objective
+                                                        .weighted_sum_params
+                                                        .types[idx]);
                         if (ImGui::Selectable(label.c_str(), selected)) {
                             if (not selected) {
                                 ++u;
@@ -623,8 +644,8 @@ bool simulation_component_editor_data::show(component_editor& ed,
         }
     }
 
-    ImGui::TextDisabled("Only QSS integrator and constant models can "
-                        "be used into experimental frames for factors.");
+    ImGui::TextDisabled("Only the constant, queue, generator and QSS "
+                        "integrator models can be used as factors.");
 
     if (ImGui::TreeNodeEx(compo.name.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
         u += display_objective(m_sim.pj);
