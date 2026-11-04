@@ -12511,22 +12511,11 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 
         irt_check((*machine)->start(exec, sim.srcs));
 
-        // The completion event of the initial state runs at the first
-        // transition, after the output of the messages of the enter actions.
-        const auto& leaf            = (*machine)->states[exec.current_state];
-        const auto  have_completion = leaf.condition.type !=
-                                       hierarchical_state_machine::
-                                         condition_type::port and
-                                     leaf.condition.type !=
-                                       hierarchical_state_machine::
-                                         condition_type::sigma and
-                                     not leaf.is_terminal();
+        // The initial state is the state after its completion: the messages
+        // of the enter actions and of the completion leave in the first bag.
+        irt_check((*machine)->run_to_completion(exec, false, sim.srcs));
 
-        // An enter action can write a negative value in the timer: the model
-        // cannot wake up in the past.
-        sigma = exec.messages > 0 or have_completion
-                  ? time_domain<time>::zero
-                  : std::max(exec.next_timer(), time_domain<time>::zero);
+        sigma = exec.messages > 0 ? time_domain<time>::zero : exec.next_timer();
 
         return success();
     } else {
@@ -12550,13 +12539,10 @@ inline status hsm_wrapper::transition(simulation& sim,
 
         // The output of the messages is not an event: a transition which only
         // flushes them must not evaluate the completion condition again. Only
-        // the first transition (completion of the initial state) or an expired
-        // timer runs the machine before the bag. The bag is written after this
-        // run, as the confluent transition of Parallel DEVS: a wake up does not
-        // read the new bag.
-        const auto first_run = exec.previous_state == hsm::invalid_state_id;
-
-        if (first_run or exec.next_timer() <= 0.0)
+        // an expired timer runs the machine before the bag. The bag is written
+        // after this run, as the confluent transition of Parallel DEVS: a wake
+        // up does not read the new bag.
+        if (exec.next_timer() <= 0.0)
             irt_check((*machine)->run_to_completion(exec, false, sim.srcs));
 
         auto input_received = false;
