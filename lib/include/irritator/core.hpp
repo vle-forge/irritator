@@ -8061,6 +8061,9 @@ public:
 auto get_hierarchical_state_machine(simulation& sim, hsm_id id) noexcept
   -> expected<hierarchical_state_machine*>;
 
+/// Runs a @c hierarchical_state_machine as a DEVS atomic model. When several
+/// messages arrive on the same input port at the same date, the port reads
+/// their maximum value, as the QSS models do.
 struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
     using state_id = hsm::state_id;
@@ -12468,8 +12471,10 @@ inline status hsm_wrapper::transition(simulation& sim,
                 input_received = true;
                 exec.values.set(e - 1 - i, true);
 
-                for (auto& elem : lst)
-                    exec.ports[e - 1 - i] = elem[0];
+                // The order of the messages in the bag is not defined by the
+                // model: the maximum, commutative and idempotent, does not
+                // depend on it.
+                exec.ports[e - 1 - i] = get_qss_message<1>(lst)[0];
             }
         }
 

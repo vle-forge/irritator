@@ -2309,6 +2309,42 @@ int main()
         expect(eq(out.event_number, 0));
     };
 
+    "hsm_port_reads_the_maximum_of_the_bag"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // root 0 > (A 1, B 2): A goes to B if port_0 > 2. Two constants send
+        // 1 and 3 on x[0] at t = 1, in both orders of the bag.
+        for (const auto three_first : { true, false }) {
+            irt::simulation sim{ irt::simulation_reserve_definition(),
+                                 irt::external_source_reserve_definition() };
+            auto&           h    = sim.hsms.alloc();
+            auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+            auto&           out  = sim.alloc<irt::counter>();
+            auto&           c1   = sim.alloc<irt::constant>();
+            auto&           c2   = sim.alloc<irt::constant>();
+
+            expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+            expect(!!h.set_state(1u, 0u));
+            expect(!!h.set_state(2u, 0u));
+            h.states[1u].condition.set_greater(var::port_0, 2.f);
+            h.states[1u].if_transition = 2u;
+            h.states[2u].enter_action.set_output(var::port_0, 1.f);
+            h.states[2u].condition.set(0b1000u, 0b1000u);
+
+            get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+            get_p(sim, c1).set_constant(three_first ? 3.0 : 1.0, 1.0);
+            get_p(sim, c2).set_constant(three_first ? 1.0 : 3.0, 1.0);
+            expect(!!sim.connect_dynamics(c1, 0, hsmw, 0));
+            expect(!!sim.connect_dynamics(c2, 0, hsmw, 0));
+            expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+            expect(run_until(sim, 10.0) >> fatal);
+            expect(eq((int)hsmw.exec.current_state, 2)) << three_first;
+            expect(eq(out.event_number, 1)) << three_first;
+        }
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
