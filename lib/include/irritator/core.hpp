@@ -1850,9 +1850,6 @@ struct input_port {
 };
 
 struct output_port {
-    message msg; /**< A single message.Multiple call to @c send_message override
-                    previous message. */
-
     small_vector<node, 4> connections; /**< A list of connected nodes. */
 
     block_node_id next = undefined<block_node_id>(); /**< The next block
@@ -2057,6 +2054,7 @@ class simulation
 public:
     vector<model_id>       immediate_models;
     vector<output_port_id> active_output_ports;
+    vector<message>        active_output_messages;
     vector<message>        message_buffer;
     vector<parameter>      parameters;
     vector<observer_id>    immediate_observers;
@@ -10844,16 +10842,18 @@ inline status send_message(simulation&    sim,
                            real           r2,
                            real           r3) noexcept
 {
-    if (auto* y = sim.output_ports.try_to_get(output_port)) {
-        y->msg[0] = r1;
-        y->msg[1] = r2;
-        y->msg[2] = r3;
-
-        if (not sim.active_output_ports.can_alloc(1) and
-            not sim.active_output_ports.grow<3, 2>())
+    if (sim.output_ports.try_to_get(output_port)) {
+        if ((not sim.active_output_ports.can_alloc(1) and
+             not sim.active_output_ports.grow<3, 2>()) or
+            (not sim.active_output_messages.can_alloc(1) and
+             not sim.active_output_messages.grow<3, 2>()))
             return make_error(simulation_errc::emitting_output_ports_full);
 
+        // Two parallel arrays: an output port can send several messages in the
+        // same step (a Parallel DEVS bag) and the counting pass of
+        // simulation::run reads only the dense array of the ports.
         sim.active_output_ports.push_back(output_port);
+        sim.active_output_messages.push_back(message{ r1, r2, r3 });
     }
 
     return success();
@@ -11523,6 +11523,7 @@ inline simulation::simulation(
   const external_source_reserve_definition& p_srcs) noexcept
   : immediate_models(res.models.value())
   , active_output_ports(res.models.value())
+  , active_output_messages(res.models.value())
   , message_buffer(res.connections.value())
   , parameters(res.models.value())
   , immediate_observers(res.models.value())
@@ -11539,6 +11540,7 @@ inline simulation::simulation(
 inline simulation::simulation(const simulation& other) noexcept
   : immediate_models(other.immediate_models)
   , active_output_ports(other.active_output_ports)
+  , active_output_messages(other.active_output_messages)
   , message_buffer(other.message_buffer)
   , parameters(other.parameters)
   , immediate_observers(other.immediate_observers)
@@ -11562,6 +11564,7 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
 
     immediate_models    = other.immediate_models;
     active_output_ports = other.active_output_ports;
+    active_output_messages = other.active_output_messages;
     message_buffer      = other.message_buffer;
     parameters          = other.parameters;
     immediate_observers = other.immediate_observers;
@@ -11630,6 +11633,7 @@ inline void simulation::destroy() noexcept
 {
     immediate_models.destroy();
     active_output_ports.destroy();
+    active_output_messages.destroy();
     message_buffer.destroy();
     parameters.destroy();
     immediate_observers.destroy();
@@ -11664,6 +11668,7 @@ inline void simulation::clean() noexcept
 
     immediate_models.clear();
     active_output_ports.clear();
+    active_output_messages.clear();
     message_buffer.clear();
     immediate_observers.clear();
 
@@ -12339,6 +12344,7 @@ inline status simulation::run() noexcept
     sched.pop(immediate_models);
 
     active_output_ports.clear();
+    active_output_messages.clear();
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
@@ -12372,15 +12378,15 @@ inline status simulation::run() noexcept
         }
     }
 
-    // Finally, we copy the @c output_port::msg messages on the @c
+    // Finally, we copy the @c active_output_messages on the @c
     // message_buffer vector according to the @c input_port::capacity,
     // index and position.
 
     message_buffer.resize(global_messages_number);
     u32 global_position = 0;
 
-    for (const auto y_id : active_output_ports) {
-        if (auto* y = output_ports.try_to_get(y_id)) {
+    for (auto i = 0; i < active_output_ports.ssize(); ++i) {
+        if (auto* y = output_ports.try_to_get(active_output_ports[i])) {
             y->for_each(
               models, nodes,
               [](auto& mdl, const auto port_index, auto& sched, const auto t,
@@ -12402,7 +12408,8 @@ inline status simulation::run() noexcept
                       }
                   });
               },
-              sched, t.load(), y->msg, message_buffer, global_position);
+              sched, t.load(), active_output_messages[i], message_buffer,
+              global_position);
         }
     }
 

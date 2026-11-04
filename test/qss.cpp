@@ -57,8 +57,7 @@ static double e2u_sim(double                v0,
     const auto ret = m.lambda(sim);
     boost::ut::expect(boost::ut::fatal(ret.has_value()));
 
-    const auto& y = sim.output_ports.get(m.y[0]);
-    return y.msg[2];
+    return sim.active_output_messages.back()[2];
 }
 
 template<typename Dynamics>
@@ -86,8 +85,7 @@ static double e2b_sim(double a0,
 
     boost::ut::expect(not ret.has_error());
 
-    const auto& y = sim.output_ports.get(m.y[0]);
-    return y.msg[2];
+    return sim.active_output_messages.back()[2];
 }
 
 int main()

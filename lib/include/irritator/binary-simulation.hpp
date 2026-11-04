@@ -70,7 +70,7 @@ inline constexpr u32 binary_snapshot_magic = binary_magic('I', 'R', 'T', 'S');
 inline constexpr u32 binary_simulation_magic = binary_magic('I', 'R', 'T', 'D');
 
 /// Version of both formats. A reader refuses another version.
-inline constexpr u32 binary_simulation_version = 5u;
+inline constexpr u32 binary_simulation_version = 6u;
 
 /// Writes the snapshot of the simulation.
 ///

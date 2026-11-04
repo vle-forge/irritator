@@ -382,7 +382,7 @@ void binary_serialize(Ar& ar, block_node& b) noexcept
 template<typename Ar>
 void binary_serialize(Ar& ar, output_port& p) noexcept
 {
-    ar(p.msg, p.connections, p.next);
+    ar(p.connections, p.next);
 }
 
 /// A ring buffer: the capacity, the number of elements and the elements, from
