@@ -2345,6 +2345,75 @@ int main()
         }
     };
 
+    "hsm_output_flush_does_not_run_the_machine"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // root 0 > A 1: the guard of A is always true and its self-transition
+        // sends a message. The flush of this message must not fire it again.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        h.states[1u].condition.set_equal_to(var::var_i1, 0);
+        h.states[1u].if_transition = 1u;
+        h.states[1u].if_action.set_output(var::port_0, 1.f);
+
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+        expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+        sim.limits.set_bound(0, 10.0);
+        expect(!!sim.srcs.prepare() >> fatal);
+        expect(!!sim.initialize() >> fatal);
+
+        // Without the fix, the simulation stays at t = 0 forever.
+        for (auto step = 0; step < 100 and not sim.current_time_expired();
+             ++step)
+            expect(!!sim.run() >> fatal);
+
+        expect(sim.current_time_expired() >> fatal);
+        expect(eq(out.event_number, 1));
+    };
+
+    "hsm_negative_initial_timer"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // root 0 > (A 1, B 2): the enter action of A arms the timer to -3.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        expect(!!h.set_state(2u, 0u));
+        h.states[1u].enter_action.set_affect(var::var_timer, -3.f);
+        h.states[1u].condition.set_timer();
+        h.states[1u].if_transition = 2u;
+        h.states[2u].enter_action.set_output(var::port_0, 1.f);
+        h.states[2u].condition.set(0b1000u, 0b1000u);
+
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+        expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+        sim.limits.set_bound(0, 10.0);
+        expect(!!sim.srcs.prepare() >> fatal);
+        expect(!!sim.initialize() >> fatal);
+        expect(eq(hsmw.sigma, 0.0));
+
+        while (not sim.current_time_expired())
+            expect(!!sim.run() >> fatal);
+
+        expect(eq((int)hsmw.exec.current_state, 2));
+        expect(eq(out.event_number, 1));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;

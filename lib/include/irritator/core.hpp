@@ -12447,8 +12447,11 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
                                          condition_type::sigma and
                                      not leaf.is_terminal();
 
-        sigma = exec.messages > 0 or have_completion ? time_domain<time>::zero
-                                                     : exec.next_timer();
+        // An enter action can write a negative value in the timer: the model
+        // cannot wake up in the past.
+        sigma = exec.messages > 0 or have_completion
+                  ? time_domain<time>::zero
+                  : std::max(exec.next_timer(), time_domain<time>::zero);
 
         return success();
     } else {
@@ -12485,8 +12488,15 @@ inline status hsm_wrapper::transition(simulation& sim,
         if (not time_domain<time>::is_infinity(sigma))
             exec.advance_timers(sigma - r);
 
-        irt_check(
-          (*machine)->run_to_completion(exec, input_received, sim.srcs));
+        // The output of the messages is not an event: a transition which only
+        // flushes them must not evaluate the completion condition again. Only
+        // the first transition (completion of the initial state), a message or
+        // an expired timer runs the machine.
+        const auto first_run = exec.previous_state == hsm::invalid_state_id;
+
+        if (first_run or input_received or exec.next_timer() <= 0.0)
+            irt_check(
+              (*machine)->run_to_completion(exec, input_received, sim.srcs));
 
         sigma = exec.messages > 0 ? time_domain<time>::zero : exec.next_timer();
 
