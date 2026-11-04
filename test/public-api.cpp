@@ -2564,6 +2564,69 @@ int main()
         expect(eq(out.last_value, irt::real(6)));
     };
 
+    "messages_of_a_timer_and_of_a_source_in_the_same_bag"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // At t = 1, the timer of W1 sends 1 to x[0] of W2, and a constant
+        // sends to W3, which sends 2 to x[1] of W2. Both messages arrive in
+        // the same bag: the completion of W2 reads port_1 = 2 and sends 5.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h1  = sim.hsms.alloc();
+        auto&           h2  = sim.hsms.alloc();
+        auto&           h3  = sim.hsms.alloc();
+        auto&           w1  = sim.alloc<irt::hsm_wrapper>();
+        auto&           w2  = sim.alloc<irt::hsm_wrapper>();
+        auto&           w3  = sim.alloc<irt::hsm_wrapper>();
+        auto&           cst = sim.alloc<irt::constant>();
+        auto&           out = sim.alloc<irt::counter>();
+
+        expect(!!h1.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h1.set_state(1u, 0u));
+        expect(!!h1.set_state(2u, 0u));
+        h1.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        h1.states[1u].condition.set_timer();
+        h1.states[1u].if_transition = 2u;
+        h1.states[1u].if_action.set_output(var::port_0, 1.f);
+        h1.states[2u].condition.set(0b0001u, 0b0001u);
+
+        expect(!!h3.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h3.set_state(1u, 0u));
+        expect(!!h3.set_state(2u, 0u));
+        h3.states[1u].condition.set(0b1000u, 0b1000u);
+        h3.states[1u].if_transition = 2u;
+        h3.states[1u].if_action.set_output(var::port_0, 2.f);
+        h3.states[2u].condition.set(0b0001u, 0b0001u);
+
+        expect(!!h2.set_state(0u, hsm_t::invalid_state_id, 1u));
+        for (const irt::u8 i : { 1u, 2u, 3u, 4u })
+            expect(!!h2.set_state(i, 0u));
+        h2.states[1u].condition.set(0b1000u, 0b1000u);
+        h2.states[1u].if_transition = 2u;
+        h2.states[2u].condition.set_greater_equal(var::port_1, 2.f);
+        h2.states[2u].if_transition   = 3u;
+        h2.states[2u].else_transition = 4u;
+        h2.states[3u].enter_action.set_output(var::port_0, 5.f);
+        h2.states[3u].condition.set(0b0001u, 0b0001u);
+        h2.states[4u].enter_action.set_output(var::port_0, 6.f);
+        h2.states[4u].condition.set(0b0001u, 0b0001u);
+
+        get_p(sim, w1).set_hsm_wrapper(ordinal(sim.hsms.get_id(h1)));
+        get_p(sim, w2).set_hsm_wrapper(ordinal(sim.hsms.get_id(h2)));
+        get_p(sim, w3).set_hsm_wrapper(ordinal(sim.hsms.get_id(h3)));
+        get_p(sim, cst).set_constant(1.0, 1.0);
+        expect(!!sim.connect_dynamics(cst, 0, w3, 0));
+        expect(!!sim.connect_dynamics(w1, 0, w2, 0));
+        expect(!!sim.connect_dynamics(w3, 0, w2, 1));
+        expect(!!sim.connect_dynamics(w2, 0, out, 0));
+
+        expect(run_until(sim, 10.0) >> fatal);
+        expect(eq((int)w2.exec.current_state, 3));
+        expect(eq(out.event_number, 1));
+        expect(eq(out.last_value, irt::real(5)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
@@ -3174,10 +3237,9 @@ int main()
             c++;
         } while (not sim.current_time_expired());
 
-        const auto value = (irt::real{ 2.0 } * sim.limits.duration() /
-                              timestep -
-                            irt::real{ 1.0 });
-        expect(eq(c, value));
+        // One step per timestep: the counter receives the value in the step
+        // of its emission.
+        expect(eq(c, sim.limits.duration() / timestep));
     };
 
     "time_func_sin"_test = [] {
@@ -3210,8 +3272,7 @@ int main()
             c++;
         } while (not sim.current_time_expired());
 
-        expect(eq(c, (irt::real{ 2.0 } * sim.limits.duration() / timestep -
-                      irt::real{ 1.0 })));
+        expect(eq(c, sim.limits.duration() / timestep));
     };
 
     "abstract_sin"_test = [] {

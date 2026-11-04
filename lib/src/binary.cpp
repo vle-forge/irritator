@@ -1442,8 +1442,7 @@ struct binary_access {
                 return false;
         }
 
-        // The messages that are waiting for the next step: they live in the
-        // message buffer of the simulation.
+        // The input ports index the message buffer of the simulation.
         if constexpr (has_input_port<Dynamics>) {
             for (int i = 0, e = length(dyn.x); i != e; ++i) {
                 const auto& port = dyn.x[i];

@@ -2334,6 +2334,8 @@ public:
 
     status make_initialize(model& mdl, time t) noexcept;
 
+    status make_lambda(model& mdl) noexcept;
+
     template<typename Dynamics>
     status make_transition(model& mdl, Dynamics& dyn, time t) noexcept;
 
@@ -12286,12 +12288,6 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
-    if (mdl.tn == sched.tn(mdl.handle)) {
-        if constexpr (has_lambda_function<Dynamics>)
-            if constexpr (has_output_port<Dynamics>)
-                irt_check(dyn.lambda(*this));
-    }
-
     if constexpr (has_transition_function<Dynamics>)
         irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
 
@@ -12317,6 +12313,17 @@ inline status simulation::make_transition(model& mdl, time t) noexcept
 {
     return dispatch(mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) {
         return this->make_transition(mdl, dyn, t);
+    });
+}
+
+inline status simulation::make_lambda(model& mdl) noexcept
+{
+    return dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
+        if constexpr (has_lambda_function<Dynamics> and
+                      has_output_port<Dynamics>)
+            return dyn.lambda(*this);
+        else
+            return success();
     });
 }
 
@@ -12391,11 +12398,14 @@ inline status simulation::run() noexcept
 
     sched.pop(immediate_models);
 
+    // A step of Parallel DEVS: the outputs of all the imminent models, the
+    // routing of the messages, then one transition for each imminent or
+    // receiving model with its bag.
     active_output_ports.clear();
     active_output_messages.clear();
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
-            irt_check(make_transition(*mdl, t));
+            irt_check(make_lambda(*mdl));
 
     // First, we compute the input_port::capacity.
 
@@ -12426,9 +12436,10 @@ inline status simulation::run() noexcept
         }
     }
 
-    // Finally, we copy the @c active_output_messages on the @c
-    // message_buffer vector according to the @c input_port::capacity,
-    // index and position.
+    // Then, we copy the @c active_output_messages on the @c message_buffer
+    // vector according to the @c input_port::capacity, index and position.
+    // A receiver still in the scheduler is not imminent: it leaves the
+    // scheduler to make its transition in this step.
 
     message_buffer.resize(global_messages_number);
     u32 global_position = 0;
@@ -12437,8 +12448,8 @@ inline status simulation::run() noexcept
         if (auto* y = output_ports.try_to_get(active_output_ports[i])) {
             y->for_each(
               models, nodes,
-              [](auto& mdl, const auto port_index, auto& sched, const auto t,
-                 const auto& msg, auto& message_buffer, auto& global_position) {
+              [this, &global_position](auto& mdl, const auto port_index,
+                                       const auto& msg) {
                   dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                       if constexpr (has_input_port<Dynamics>) {
                           auto& x = dyn.x[port_index];
@@ -12446,7 +12457,13 @@ inline status simulation::run() noexcept
                           if (x.size == 0) {
                               x.position = global_position;
                               global_position += x.capacity;
-                              sched.update(mdl, t);
+
+                              debug::ensure(mdl.handle != invalid_heap_handle);
+                              if (sched.is_in_tree(mdl.handle)) {
+                                  sched.remove(mdl);
+                                  immediate_models.emplace_back(
+                                    models.get_id(mdl));
+                              }
                           }
 
                           const auto start_at = x.position + x.size;
@@ -12456,10 +12473,13 @@ inline status simulation::run() noexcept
                       }
                   });
               },
-              sched, t.load(), active_output_messages[i], message_buffer,
-              global_position);
+              active_output_messages[i]);
         }
     }
+
+    for (const auto id : immediate_models)
+        if (auto* mdl = models.try_to_get(id); mdl)
+            irt_check(make_transition(*mdl, t));
 
     return success();
 }

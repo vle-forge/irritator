@@ -20,7 +20,7 @@
  * - the snapshot (@c 'IRTS'): the part of the simulation that changes while it
  *   runs, to roll back a simulation: the models with their dynamics, the
  *   observers (raw samples and resampler), the connections, the
- *   dated messages, the messages that wait for the next step, the scheduler,
+ *   dated messages, the message buffer, the scheduler,
  *   the current time and the state of the embedded simulations (the copies of
  *   the original simulation, with their observations, the values of the input
  *   ports and the PRNG of the random factors). The external
@@ -39,9 +39,9 @@
  *
  * Limits
  * - The simulation must be written between two steps of @c run(), never
- *   during a step. The messages that were sent during a step and that the
- *   models read in the next one (@c simulation::message_buffer and the
- *   positions of the input ports) are part of the state and are written.
+ *   during a step. The messages sent during a step are read in the same step:
+ *   between two steps, @c simulation::message_buffer and the input ports are
+ *   empty.
  *   The writer checks the consistency of the simulation (scheduler,
  *   observers, connections, input ports, references between models) and
  *   refuses to write an inconsistent state.
@@ -70,7 +70,7 @@ inline constexpr u32 binary_snapshot_magic = binary_magic('I', 'R', 'T', 'S');
 inline constexpr u32 binary_simulation_magic = binary_magic('I', 'R', 'T', 'D');
 
 /// Version of both formats. A reader refuses another version.
-inline constexpr u32 binary_simulation_version = 6u;
+inline constexpr u32 binary_simulation_version = 7u;
 
 /// Writes the snapshot of the simulation.
 ///

@@ -772,7 +772,7 @@ int main()
         auto build = [](simulation& sim) {
             world w;
             build_world(sim, w);
-            sim.limits.set_bound(0.0, 0.3);
+            sim.limits.set_bound(0.0, 0.5);
 
             for (int i = 0; i != 120; ++i) {
                 auto& c = sim.alloc<counter>();
@@ -1254,7 +1254,7 @@ int main()
         // A chunk of one observer: the 5 observers of the world are shared
         // as soon as 2 are due, here at the end of the simulation (all the
         // observers).
-        for (const double end : { 0.6 }) {
+        for (const double end : { 1.5 }) {
             auto build = [end](simulation& sim, world& w) {
                 build_world(sim, w);
                 sim.limits.set_bound(0.0, end);
