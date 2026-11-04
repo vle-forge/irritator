@@ -12521,6 +12521,24 @@ inline status hsm_wrapper::transition(simulation& sim,
 {
     if (auto machine = get_hierarchical_state_machine(sim, id);
         machine.has_value()) {
+        exec.messages = 0;
+
+        // sigma - r is exact for the internal events (r is null): the timer
+        // which defines sigma expires exactly.
+        if (not time_domain<time>::is_infinity(sigma))
+            exec.advance_timers(sigma - r);
+
+        // The output of the messages is not an event: a transition which only
+        // flushes them must not evaluate the completion condition again. Only
+        // the first transition (completion of the initial state) or an expired
+        // timer runs the machine before the bag. The bag is written after this
+        // run, as the confluent transition of Parallel DEVS: a wake up does not
+        // read the new bag.
+        const auto first_run = exec.previous_state == hsm::invalid_state_id;
+
+        if (first_run or exec.next_timer() <= 0.0)
+            irt_check((*machine)->run_to_completion(exec, false, sim.srcs));
+
         auto input_received = false;
 
         for (int i = 0, e = length(x); i != e; ++i) {
@@ -12536,22 +12554,8 @@ inline status hsm_wrapper::transition(simulation& sim,
             }
         }
 
-        exec.messages = 0;
-
-        // sigma - r is exact for the internal events (r is null): the timer
-        // which defines sigma expires exactly.
-        if (not time_domain<time>::is_infinity(sigma))
-            exec.advance_timers(sigma - r);
-
-        // The output of the messages is not an event: a transition which only
-        // flushes them must not evaluate the completion condition again. Only
-        // the first transition (completion of the initial state), a message or
-        // an expired timer runs the machine.
-        const auto first_run = exec.previous_state == hsm::invalid_state_id;
-
-        if (first_run or input_received or exec.next_timer() <= 0.0)
-            irt_check(
-              (*machine)->run_to_completion(exec, input_received, sim.srcs));
+        if (input_received)
+            irt_check((*machine)->run_to_completion(exec, true, sim.srcs));
 
         sigma = exec.messages > 0 ? time_domain<time>::zero : exec.next_timer();
 
