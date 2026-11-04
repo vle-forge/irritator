@@ -2693,10 +2693,7 @@ struct abstract_integrator<1> {
         return success();
     }
 
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time                  e,
-                      [[maybe_unused]] time r) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
     {
         const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
         const auto lst_reset      = get_message(sim, x[port_reset]);
@@ -2709,6 +2706,12 @@ struct abstract_integrator<1> {
 
         if (have_reset_msg)
             return reset(get_qss_message<1>(lst_reset));
+        // A message at the date of the internal event: the internal transition
+        // goes first, as the confluent transition of Parallel DEVS.
+        if (is_zero(r)) {
+            irt_check(internal());
+            e = zero;
+        }
 
         if (have_x_dot_msg)
             return external(e, get_qss_message<1>(lst_x_dot));
@@ -2860,10 +2863,7 @@ struct abstract_integrator<2> {
         return success();
     }
 
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time                  e,
-                      [[maybe_unused]] time r) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
     {
         const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
         const auto lst_reset      = get_message(sim, x[port_reset]);
@@ -2876,6 +2876,12 @@ struct abstract_integrator<2> {
 
         if (have_reset_msg)
             return reset(get_qss_message<2>(lst_reset));
+        // A message at the date of the internal event: the internal transition
+        // goes first, as the confluent transition of Parallel DEVS.
+        if (is_zero(r)) {
+            irt_check(internal());
+            e = zero;
+        }
 
         if (have_x_dot_msg)
             return external(e, get_qss_message<2>(lst_x_dot));
@@ -3193,10 +3199,7 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time                  e,
-                      [[maybe_unused]] time r) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
     {
         const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
         const auto lst_reset      = get_message(sim, x[port_reset]);
@@ -3209,6 +3212,12 @@ struct abstract_integrator<3> {
 
         if (have_reset_msg)
             return reset(get_qss_message<3>(lst_reset));
+        // A message at the date of the internal event: the internal transition
+        // goes first, as the confluent transition of Parallel DEVS.
+        if (is_zero(r)) {
+            irt_check(internal());
+            e = zero;
+        }
 
         if (have_x_dot_msg)
             return external(e, get_qss_message<3>(lst_x_dot));
@@ -4068,15 +4077,18 @@ struct abstract_integer {
         }
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
     {
         const auto lst            = get_message(sim, x[0]);
         const auto have_msg       = not lst.empty();
         auto       external_cross = false;
 
-        if (not have_msg) {
+        // lambda sent to_send when the internal event is due, even with a
+        // message at the same date.
+        if (not have_msg or is_zero(r))
             last_send_value = to_send;
 
+        if (not have_msg) {
             if constexpr (QssLevel == 2)
                 value[0] += value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -5656,10 +5668,14 @@ struct abstract_quantizer {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = next_boundary();
-            return success();
+            if (not has) {
+                sigma = next_boundary();
+                return success();
+            }
         }
 
         const auto new_level = q * std::round(value[0] / q);
@@ -5842,10 +5858,14 @@ struct abstract_threshold_crossing {
           ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
           : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (edge != zero) {
             edge  = zero;
-            sigma = next_crossing();
-            return success();
+            if (p_value.empty() and p_threshold.empty()) {
+                sigma = next_crossing();
+                return success();
+            }
         }
 
         const auto new_side = (value[0] >= threshold) ? side_type::above
@@ -6610,10 +6630,14 @@ struct abstract_saturation {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         const auto nz = classify();
         if (has or nz != z) {
@@ -6740,10 +6764,14 @@ struct abstract_dead_zone {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         const auto nz = classify();
         if (has or nz != z) {
@@ -6845,10 +6873,14 @@ struct abstract_abs {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         const auto np = classify();
         if (has or np != positive) {
@@ -6946,10 +6978,14 @@ struct abstract_sign {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         const auto no = classify();
         if (not(no == out)) { // NaN-safe : true for the first emit
@@ -7034,10 +7070,14 @@ struct abstract_hysteresis {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         bool nh = high;
         if (high) {
@@ -7169,10 +7209,14 @@ struct abstract_min_max {
             }
         }
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not(msg_a or msg_b)) {
+                sigma = schedule();
+                return success();
+            }
         }
         const bool ns = select_a();
         if (msg_a or msg_b or ns != sel_a) {
@@ -7274,10 +7318,14 @@ struct abstract_wrap {
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
+        // A message at the date of the emission is not lost: the output is
+        // computed again from the new value.
         if (emit) {
             emit  = false;
-            sigma = schedule();
-            return success();
+            if (not has) {
+                sigma = schedule();
+                return success();
+            }
         }
         const real nl = current_laps();
         if (has or not(nl == laps)) {

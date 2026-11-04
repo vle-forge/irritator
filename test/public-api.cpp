@@ -2489,6 +2489,41 @@ int main()
         expect(eq(recv.exec.ports[3], irt::real(8)));
     };
 
+    "message_at_the_date_of_an_emission"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // At t = 1, the quantizer receives 1 from a constant, then 3 from a
+        // wrapper at the date of the emission of the level 1: both levels
+        // must leave the quantizer.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           cst  = sim.alloc<irt::constant>();
+        auto&           q    = sim.alloc<irt::qss1_quantizer>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        expect(!!h.set_state(2u, 0u));
+        h.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        h.states[1u].condition.set_timer();
+        h.states[1u].if_transition = 2u;
+        h.states[1u].if_action.set_output(var::port_0, 3.f);
+        h.states[2u].condition.set(0b1000u, 0b1000u);
+
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+        get_p(sim, cst).set_constant(1.0, 1.0);
+        expect(!!sim.connect_dynamics(cst, 0, q, 0));
+        expect(!!sim.connect_dynamics(hsmw, 0, q, 0));
+        expect(!!sim.connect_dynamics(q, 0, out, 0));
+
+        expect(run_until(sim, 10.0) >> fatal);
+        expect(eq(out.event_number, 2));
+        expect(eq(out.last_value, irt::real(3)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
