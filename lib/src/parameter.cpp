@@ -1033,7 +1033,9 @@ parameter& parameter::set_hsm_wrapper(i64  i1,
     integers[hsm_wrapper_tag::i2] = i2;
     reals[hsm_wrapper_tag::r1]    = r1;
     reals[hsm_wrapper_tag::r2]    = r2;
-    reals[hsm_wrapper_tag::timer] = std::isfinite(timer) ? timer : 0.0;
+    reals[hsm_wrapper_tag::timer] = std::isnan(timer)
+                                      ? time_domain<time>::infinity
+                                      : timer;
 
     return *this;
 }

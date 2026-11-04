@@ -2414,6 +2414,45 @@ int main()
         expect(eq(out.event_number, 1));
     };
 
+    "hsm_infinite_timeout_is_passive"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        {
+            irt::parameter p;
+            p.set_hsm_wrapper(0, 0, 0.0, 0.0,
+                              std::numeric_limits<irt::real>::quiet_NaN());
+            expect(irt::time_domain<irt::time>::is_infinity(
+              p.reals[irt::hsm_wrapper_tag::timer]));
+        }
+
+        // root 0 > (A 1, B 2): A has a timer condition but no enter action,
+        // its timer is the timeout of the parameter.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        expect(!!h.set_state(2u, 0u));
+        h.states[1u].condition.set_timer();
+        h.states[1u].if_transition = 2u;
+        h.states[2u].enter_action.set_output(var::port_0, 1.f);
+        h.states[2u].condition.set(0b1000u, 0b1000u);
+
+        get_p(sim, hsmw)
+          .set_hsm_wrapper(ordinal(sim.hsms.get_id(h)))
+          .set_hsm_wrapper(0, 0, 0.0, 0.0,
+                           irt::time_domain<irt::time>::infinity);
+        expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+        expect(run_until(sim, 10.0) >> fatal);
+        expect(eq((int)hsmw.exec.current_state, 1));
+        expect(eq(out.event_number, 0));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
