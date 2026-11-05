@@ -2955,7 +2955,10 @@ int main()
                                                  { 3, 2 },   { 4, 1 },
                                                  { 4.5, 2 }, { 5, 3 },
                                                  { 6.5, 2 }, { 7, 1 } };
-        expect(std::ranges::equal(qss1, expected));
+        // std::ranges::equal on a local type crashes gcc 11.
+        expect(eq(qss1.ssize(), std::ssize(expected)) >> fatal);
+        for (int i = 0; i != std::ssize(expected); ++i)
+            expect(qss1[i] == expected[i]) << "emission" << i;
         for (const auto& e : expected)
             expect(eq(e.value, exact(e.t)));
     };
