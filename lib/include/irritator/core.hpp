@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <compare>
+#include <bit>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -2589,7 +2589,7 @@ inline time compute_wake_up(real threshold,
 }
 
 /// The bag of the port in this step. The messages are sorted by their values
-/// (@c std::strong_order on @c message[0], then @c message[1] and @c
+/// (the total order of IEEE 754 on @c message[0], then @c message[1] and @c
 /// message[2]): a transition never depends on the order of the emitters or of
 /// the connections.
 inline constexpr auto get_message(simulation&       sim,
@@ -12383,11 +12383,27 @@ inline status simulation::finalize() noexcept
 
 namespace detail {
 
+// The total order of IEEE 754: the bits of a negative value, except the sign,
+// are flipped so that the integer order is the order of the reals, with -0 <
+// +0 and the NaN at both ends. std::strong_order on floating points is not
+// available in the libstdc++ of gcc 11.
+inline auto total_order_key(const real x) noexcept
+{
+    using bits_t    = std::conditional_t<sizeof(real) == 8, i64, i32>;
+    const auto bits = std::bit_cast<bits_t>(x);
+
+    return bits ^ ((bits >> (sizeof(bits_t) * 8 - 1)) &
+                   std::numeric_limits<bits_t>::max());
+}
+
 inline bool message_less(const message& a, const message& b) noexcept
 {
-    for (sz i = 0; i != a.size(); ++i)
-        if (const auto o = std::strong_order(a[i], b[i]); o != 0)
-            return o < 0;
+    for (sz i = 0; i != a.size(); ++i) {
+        const auto ka = total_order_key(a[i]);
+        const auto kb = total_order_key(b[i]);
+        if (ka != kb)
+            return ka < kb;
+    }
 
     return false;
 }

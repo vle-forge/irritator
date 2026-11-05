@@ -3019,6 +3019,29 @@ int main()
         expect(eq(direct.accumulated, irt::real(5)));
     };
 
+    "bag_order_is_the_total_order_of_ieee_754"_test = [] {
+        const auto inf = std::numeric_limits<irt::real>::infinity();
+        const auto nan = std::numeric_limits<irt::real>::quiet_NaN();
+
+        std::array<irt::message, 8> bag{
+            irt::message{ 2.0 },      irt::message{ nan },
+            irt::message{ +0.0 },     irt::message{ -inf },
+            irt::message{ -0.0 },     irt::message{ -1.0 },
+            irt::message{ 1.0, 3.0 }, irt::message{ 1.0, -3.0 }
+        };
+
+        irt::detail::sort_bag(bag);
+
+        expect(eq(bag[0][0], -inf));
+        expect(eq(bag[1][0], irt::real(-1)));
+        expect(std::signbit(bag[2][0]) and bag[2][0] == 0.0);
+        expect(not std::signbit(bag[3][0]) and bag[3][0] == 0.0);
+        expect(eq(bag[4][1], irt::real(-3)));
+        expect(eq(bag[5][1], irt::real(3)));
+        expect(eq(bag[6][0], irt::real(2)));
+        expect(std::isnan(bag[7][0]));
+    };
+
     "bag_is_sorted_by_values"_test = [] {
         // At t = 1, two constants send 5 and 2 to a queue: the first message
         // to leave is 2, whatever the order of the connections.
