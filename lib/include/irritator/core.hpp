@@ -5540,6 +5540,10 @@ struct abstract_sample_hold {
         const auto has      = not lst.empty();
         const auto internal = r <= time_domain<time>::zero;
 
+        // A message at the date of the sampling is read before the sampling:
+        // the sample is the received value, not the previous one as with the
+        // default confluent transition of Parallel DEVS (internal, then
+        // external).
         has ? update<QssLevel>(value, get_qss_message<QssLevel>(lst))
             : update<QssLevel>(value, e);
 
