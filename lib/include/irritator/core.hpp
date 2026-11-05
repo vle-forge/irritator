@@ -9,8 +9,10 @@
 #include <irritator/error.hpp>
 #include <irritator/macros.hpp>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
+#include <compare>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -2586,6 +2588,10 @@ inline time compute_wake_up(real threshold,
     return ret;
 }
 
+/// The bag of the port in this step. The messages are sorted by their values
+/// (@c std::strong_order on @c message[0], then @c message[1] and @c
+/// message[2]): a transition never depends on the order of the emitters or of
+/// the connections.
 inline constexpr auto get_message(simulation&       sim,
                                   const input_port& port) noexcept
   -> std::span<message>;
@@ -12375,6 +12381,27 @@ inline status simulation::finalize() noexcept
     return success();
 }
 
+namespace detail {
+
+inline bool message_less(const message& a, const message& b) noexcept
+{
+    for (sz i = 0; i != a.size(); ++i)
+        if (const auto o = std::strong_order(a[i], b[i]); o != 0)
+            return o < 0;
+
+    return false;
+}
+
+// A bag is a multiset: the order of the messages, which comes from the order of
+// the emitters and of the connections, must not reach the transitions.
+inline void sort_bag(std::span<message> bag) noexcept
+{
+    if (bag.size() > 1u)
+        std::ranges::sort(bag, message_less);
+}
+
+} // namespace detail
+
 inline status simulation::run() noexcept
 {
     debug::ensure(std::isfinite(t.load()));
@@ -12469,6 +12496,10 @@ inline status simulation::run() noexcept
                           ++x.size;
 
                           message_buffer[start_at] = msg;
+
+                          if (x.size == x.capacity)
+                              detail::sort_bag(std::span(
+                                message_buffer.data() + x.position, x.size));
                       }
                   });
               },

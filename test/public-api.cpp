@@ -3019,6 +3019,37 @@ int main()
         expect(eq(direct.accumulated, irt::real(5)));
     };
 
+    "bag_is_sorted_by_values"_test = [] {
+        // At t = 1, two constants send 5 and 2 to a queue: the first message
+        // to leave is 2, whatever the order of the connections.
+        const auto first_output = [](const bool swap) noexcept -> irt::real {
+            irt::simulation sim{ irt::simulation_reserve_definition(),
+                                 irt::external_source_reserve_definition() };
+            auto&           a   = sim.alloc<irt::constant>();
+            auto&           b   = sim.alloc<irt::constant>();
+            auto&           q   = sim.alloc<irt::queue>();
+            auto&           out = sim.alloc<irt::counter>();
+
+            get_p(sim, a).set_constant(5.0, 1.0);
+            get_p(sim, b).set_constant(2.0, 1.0);
+            expect(!!sim.connect_dynamics(swap ? b : a, 0, q, 0));
+            expect(!!sim.connect_dynamics(swap ? a : b, 0, q, 0));
+            expect(!!sim.connect_dynamics(q, 0, out, 0));
+
+            sim.limits.set_bound(0, 10.0);
+            expect(!!sim.srcs.prepare() >> fatal);
+            expect(!!sim.initialize() >> fatal);
+
+            while (out.event_number == 0 and not sim.current_time_expired())
+                expect(!!sim.run() >> fatal);
+
+            return out.last_value;
+        };
+
+        expect(eq(first_output(false), irt::real(2)));
+        expect(eq(first_output(true), irt::real(2)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
