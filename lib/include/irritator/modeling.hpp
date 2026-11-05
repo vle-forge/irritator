@@ -16,7 +16,10 @@
 #include <irritator/random.hpp>
 #include <irritator/thread.hpp>
 
+#include <array>
+#include <atomic>
 #include <optional>
+#include <utility>
 
 namespace irt {
 
@@ -1164,8 +1167,10 @@ struct command {
         model_id     mdl_id;
     };
 
+    /// The constant model @c mdl_id sends @c value at the current date.
     struct send_message_t {
         model_id mdl_id;
+        real     value;
     };
 
     union data_t {
@@ -1184,11 +1189,40 @@ struct command {
     data_t       data;
 };
 
+/**
+ * The commands of one producer (the user interface, a game) applied by the
+ * thread that owns the simulation, between two steps (see @c
+ * simulation_player::edit() and @c project::apply_commands()): the simulation
+ * is never changed during a step and needs no lock.
+ *
+ * Single producer, single consumer: @c push() is called by one thread, @c
+ * consume() by one other thread.
+ */
+class command_queue
+{
+public:
+    static constexpr std::size_t capacity = 64;
+
+    /// @return false if the queue is full: the command is not added.
+    bool push(const command& cmd) noexcept;
+
+    bool empty() const noexcept;
+
+    /// Calls @c fn for each command pushed before the call, in order.
+    template<typename Fn>
+    void consume(Fn&& fn) noexcept;
+
+private:
+    std::array<command, capacity> m_buffer{};
+
+    // Counters that only grow: the index is the counter modulo capacity.
+    std::atomic<std::size_t> m_head{ 0 }; ///< written by the consumer
+    std::atomic<std::size_t> m_tail{ 0 }; ///< written by the producer
+};
+
 class project
 {
 public:
-    static constexpr std::size_t command_buffer_size = 32;
-
     enum class simulation_flag : u8 {
         write_irtb, /**< flush observation into @c irb file. */
     };
@@ -1205,14 +1239,7 @@ public:
                          simulation_status::finishing);
     }
 
-    bool push(const command& cmd) noexcept;
-    bool empty_commands() const noexcept;
-
 private:
-    /// spsc queue to store simulation commands. Only for live and debug mode.
-    /// write by the main thread and read by the simulation thread.
-    circular_buffer<command, command_buffer_size> commands;
-
     void save_simulation_graph(const std::string_view file_name) noexcept;
 
 public:
@@ -1223,7 +1250,14 @@ public:
     status simulation_init_observation(const modeling& mod) noexcept;
     status simulation_init(const modeling& mod) noexcept;
 
-    status simulation_apply_command() noexcept;
+    /// Applies all the commands of the queue to the simulation, between two
+    /// steps (see @c simulation_player::edit()).
+    ///
+    /// @return The error of the first command that fails: the next commands
+    /// are applied.
+    status apply_commands(command_queue& queue) noexcept;
+
+    status apply_command(const command& cmd) noexcept;
 
     /// Writes the raw samples of the observers to the @c .irb file (only with
     /// @c simulation_flag::write_irtb). Give it to the player of the
@@ -1259,8 +1293,6 @@ private:
       const command::new_observer_t& data) noexcept;
     status simulation_free_observer(
       const command::free_observer_t& data) noexcept;
-    status simulation_send_message(
-      const command::send_message_t& data) noexcept;
     status simulation_new_connection(
       const command::new_connection_t& data) noexcept;
     status simulation_free_connection(
@@ -1950,6 +1982,38 @@ inline tree_node::tree_node(component_id           id_,
 /*
    Project part
  */
+
+inline bool command_queue::push(const command& cmd) noexcept
+{
+    const auto tail = m_tail.load(std::memory_order_relaxed);
+    const auto head = m_head.load(std::memory_order_acquire);
+
+    if (tail - head >= capacity)
+        return false;
+
+    m_buffer[tail % capacity] = cmd;
+    m_tail.store(tail + 1u, std::memory_order_release);
+
+    return true;
+}
+
+inline bool command_queue::empty() const noexcept
+{
+    return m_head.load(std::memory_order_acquire) ==
+           m_tail.load(std::memory_order_acquire);
+}
+
+template<typename Fn>
+inline void command_queue::consume(Fn&& fn) noexcept
+{
+    auto       head = m_head.load(std::memory_order_relaxed);
+    const auto tail = m_tail.load(std::memory_order_acquire);
+
+    for (; head != tail; ++head)
+        fn(std::as_const(m_buffer[head % capacity]));
+
+    m_head.store(head, std::memory_order_release);
+}
 
 } // namespace irt
 

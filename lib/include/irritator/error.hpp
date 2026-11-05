@@ -126,6 +126,11 @@ enum class simulation_errc : std::int16_t {
     simulation_wrapper_embedded_simulation_initialization_error,
     simulation_wrapper_embedded_simulation_search_error,
     simulation_wrapper_embedded_simulation_finalization_error,
+
+    command_model_error, /**< A command names a model that does not exist or
+                            that has not the right type. */
+    player_edit_error,   /**< An edition of a simulation not started or
+                            finalized. */
 };
 
 enum class project_errc : std::int16_t {

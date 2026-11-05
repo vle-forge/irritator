@@ -2181,6 +2181,16 @@ public:
 
     void unobserve(model& mdl) noexcept;
 
+    /**
+     * The constant model @c id takes @c value and sends it in the next step,
+     * at the current date. Its next emission, if any, is replaced.
+     *
+     * @return @c simulation_errc::command_model_error if @c id is not a
+     * constant model, @c simulation_errc::constant_value_error if @c value is
+     * not finite.
+     */
+    status send_value(model_id id, real value) noexcept;
+
     void deallocate(model_id id) noexcept;
 
     template<typename Dynamics>
@@ -2300,6 +2310,8 @@ public:
     }
 
 private:
+    void wake_up(model& mdl, time t) noexcept;
+
     template<typename Fn>
     void drain_observation(const observer_id obs_id,
                            const observer&   obs,
@@ -11927,6 +11939,40 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
         mdl.obs_id = obs_id;
     }
+
+    return success();
+}
+
+inline void simulation::wake_up(model& mdl, const time t) noexcept
+{
+    if (mdl.handle == invalid_heap_handle)
+        sched.alloc(mdl, models.get_id(mdl), t);
+    else if (sched.is_in_tree(mdl.handle))
+        sched.update(mdl, t);
+    else
+        sched.reintegrate(mdl, t);
+
+    mdl.tn = t;
+}
+
+inline status simulation::send_value(const model_id id,
+                                     const real     value) noexcept
+{
+    auto* mdl = models.try_to_get(id);
+
+    if (not mdl or mdl->type != dynamics_type::constant)
+        return make_error(simulation_errc::command_model_error);
+
+    if (not std::isfinite(value))
+        return make_error(simulation_errc::constant_value_error);
+
+    get_dyn<constant>(*mdl).value = value;
+
+    // The clock is infinite when no event waits (all the constants are
+    // done): the value is sent at the date of the last event.
+    wake_up(*mdl, time_domain<time>::is_infinity(current_time())
+                    ? last_time()
+                    : current_time());
 
     return success();
 }

@@ -210,6 +210,19 @@ public:
     /// @c earliest_step() equals @c step().
     status forget_history() noexcept;
 
+    /// Applies the edition @c fn (a @c status function, for example @c
+    /// project::apply_commands()) between two steps, then makes the history
+    /// consistent: with the history (@c keeps_history()) it is forgotten (see
+    /// @c forget_history()), without it nothing is to forget and no snapshot
+    /// is taken, so an edition at each frame costs nothing more.
+    ///
+    /// Errors: @c simulation_errc::player_edit_error if the player is not
+    /// started or if the simulation is finalized (@c finalized()), the error
+    /// of @c fn otherwise. After an error of @c fn the history is forgotten
+    /// too: a part of the edition may be done.
+    template<typename Fn>
+    status edit(Fn&& fn) noexcept;
+
     /// "Complete simulation" mode: with @c false the following steps do not
     /// take any keyframe, so the memory does not grow with the length of the
     /// simulation (the only snapshot kept is the one of the current step).
@@ -511,6 +524,26 @@ private:
     time_point m_wall_ref = clock::now();
     duration   m_unit;
 };
+
+template<typename Fn>
+status simulation_player::edit(Fn&& fn) noexcept
+{
+    if (not m_started or m_finalized)
+        return make_error(simulation_errc::player_edit_error);
+
+    auto ret = fn();
+
+    if (m_keep_history) {
+        if (auto r = forget_history(); r.has_error() and not ret.has_error())
+            ret = r;
+    } else {
+        m_window.clear();
+        m_floor    = m_step;
+        m_furthest = m_step;
+    }
+
+    return ret;
+}
 
 } // namespace irt
 

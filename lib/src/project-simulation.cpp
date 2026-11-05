@@ -597,100 +597,53 @@ status project::simulation_free_observer(
     return success();
 }
 
-status project::simulation_send_message(
-  const command::send_message_t& data) noexcept
+status project::apply_command(const command& cmd) noexcept
 {
-    const auto t = irt::time_domain<time>::is_infinity(sim.current_time())
-                     ? sim.last_time()
-                     : sim.current_time();
-
-    if (auto* mdl = sim.models.try_to_get(data.mdl_id)) {
-        if (mdl->type == dynamics_type::constant) {
-            if (mdl->handle == invalid_heap_handle) {
-                sim.sched.alloc(*mdl, data.mdl_id, t);
-            } else {
-                if (sim.sched.is_in_tree(mdl->handle)) {
-                    sim.sched.update(*mdl, t);
-                } else {
-                    sim.sched.reintegrate(*mdl, t);
-                }
-            }
-
-            mdl->tn = t;
-        } else {
+    switch (cmd.type) {
+    case command_type::none:
+        return success();
+    case command_type::new_model:
+        return simulation_new_model(cmd.data.new_model);
+    case command_type::free_model:
+        return simulation_free_model(cmd.data.free_model);
+    case command_type::copy_model:
+        return simulation_copy_model(cmd.data.copy_model);
+    case command_type::new_connection:
+        return simulation_new_connection(cmd.data.new_connection);
+    case command_type::free_connection:
+        return simulation_free_connection(cmd.data.free_connection);
+    case command_type::new_observer:
+        return simulation_new_observer(cmd.data.new_observer);
+    case command_type::free_observer:
+        return simulation_free_observer(cmd.data.free_observer);
+    case command_type::send_message:
+        if (auto r = sim.send_value(cmd.data.send_message.mdl_id,
+                                    cmd.data.send_message.value);
+            r.has_error()) {
             log(log_level::error, [&](auto& msg) noexcept {
-                format(msg, "Model ID {} is not a constant model.",
-                       ordinal(data.mdl_id));
+                format(msg, "Fail to send a value to the model ID {}.",
+                       ordinal(cmd.data.send_message.mdl_id));
             });
+
+            return r;
         }
-    } else {
-        log(log_level::error, [&](auto& msg) noexcept {
-            format(msg, "Model ID {} not found.", ordinal(data.mdl_id));
-        });
+        return success();
     }
 
     return success();
 }
 
-status project::simulation_apply_command() noexcept
+status project::apply_commands(command_queue& queue) noexcept
 {
     auto ret = success();
 
-    commands.for_each([&](const command& cmd) noexcept {
-        auto r = success();
-
-        switch (cmd.type) {
-        case command_type::none:
-            break;
-        case command_type::new_model:
-            r = simulation_new_model(cmd.data.new_model);
-            break;
-        case command_type::free_model:
-            r = simulation_free_model(cmd.data.free_model);
-            break;
-        case command_type::copy_model:
-            r = simulation_copy_model(cmd.data.copy_model);
-            break;
-        case command_type::new_connection:
-            r = simulation_new_connection(cmd.data.new_connection);
-            break;
-        case command_type::free_connection:
-            r = simulation_free_connection(cmd.data.free_connection);
-            break;
-        case command_type::new_observer:
-            r = simulation_new_observer(cmd.data.new_observer);
-            break;
-        case command_type::free_observer:
-            r = simulation_free_observer(cmd.data.free_observer);
-            break;
-        case command_type::send_message:
-            r = simulation_send_message(cmd.data.send_message);
-            break;
-        }
-
-        if (r.has_error() and ret.has_error())
+    queue.consume([&](const command& cmd) noexcept {
+        if (auto r = apply_command(cmd); r.has_error() and not ret.has_error())
             ret = r;
     });
 
-    commands.clear();
-
     return ret;
 }
-
-bool project::push(const command& cmd) noexcept
-{
-    using namespace std::literals;
-
-    if (not commands.push(cmd)) {
-        log(log_level::error,
-            "simulation: fail to add command order in live simulation"sv);
-        return false;
-    }
-
-    return true;
-}
-
-bool project::empty_commands() const noexcept { return commands.empty(); }
 
 status project::observation_files::consume(
   const observation_batch& batch) noexcept
