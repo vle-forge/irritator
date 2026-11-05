@@ -77,10 +77,11 @@ static constexpr i32 copy_to_i32(
     irt::unreachable();
 }
 
+template<typename Action>
 static constexpr real copy_to_real(
   const std::span<const real, hsm_t::max_constants> c,
   const hsm_t::variable                             v,
-  const hsm_t::state_action&                        act,
+  const Action&                                     act,
   hsm_t::execution&                                 e) noexcept
 {
     switch (v) {
@@ -123,134 +124,6 @@ static constexpr real copy_to_real(
 
     irt::unreachable();
 }
-
-struct wrap_var {
-    union {
-        real r;
-        i32  i;
-    };
-
-    enum type : u8 { real_t, integer_t } type;
-
-    constexpr bool operator==(const wrap_var& o) const noexcept
-    {
-        if (type == type::real_t)
-            return r ==
-                   ((o.type == type::real_t) ? o.r : static_cast<real>(o.i));
-
-        return i == ((o.type == type::real_t) ? static_cast<i32>(o.r) : o.i);
-    }
-
-    constexpr std::partial_ordering operator<=>(
-      const wrap_var& o) const noexcept
-    {
-        return (type == type::real_t)
-                 ? r <=>
-                     ((o.type == type::real_t) ? o.r : static_cast<real>(o.i))
-                 : i <=>
-                     ((o.type == type::real_t) ? static_cast<i32>(o.r) : o.i);
-    }
-
-    template<typename Action>
-    constexpr wrap_var(const std::span<const real, hsm_t::max_constants> c,
-                       const hsm_t::variable                             v,
-                       Action&                                           act,
-                       hsm_t::execution& e) noexcept
-    {
-        switch (v) {
-        case hsm_t::variable::none:
-            r    = 0;
-            i    = 0;
-            type = type::integer_t;
-            break;
-
-        case hsm_t::variable::port_0:
-            r    = e.ports[3];
-            i    = static_cast<i32>(e.ports[3]);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::port_1:
-            r    = e.ports[2];
-            i    = static_cast<i32>(e.ports[2]);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::port_2:
-            r    = e.ports[1];
-            i    = static_cast<i32>(e.ports[1]);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::port_3:
-            r    = e.ports[0];
-            i    = static_cast<i32>(e.ports[0]);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::var_i1:
-            r    = static_cast<double>(e.i1);
-            i    = e.i1;
-            type = type::integer_t;
-            break;
-
-        case hsm_t::variable::var_i2:
-            r    = static_cast<double>(e.i2);
-            i    = e.i2;
-            type = type::integer_t;
-            break;
-
-        case hsm_t::variable::var_r1:
-            r    = e.r1;
-            i    = static_cast<i32>(e.r1);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::var_r2:
-            r    = e.r2;
-            i    = static_cast<i32>(e.r2);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::var_timer:
-            r    = e.timer;
-            i    = static_cast<i32>(e.timer);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::constant_i:
-            r    = static_cast<double>(act.constant.i);
-            i    = act.constant.i;
-            type = type::integer_t;
-            break;
-
-        case hsm_t::variable::constant_r:
-            r    = act.constant.f;
-            i    = static_cast<i32>(act.constant.f);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::hsm_constant_0:
-        case hsm_t::variable::hsm_constant_1:
-        case hsm_t::variable::hsm_constant_2:
-        case hsm_t::variable::hsm_constant_3:
-        case hsm_t::variable::hsm_constant_4:
-        case hsm_t::variable::hsm_constant_5:
-        case hsm_t::variable::hsm_constant_6:
-        case hsm_t::variable::hsm_constant_7:
-            r    = c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)];
-            i    = static_cast<i32>(act.constant.f);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::source:
-            r    = e.source_value.next();
-            i    = static_cast<i32>(r);
-            type = type::real_t;
-            break;
-        }
-    }
-};
 
 static auto is_action_using_source(const hsm_t::state_action& act) noexcept
   -> bool
@@ -1203,8 +1076,11 @@ expected<bool> hierarchical_state_machine::handle(
     switch (event) {
     case event_type::enter:
         affect_action(s.enter_action, exec);
+        // A NaN delay arms nothing, like an infinite delay.
         if (s.condition.type == condition_type::sigma and depth < max_depth)
-            exec.timers[depth] = exec.timer;
+            exec.timers[depth] = std::isnan(exec.timer)
+                                   ? time_domain<time>::infinity
+                                   : exec.timer;
         return true;
 
     case event_type::exit:
@@ -1499,12 +1375,16 @@ void hierarchical_state_machine::affect_action(const state_action& action,
     case action_type::modulus:
         switch (action.var1) {
         case variable::var_i1:
-            e.i1 = std::modulus<>{}(
-              e.i1, copy_to_i32(constants, action.var2, action, e));
+            if (auto val = copy_to_i32(constants, action.var2, action, e); val)
+                e.i1 %= val;
+            else
+                e.i1 = INT32_MAX;
             break;
         case variable::var_i2:
-            e.i2 = std::modulus<>{}(
-              e.i1, copy_to_i32(constants, action.var2, action, e));
+            if (auto val = copy_to_i32(constants, action.var2, action, e); val)
+                e.i2 %= val;
+            else
+                e.i2 = INT32_MAX;
             break;
         default:
             irt::unreachable();
@@ -1520,7 +1400,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             break;
         case variable::var_i2:
             e.i2 = std::bit_and<>{}(
-              e.i1, copy_to_i32(constants, action.var2, action, e));
+              e.i2, copy_to_i32(constants, action.var2, action, e));
             break;
         default:
             irt::unreachable();
@@ -1536,7 +1416,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             break;
         case variable::var_i2:
             e.i2 = std::bit_or<>{}(
-              e.i1, copy_to_i32(constants, action.var2, action, e));
+              e.i2, copy_to_i32(constants, action.var2, action, e));
             break;
         default:
             irt::unreachable();
@@ -1596,28 +1476,33 @@ bool hierarchical_state_machine::condition_action::check(
         return e.timer <= 0.0;
 
     case condition_type::equal_to:
-        return wrap_var(constants, var1, *this, e) ==
-               wrap_var(constants, var2, *this, e);
-
     case condition_type::not_equal_to:
-        return wrap_var(constants, var1, *this, e) !=
-               wrap_var(constants, var2, *this, e);
-
     case condition_type::greater:
-        return wrap_var(constants, var1, *this, e) >
-               wrap_var(constants, var2, *this, e);
-
     case condition_type::greater_equal:
-        return wrap_var(constants, var1, *this, e) >=
-               wrap_var(constants, var2, *this, e);
-
     case condition_type::less:
-        return wrap_var(constants, var1, *this, e) <
-               wrap_var(constants, var2, *this, e);
-
     case condition_type::less_equal:
-        return wrap_var(constants, var1, *this, e) <=
-               wrap_var(constants, var2, *this, e);
+        break;
+    }
+
+    // An i32 fits exactly in a real: every comparison is made on reals.
+    const auto lhs = copy_to_real(constants, var1, *this, e);
+    const auto rhs = copy_to_real(constants, var2, *this, e);
+
+    switch (type) {
+    case condition_type::equal_to:
+        return lhs == rhs;
+    case condition_type::not_equal_to:
+        return lhs != rhs;
+    case condition_type::greater:
+        return lhs > rhs;
+    case condition_type::greater_equal:
+        return lhs >= rhs;
+    case condition_type::less:
+        return lhs < rhs;
+    case condition_type::less_equal:
+        return lhs <= rhs;
+    default:
+        break;
     }
 
     unreachable();

@@ -2662,6 +2662,118 @@ int main()
         expect(eq(out.sum_values, irt::real(3)));
     };
 
+    "hsm_condition_compares_the_exact_values"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        const auto inf = irt::time_domain<irt::time>::infinity;
+
+        std::array<irt::real, hsm_t::max_constants> constants{};
+        constants[0] = 2.0;
+
+        hsm_t::execution        e;
+        hsm_t::condition_action c;
+
+        // A real and an integer of the same value are equal, in both orders.
+        e.r1 = 3.0;
+        e.i1 = 3;
+        c.set_equal_to(var::var_r1, var::var_i1);
+        expect(c.check(constants, e));
+        c.set_equal_to(var::var_i1, var::var_r1);
+        expect(c.check(constants, e));
+        c.set_less_equal(var::var_r1, var::var_i1);
+        expect(c.check(constants, e));
+        c.set_equal_to(var::var_r1, 3);
+        expect(c.check(constants, e));
+
+        // The integer is not truncated to compare with a real.
+        e.r1 = 3.5;
+        c.set_equal_to(var::var_i1, var::var_r1);
+        expect(not c.check(constants, e));
+        c.set_less(var::var_i1, var::var_r1);
+        expect(c.check(constants, e));
+
+        // A constant of the machine.
+        e.r1 = 2.0;
+        c.set_equal_to(var::var_r1, var::hsm_constant_0);
+        expect(c.check(constants, e));
+
+        // All the bits of the mantissa are compared.
+        e.r1 = 1.0000001;
+        e.r2 = 1.0;
+        c.set_greater(var::var_r1, var::var_r2);
+        expect(c.check(constants, e));
+        e.r1 = 0.25;
+        e.r2 = 0.25000000001;
+        c.set_less(var::var_r1, var::var_r2);
+        expect(c.check(constants, e));
+
+        // The infinities.
+        e.r2 = -inf;
+        c.set_less_equal(var::var_r2, 3.f);
+        expect(c.check(constants, e));
+        e.r2 = inf;
+        c.set_greater(var::var_r2, 3.f);
+        expect(c.check(constants, e));
+    };
+
+    "hsm_integer_actions_read_their_own_variable"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h = sim.hsms.alloc();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+
+        const auto run = [&](const hsm_t::state_action& action) noexcept {
+            hsm_t::execution e;
+            e.i1                      = 12;
+            e.i2                      = 10;
+            h.states[1u].enter_action = action;
+            expect(!!h.start(e, sim.srcs) >> fatal);
+            return e;
+        };
+
+        hsm_t::state_action a;
+
+        a.set_modulus(var::var_i2, 7);
+        expect(eq(run(a).i2, 3));
+        a.set_bit_and(var::var_i2, 6);
+        expect(eq(run(a).i2, 2));
+        a.set_bit_or(var::var_i2, 1);
+        expect(eq(run(a).i2, 11));
+        a.set_bit_xor(var::var_i2, 1);
+        expect(eq(run(a).i2, 11));
+
+        // As divides: a null divisor does not stop the process.
+        a.set_modulus(var::var_i1, 0);
+        expect(eq(run(a).i1, INT32_MAX));
+        a.set_modulus(var::var_i2, 0);
+        expect(eq(run(a).i2, INT32_MAX));
+    };
+
+    "hsm_nan_delay_arms_nothing"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // The default timer is infinite: infinity * 0 is NaN.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h = sim.hsms.alloc();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!h.set_state(1u, 0u));
+        h.states[1u].enter_action.set_multiplies(var::var_timer, 0.f);
+        h.states[1u].condition.set_timer();
+
+        hsm_t::execution e;
+        expect(!!h.start(e, sim.srcs) >> fatal);
+        expect(irt::time_domain<irt::time>::is_infinity(e.timers[1]));
+    };
+
     "hsm_output_overflow_in_a_confluent_transition"_test = [] {
         using hsm_t = irt::hierarchical_state_machine;
         using var   = hsm_t::variable;
