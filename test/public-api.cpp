@@ -2848,6 +2848,65 @@ int main()
             expect(eq(e.value, exact(e.t)));
     };
 
+    "have_true_message"_test = [] {
+        const irt::message msgs[] = { { 0.0 }, { 2.0 }, { 0.0 } };
+
+        expect(not irt::have_true_message({}));
+        expect(not irt::have_true_message(std::span(msgs).first(1)));
+        expect(irt::have_true_message(msgs));
+    };
+
+    "logical_and_accumulator_do_not_depend_on_the_bag_order"_test = [] {
+        // At t = 1, two constants send a, then b, on the same port: the
+        // transition must not depend on the order of the connections.
+        struct result {
+            irt::real or_value;
+            irt::real invert_value;
+            irt::real accumulated;
+
+            bool operator==(const result&) const = default;
+        };
+
+        const auto run = [](const bool swap) noexcept -> result {
+            irt::simulation sim{ irt::simulation_reserve_definition(),
+                                 irt::external_source_reserve_definition() };
+            auto&           a     = sim.alloc<irt::constant>();
+            auto&           b     = sim.alloc<irt::constant>();
+            auto&           one   = sim.alloc<irt::constant>();
+            auto&           lor   = sim.alloc<irt::logical_or_2>();
+            auto&           inv   = sim.alloc<irt::logical_invert>();
+            auto&           acc   = sim.alloc<irt::accumulator_2>();
+            auto&           c_or  = sim.alloc<irt::counter>();
+            auto&           c_inv = sim.alloc<irt::counter>();
+
+            get_p(sim, a).set_constant(0.0, 1.0);
+            get_p(sim, b).set_constant(5.0, 1.0);
+            get_p(sim, one).set_constant(1.0, 1.0);
+
+            auto& first  = swap ? b : a;
+            auto& second = swap ? a : b;
+            for (auto* src : { &first, &second }) {
+                expect(!!sim.connect_dynamics(*src, 0, lor, 0));
+                expect(!!sim.connect_dynamics(*src, 0, inv, 0));
+                expect(!!sim.connect_dynamics(*src, 0, acc, 2));
+            }
+            expect(!!sim.connect_dynamics(one, 0, acc, 0));
+            expect(!!sim.connect_dynamics(lor, 0, c_or, 0));
+            expect(!!sim.connect_dynamics(inv, 0, c_inv, 0));
+
+            expect(run_until(sim, 10.0) >> fatal);
+
+            return { c_or.last_value, c_inv.last_value, acc.number };
+        };
+
+        const auto direct  = run(false);
+        const auto swapped = run(true);
+        expect(direct == swapped);
+        expect(eq(direct.or_value, irt::real(1)));
+        expect(eq(direct.invert_value, irt::real(0)));
+        expect(eq(direct.accumulated, irt::real(5)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;

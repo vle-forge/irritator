@@ -2604,6 +2604,14 @@ inline auto get_qss_message(std::span<const message> msgs) noexcept
 constexpr inline auto get_min_message(std::span<const message> msgs) noexcept
   -> real;
 
+/// True if one message of the list is not null (@c message[0]): a logical
+/// value which does not depend on the order of the messages in the bag.
+inline bool have_true_message(std::span<const message> msgs) noexcept
+{
+    return std::ranges::any_of(
+      msgs, [](const message& msg) noexcept { return not is_zero(msg[0]); });
+}
+
 inline status send_message(simulation&    sim,
                            output_port_id output_port,
                            real           r1,
@@ -7418,19 +7426,9 @@ struct abstract_logical {
     {
         const bool old_is_value = is_valid;
 
-        for (sz i = 0; i < PortNumber; ++i) {
-            if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
-                if (not is_zero(lst.front()[0])) {
-                    if (values[i] == false) {
-                        values[i] = true;
-                    }
-                } else {
-                    if (values[i] == true) {
-                        values[i] = false;
-                    }
-                }
-            }
-        }
+        for (sz i = 0; i < PortNumber; ++i)
+            if (const auto lst = get_message(sim, x[i]); not lst.empty())
+                values[i] = have_true_message(lst);
 
         AbstractLogicalTester tester{};
         is_valid = tester(std::begin(values), std::end(values));
@@ -7470,6 +7468,7 @@ struct logical_invert {
     status initialize(simulation& /*sim*/) noexcept
     {
         sigma         = time_domain<time>::infinity;
+        value         = false;
         value_changed = false;
 
         return success();
@@ -7489,10 +7488,9 @@ struct logical_invert {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            const auto& msg = lst.front();
-
-            if ((not is_zero(msg[0]) && !value) || (is_zero(msg[0]) && value))
-                value_changed = true;
+            const auto received = have_true_message(lst);
+            value_changed       = received != value;
+            value               = received;
         }
 
         sigma = value_changed ? time_domain<time>::zero
@@ -8244,16 +8242,13 @@ struct accumulator {
         for (size_t i = 0; i != PortNumber; ++i) {
             if (const auto lst = get_message(sim, x[i + PortNumber]);
                 not lst.empty()) {
-                numbers[i] = lst.front()[0];
+                numbers[i] = get_qss_message<1>(lst)[0];
             }
         }
 
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
-                if (not is_zero(lst.front()[0]))
-                    number += numbers[i];
-            }
-        }
+        for (size_t i = 0; i != PortNumber; ++i)
+            if (have_true_message(get_message(sim, x[i])))
+                number += numbers[i];
 
         return success();
     }
