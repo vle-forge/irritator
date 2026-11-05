@@ -2770,6 +2770,84 @@ int main()
         expect(eq(out.sum_values, irt::real(21)));
     };
 
+    "qss_integrator_at_integer_dates"_test = [] {
+        // The derivative changes at the integer dates and, with a quantum of 1
+        // and slopes of 1 or 2, the integrator crosses its levels at the same
+        // dates: the trajectory is checked against the exact integral.
+        static constexpr irt::real slopes[] = { 1, 1, -1, 2, 0, -2, 0 };
+
+        const auto exact = [](const irt::real t) noexcept {
+            irt::real x = 0;
+            for (int k = 0; k != std::ssize(slopes); ++k)
+                x += slopes[k] *
+                     std::clamp(t - static_cast<irt::real>(k + 1), 0.0, 1.0);
+            return x;
+        };
+
+        struct emission {
+            irt::real t;
+            irt::real value;
+
+            bool operator==(const emission&) const = default;
+        };
+
+        const auto run =
+          [&]<typename Integrator>(irt::vector<emission>& emissions) noexcept {
+              irt::simulation sim{ irt::simulation_reserve_definition(),
+                                   irt::external_source_reserve_definition{
+                                     .constant_nb = 1 } };
+              auto&           cst = sim.srcs.constant_sources.alloc();
+              cst.length          = std::size(slopes);
+              std::copy_n(slopes, std::size(slopes), cst.buffer.begin());
+
+              auto& gen   = sim.alloc<irt::generator>();
+              auto& integ = sim.alloc<Integrator>();
+              auto& out   = sim.alloc<irt::counter>();
+              get_p(sim, gen).clear().set_generator_ta(1.0).set_generator_value(
+                irt::source_type::constant,
+                sim.srcs.constant_sources.get_id(cst));
+              get_p(sim, integ).set_integrator(0.0, 1.0);
+              expect(!!sim.connect_dynamics(gen, 0, integ, 0));
+              expect(!!sim.connect_dynamics(integ, 0, out, 0));
+
+              sim.limits.set_bound(0, 7.5);
+              expect(!!sim.srcs.prepare() >> fatal);
+              expect(!!sim.initialize() >> fatal);
+
+              auto events = out.event_number;
+              do {
+                  expect(!!sim.run() >> fatal);
+                  const auto t = sim.current_time();
+                  if (sim.current_time_expired())
+                      break;
+
+                  // QSS2 and QSS3 cross some levels at dates which are not
+                  // dyadic (t = 13/3): their values are rounded.
+                  if (get_model(integ).tl == t)
+                      expect(std::abs(integ.X - exact(t)) < 1e-12)
+                        << "at t =" << t;
+
+                  if (out.event_number != events) {
+                      events = out.event_number;
+                      emissions.emplace_back(t, out.last_value);
+                  }
+              } while (true);
+          };
+
+        irt::vector<emission> qss1, qss2, qss3;
+        run.template          operator()<irt::qss1_integrator>(qss1);
+        run.template          operator()<irt::qss2_integrator>(qss2);
+        run.template          operator()<irt::qss3_integrator>(qss3);
+
+        static constexpr emission expected[] = { { 0, 0 },   { 2, 1 },
+                                                 { 3, 2 },   { 4, 1 },
+                                                 { 4.5, 2 }, { 5, 3 },
+                                                 { 6.5, 2 }, { 7, 1 } };
+        expect(std::ranges::equal(qss1, expected));
+        for (const auto& e : expected)
+            expect(eq(e.value, exact(e.t)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
