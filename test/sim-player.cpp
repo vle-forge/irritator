@@ -79,14 +79,16 @@ std::vector<bytes> reference(const int steps)
     return ret;
 }
 
-/// The state after @c n steps of a plain run.
+/// The state after @c n steps of a plain run, finalized as the player does
+/// if the run reaches the end.
 bytes reference_at(const std::size_t n)
 {
     simulation          sim;
     world      w;
     build_world(sim, w);
 
-    if (not start(sim) or not plain_steps(sim, static_cast<int>(n)))
+    if (not start(sim) or not plain_steps(sim, static_cast<int>(n)) or
+        not plain_finish(sim))
         return {};
 
     return dump(sim);
