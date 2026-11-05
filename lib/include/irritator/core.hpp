@@ -12246,6 +12246,11 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
             dyn.x[i].reset();
     }
 
+    // A NaN breaks the order of the scheduler and a negative time advance
+    // moves the time backward.
+    if (not(dyn.sigma >= zero))
+        return make_error(simulation_errc::ta_abnormal);
+
     mdl.tl     = t;
     mdl.tn     = t + dyn.sigma;
     mdl.handle = invalid_heap_handle;
@@ -12301,7 +12306,8 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
             elem.reset();
     }
 
-    debug::ensure(mdl.tn >= t);
+    if (not(dyn.sigma >= zero))
+        return make_error(simulation_errc::ta_abnormal);
 
     mdl.tl = t;
     mdl.tn = t + dyn.sigma;
