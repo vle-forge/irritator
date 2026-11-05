@@ -212,15 +212,21 @@ static bool submit(application&     app,
 
     app.add_simulation_task(
       pj_id,
-      [&ed, fn, edited = std::exchange(c.edited, false),
+      [&ed, fn,
        history = c.view != player_controller::kind::complete]() noexcept {
           auto&      c  = ed.sim_player;
           const auto t0 = std::chrono::steady_clock::now();
 
+          // The commands of the user are applied between two steps, before
+          // the work of the task.
+          c.result = success();
+          if (not c.commands.empty() and c.player.started() and
+              not c.player.finalized())
+              c.result = c.player.edit(
+                [&]() noexcept { return ed.pj.apply_commands(c.commands); });
+
           // The complete mode keeps no keyframe, the others keep them. It is
           // a no-op when the player is already in the right mode.
-
-          c.result = edited ? c.player.forget_history() : success();
           if (not c.result.has_error())
               c.result = c.player.keep_history(history);
           if (not c.result.has_error())
@@ -322,6 +328,10 @@ void project_editor::schedule_player(application& app) noexcept
 
     switch (sim_player.current) {
     case mode::paused:
+        // A task without work: it applies the commands of the user.
+        if (not sim_player.commands.empty())
+            submit(app, pj_id, *this,
+                   [](auto&) noexcept -> status { return success(); });
         break;
 
     case mode::play:

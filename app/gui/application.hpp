@@ -1081,7 +1081,9 @@ public:
     bool pace_reset = true;  ///< rebase clock to the next task (start, resume).
     bool need_start = false; ///< the next complete task (re)starts the player.
     bool need_rebuild = false; ///< build the simulation again, then start.
-    bool edited       = false; ///< Use modify the simulation: forget_history()
+
+    /// Written by the main thread, applied by the task between two steps.
+    command_queue commands;
 
     /// Held by the main thread during a frame, see @c simulation_readable().
     std::shared_lock<std::shared_mutex> frame_lock;
@@ -1154,6 +1156,9 @@ public:
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
 
     player_controller sim_player;
+
+    /// The value typed by the user for the "send value" of a constant.
+    real constant_value_to_send = 0.0;
 
     /** A local @c graph_editor to display the simulation graph component editor
      * (without observation). */

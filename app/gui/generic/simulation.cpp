@@ -329,14 +329,23 @@ static void show_dynamics_values(application& /*app*/,
                                  constant&       dyn)
 {
     ImGui::LabelFormat("next ta", "{}", dyn.sigma);
-    ImGui::InputDouble("value", &dyn.value);
+    ImGui::LabelFormat("value", "{}", dyn.value);
+
+    // The model belongs to the simulation thread: the new value goes through
+    // a command.
+    ImGui::InputDouble("new value", &sim.constant_value_to_send);
 
     if (ImGui::Button("Send value now")) {
         auto& mdl    = get_model(dyn);
         auto  mdl_id = sim.pj.sim.models.get_id(mdl);
 
-        sim.pj.push(command{ .type = command_type::send_message,
-                             .data{ .send_message{ .mdl_id = mdl_id } } });
+        if (not sim.sim_player.commands.push(command{
+              .type = command_type::send_message,
+              .data{ .send_message{ .mdl_id = mdl_id,
+                                    .value  = sim.constant_value_to_send } } }))
+            log(log_level::error, [](auto& msg) noexcept {
+                msg = "simulation: commands order list is full";
+            });
     }
 }
 
@@ -844,7 +853,7 @@ static void build_flat_nodes(
 
 static int push_command(project_editor& pj_ed, const command& cmd) noexcept
 {
-    if (pj_ed.pj.push(cmd))
+    if (pj_ed.sim_player.commands.push(cmd))
         return 1;
 
     log(log_level::error, [](auto& msg) noexcept {
