@@ -2662,6 +2662,114 @@ int main()
         expect(eq(out.sum_values, irt::real(3)));
     };
 
+    "hsm_output_overflow_in_a_confluent_transition"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // root 0 > (A 1, B 2, C 3): at t = 1, the timer of A sends 3 messages
+        // (if, exit, enter of B) and the bag sends 2 more (if of B, enter of
+        // C) in the same bag: the 4 places of the buffer are not enough.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           h    = sim.hsms.alloc();
+        auto&           hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto&           cst  = sim.alloc<irt::constant>();
+        auto&           out  = sim.alloc<irt::counter>();
+
+        expect(!!h.set_state(0u, hsm_t::invalid_state_id, 1u));
+        for (const irt::u8 i : { 1u, 2u, 3u })
+            expect(!!h.set_state(i, 0u));
+
+        h.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        h.states[1u].condition.set_timer();
+        h.states[1u].if_transition = 2u;
+        h.states[1u].if_action.set_output(var::port_0, 1.f);
+        h.states[1u].exit_action.set_output(var::port_0, 2.f);
+        h.states[2u].enter_action.set_output(var::port_0, 3.f);
+        h.states[2u].condition.set(0b1000u, 0b1000u);
+        h.states[2u].if_transition = 3u;
+        h.states[2u].if_action.set_output(var::port_0, 4.f);
+        h.states[3u].enter_action.set_output(var::port_0, 5.f);
+        h.states[3u].condition.set(0b0001u, 0b0001u);
+
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(h)));
+        get_p(sim, cst).set_constant(3.0, 1.0);
+        expect(!!sim.connect_dynamics(cst, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(hsmw, 0, out, 0));
+
+        sim.limits.set_bound(0, 10.0);
+        expect(!!sim.srcs.prepare() >> fatal);
+        expect(!!sim.initialize() >> fatal);
+
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        auto       ret      = irt::error_code{};
+        do {
+            if (auto r = sim.run(); not r) {
+                ret = r.error();
+                break;
+            }
+        } while (not sim.current_time_expired());
+        irt::on_error_callback = callback;
+
+        expect(ret == irt::error_code(
+                        irt::simulation_errc::hsm_output_overflow_error));
+        expect(eq(out.event_number, 0));
+    };
+
+    "hsm_output_buffer_is_emptied_before_a_confluent_transition"_test = [] {
+        using hsm_t = irt::hierarchical_state_machine;
+        using var   = hsm_t::variable;
+
+        // W: root 0 > (A 1, B 2, C 3, D 4). At t = 1, the timer of A sends
+        // 1, 2, 3, 4 (if and exit of A, enter of B, if of the completion of
+        // B). V sends at t = 1 too: its message arrives in the bag of the step
+        // where W sends its 4 messages, and C goes to D, which sends 5 and 6.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           hw  = sim.hsms.alloc();
+        auto&           hv  = sim.hsms.alloc();
+        auto&           w   = sim.alloc<irt::hsm_wrapper>();
+        auto&           v   = sim.alloc<irt::hsm_wrapper>();
+        auto&           out = sim.alloc<irt::counter>();
+
+        expect(!!hw.set_state(0u, hsm_t::invalid_state_id, 1u));
+        for (const irt::u8 i : { 1u, 2u, 3u, 4u })
+            expect(!!hw.set_state(i, 0u));
+
+        hw.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        hw.states[1u].condition.set_timer();
+        hw.states[1u].if_transition = 2u;
+        hw.states[1u].if_action.set_output(var::port_0, 1.f);
+        hw.states[1u].exit_action.set_output(var::port_0, 2.f);
+        hw.states[2u].enter_action.set_output(var::port_0, 3.f);
+        hw.states[2u].if_transition = 3u;
+        hw.states[2u].if_action.set_output(var::port_0, 4.f);
+        hw.states[3u].condition.set(0b1000u, 0b1000u);
+        hw.states[3u].if_transition = 4u;
+        hw.states[3u].if_action.set_output(var::port_0, 5.f);
+        hw.states[4u].enter_action.set_output(var::port_0, 6.f);
+        hw.states[4u].condition.set(0b0001u, 0b0001u);
+
+        expect(!!hv.set_state(0u, hsm_t::invalid_state_id, 1u));
+        expect(!!hv.set_state(1u, 0u));
+        expect(!!hv.set_state(2u, 0u));
+        hv.states[1u].enter_action.set_affect(var::var_timer, 1.f);
+        hv.states[1u].condition.set_timer();
+        hv.states[1u].if_transition = 2u;
+        hv.states[1u].if_action.set_output(var::port_0, 7.f);
+        hv.states[2u].condition.set(0b0001u, 0b0001u);
+
+        get_p(sim, w).set_hsm_wrapper(ordinal(sim.hsms.get_id(hw)));
+        get_p(sim, v).set_hsm_wrapper(ordinal(sim.hsms.get_id(hv)));
+        expect(!!sim.connect_dynamics(v, 0, w, 0));
+        expect(!!sim.connect_dynamics(w, 0, out, 0));
+
+        expect(run_until(sim, 10.0) >> fatal);
+        expect(eq((int)w.exec.current_state, 4));
+        expect(eq(out.event_number, 6));
+        expect(eq(out.sum_values, irt::real(21)));
+    };
+
     "hsm_hierarchy_devs_invalid_machine"_test = [] {
         hsm_bench b;
         b.machine.states[1u].sub_id = hsm_bench::hsm_t::invalid_state_id;
