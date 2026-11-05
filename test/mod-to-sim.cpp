@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <fstream>
 #include <numeric>
+#include <thread>
 
 #include <boost/ut.hpp>
 
@@ -3322,5 +3323,191 @@ int main()
             expect(json_load_component(mod, json).has_error()) << json;
 
         irt::on_error_callback = callback;
+    };
+
+    "project: the commands are applied between two steps"_test = [] {
+        // The test checks errors: no breakpoint on them.
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        const auto restore  = irt::scope_exit(
+          [&]() noexcept { irt::on_error_callback = callback; });
+
+        irt::modeling mod;
+
+        const auto compo_id = mod.ids.write([&](auto& ids) {
+            const auto compo_id = ids.alloc_generic_component();
+            auto&      compo    = ids.components[compo_id];
+            auto&      gen = ids.generic_components.get(compo.id.generic_id);
+
+            auto& c = gen.alloc(irt::dynamics_type::constant);
+            auto& n = gen.alloc(irt::dynamics_type::counter);
+
+            gen.children_names[gen.children.get_id(c)] = "in";
+            gen.children_names[gen.children.get_id(n)] = "cnt";
+            gen.children_parameters[gen.children.get_id(c)].set_constant(1.0,
+                                                                         0.0);
+
+            expect(
+              gen.connect(c, { .model = 0 }, n, { .model = 0 }).has_value());
+            return compo_id;
+        });
+
+        irt::project pj;
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, compo_id).has_value()));
+            });
+        });
+
+        pj.sim.limits.set_bound(0, 100);
+        expect(fatal(pj.simulation_init(mod).has_value()));
+
+        auto cst_id = irt::undefined<irt::model_id>();
+        auto cnt_id = irt::undefined<irt::model_id>();
+        for (const auto& mdl : pj.sim.models) {
+            if (mdl.type == irt::dynamics_type::constant)
+                cst_id = pj.sim.models.get_id(mdl);
+            if (mdl.type == irt::dynamics_type::counter)
+                cnt_id = pj.sim.models.get_id(mdl);
+        }
+        expect(fatal(irt::is_defined(cst_id) and irt::is_defined(cnt_id)));
+
+        const auto& cnt = irt::get_dyn<irt::counter>(pj.sim.models.get(cnt_id));
+
+        const auto send = [](irt::model_id id, irt::real value) {
+            return irt::command{ .type = irt::command_type::send_message,
+                                 .data{ .send_message{ .mdl_id = id,
+                                                       .value  = value } } };
+        };
+
+        const auto apply = [&](irt::command_queue& q) {
+            return [&pj, &q]() noexcept { return pj.apply_commands(q); };
+        };
+
+        irt::command_queue     queue;
+        irt::simulation_player player(pj.sim);
+
+        // Not started: the simulation can not be edited.
+        expect(queue.push(send(cst_id, 2.0)));
+        expect(player.edit(apply(queue)).has_error());
+        expect(not queue.empty()); // the commands wait for a started player
+
+        queue.consume([](const auto&) noexcept {});
+        expect(queue.empty());
+
+        expect(fatal(player.start().has_value()));
+        expect(fatal(
+          player.advance_until(10.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(cnt.event_number, 1));
+        expect(eq(cnt.last_value, 1.0));
+        expect(eq(player.current_time(), 10.0));
+
+        // The constant sends the new value at the current date, in the next
+        // step: the clock does not move.
+        expect(queue.push(send(cst_id, 3.5)));
+        expect(fatal(player.edit(apply(queue)).has_value()));
+        expect(queue.empty());
+        expect(not player.can_step_back()); // the history is forgotten
+        expect(eq(player.earliest_step(), player.step()));
+
+        expect(fatal(
+          player.advance_until(10.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(cnt.event_number, 2));
+        expect(eq(cnt.last_value, 3.5));
+        expect(eq(player.current_time(), 10.0));
+
+        // A command that fails does not stop the next ones: the first error
+        // is returned.
+        expect(queue.push(send(cnt_id, 1.0)));
+        expect(
+          queue.push(send(cst_id, std::numeric_limits<double>::quiet_NaN())));
+        expect(queue.push(send(cst_id, 7.0)));
+
+        const auto ret = player.edit(apply(queue));
+        expect(fatal(ret.has_error()));
+        expect(ret.error() ==
+               irt::error_code(irt::simulation_errc::command_model_error));
+        expect(queue.empty());
+
+        // Without history an edition takes no snapshot.
+        expect(fatal(player.keep_history(false).has_value()));
+        expect(fatal(
+          player.advance_until(20.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(cnt.event_number, 3));
+        expect(eq(cnt.last_value, 7.0));
+
+        expect(queue.push(send(cst_id, -1.0)));
+        expect(fatal(player.edit(apply(queue)).has_value()));
+        expect(fatal(
+          player.advance_until(30.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(cnt.event_number, 4));
+        expect(eq(cnt.last_value, -1.0));
+
+        // A finalized simulation can not be edited.
+        while (not player.finished())
+            expect(fatal(player.advance(std::chrono::seconds(60)).has_value()));
+        expect(player.finalized());
+        expect(queue.push(send(cst_id, 1.0)));
+        expect(player.edit(apply(queue)).has_error());
+    };
+
+    "command_queue"_test = [] {
+        irt::command_queue queue;
+        expect(queue.empty());
+
+        for (std::size_t i = 0; i < irt::command_queue::capacity; ++i)
+            expect(queue.push(irt::command{
+              .type = irt::command_type::send_message,
+              .data{ .send_message{ .mdl_id = irt::model_id{ i },
+                                    .value  = static_cast<irt::real>(i) } } }));
+
+        expect(not queue.push(irt::command{}));
+
+        std::size_t n = 0;
+        queue.consume([&](const irt::command& cmd) noexcept {
+            expect(eq(cmd.data.send_message.value, static_cast<irt::real>(n)));
+            ++n;
+        });
+        expect(eq(n, irt::command_queue::capacity));
+        expect(queue.empty());
+
+        // The counters wrap around the buffer.
+        for (int round = 0; round < 3; ++round) {
+            for (int i = 0; i < 40; ++i)
+                expect(queue.push(irt::command{}));
+            n = 0;
+            queue.consume([&](const irt::command&) noexcept { ++n; });
+            expect(eq(n, 40u));
+        }
+
+        // One producer and one consumer in two threads.
+        std::atomic<bool> done{ false };
+        std::size_t       received = 0;
+        constexpr int     total    = 10000;
+
+        std::thread consumer([&] {
+            for (;;) {
+                const bool finished = done.load();
+                queue.consume([&](const irt::command& cmd) noexcept {
+                    expect(eq(cmd.data.send_message.value,
+                              static_cast<irt::real>(received)));
+                    ++received;
+                });
+                if (finished and queue.empty())
+                    return;
+            }
+        });
+
+        for (int i = 0; i < total;) {
+            if (queue.push(
+                  irt::command{ .type = irt::command_type::send_message,
+                                .data{ .send_message{
+                                  .mdl_id = irt::model_id{ 0 },
+                                  .value  = static_cast<irt::real>(i) } } }))
+                ++i;
+        }
+
+        done = true;
+        consumer.join();
+        expect(eq(received, static_cast<std::size_t>(total)));
     };
 }

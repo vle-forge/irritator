@@ -1022,4 +1022,41 @@ ut::suite<"irt::binary embedded simulations"> embedded_suite = [] {
     };
 };
 
+ut::suite<"irt::simulation live values"> live_values_suite = [] {
+    using namespace ut;
+    using namespace ut::literals;
+
+    "send_value: a constant sends a new value in the next step"_test = [] {
+        const auto no_break = std::exchange(irt::on_error_callback, nullptr);
+        const auto restore  = irt::scope_exit(
+          [&]() { irt::on_error_callback = no_break; });
+
+        simulation sim;
+        expect(sim.grow_models_to(2) >> ut::fatal);
+        auto& cst = sim.alloc<irt::constant>();
+        auto& cnt = sim.alloc<counter>();
+        sim.parameters[get_index(sim.get_id(cst))].set_constant(1.0);
+        expect(sim.connect_dynamics(cst, 0, cnt, 0).has_value() >> ut::fatal);
+
+        expect(start(sim) >> ut::fatal);
+        expect(run_steps(sim, 1) >> ut::fatal);
+        expect(cnt.event_number == 1_i);
+        expect(cnt.last_value == 1.0_d);
+
+        expect(sim.send_value(undefined<model_id>(), 2.0).has_error());
+        expect(sim.send_value(sim.get_id(cnt), 2.0).has_error());
+        expect(
+          sim
+            .send_value(sim.get_id(cst), std::numeric_limits<real>::quiet_NaN())
+            .has_error());
+
+        // The constant is done: it sends again, at the same date.
+        expect(sim.send_value(sim.get_id(cst), 4.0).has_value() >> ut::fatal);
+        expect(run_steps(sim, 1) >> ut::fatal);
+        expect(cnt.event_number == 2_i);
+        expect(cnt.last_value == 4.0_d);
+        expect(sim.current_time() == 0.0_d);
+    };
+};
+
 int main() {}
