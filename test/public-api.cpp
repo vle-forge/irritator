@@ -3700,7 +3700,7 @@ int main()
             expect(!!sim.run());
             if (not sim.current_time_expired())
                 expect(
-                  eq(time_fun.value, sim.current_time() * sim.current_time()));
+                  eq(cnt.last_value, sim.current_time() * sim.current_time()));
             c++;
         } while (not sim.current_time_expired());
 
@@ -3734,7 +3734,7 @@ int main()
         do {
             expect(!!sim.run() >> fatal);
             if (not sim.current_time_expired())
-                expect(eq(time_fun.value,
+                expect(eq(cnt.last_value,
                           std::sin(irt::two * pi * f0 * sim.current_time())));
             c++;
         } while (not sim.current_time_expired());

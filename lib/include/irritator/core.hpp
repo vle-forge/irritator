@@ -8522,8 +8522,10 @@ struct time_func {
         if (not std::isfinite(timestep) or timestep <= zero)
             return make_error(simulation_errc::time_func_timestep_error);
 
+        // The value is computed for the date of the next output with the
+        // expression of the kernel (t + sigma): the output at tn is f(tn).
         sigma = offset;
-        value = call_function(sim.current_time());
+        value = call_function(sim.current_time() + offset);
 
         return success();
     }
@@ -8533,8 +8535,8 @@ struct time_func {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        value = call_function(t);
         sigma = timestep;
+        value = call_function(t + timestep);
         return success();
     }
 
