@@ -3022,6 +3022,24 @@ int main()
         expect(eq(direct.accumulated, irt::real(5)));
     };
 
+    "generator_time_advance_port"_test = [] {
+        // At t = 0.5, the generator (ta = 1) receives 3 on x_t: the next
+        // values leave at 3.5, 4.5, ..., 9.5.
+        irt::simulation sim{ irt::simulation_reserve_definition(),
+                             irt::external_source_reserve_definition() };
+        auto&           cst = sim.alloc<irt::constant>();
+        auto&           gen = sim.alloc<irt::generator>();
+        auto&           out = sim.alloc<irt::counter>();
+
+        get_p(sim, cst).set_constant(3.0, 0.5);
+        get_p(sim, gen).clear().set_generator_ta(1.0);
+        expect(!!sim.connect_dynamics(cst, 0, gen, irt::generator::x_t));
+        expect(!!sim.connect_dynamics(gen, 0, out, 0));
+
+        expect(run_until(sim, 10.0) >> fatal);
+        expect(eq(out.event_number, 7));
+    };
+
     "bag_order_is_the_total_order_of_ieee_754"_test = [] {
         const auto inf = std::numeric_limits<irt::real>::infinity();
         const auto nan = std::numeric_limits<irt::real>::quiet_NaN();

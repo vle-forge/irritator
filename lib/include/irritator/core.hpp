@@ -4980,10 +4980,7 @@ struct generator {
         }
 
         const auto lst_t = get_message(sim, x[x_t]);
-        real       t     = -1.0;
-        if (not lst_t.empty())
-            for (const auto& msg : lst_t)
-                t = std::min(msg[0], t);
+        const auto t     = get_min_message(lst_t);
 
         const auto lst_add_tr = get_message(sim, x[x_add_tr]);
         real       add_tr     = time_domain<time>::infinity;
@@ -4998,7 +4995,7 @@ struct generator {
                 mult_tr = std::max(msg[0], mult_tr);
 
         if (not(lst_t.empty() and lst_add_tr.empty() and lst_mult_tr.empty())) {
-            if (t >= zero) {
+            if (not lst_t.empty() and t >= zero) {
                 sigma = t;
             } else {
                 if (std::isfinite(add_tr))
