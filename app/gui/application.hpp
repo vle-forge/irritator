@@ -966,6 +966,7 @@ struct player_view {
     u32    resyncs;
     size_t keyframes;
     size_t bytes;
+    size_t journal; ///< entries of the journal of the commands
     bool   started;
     bool   finished;
     bool   can_back;
@@ -1036,13 +1037,20 @@ public:
     explicit player_controller(project& pj) noexcept
       : player(pj.sim)
       , curves(pj.observation_file_sink())
+      , journal(pj)
     {
         player.set_observation_sink(&curves);
+        player.set_edition_replay(&journal);
     }
 
     simulation_player player;
     plot_series       curves;
     realtime_pacer    pacer;
+
+    /// The commands applied by the task: the player does them again when it
+    /// replays the steps. Only the task and the main thread between two tasks
+    /// use it.
+    command_journal journal;
 
     u32 resyncs = 0;
 
@@ -1084,6 +1092,9 @@ public:
     bool pace_reset = true;  ///< rebase clock to the next task (start, resume).
     bool need_start = false; ///< the next complete task (re)starts the player.
     bool need_rebuild = false; ///< build the simulation again, then start.
+    bool need_replay  = false; ///< the rebuild keeps the journal: a replay.
+    bool need_load_journal = false; ///< the rebuild reads the journal file.
+    bool need_save_journal = false; ///< written between two tasks.
 
     /// Written by the main thread, applied by the task between two steps.
     command_queue commands;

@@ -6,6 +6,7 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
+#include <irritator/archiver.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
@@ -199,6 +200,82 @@ static bool show_registred_obseravation_path(application&    app,
     return old_observation_dir != ed.pj.observation_dir;
 }
 
+/// The journal of the commands beside the project file: "name.pirt" gives
+/// "name.irj".
+static std::optional<path> journal_file(application&          app,
+                                        const project_editor& ed) noexcept
+{
+    return app.mod.files.read(
+      [&](const auto& fs, auto) noexcept -> std::optional<path> {
+          const auto pirt = make_file(fs, ed.pj.project_file);
+          if (not pirt.has_value())
+              return std::nullopt;
+
+          auto stem = pirt->sv();
+          if (stem.ends_with(file_type_names[ordinal(file_type::project_file)]))
+              stem.remove_suffix(
+                file_type_names[ordinal(file_type::project_file)].size());
+
+          path ret;
+          format(ret, "{}.irj", stem);
+          return ret;
+      });
+}
+
+static void save_journal_file(application& app, project_editor& ed) noexcept
+{
+    const auto p = journal_file(app, ed);
+    if (not p.has_value()) {
+        log(log_level::error,
+            [](auto& m) noexcept { m = "journal: save the project first"; });
+        return;
+    }
+
+    auto f = file::open(*p, file_mode{ file_open_options::write });
+    if (f.has_value()) {
+        if (auto ret = save_journal(ed.pj, ed.sim_player.journal, *f,
+                                    json_pretty_print::indent_2);
+            ret.has_value()) {
+            log(log_level::info, [&](auto& m) noexcept {
+                format(m, "journal: {} commands written in {}",
+                       ed.sim_player.journal.entries().size(), p->sv());
+            });
+            return;
+        }
+    }
+
+    log(log_level::error, [&](auto& m) noexcept {
+        format(m, "journal: can not write {}", p->sv());
+    });
+}
+
+static bool load_journal_file(application& app, project_editor& ed) noexcept
+{
+    const auto p = journal_file(app, ed);
+    if (not p.has_value()) {
+        log(log_level::error,
+            [](auto& m) noexcept { m = "journal: the project has no file"; });
+        return false;
+    }
+
+    auto f = file::open(*p, file_mode{ file_open_options::read });
+    if (f.has_value()) {
+        if (auto ret = load_journal(ed.pj, ed.sim_player.journal, *f);
+            ret.has_value()) {
+            log(log_level::info, [&](auto& m) noexcept {
+                format(m, "journal: {} commands read from {}",
+                       ed.sim_player.journal.entries().size(), p->sv());
+            });
+            return true;
+        }
+    }
+
+    log(log_level::error, [&](auto& m) noexcept {
+        format(m, "journal: can not read {}", p->sv());
+    });
+    return false;
+}
+
 template<class Fn>
 static bool submit(application&     app,
                    const project_id pj_id,
@@ -223,8 +300,9 @@ static bool submit(application&     app,
           // each frame and applied to another simulation.
           c.result = success();
           if (not c.commands.empty()) {
-              c.result = c.player.edit(
-                [&]() noexcept { return ed.pj.apply_commands(c.commands); });
+              c.result = c.player.edit([&]() noexcept {
+                  return c.journal.apply(c.commands, c.player.step());
+              });
               c.commands.clear();
           }
 
@@ -267,6 +345,7 @@ static bool submit(application&     app,
           c.fresh.can_back  = c.player.can_step_back();
           c.fresh.keyframes = c.player.keyframe_number();
           c.fresh.bytes     = c.player.memory_usage();
+          c.fresh.journal   = c.journal.entries().size();
           c.has_result      = true;
           c.busy.clear(std::memory_order_release); // always last instruction
       });
@@ -310,16 +389,30 @@ void project_editor::schedule_player(application& app) noexcept
         }
     }
 
+    // The journal belongs to the task while the player is busy.
+    if (std::exchange(sim_player.need_save_journal, false))
+        save_journal_file(app, *this);
+
     // The simulation belongs to the task while the player is busy: it is
     // built again here, between two tasks.
     if (std::exchange(sim_player.need_rebuild, false)) {
         // No task runs: the main thread is the consumer of the queue.
         sim_player.commands.clear();
 
+        // A new game, or a replay of the commands of the journal.
+        const auto replay = std::exchange(sim_player.need_replay, false);
+        const auto load   = std::exchange(sim_player.need_load_journal, false);
+        if (not replay and not load)
+            sim_player.journal.clear();
+
         if (pj.simulation_init(app.mod).has_error()) {
             sim_player.current = mode::paused;
             return;
         }
+
+        // After the build: the names of the journal are resolved in it.
+        if (load and not load_journal_file(app, *this))
+            sim_player.journal.clear();
 
         sim_player.player.reset();
 
@@ -423,6 +516,35 @@ static void show_restart_button(const application& app,
         c.current      = player_controller::mode::paused;
         c.need_rebuild = true;
     }
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(c.shown.journal == 0);
+    if (ImGui::Button("Replay")) {
+        c.current      = player_controller::mode::paused;
+        c.need_rebuild = true;
+        c.need_replay  = true;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Build the simulation again and replay the %u "
+                          "commands of the journal",
+                          static_cast<unsigned>(c.shown.journal));
+
+    ImGui::SameLine();
+    if (ImGui::Button("Save journal"))
+        c.need_save_journal = true;
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Write the commands in the .irj file of the project");
+
+    ImGui::SameLine();
+    if (ImGui::Button("Load journal")) {
+        c.current           = player_controller::mode::paused;
+        c.need_rebuild      = true;
+        c.need_load_journal = true;
+    }
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        ImGui::SetTooltip("Read the .irj file of the project, build the "
+                          "simulation again and replay the commands");
 }
 
 static void show_debug_player(application&     app,
