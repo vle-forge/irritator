@@ -1057,6 +1057,79 @@ ut::suite<"irt::simulation live values"> live_values_suite = [] {
         expect(cnt.last_value == 4.0_d);
         expect(sim.current_time() == 0.0_d);
     };
+
+    "watch: the outputs and the changes of the watched models"_test = [] {
+        const auto no_break = std::exchange(irt::on_error_callback, nullptr);
+        const auto restore  = irt::scope_exit(
+          [&]() { irt::on_error_callback = no_break; });
+
+        // cst -> cnt, and alone, without connection, which sends at t = 2.
+        simulation sim;
+        expect(sim.grow_models_to(3) >> ut::fatal);
+        auto& cst   = sim.alloc<irt::constant>();
+        auto& cnt   = sim.alloc<counter>();
+        auto& alone = sim.alloc<irt::constant>();
+        sim.parameters[get_index(sim.get_id(cst))].set_constant(1.0);
+        sim.parameters[get_index(sim.get_id(alone))].set_constant(5.0, 2.0);
+        expect(sim.connect_dynamics(cst, 0, cnt, 0).has_value() >> ut::fatal);
+
+        const auto cst_id   = sim.get_id(cst);
+        const auto cnt_id   = sim.get_id(cnt);
+        const auto alone_id = sim.get_id(alone);
+
+        expect(sim.watch(undefined<model_id>()).has_error());
+        expect(sim.watch(cnt_id).has_value() >> ut::fatal);
+        expect(sim.watch(alone_id).has_value() >> ut::fatal);
+        expect(sim.watch(alone_id).has_value()); // twice: the same watch
+        expect(sim.is_watched(cnt_id) and sim.is_watched(alone_id));
+        expect(not sim.is_watched(cst_id));
+
+        expect(start(sim) >> ut::fatal);
+        const auto at_start = snapshot(sim);
+        expect(not at_start.empty() >> ut::fatal);
+
+        const auto check = [&](const std::span<const watched_event> ev) {
+            expect(ev.size() == 2u >> ut::fatal);
+            expect(ev[0].mdl == cnt_id and ev[0].port == -1);
+            expect(ev[0].t == 0.0_d and ev[0].value == 1.0_d);
+            expect(ev[1].mdl == alone_id and ev[1].port == 0);
+            expect(ev[1].t == 2.0_d and ev[1].value == 5.0_d);
+        };
+
+        expect(run_steps(sim, 2) >> ut::fatal);
+        check(sim.watched_events());
+
+        // The rewind keeps the watch, even for the output port of alone
+        // allocated after the snapshot.
+        expect(load_snapshot(sim, at_start) >> ut::fatal);
+        sim.clear_watched_events();
+        expect(sim.is_watched(alone_id));
+        expect(run_steps(sim, 2) >> ut::fatal);
+        check(sim.watched_events());
+
+        // A new message: the counter tells its new number of events.
+        sim.clear_watched_events();
+        expect(sim.send_value(cst_id, 1.0).has_value() >> ut::fatal);
+        expect(run_steps(sim, 1) >> ut::fatal);
+        expect(sim.watched_events().size() == 1u >> ut::fatal);
+        expect(sim.watched_events()[0].value == 2.0_d); // event_number
+
+        sim.clear_watched_events();
+        sim.unwatch(cnt_id);
+        expect(not sim.is_watched(cnt_id));
+        expect(sim.send_value(cst_id, 1.0).has_value() >> ut::fatal);
+        expect(run_steps(sim, 1) >> ut::fatal);
+        expect(sim.watched_events().empty());
+
+        // A freed model is unwatched: a new model at its index is not.
+        sim.deallocate(alone_id);
+        auto& other = sim.alloc<irt::constant>();
+        expect(get_index(sim.get_id(other)) == get_index(alone_id));
+        expect(not sim.is_watched(sim.get_id(other)));
+
+        sim.unwatch_all();
+        expect(not sim.is_watched(alone_id));
+    };
 };
 
 int main() {}
