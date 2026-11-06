@@ -821,6 +821,15 @@ void project_editor::show_settings_and_hierarchy(application& app) noexcept
                 ImGui::EndChild();
                 ImGui::EndTabItem();
             }
+
+            if (ImGui::BeginTabItem("Input data")) {
+                if (ImGui::BeginChild("###input-data",
+                                      ImGui::GetContentRegionAvail()))
+                    app.data_ed.show(app, *this);
+
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
             ImGui::EndTabBar();
         }
 
