@@ -3442,12 +3442,46 @@ int main()
         expect(eq(cnt.event_number, 4));
         expect(eq(cnt.last_value, -1.0));
 
+        // The edition holds the lock of the structure: the views can not
+        // read the simulation meanwhile. The count tells them to rebuild.
+        const auto count  = player.edit_count();
+        bool       locked = false;
+        expect(fatal(player
+                       .edit([&]() noexcept -> irt::status {
+                           locked = not player.try_lock_structure();
+                           return irt::success();
+                       })
+                       .has_value()));
+        expect(locked);
+        expect(player.try_lock_structure().owns_lock());
+        expect(eq(player.edit_count(), count + 1));
+
+        // A copy joins the tree node of its source.
+        const auto  tn_id  = pj.tn_head();
+        const auto* tn_ptr = pj.tree_nodes.try_to_get(tn_id);
+        expect(fatal(tn_ptr != nullptr));
+        const auto& tn       = *tn_ptr;
+        const auto  children = tn.children.size();
+        expect(queue.push(irt::command{
+          .type = irt::command_type::copy_model,
+          .data{ .copy_model{ .tn_id = tn_id, .mdl_id = cst_id } } }));
+        expect(fatal(player.edit(apply(queue)).has_value()));
+        expect(eq(tn.children.size(), children + 1));
+        expect(pj.sim.models.try_to_get(tn.children.back().mdl) != nullptr);
+        expect(pj.sim.models.get(tn.children.back().mdl).type ==
+               irt::dynamics_type::constant);
+
         // A finalized simulation can not be edited.
         while (not player.finished())
             expect(fatal(player.advance(std::chrono::seconds(60)).has_value()));
         expect(player.finalized());
         expect(queue.push(send(cst_id, 1.0)));
         expect(player.edit(apply(queue)).has_error());
+        expect(eq(player.edit_count(), count + 2)); // a refused edition
+
+        // The simulation built again has new models.
+        player.reset();
+        expect(eq(player.edit_count(), count + 3));
     };
 
     "command_queue"_test = [] {
@@ -3463,6 +3497,18 @@ int main()
         expect(not queue.push(irt::command{}));
 
         std::size_t n = 0;
+
+        queue.clear();
+        expect(queue.empty());
+        queue.consume([&](const irt::command&) noexcept { ++n; });
+        expect(eq(n, 0u));
+
+        for (std::size_t i = 0; i < irt::command_queue::capacity; ++i)
+            expect(queue.push(irt::command{
+              .type = irt::command_type::send_message,
+              .data{ .send_message{ .mdl_id = irt::model_id{ i },
+                                    .value  = static_cast<irt::real>(i) } } }));
+
         queue.consume([&](const irt::command& cmd) noexcept {
             expect(eq(cmd.data.send_message.value, static_cast<irt::real>(n)));
             ++n;
