@@ -8388,8 +8388,13 @@ struct abstract_cross {
             if constexpr (QssLevel == 1) {
                 if (old_value > value[0])
                     return zone_type::down;
-                else
+                if (old_value < value[0])
                     return zone_type::up;
+
+                // No new value (the internal transition after the output of
+                // the zone): the zone stays, otherwise a value that reaches
+                // the threshold going down would be sent down then up.
+                return zone == zone_type::undefined ? zone_type::up : zone;
             }
 
             if constexpr (QssLevel >= 2) {
