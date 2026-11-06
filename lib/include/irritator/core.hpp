@@ -2051,6 +2051,15 @@ using simulation_selection = id_data_array<
 
 struct embedded_simulation;
 
+/// An output of a watched model (see @c simulation::watch()) or, for a model
+/// without output port, a change of its watched value.
+struct watched_event {
+    time     t;
+    model_id mdl;
+    i32      port;  ///< The output port, -1 for a model without output port.
+    real     value; ///< The first real of the message, or the new value.
+};
+
 class simulation
 {
 public:
@@ -2191,6 +2200,35 @@ public:
      */
     status send_value(model_id id, real value) noexcept;
 
+    /**
+     * The outputs of the model @c id, or the changes of the watched value of
+     * a model without output port (a @c counter), are added to @c
+     * watched_events() during the steps. The unwatched models cost one test
+     * of an integer.
+     *
+     * The watch is a subscription of the consumer, not a state of the
+     * simulation: the snapshots do not save it and a rewind keeps it. A model
+     * freed is unwatched; a simulation built again must be watched again
+     * (@c unwatch_all()).
+     *
+     * @return @c simulation_errc::watch_model_error if the model does not
+     * exist or can not tell its changes.
+     */
+    status watch(model_id id) noexcept;
+    void   unwatch(model_id id) noexcept;
+    void   unwatch_all() noexcept;
+    bool   is_watched(model_id id) const noexcept;
+
+    /// The events of the watched models since the last @c
+    /// clear_watched_events(), in the order of the steps. Read and clear them
+    /// between two steps, from the thread of the simulation.
+    std::span<const watched_event> watched_events() const noexcept
+    {
+        return std::span(m_watched_events.data(), m_watched_events.size());
+    }
+
+    void clear_watched_events() noexcept { m_watched_events.clear(); }
+
     void deallocate(model_id id) noexcept;
 
     template<typename Dynamics>
@@ -2311,6 +2349,16 @@ public:
 
 private:
     void wake_up(model& mdl, time t) noexcept;
+
+    bool   is_watched_index(u32 index) const noexcept;
+    status push_watched_event(model_id id, i32 port, real value) noexcept;
+    status make_watched_lambda(model& mdl) noexcept;
+
+    // One bit by index of model. The count makes the test free when no model
+    // is watched.
+    vector<u64>           m_watched;
+    u32                   m_watched_count = 0;
+    vector<watched_event> m_watched_events;
 
     template<typename Fn>
     void drain_observation(const observer_id obs_id,
@@ -2441,6 +2489,13 @@ struct embedded_simulation {
 // DEVS model.
 //
 /////////////////////////////////////////////////////////////////////////////
+
+/// A dynamics without output port that tells the changes of its state to the
+/// watchers (see @c simulation::watch()).
+template<typename T>
+concept has_watched_value_function = requires(const T t) {
+    { t.watched_value() } -> std::same_as<real>;
+};
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
@@ -4830,6 +4885,11 @@ struct counter {
       , sum_values(other.sum_values)
       , sigma(other.sigma)
     {}
+
+    real watched_value() const noexcept
+    {
+        return static_cast<real>(event_number);
+    }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -8242,6 +8302,8 @@ struct accumulator {
     {
         std::copy_n(other.numbers, std::size(numbers), numbers);
     }
+
+    real watched_value() const noexcept { return number; }
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -11977,6 +12039,117 @@ inline status simulation::send_value(const model_id id,
     return success();
 }
 
+inline bool simulation::is_watched_index(const u32 index) const noexcept
+{
+    const auto word = index >> 6;
+
+    return std::cmp_less(word, m_watched.size()) and
+           (m_watched[word] & (u64{ 1 } << (index & 63u))) != 0u;
+}
+
+inline bool simulation::is_watched(const model_id id) const noexcept
+{
+    return models.try_to_get(id) and is_watched_index(get_index(id));
+}
+
+inline status simulation::watch(const model_id id) noexcept
+{
+    auto* mdl = models.try_to_get(id);
+    if (not mdl)
+        return make_error(simulation_errc::watch_model_error);
+
+    const auto can_tell = dispatch(*mdl, []<typename Dynamics>(Dynamics&) {
+        return has_output_port<Dynamics> or
+               has_watched_value_function<Dynamics>;
+    });
+
+    if (not can_tell)
+        return make_error(simulation_errc::watch_model_error);
+
+    const auto index = get_index(id);
+    const auto word  = index >> 6;
+
+    if (std::cmp_greater_equal(word, m_watched.size()) and
+        not m_watched.resize(word + 1u, u64{ 0 }))
+        return make_error(simulation_errc::watched_events_full);
+
+    const auto bit = u64{ 1 } << (index & 63u);
+    if ((m_watched[word] & bit) == 0u) {
+        m_watched[word] |= bit;
+        ++m_watched_count;
+    }
+
+    return success();
+}
+
+inline void simulation::unwatch(const model_id id) noexcept
+{
+    const auto index = get_index(id);
+    const auto word  = index >> 6;
+    const auto bit   = u64{ 1 } << (index & 63u);
+
+    if (std::cmp_less(word, m_watched.size()) and
+        (m_watched[word] & bit) != 0u) {
+        m_watched[word] &= ~bit;
+        --m_watched_count;
+    }
+}
+
+inline void simulation::unwatch_all() noexcept
+{
+    m_watched.clear();
+    m_watched_count = 0;
+    m_watched_events.clear();
+}
+
+inline status simulation::push_watched_event(const model_id id,
+                                             const i32      port,
+                                             const real     value) noexcept
+{
+    if (not m_watched_events.can_alloc(1) and not m_watched_events.grow<3, 2>())
+        return make_error(simulation_errc::watched_events_full);
+
+    m_watched_events.push_back(
+      watched_event{ .t = t, .mdl = id, .port = port, .value = value });
+
+    return success();
+}
+
+inline status simulation::make_watched_lambda(model& mdl) noexcept
+{
+    const auto id = models.get_id(mdl);
+
+    return dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> status {
+        if constexpr (has_lambda_function<Dynamics> and
+                      has_output_port<Dynamics>) {
+            // A message to an output port without connection is dropped by
+            // send_message(): the watched outputs get a port, even after a
+            // rewind to a snapshot taken before the watch.
+            for (auto& y : dyn.y) {
+                if (not output_ports.try_to_get(y)) {
+                    if (not output_ports.can_alloc(1) and
+                        not output_ports.grow<2, 1>())
+                        return make_error(
+                          simulation_errc::output_ports_container_full);
+
+                    y = output_ports.get_id(output_ports.alloc());
+                }
+            }
+
+            const auto first = active_output_ports.size();
+            irt_check(dyn.lambda(*this));
+
+            for (auto i = first, e = active_output_ports.size(); i != e; ++i)
+                for (i32 p = 0, n = length(dyn.y); p != n; ++p)
+                    if (dyn.y[p] == active_output_ports[i])
+                        irt_check(push_watched_event(
+                          id, p, active_output_messages[i][0]));
+        }
+
+        return success();
+    });
+}
+
 inline void simulation::unobserve(model& mdl) noexcept
 {
     if (observers.exists(mdl.obs_id))
@@ -11989,6 +12162,8 @@ inline void simulation::deallocate(model_id id) noexcept
 {
     auto* mdl = models.try_to_get(id);
     debug::ensure(mdl);
+
+    unwatch(id);
 
     unobserve(*mdl);
 
@@ -12343,8 +12518,23 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
+    [[maybe_unused]] bool watched = false;
+    [[maybe_unused]] real before  = zero;
+    if constexpr (has_watched_value_function<Dynamics>) {
+        watched = m_watched_count > 0 and
+                  is_watched_index(get_index(models.get_id(mdl)));
+        if (watched)
+            before = dyn.watched_value();
+    }
+
     if constexpr (has_transition_function<Dynamics>)
         irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
+
+    if constexpr (has_watched_value_function<Dynamics>) {
+        if (watched and dyn.watched_value() != before)
+            irt_check(
+              push_watched_event(models.get_id(mdl), -1, dyn.watched_value()));
+    }
 
     if constexpr (has_input_port<Dynamics>) {
         for (auto& elem : dyn.x)
@@ -12374,6 +12564,9 @@ inline status simulation::make_transition(model& mdl, time t) noexcept
 
 inline status simulation::make_lambda(model& mdl) noexcept
 {
+    if (m_watched_count > 0 and is_watched_index(get_index(models.get_id(mdl))))
+        return make_watched_lambda(mdl);
+
     return dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> status {
         if constexpr (has_lambda_function<Dynamics> and
                       has_output_port<Dynamics>)

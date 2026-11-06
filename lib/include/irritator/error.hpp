@@ -131,6 +131,10 @@ enum class simulation_errc : std::int16_t {
                             that has not the right type. */
     player_edit_error,   /**< An edition of a simulation not started or
                             finalized. */
+    watch_model_error,   /**< A watched model that does not exist or that
+                            has neither output port nor watched value. */
+    watched_events_full, /**< No memory for the events of the watched
+                            models. */
 };
 
 enum class project_errc : std::int16_t {
