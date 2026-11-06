@@ -12,6 +12,7 @@
 #include <atomic>
 #include <chrono>
 #include <limits>
+#include <mutex>
 #include <shared_mutex>
 #include <span>
 #include <thread>
@@ -220,8 +221,20 @@ public:
     /// started or if the simulation is finalized (@c finalized()), the error
     /// of @c fn otherwise. After an error of @c fn the history is forgotten
     /// too: a part of the edition may be done.
+    ///
+    /// @c fn runs with the lock of the structure (see @c try_lock_structure()):
+    /// an edition can allocate or free models, the views must not read the
+    /// simulation meanwhile.
     template<typename Fn>
     status edit(Fn&& fn) noexcept;
+
+    /// Grows at each @c edit() and @c reset(): a view that keeps the
+    /// identifiers of the models builds them again when it changes. Read it
+    /// with the lock of @c try_lock_structure() held.
+    u64 edit_count() const noexcept
+    {
+        return m_edit_count.load(std::memory_order_acquire);
+    }
 
     /// "Complete simulation" mode: with @c false the following steps do not
     /// take any keyframe, so the memory does not grow with the length of the
@@ -370,6 +383,7 @@ private:
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
 
     mutable std::shared_mutex m_restore_mutex;
+    std::atomic<u64>          m_edit_count{ 0 };
 
     /// The work of one parallel tick, shared between the calling thread and
     /// the helpers: each one claims chunks until there is none. It lives on
@@ -531,7 +545,11 @@ status simulation_player::edit(Fn&& fn) noexcept
     if (not m_started or m_finalized)
         return make_error(simulation_errc::player_edit_error);
 
-    auto ret = fn();
+    auto ret = [&]() noexcept -> status {
+        std::unique_lock lock(m_restore_mutex);
+        m_edit_count.fetch_add(1, std::memory_order_release);
+        return fn();
+    }();
 
     if (m_keep_history) {
         if (auto r = forget_history(); r.has_error() and not ret.has_error())

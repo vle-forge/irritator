@@ -461,12 +461,24 @@ status project::simulation_free_model(
 status project::simulation_copy_model(
   const command::copy_model_t& data) noexcept
 {
-    auto* src_mdl = sim.models.try_to_get(data.mdl_id);
+    auto* tn = tree_nodes.try_to_get(data.tn_id);
 
-    if (not src_mdl)
+    if (not tn) [[unlikely]] {
+        log(log_level::error, [&](auto& m) noexcept {
+            format(m, "Fail to find tree node with ID {}", ordinal(data.tn_id));
+        });
+
+        return make_error(project_errc::memory_error);
+    }
+
+    if (not sim.models.try_to_get(data.mdl_id))
         return success();
 
-    if (not sim.can_alloc(1) and not sim.grow_models<2, 1>()) {
+    const auto tn_alloc = tn->children.can_alloc(1) or
+                          tn->children.grow<3, 2>(1);
+    const auto sim_alloc = sim.can_alloc(1) or sim.grow_models<2, 1>();
+
+    if (not tn_alloc or not sim_alloc) {
         log(log_level::error, [](auto& m) noexcept {
             m = "Internal error: fail to allocate more models.";
         });
@@ -474,6 +486,8 @@ status project::simulation_copy_model(
         return make_error(project_errc::memory_error);
     }
 
+    // After the growth: the models may have moved.
+    auto* src_mdl = &sim.models.get(data.mdl_id);
     auto& dst_mdl = sim.clone(*src_mdl);
 
     if (const auto r = sim.make_initialize(dst_mdl, sim.current_time());
@@ -485,6 +499,9 @@ status project::simulation_copy_model(
 
         return r.error();
     }
+
+    tn->children.push_back(tree_node::child_node{
+      .mdl = sim.get_id(dst_mdl), .type = tree_node::child_node::type::model });
 
     dispatch(*src_mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
         if constexpr (has_output_port<Dynamics>) {

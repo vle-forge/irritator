@@ -70,6 +70,9 @@ void simulation_player::reset() noexcept
     m_step         = 0;
     m_furthest     = 0;
     m_floor        = 0;
+
+    // The simulation is built again: its models are new ones.
+    m_edit_count.fetch_add(1, std::memory_order_release);
 }
 
 status simulation_player::step_forward() noexcept

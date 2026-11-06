@@ -1212,6 +1212,11 @@ public:
     template<typename Fn>
     void consume(Fn&& fn) noexcept;
 
+    /// Drops the commands pushed before the call. Only for the consumer, as
+    /// @c consume(): the commands of a simulation that is built again name
+    /// models that do not exist anymore.
+    void clear() noexcept;
+
 private:
     std::array<command, capacity> m_buffer{};
 
@@ -2013,6 +2018,12 @@ inline void command_queue::consume(Fn&& fn) noexcept
         fn(std::as_const(m_buffer[head % capacity]));
 
     m_head.store(head, std::memory_order_release);
+}
+
+inline void command_queue::clear() noexcept
+{
+    m_head.store(m_tail.load(std::memory_order_acquire),
+                 std::memory_order_release);
 }
 
 } // namespace irt
