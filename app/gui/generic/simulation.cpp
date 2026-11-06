@@ -331,6 +331,9 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("next ta", "{}", dyn.sigma);
     ImGui::LabelFormat("value", "{}", dyn.value);
 
+    if (not sim.can_edit())
+        return;
+
     // The model belongs to the simulation thread: the new value goes through
     // a command.
     ImGui::InputDouble("new value", &sim.constant_value_to_send);
@@ -1250,31 +1253,20 @@ void generic_simulation_editor::init(application&    app,
     });
 }
 
-void generic_simulation_editor::start_rebuild_task(
-  application&    app,
-  project_editor& pj_ed) noexcept
+void generic_simulation_editor::rebuild(const project_editor& pj_ed) noexcept
 {
-    app.add_gui_task([&]() {
-        nodes_2nd.clear();
-        links_2nd.clear();
+    nodes.clear();
+    links.clear();
 
-        if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(current))
-            build_nodes(pj_ed.pj.sim, *tn, nodes_2nd);
-        else
-            build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes_2nd);
+    if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(current))
+        build_nodes(pj_ed.pj.sim, *tn, nodes);
+    else
+        build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes);
 
-        build_links(pj_ed.pj.sim, std::span(nodes_2nd.data(), nodes_2nd.size()),
-                    links_2nd);
+    build_links(pj_ed.pj.sim, std::span(nodes.data(), nodes.size()), links);
 
-        if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(links, links_2nd);
-            std::swap(nodes, nodes_2nd);
-            need_reset = true;
-        }
-
-        enable_show = true;
-        rebuild_wip = false;
-    });
+    edit_count = pj_ed.sim_player.player.edit_count();
+    editor.reset();
 }
 
 bool generic_simulation_editor::display(application&    app,
@@ -1286,6 +1278,12 @@ bool generic_simulation_editor::display(application&    app,
         if (enable_show) {
             if (std::exchange(need_reset, false))
                 editor.reset();
+
+            // The commands applied since the last frame may have freed some
+            // models of the nodes. The frame holds the lock of the structure:
+            // the simulation does not change during the rebuild.
+            if (pj_ed.sim_player.player.edit_count() != edit_count)
+                rebuild(pj_ed);
 
             place_new_nodes(pj_ed);
 

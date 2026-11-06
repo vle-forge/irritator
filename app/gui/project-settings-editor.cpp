@@ -218,12 +218,15 @@ static bool submit(application&     app,
           const auto t0 = std::chrono::steady_clock::now();
 
           // The commands of the user are applied between two steps, before
-          // the work of the task.
+          // the work of the task. A refused edition (player not started or
+          // finalized) drops them: kept, they would be submitted again at
+          // each frame and applied to another simulation.
           c.result = success();
-          if (not c.commands.empty() and c.player.started() and
-              not c.player.finalized())
+          if (not c.commands.empty()) {
               c.result = c.player.edit(
                 [&]() noexcept { return ed.pj.apply_commands(c.commands); });
+              c.commands.clear();
+          }
 
           // The complete mode keeps no keyframe, the others keep them. It is
           // a no-op when the player is already in the right mode.
@@ -310,6 +313,9 @@ void project_editor::schedule_player(application& app) noexcept
     // The simulation belongs to the task while the player is busy: it is
     // built again here, between two tasks.
     if (std::exchange(sim_player.need_rebuild, false)) {
+        // No task runs: the main thread is the consumer of the queue.
+        sim_player.commands.clear();
+
         if (pj.simulation_init(app.mod).has_error()) {
             sim_player.current = mode::paused;
             return;

@@ -825,7 +825,10 @@ private:
     bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
                                  progress. No other rebuild can occured. */
 
-    void start_rebuild_task(application& app, project_editor& pj_ed) noexcept;
+    /// The edition count of the player when @c nodes were built.
+    u64 edit_count = std::numeric_limits<u64>::max();
+
+    void rebuild(const project_editor& pj_ed) noexcept;
     void place_new_nodes(const project_editor& pj_ed) noexcept;
     int  show_menu(project_editor& pj_ed, const ImVec2 click_pos) noexcept;
 
@@ -1127,6 +1130,8 @@ public:
 
     void finish_simulation(application& app) noexcept;
 
+    /// True if the user can edit the simulation: the edits go through the
+    /// commands of @c sim_player, applied between two steps.
     bool can_edit() const noexcept;
 
     enum class raw_data_type : u8 { none, graph, binary, text };
@@ -1181,8 +1186,7 @@ public:
 
 inline bool project_editor::can_edit() const noexcept
 {
-    return any_equal(pj.simulation_state, simulation_status::initialized,
-                     simulation_status::paused, simulation_status::finished);
+    return sim_player.shown.started and not sim_player.shown.finished;
 }
 
 class component_editor
