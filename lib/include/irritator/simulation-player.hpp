@@ -74,11 +74,13 @@ struct simulation_player_options {
 /// Rules
 /// - The player does not own the simulation and is not thread safe: call it
 ///   from the thread that owns the simulation.
-/// - The simulation must only be changed by the player. If the user edits the
-///   simulation (value, model, connection or event) at the current step, call
-///   @c forget_history() after the edit: the edition is not part of the replay
-///   (it is not a step), so the steps before can not be replayed any more.
-///   @c forget_future() only forgets the steps after the current one.
+/// - The simulation must only be changed by the player. The user edits it
+///   between two steps with @c edit(). With an @c edition_replay (a journal
+///   of the editions, see @c set_edition_replay()) the player does the
+///   editions again when it replays the steps, so the history is kept.
+///   Without it the edition is not part of the replay: the history is
+///   forgotten. @c forget_future() only forgets the steps after the current
+///   one.
 /// - The observers are resampled after each @c run() as
 ///   @c tick_resamplers_after_run() does. With a @c task_manager and enough
 ///   observers the work is shared between the calling thread and the unordered
@@ -212,10 +214,17 @@ public:
     status forget_history() noexcept;
 
     /// Applies the edition @c fn (a @c status function, for example @c
-    /// project::apply_commands()) between two steps, then makes the history
-    /// consistent: with the history (@c keeps_history()) it is forgotten (see
-    /// @c forget_history()), without it nothing is to forget and no snapshot
-    /// is taken, so an edition at each frame costs nothing more.
+    /// command_journal::apply()) between two steps, then makes the history
+    /// consistent.
+    ///
+    /// - With an @c edition_replay that records the edition, the editions
+    ///   after the current step are forgotten before @c fn (a new edition
+    ///   replaces the future), and the history before is kept: a rewind does
+    ///   the edition again. The steps after the current one are forgotten
+    ///   (@c forget_future()).
+    /// - Without it, the history is forgotten (@c forget_history()).
+    /// - Without history (@c keeps_history()), nothing is to forget and no
+    ///   snapshot is taken, so an edition at each frame costs nothing more.
     ///
     /// Errors: @c simulation_errc::player_edit_error if the player is not
     /// started or if the simulation is finalized (@c finalized()), the error
@@ -317,6 +326,15 @@ public:
     /// True if the simulation is at its end (time limit or no more events).
     bool finished() const noexcept;
 
+    /// The journal of the editions that the player does again when it replays
+    /// the steps (see @c edit()), @c nullptr for none. It must outlive the
+    /// player or be removed. Call it when no step is running.
+    void set_edition_replay(edition_replay* replay) noexcept
+    {
+        m_replay          = replay;
+        m_edition_pending = false;
+    }
+
     /// True if @c simulation::finalize() was called for the current state. The
     /// player calls it itself, once, as soon as the simulation is finished (a
     /// step forward, or a rewind or a jump that lands on the last step). A
@@ -361,8 +379,9 @@ private:
     };
 
     simulation&          m_sim;
-    unordered_task_list* m_utl  = nullptr; // nullptr: sequential tick
-    observation_sink*    m_sink = nullptr;
+    unordered_task_list* m_utl    = nullptr; // nullptr: sequential tick
+    observation_sink*    m_sink   = nullptr;
+    edition_replay*      m_replay = nullptr;
 
     binary_writer      m_writer;    // reused: no allocation for a snapshot
     vector<keyframe>   m_keyframes; // sorted by step, the first is the step 0
@@ -379,6 +398,10 @@ private:
     bool      m_started = false;
     bool      m_keep_history = true; // false: no keyframe, see keep_history()
     bool      m_finalized    = false; // simulation::finalize() done, see above
+
+    // The editions recorded after the current step are not applied yet: a
+    // replay by advance_until() waits for their date.
+    bool m_edition_pending = false;
 
     vector<observer_id> m_obs_ids; // work buffer of the parallel tick
 
@@ -401,6 +424,14 @@ private:
     };
 
     status do_step() noexcept;
+
+    /// @c step_forward() that leaves the editions of the new step pending if
+    /// @c apply_editions is false (see @c advance_until()).
+    status step_forward(const bool apply_editions) noexcept;
+
+    /// Does again the editions recorded after the current step, if any. The
+    /// keyframe of the step, taken before, is taken again.
+    status apply_pending_editions() noexcept;
 
     /// Finalizes the simulation once, if it is finished.
     status finalize_if_finished() noexcept;
@@ -545,19 +576,31 @@ status simulation_player::edit(Fn&& fn) noexcept
     if (not m_started or m_finalized)
         return make_error(simulation_errc::player_edit_error);
 
+    if (m_replay) {
+        // The editions of this step not done yet (a replay by advance_until()
+        // waits for their date) are after the new one: they go with the
+        // future.
+        m_replay->forget_after(m_edition_pending and m_step > 0u ? m_step - 1u
+                                                                 : m_step);
+        m_edition_pending = false;
+    }
+
     auto ret = [&]() noexcept -> status {
         std::unique_lock lock(m_restore_mutex);
         m_edit_count.fetch_add(1, std::memory_order_release);
         return fn();
     }();
 
-    if (m_keep_history) {
-        if (auto r = forget_history(); r.has_error() and not ret.has_error())
-            ret = r;
-    } else {
+    if (not m_keep_history) {
         m_window.clear();
         m_floor    = m_step;
         m_furthest = m_step;
+    } else {
+        // With a replay, the keyframe of the step is taken again with the
+        // edition: the steps before are replayed with it.
+        const auto r = m_replay ? forget_future() : forget_history();
+        if (r.has_error() and not ret.has_error())
+            ret = r;
     }
 
     return ret;

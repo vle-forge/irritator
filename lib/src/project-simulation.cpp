@@ -15,6 +15,7 @@
 
 #include <rapidjson/document.h>
 
+#include <algorithm>
 #include <bit>
 
 namespace irt {
@@ -660,6 +661,88 @@ status project::apply_commands(command_queue& queue) noexcept
     });
 
     return ret;
+}
+
+status command_journal::apply(command_queue& queue, const u64 step) noexcept
+{
+    auto ret = success();
+
+    queue.consume([&](const command& cmd) noexcept {
+        if (auto r = m_pj.apply_command(cmd); r.has_error()) {
+            if (not ret.has_error())
+                ret = r;
+            return;
+        }
+
+        // Applied but not recorded: the replay would differ, the caller is
+        // told.
+        if (not m_entries.can_alloc(1) and not m_entries.grow<3, 2>()) {
+            if (not ret.has_error())
+                ret = make_error(project_errc::memory_error);
+            return;
+        }
+
+        m_entries.push_back(
+          entry{ .step = step, .t = m_pj.sim.current_time(), .cmd = cmd });
+    });
+
+    return ret;
+}
+
+static auto journal_lower_bound(std::span<const command_journal::entry> e,
+                                const u64 step) noexcept
+{
+    return std::lower_bound(
+      e.begin(), e.end(), step,
+      [](const auto& entry, const u64 s) noexcept { return entry.step < s; });
+}
+
+time command_journal::edition_time(const u64 step) const noexcept
+{
+    const auto e  = entries();
+    const auto it = journal_lower_bound(e, step);
+
+    return it != e.end() and it->step == step ? it->t
+                                              : time_domain<time>::infinity;
+}
+
+status command_journal::replay(const u64 step) noexcept
+{
+    const auto e   = entries();
+    auto       ret = success();
+
+    for (auto it = journal_lower_bound(e, step);
+         it != e.end() and it->step == step; ++it) {
+        // The date of the edition: an edition while the clock waits between
+        // two events (simulation_player::advance_until()).
+        m_pj.sim.current_time(it->t);
+
+        if (auto r = m_pj.apply_command(it->cmd);
+            r.has_error() and not ret.has_error())
+            ret = r;
+    }
+
+    return ret;
+}
+
+void command_journal::forget_after(const u64 step) noexcept
+{
+    const auto e  = entries();
+    const auto it = journal_lower_bound(e, step + 1u);
+
+    (void)m_entries.resize(static_cast<int>(it - e.begin()));
+}
+
+bool command_journal::push(const entry& e) noexcept
+{
+    if (not m_entries.empty() and e.step < m_entries.back().step)
+        return false;
+
+    if (not m_entries.can_alloc(1) and not m_entries.grow<3, 2>())
+        return false;
+
+    m_entries.push_back(e);
+    return true;
 }
 
 status project::observation_files::consume(

@@ -1903,6 +1903,28 @@ public:
     virtual void rewind(const simulation& sim) noexcept = 0;
 };
 
+/// The editions of a simulation that its player does again when it replays
+/// the steps (a rewind, a jump forward, a replay after a start): see @c
+/// simulation_player::set_edition_replay(). The owner of the editions (a
+/// journal of commands) keeps them with the step after which they were done.
+class edition_replay
+{
+public:
+    virtual ~edition_replay() noexcept = default;
+
+    /// The date of the first edition done after the step @c step, infinity if
+    /// there is none.
+    virtual time edition_time(u64 step) const noexcept = 0;
+
+    /// Applies again, in order, the editions done after the step @c step, the
+    /// clock of the simulation at the date of each one.
+    virtual status replay(u64 step) noexcept = 0;
+
+    /// Forgets the editions done after the steps greater than @c step: a new
+    /// edition replaces the future.
+    virtual void forget_after(u64 step) noexcept = 0;
+};
+
 /// The result of a selection computed from its observation trajectory. The
 /// direction of the optimization belongs to the objective: @c min_last and
 /// @c max_last both take the last observation value.

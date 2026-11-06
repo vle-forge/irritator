@@ -7587,4 +7587,470 @@ expected<vector<char>> save_project(const project&          pj,
     return to_vector(buffer);
 }
 
+/*
+ * Journal of commands
+ */
+
+static constexpr std::string_view command_type_names[] = {
+    "none",         "new-model",      "free-model",
+    "copy-model",   "new-connection", "free-connection",
+    "new-observer", "free-observer",  "send-message"
+};
+
+static_assert(std::size(command_type_names) ==
+              static_cast<std::size_t>(command_type::send_message) + 1u);
+
+/// The unique identifiers of the tree nodes from the child of the root to
+/// @c tn: the root has no identifier in its parent.
+static unique_id_path journal_tn_path(const project&     pj,
+                                      const tree_node_id tn_id) noexcept
+{
+    unique_id_path path;
+
+    for (const auto* tn                   = pj.tree_nodes.try_to_get(tn_id);
+         tn and tn->tree.get_parent(); tn = tn->tree.get_parent())
+        path.emplace_back(tn->unique_id);
+
+    std::reverse(path.begin(), path.end());
+    return path;
+}
+
+static const tree_node* journal_tn(
+  const project&                     pj,
+  const rapidjson::Value::ConstArray path) noexcept
+{
+    const auto* tn = pj.tree_nodes.try_to_get(pj.tn_head());
+
+    for (const auto& name : path) {
+        if (not tn or not name.IsString())
+            return nullptr;
+
+        const auto sub = tn->get_tree_node_id(
+          std::string_view(name.GetString(), name.GetStringLength()));
+        tn = sub.has_value() ? pj.tree_nodes.try_to_get(*sub) : nullptr;
+    }
+
+    return tn;
+}
+
+template<typename Writer>
+static void journal_write_tn(Writer&            w,
+                             const project&     pj,
+                             const tree_node_id tn_id) noexcept
+{
+    w.StartArray();
+    for (const auto& name : journal_tn_path(pj, tn_id))
+        w.String(name.c_str(), static_cast<rapidjson::SizeType>(name.size()));
+    w.EndArray();
+}
+
+/// A model by its tree node and its unique identifier if it has one, by its
+/// identifier in the simulation otherwise.
+template<typename Writer>
+static void journal_write_model(Writer&        w,
+                                const project& pj,
+                                const model_id mdl_id) noexcept
+{
+    w.StartObject();
+
+    for (const auto& tn : pj.tree_nodes) {
+        if (const auto uid = tn.get_unique_id(mdl_id); not uid.empty()) {
+            w.Key("tree-node");
+            journal_write_tn(w, pj, pj.tree_nodes.get_id(tn));
+            w.Key("name");
+            w.String(uid.data(), static_cast<rapidjson::SizeType>(uid.size()));
+            w.EndObject();
+            return;
+        }
+    }
+
+    w.Key("id");
+    w.Uint64(ordinal(mdl_id));
+    w.EndObject();
+}
+
+template<typename Writer>
+static void journal_write_entry(Writer&                       w,
+                                const project&                pj,
+                                const command_journal::entry& e) noexcept
+{
+    const auto& d = e.cmd.data;
+
+    w.StartObject();
+    w.Key("step");
+    w.Uint64(e.step);
+    w.Key("time");
+    w.Double(e.t);
+    w.Key("type");
+    w.String(command_type_names[ordinal(e.cmd.type)].data());
+
+    const auto connection = [&](const auto& c) noexcept {
+        w.Key("tree-node");
+        journal_write_tn(w, pj, c.tn_id);
+        w.Key("source");
+        journal_write_model(w, pj, c.mdl_src_id);
+        w.Key("port-source");
+        w.Int(c.port_src);
+        w.Key("destination");
+        journal_write_model(w, pj, c.mdl_dst_id);
+        w.Key("port-destination");
+        w.Int(c.port_dst);
+    };
+
+    const auto in_tree_node = [&](const auto& c) noexcept {
+        w.Key("tree-node");
+        journal_write_tn(w, pj, c.tn_id);
+        w.Key("model");
+        journal_write_model(w, pj, c.mdl_id);
+    };
+
+    switch (e.cmd.type) {
+    case command_type::none:
+        break;
+    case command_type::new_model:
+        w.Key("tree-node");
+        journal_write_tn(w, pj, d.new_model.tn_id);
+        w.Key("dynamics");
+        w.String(dynamics_type_names[ordinal(d.new_model.type)]);
+        w.Key("x");
+        w.Double(d.new_model.x);
+        w.Key("y");
+        w.Double(d.new_model.y);
+        break;
+    case command_type::free_model:
+        in_tree_node(d.free_model);
+        break;
+    case command_type::copy_model:
+        in_tree_node(d.copy_model);
+        break;
+    case command_type::new_connection:
+        connection(d.new_connection);
+        break;
+    case command_type::free_connection:
+        connection(d.free_connection);
+        break;
+    case command_type::new_observer:
+        in_tree_node(d.new_observer);
+        break;
+    case command_type::free_observer:
+        in_tree_node(d.free_observer);
+        break;
+    case command_type::send_message:
+        w.Key("model");
+        journal_write_model(w, pj, d.send_message.mdl_id);
+        w.Key("value");
+        w.Double(d.send_message.value);
+        break;
+    }
+
+    w.EndObject();
+}
+
+template<typename Stream>
+static status save_journal(Stream&                 os,
+                           const project&          pj,
+                           const command_journal&  journal,
+                           const json_pretty_print print) noexcept
+{
+    with_writer(os, print, [&](auto& w) noexcept {
+        w.StartObject();
+        w.Key("project");
+        w.String(pj.name.c_str(),
+                 static_cast<rapidjson::SizeType>(pj.name.size()));
+        w.Key("commands");
+        w.StartArray();
+        for (const auto& e : journal.entries())
+            journal_write_entry(w, pj, e);
+        w.EndArray();
+        w.EndObject();
+    });
+
+    return success();
+}
+
+status save_journal(const project&          pj,
+                    const command_journal&  journal,
+                    file&                   io,
+                    const json_pretty_print print) noexcept
+{
+    if (not is_writable(io))
+        return make_error(std::errc::invalid_argument);
+
+    char                       buffer[4096];
+    rapidjson::FileWriteStream os(io.to_file(), buffer, sizeof(buffer));
+
+    return save_journal(os, pj, journal, print);
+}
+
+expected<vector<char>> save_journal(const project&          pj,
+                                    const command_journal&  journal,
+                                    const json_pretty_print print) noexcept
+{
+    rapidjson::StringBuffer buffer;
+    buffer.Reserve(4096u);
+
+    if (auto ret = save_journal(buffer, pj, journal, print); ret.has_error())
+        return ret.error();
+
+    return to_vector(buffer);
+}
+
+/// Reads a journal with the plain rapidjson interface: the format is small
+/// and flat, the errors are the two errors of the journal.
+class journal_reader
+{
+public:
+    explicit journal_reader(const project& pj) noexcept
+      : m_pj(pj)
+    {}
+
+    status read(const rapidjson::Document& doc,
+                command_journal&           journal) noexcept
+    {
+        if (not doc.IsObject() or not doc.HasMember("commands") or
+            not doc["commands"].IsArray())
+            return format_error();
+
+        journal.clear();
+
+        for (const auto& v : doc["commands"].GetArray()) {
+            command_journal::entry e;
+            irt_check(read_entry(v, e));
+
+            if (not journal.push(e))
+                return format_error();
+        }
+
+        return success();
+    }
+
+private:
+    const project& m_pj;
+
+    static status format_error() noexcept
+    {
+        return make_error(project_errc::journal_format_error);
+    }
+
+    static status model_error() noexcept
+    {
+        return make_error(project_errc::journal_model_error);
+    }
+
+    static bool get_u64(const rapidjson::Value& v,
+                        const char*             key,
+                        u64&                    out) noexcept
+    {
+        if (not v.HasMember(key) or not v[key].IsUint64())
+            return false;
+
+        out = v[key].GetUint64();
+        return true;
+    }
+
+    static bool get_real(const rapidjson::Value& v,
+                         const char*             key,
+                         real&                   out) noexcept
+    {
+        if (not v.HasMember(key) or not v[key].IsNumber())
+            return false;
+
+        out = static_cast<real>(v[key].GetDouble());
+        return true;
+    }
+
+    static bool get_port(const rapidjson::Value& v,
+                         const char*             key,
+                         i8&                     out) noexcept
+    {
+        if (not v.HasMember(key) or not v[key].IsInt())
+            return false;
+
+        const auto p = v[key].GetInt();
+        if (p < 0 or p > std::numeric_limits<i8>::max())
+            return false;
+
+        out = static_cast<i8>(p);
+        return true;
+    }
+
+    status get_tn(const rapidjson::Value& v, tree_node_id& out) const noexcept
+    {
+        if (not v.HasMember("tree-node") or not v["tree-node"].IsArray())
+            return format_error();
+
+        const auto* tn = journal_tn(m_pj, v["tree-node"].GetArray());
+        if (not tn)
+            return model_error();
+
+        out = m_pj.tree_nodes.get_id(*tn);
+        return success();
+    }
+
+    /// A model of the build of the project, or a model created by an earlier
+    /// command (by its identifier, not checked).
+    status get_model(const rapidjson::Value& v,
+                     const char*             key,
+                     model_id&               out) const noexcept
+    {
+        if (not v.HasMember(key) or not v[key].IsObject())
+            return format_error();
+
+        const auto& m = v[key];
+
+        if (m.HasMember("id")) {
+            u64 id = 0;
+            if (not get_u64(m, "id", id))
+                return format_error();
+
+            out = static_cast<model_id>(id);
+            return success();
+        }
+
+        if (not m.HasMember("name") or not m["name"].IsString())
+            return format_error();
+
+        tree_node_id tn_id;
+        irt_check(get_tn(m, tn_id));
+
+        const auto* tn  = m_pj.tree_nodes.try_to_get(tn_id);
+        const auto  mdl = tn->get_model_id(
+          std::string_view(m["name"].GetString(), m["name"].GetStringLength()));
+        if (not mdl.has_value())
+            return model_error();
+
+        out = *mdl;
+        return success();
+    }
+
+    template<typename T>
+    status read_in_tree_node(const rapidjson::Value& v, T& c) const noexcept
+    {
+        irt_check(get_tn(v, c.tn_id));
+        return get_model(v, "model", c.mdl_id);
+    }
+
+    template<typename T>
+    status read_connection(const rapidjson::Value& v, T& c) const noexcept
+    {
+        irt_check(get_tn(v, c.tn_id));
+        irt_check(get_model(v, "source", c.mdl_src_id));
+        irt_check(get_model(v, "destination", c.mdl_dst_id));
+
+        if (not get_port(v, "port-source", c.port_src) or
+            not get_port(v, "port-destination", c.port_dst))
+            return format_error();
+
+        return success();
+    }
+
+    status read_entry(const rapidjson::Value& v,
+                      command_journal::entry& e) const noexcept
+    {
+        if (not v.IsObject() or not get_u64(v, "step", e.step) or
+            not get_real(v, "time", e.t) or not v.HasMember("type") or
+            not v["type"].IsString())
+            return format_error();
+
+        const auto type = std::string_view(v["type"].GetString(),
+                                           v["type"].GetStringLength());
+        const auto it   = std::ranges::find(command_type_names, type);
+        if (it == std::end(command_type_names))
+            return format_error();
+
+        e.cmd.type = static_cast<command_type>(
+          std::distance(std::begin(command_type_names), it));
+
+        auto& d = e.cmd.data;
+
+        switch (e.cmd.type) {
+        case command_type::none:
+            return success();
+
+        case command_type::new_model: {
+            if (not v.HasMember("dynamics") or not v["dynamics"].IsString())
+                return format_error();
+
+            const auto dyn = get_dynamics_type(std::string_view(
+              v["dynamics"].GetString(), v["dynamics"].GetStringLength()));
+            real       x = 0, y = 0;
+            if (not dyn.has_value() or not get_real(v, "x", x) or
+                not get_real(v, "y", y))
+                return format_error();
+
+            d.new_model = command::new_model_t{ .tn_id = {},
+                                                .type  = *dyn,
+                                                .x     = static_cast<float>(x),
+                                                .y = static_cast<float>(y) };
+            return get_tn(v, d.new_model.tn_id);
+        }
+
+        case command_type::free_model:
+            d.free_model = {};
+            return read_in_tree_node(v, d.free_model);
+
+        case command_type::copy_model:
+            d.copy_model = {};
+            return read_in_tree_node(v, d.copy_model);
+
+        case command_type::new_connection:
+            d.new_connection = {};
+            return read_connection(v, d.new_connection);
+
+        case command_type::free_connection:
+            d.free_connection = {};
+            return read_connection(v, d.free_connection);
+
+        case command_type::new_observer:
+            d.new_observer = {};
+            return read_in_tree_node(v, d.new_observer);
+
+        case command_type::free_observer:
+            d.free_observer = {};
+            return read_in_tree_node(v, d.free_observer);
+
+        case command_type::send_message: {
+            d.send_message = {};
+            irt_check(get_model(v, "model", d.send_message.mdl_id));
+
+            if (not get_real(v, "value", d.send_message.value))
+                return format_error();
+
+            // A named model is in the build: it must be a constant.
+            if (const auto* mdl = m_pj.sim.models.try_to_get(
+                  d.send_message.mdl_id);
+                mdl and mdl->type != dynamics_type::constant)
+                return model_error();
+
+            return success();
+        }
+        }
+
+        return format_error();
+    }
+};
+
+status load_journal(const project&        pj,
+                    command_journal&      journal,
+                    std::span<const char> json) noexcept
+{
+    rapidjson::Document doc;
+    if (auto ret = parse_json_data(json, doc, "journal"); ret.has_error())
+        return make_error(project_errc::journal_format_error);
+
+    return journal_reader(pj).read(doc, journal);
+}
+
+status load_journal(const project&   pj,
+                    command_journal& journal,
+                    file&            io) noexcept
+{
+    auto buffer = read_file(io);
+    if (buffer.has_error())
+        return buffer.error();
+
+    return load_journal(pj, journal,
+                        std::span<const char>(buffer->data(), buffer->size()));
+}
+
 } //  irt

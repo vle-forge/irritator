@@ -1984,6 +1984,59 @@ inline tree_node::tree_node(component_id           id_,
   , unique_id(uid)
 {}
 
+/**
+ * The journal of the commands applied to the simulation of a project: each
+ * command with the step after which it was applied and the date of the
+ * clock. The player of the simulation applies them again when it replays the
+ * steps (see @c simulation_player::set_edition_replay()): the history is kept
+ * through the editions, and a game can be replayed after a new build of the
+ * simulation (@c project::simulation_init() then @c
+ * simulation_player::start()), or saved (@c save_journal()).
+ *
+ * To start a new game, @c clear() the journal before the start.
+ */
+class command_journal final : public edition_replay
+{
+public:
+    struct entry {
+        u64     step = 0;
+        time    t    = 0;
+        command cmd;
+    };
+
+    explicit command_journal(project& pj) noexcept
+      : m_pj(pj)
+    {}
+
+    /**
+     * Applies the commands of @c queue (see @c project::apply_commands()) and
+     * records the commands that succeed at the step @c step and at the date
+     * of the clock. Call it inside @c simulation_player::edit() with @c
+     * simulation_player::step().
+     */
+    status apply(command_queue& queue, u64 step) noexcept;
+
+    time   edition_time(u64 step) const noexcept override;
+    status replay(u64 step) noexcept override;
+    void   forget_after(u64 step) noexcept override;
+
+    /// Sorted by step, then in the order of the editions.
+    std::span<const entry> entries() const noexcept
+    {
+        return std::span(m_entries.data(), m_entries.size());
+    }
+
+    /// Adds an entry after the others (a journal read from a file).
+    /// @return false if @c e is before the last entry or without memory.
+    bool push(const entry& e) noexcept;
+
+    void clear() noexcept { m_entries.clear(); }
+
+private:
+    project&      m_pj;
+    vector<entry> m_entries;
+};
+
 /*
    Project part
  */

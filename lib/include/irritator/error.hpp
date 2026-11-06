@@ -153,6 +153,11 @@ enum class project_errc : std::int16_t {
     component_port_y_unknown,
 
     connection_between_sum_ports, /**< Two sum ports can not be connected. */
+
+    journal_format_error, /**< A journal of commands is malformed. */
+    journal_model_error,  /**< A journal names a model or a tree node that
+                             the project does not have, or a model of
+                             another type. */
 };
 
 enum class modeling_errc : std::int16_t {

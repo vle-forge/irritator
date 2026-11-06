@@ -52,6 +52,15 @@ status simulation_player::start() noexcept
     if (m_sink)
         m_sink->rewind(m_sim);
 
+    // The editions done at the step 0, before the first keyframe: a rewind to
+    // the step 0 restores them.
+    if (m_replay and
+        not time_domain<time>::is_infinity(m_replay->edition_time(0u))) {
+        std::unique_lock lock(m_restore_mutex);
+        m_edit_count.fetch_add(1, std::memory_order_release);
+        irt_check(m_replay->replay(0u));
+    }
+
     irt_check(push_keyframe());
 
     m_started = true;
@@ -71,11 +80,15 @@ void simulation_player::reset() noexcept
     m_furthest     = 0;
     m_floor        = 0;
 
+    m_edition_pending = false;
+
     // The simulation is built again: its models are new ones.
     m_edit_count.fetch_add(1, std::memory_order_release);
 }
 
-status simulation_player::step_forward() noexcept
+status simulation_player::step_forward() noexcept { return step_forward(true); }
+
+status simulation_player::step_forward(const bool apply_editions) noexcept
 {
     // Not finished() only: a simulation without end and without event must
     // not call run() (it would set the time to infinity).
@@ -83,9 +96,34 @@ status simulation_player::step_forward() noexcept
         return success();
 
     irt_check(do_step());
+
+    if (apply_editions)
+        irt_check(apply_pending_editions());
+
     irt_check(keyframe_if_needed()); // before finalize: keyframes are replayable
 
     return finalize_if_finished();
+}
+
+status simulation_player::apply_pending_editions() noexcept
+{
+    if (not m_edition_pending)
+        return success();
+
+    m_edition_pending = false;
+
+    {
+        std::unique_lock lock(m_restore_mutex);
+        m_edit_count.fetch_add(1, std::memory_order_release);
+        irt_check(m_replay->replay(m_step));
+    }
+
+    // A snapshot of a step holds the editions of the step.
+    if (m_keep_history and not m_keyframes.empty() and
+        m_keyframes.back().step == m_step)
+        return snapshot_to(m_keyframes.back().data);
+
+    return success();
 }
 
 status simulation_player::step_back() noexcept
@@ -189,6 +227,17 @@ status simulation_player::advance_until(const time                     target,
         if (not m_started or finished())
             break;
 
+        // A replayed edition is done at its date, not as soon as the step
+        // before it: the events after it wait for it.
+        if (m_edition_pending) {
+            if (m_replay->edition_time(m_step) > target) {
+                idle = true;
+                break;
+            }
+
+            irt_check(apply_pending_editions());
+        }
+
         const auto next = next_time();
 
         if (time_domain<time>::is_infinity(next)) {
@@ -204,7 +253,7 @@ status simulation_player::advance_until(const time                     target,
             break;
         }
 
-        irt_check(step_forward());
+        irt_check(step_forward(false));
 
         if (std::chrono::steady_clock::now() >= end)
             break;
@@ -406,6 +455,9 @@ status simulation_player::do_step() noexcept
     ++m_step;
     m_furthest = std::max(m_furthest, m_step);
 
+    m_edition_pending = m_replay and not time_domain<time>::is_infinity(
+                                       m_replay->edition_time(m_step));
+
     return success();
 }
 
@@ -524,8 +576,9 @@ status simulation_player::rewind_to(const step_type n,
     if (fill_window and n >= m_window_first and
         n - m_window_first < m_window.size()) {
         irt_check(restore_from(m_window[n - m_window_first]));
-        m_step      = n;
-        m_finalized = false; // the window only has states before finalize
+        m_step            = n;
+        m_finalized       = false; // the window only has states before finalize
+        m_edition_pending = false; // the snapshot holds them
 
         return finalize_if_finished();
     }
@@ -536,8 +589,9 @@ status simulation_player::rewind_to(const step_type n,
 
     const auto& kf = m_keyframes[k - 1];
     irt_check(restore_from(kf.data));
-    m_step      = kf.step;
-    m_finalized = kf.finalized;
+    m_step            = kf.step;
+    m_finalized       = kf.finalized;
+    m_edition_pending = false; // the snapshot holds them
 
     m_window.clear();
     m_window_first = kf.step;
@@ -550,6 +604,7 @@ status simulation_player::rewind_to(const step_type n,
 
     while (m_step < n) {
         irt_check(do_step());
+        irt_check(apply_pending_editions());
 
         if (fill_window) {
             if (m_window.emplace_back() == nullptr)
