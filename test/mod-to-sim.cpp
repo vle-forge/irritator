@@ -3484,6 +3484,203 @@ int main()
         expect(eq(player.edit_count(), count + 3));
     };
 
+    "project: the journal replays the editions"_test = [] {
+        // The test checks errors: no breakpoint on them.
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        const auto restore  = irt::scope_exit(
+          [&]() noexcept { irt::on_error_callback = callback; });
+
+        irt::modeling mod;
+
+        const auto compo_id = mod.ids.write([&](auto& ids) {
+            const auto compo_id = ids.alloc_generic_component();
+            auto&      compo    = ids.components[compo_id];
+            auto&      gen = ids.generic_components.get(compo.id.generic_id);
+
+            auto& c = gen.alloc(irt::dynamics_type::constant);
+            auto& n = gen.alloc(irt::dynamics_type::counter);
+
+            gen.children_names[gen.children.get_id(c)] = "in";
+            gen.children_names[gen.children.get_id(n)] = "cnt";
+            c.flags = irt::child_flags::configurable; // named in the json
+            gen.children_parameters[gen.children.get_id(c)].set_constant(1.0,
+                                                                         0.0);
+
+            expect(
+              gen.connect(c, { .model = 0 }, n, { .model = 0 }).has_value());
+            return compo_id;
+        });
+
+        irt::project pj;
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, compo_id).has_value()));
+            });
+        });
+
+        pj.sim.limits.set_bound(0, 100);
+        expect(fatal(pj.simulation_init(mod).has_value()));
+
+        auto cst_id = irt::undefined<irt::model_id>();
+        auto cnt_id = irt::undefined<irt::model_id>();
+        for (const auto& mdl : pj.sim.models) {
+            if (mdl.type == irt::dynamics_type::constant)
+                cst_id = pj.sim.models.get_id(mdl);
+            if (mdl.type == irt::dynamics_type::counter)
+                cnt_id = pj.sim.models.get_id(mdl);
+        }
+        expect(fatal(irt::is_defined(cst_id) and irt::is_defined(cnt_id)));
+
+        const auto send = [](irt::model_id id, irt::real value) {
+            return irt::command{ .type = irt::command_type::send_message,
+                                 .data{ .send_message{ .mdl_id = id,
+                                                       .value  = value } } };
+        };
+
+        irt::command_queue     queue;
+        irt::command_journal   journal(pj);
+        irt::simulation_player player(pj.sim);
+        player.set_edition_replay(&journal);
+
+        const auto edit = [&](irt::real value) {
+            expect(queue.push(send(cst_id, value)));
+            return player.edit(
+              [&]() noexcept { return journal.apply(queue, player.step()); });
+        };
+
+        const auto cnt_is = [&](irt::i64 n, irt::real last) {
+            const auto& c = irt::get_dyn<irt::counter>(
+              pj.sim.models.get(cnt_id));
+            return c.event_number == n and c.last_value == last;
+        };
+
+        // Step 1 at 0: 1.0. Edition at 10 (the clock waits), step 2: 3.5.
+        // Edition at 20, step 3: 7.0.
+        expect(fatal(player.start().has_value()));
+        expect(fatal(
+          player.advance_until(10.0, std::chrono::seconds(60)).has_value()));
+        expect(fatal(edit(3.5).has_value()));
+        expect(fatal(
+          player.advance_until(20.0, std::chrono::seconds(60)).has_value()));
+        expect(fatal(edit(7.0).has_value()));
+        expect(fatal(
+          player.advance_until(25.0, std::chrono::seconds(60)).has_value()));
+
+        expect(eq(player.step(), 3u));
+        expect(cnt_is(3, 7.0));
+        expect(eq(journal.entries().size(), 2u));
+        expect(player.can_step_back()); // the history is kept
+
+        // Back: the state of a step holds its editions.
+        expect(fatal(player.step_back().has_value()));
+        expect(eq(player.step(), 2u));
+        expect(cnt_is(2, 3.5));
+        expect(eq(player.current_time(), 20.0));
+
+        // From the step 0: the replay does the editions again.
+        expect(fatal(player.go_to(0).has_value()));
+        expect(cnt_is(0, 0.0));
+        expect(fatal(player.go_to(3).has_value()));
+        expect(cnt_is(3, 7.0));
+        expect(eq(player.current_time(), 20.0));
+
+        // A new edition at the step 1 replaces the future.
+        expect(fatal(player.go_to(1).has_value()));
+        expect(eq(player.current_time(), 10.0));
+        expect(fatal(edit(9.0).has_value()));
+        expect(eq(journal.entries().size(), 2u)); // 3.5 and 9.0 at the step 1
+        expect(eq(player.furthest_step(), 1u));
+        expect(fatal(player.step_forward().has_value()));
+        expect(cnt_is(2, 9.0));
+
+        // A new game with the same journal: advance_until() waits for the
+        // date of an edition.
+        expect(fatal(player.start().has_value()));
+        expect(fatal(
+          player.advance_until(5.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(player.step(), 1u));
+        expect(eq(player.current_time(), 5.0));
+        expect(cnt_is(1, 1.0));
+
+        expect(fatal(
+          player.advance_until(15.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(player.step(), 2u));
+        expect(cnt_is(2, 9.0));
+
+        // An edition at the step 0 is in the first keyframe.
+        journal.clear();
+        expect(fatal(player.start().has_value()));
+        expect(fatal(edit(2.0).has_value()));
+        expect(fatal(player.step_forward().has_value()));
+        expect(cnt_is(1, 2.0));
+        expect(fatal(player.go_to(0).has_value()));
+        expect(fatal(player.step_forward().has_value()));
+        expect(cnt_is(1, 2.0));
+        expect(fatal(player.start().has_value()));
+        expect(fatal(player.step_forward().has_value()));
+        expect(cnt_is(1, 2.0));
+
+        // The journal in json, read for a new build of the simulation, gives
+        // the same game.
+        journal.clear();
+        expect(fatal(player.start().has_value()));
+        expect(fatal(
+          player.advance_until(10.0, std::chrono::seconds(60)).has_value()));
+        expect(fatal(edit(5.0).has_value()));
+        expect(fatal(
+          player.advance_until(20.0, std::chrono::seconds(60)).has_value()));
+        expect(cnt_is(2, 5.0));
+
+        const auto json = irt::save_journal(pj, journal);
+        expect(fatal(json.has_value()));
+        const auto text = std::string_view(json->data(), json->size());
+        expect(text.find("\"name\":\"in\"") != std::string_view::npos)
+          << text; // the constant is named, not numbered
+
+        expect(fatal(pj.simulation_init(mod).has_value()));
+        irt::command_journal   read(pj);
+        irt::simulation_player again(pj.sim);
+        again.set_edition_replay(&read);
+        expect(
+          fatal(irt::load_journal(
+                  pj, read, std::span<const char>(json->data(), json->size()))
+                  .has_value()));
+        expect(eq(read.entries().size(), 1u));
+        expect(fatal(again.start().has_value()));
+        expect(fatal(
+          again.advance_until(20.0, std::chrono::seconds(60)).has_value()));
+        expect(eq(again.step(), 2u));
+        expect(cnt_is(2, 5.0));
+
+        const auto bad = [&](std::string_view j) {
+            return irt::load_journal(pj, read,
+                                     std::span<const char>(j.data(), j.size()));
+        };
+        expect(bad("[1, 2]").error() ==
+               irt::error_code(irt::project_errc::journal_format_error));
+        expect(
+          bad(R"({"commands": [{"step": 1, "time": 0, "type": "send-message",
+                    "model": {"tree-node": [], "name": "nope"}, "value": 1}]})")
+            .error() ==
+          irt::error_code(irt::project_errc::journal_model_error));
+        expect(
+          bad(R"({"commands": [{"step": 1, "time": 0, "type": "send-message",
+                    "model": {"tree-node": [], "name": "cnt"}, "value": 1}]})")
+            .error() ==
+          irt::error_code(irt::project_errc::journal_model_error));
+
+        // Without history the editions are recorded too.
+        journal.clear();
+        expect(fatal(player.start().has_value()));
+        expect(fatal(player.keep_history(false).has_value()));
+        expect(fatal(
+          player.advance_until(10.0, std::chrono::seconds(60)).has_value()));
+        expect(fatal(edit(4.0).has_value()));
+        expect(eq(journal.entries().size(), 1u));
+        expect(eq(journal.entries()[0].step, 1u));
+        expect(eq(journal.entries()[0].t, 10.0));
+    };
+
     "command_queue"_test = [] {
         irt::command_queue queue;
         expect(queue.empty());
