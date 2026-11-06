@@ -1058,6 +1058,40 @@ ut::suite<"irt::simulation live values"> live_values_suite = [] {
         expect(sim.current_time() == 0.0_d);
     };
 
+    "cross: a value that reaches the threshold going down is sent once"_test =
+      [] {
+          // X goes up to 6 then down: the integrator sends exactly 5 going
+          // down, then the cross makes an internal transition at the same
+          // date without new value.
+          simulation sim;
+          expect(sim.grow_models_to(3) >> ut::fatal);
+          auto& cst = sim.alloc<irt::constant>();
+          auto& itg = sim.alloc<qss1_integrator>();
+          auto& crs = sim.alloc<qss1_cross>();
+          sim.parameters[get_index(sim.get_id(cst))].set_constant(1.0);
+          sim.parameters[get_index(sim.get_id(itg))].set_integrator(0.0, 0.01);
+          sim.parameters[get_index(sim.get_id(crs))].set_cross(5.0, 1.0, -1.0);
+          expect(sim.connect_dynamics(cst, 0, itg, 0).has_value() >> ut::fatal);
+          expect(sim.connect_dynamics(itg, 0, crs, 0).has_value() >> ut::fatal);
+          expect(sim.watch(sim.get_id(crs)).has_value() >> ut::fatal);
+
+          expect(start(sim) >> ut::fatal);
+          while (sim.current_time() < 6.0)
+              expect(run_steps(sim, 1) >> ut::fatal);
+
+          expect(sim.send_value(sim.get_id(cst), -2.0).has_value() >>
+                 ut::fatal);
+          while (sim.current_time() < 7.0)
+              expect(run_steps(sim, 1) >> ut::fatal);
+
+          // Down at 0, up at 5, down at 6.5 (with the delay of the quantum).
+          const auto ev = sim.watched_events();
+          expect(ev.size() == 3u >> ut::fatal) << "events" << ev.size();
+          expect(ev[0].port == 1 and ev[0].t == 0.0_d);
+          expect(ev[1].port == 0 and ev[1].t == 5.0_d);
+          expect(ev[2].port == 1 and ev[2].t > 6.5 and ev[2].t < 6.53);
+      };
+
     "watch: the outputs and the changes of the watched models"_test = [] {
         const auto no_break = std::exchange(irt::on_error_callback, nullptr);
         const auto restore  = irt::scope_exit(
