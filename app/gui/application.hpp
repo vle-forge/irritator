@@ -1126,6 +1126,7 @@ public:
     void show_settings_and_hierarchy(application& app) noexcept;
 
     void display_subwindows(application& app) noexcept;
+    void show_observations_window_content(application& app) noexcept;
     void close_subwindows(application& app) noexcept;
 
     void finish_simulation(application& app) noexcept;
@@ -1151,6 +1152,11 @@ public:
     using tree_node_observation_t = constrained_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 300.f;
+
+    /// The observations of the selected component in their own window: they
+    /// stay visible while the simulation is edited in the other tabs.
+    bool             show_observations_window = false;
+    small_string<80> observations_title;
 
     project pj;
 

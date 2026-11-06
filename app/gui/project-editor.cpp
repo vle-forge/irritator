@@ -43,6 +43,7 @@ project_editor::project_editor(const modeling&        mod,
 void project_editor::set_title_name(const std::string_view name) noexcept
 {
     format(title, "{}##project", name);
+    format(observations_title, "Observations - {}##project-observations", name);
     pj.name = name;
 }
 
@@ -929,14 +930,14 @@ static void show_component_observations(application&    app,
                     ImPlot::EndPlot();
                 }
                 ImGui::PopID();
-            }
 
-            ++pos;
-            if (pos >= *sim_ed.tree_node_observation) {
-                pos = 0;
-                ImGui::TableNextRow();
+                ++pos;
+                if (pos >= *sim_ed.tree_node_observation) {
+                    pos = 0;
+                    ImGui::TableNextRow();
+                }
+                ImGui::TableNextColumn();
             }
-            ImGui::TableNextColumn();
         }
 
         ImGui::EndTable();
@@ -1050,8 +1051,29 @@ static void show_simulation_editor_treenode(application&    app,
     }
 }
 
+void project_editor::show_observations_window_content(application& app) noexcept
+{
+    if (not sim_player.simulation_readable()) {
+        ImGui::TextUnformatted("Restoring the simulation...");
+        return;
+    }
+
+    if (auto* selected = pj.tree_nodes.try_to_get(m_selected_tree_node))
+        show_component_observations(app, *this, *selected);
+    else
+        ImGui::TextUnformatted("Select a component in the hierarchy.");
+}
+
 auto project_editor::show(application& app) noexcept -> show_result_t
 {
+    // Before the window of the project: its early returns do not skip it.
+    if (show_observations_window) {
+        ImGui::SetNextWindowSize(ImVec2(600.f, 400.f), ImGuiCond_FirstUseEver);
+        if (ImGui::Begin(observations_title.c_str(), &show_observations_window))
+            show_observations_window_content(app);
+        ImGui::End();
+    }
+
     if (not is_dock_init) {
         ImGui::SetNextWindowDockID(app.get_main_dock_id());
         is_dock_init = true;
@@ -1108,7 +1130,16 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                     }
 
                     if (ImGui::BeginTabItem("Component observations")) {
-                        show_component_observations(app, *this, *selected);
+                        if (show_observations_window) {
+                            ImGui::TextUnformatted(
+                              "Shown in the observations window.");
+                            if (ImGui::Button("Back to the tab"))
+                                show_observations_window = false;
+                        } else {
+                            if (ImGui::Button("Open in a window"))
+                                show_observations_window = true;
+                            show_component_observations(app, *this, *selected);
+                        }
                         ImGui::EndTabItem();
                     }
 
