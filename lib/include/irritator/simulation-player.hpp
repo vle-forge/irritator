@@ -269,6 +269,23 @@ public:
         return std::shared_lock(m_restore_mutex, std::try_to_lock);
     }
 
+    /// Waits for the end of a rewind or of an edition, then keeps the
+    /// containers of the simulation as they are while the lock is held: for
+    /// a thread that reads the simulation outside of the steps (a layout of a
+    /// view, a save). The values of the models still change if a step runs.
+    std::shared_lock<std::shared_mutex> lock_structure() const noexcept
+    {
+        return std::shared_lock(m_restore_mutex);
+    }
+
+    /// For the owner of the simulation that builds it again outside of the
+    /// player (@c project::simulation_init()): the readers of @c
+    /// lock_structure() wait. No step must run.
+    std::unique_lock<std::shared_mutex> lock_structure_for_rebuild() noexcept
+    {
+        return std::unique_lock(m_restore_mutex);
+    }
+
     /* * * * * * * *
      *
      * observers
