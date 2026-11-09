@@ -213,6 +213,50 @@ int main()
         expect(player.step() == 19_u);
     };
 
+    // A task of the GUI reads the simulation with the blocking lock; the
+    // rebuild of the simulation by its owner waits for it, and the readers
+    // wait for the rebuild.
+    "player: the rebuild and the readers of the structure"_test = [] {
+        simulation sim;
+        world      w;
+        build_world(sim, w);
+        simulation_player player(sim, { 8, 16 });
+        expect(player.start().has_value());
+
+        auto reader = player.lock_structure();
+        expect(ut::fatal(reader.owns_lock()));
+        expect(player.try_lock_structure().owns_lock()); // shared
+
+        std::atomic<bool> rebuilt{ false };
+        std::thread       rebuild([&] {
+            auto lock = player.lock_structure_for_rebuild();
+            rebuilt.store(true);
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        expect(not rebuilt.load());
+
+        reader.unlock();
+        rebuild.join();
+        expect(rebuilt.load());
+
+        auto rebuilding = player.lock_structure_for_rebuild();
+        expect(not player.try_lock_structure().owns_lock());
+
+        std::atomic<bool> read{ false };
+        std::thread       other([&] {
+            auto lock = player.lock_structure();
+            read.store(true);
+        });
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        expect(not read.load());
+
+        rebuilding.unlock();
+        other.join();
+        expect(read.load());
+    };
+
     "player: step forward, then step back one by one"_test = [] {
         auto& tm = test_tm();
         simulation          sim;
