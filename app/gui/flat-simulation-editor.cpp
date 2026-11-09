@@ -160,6 +160,13 @@ void flat_simulation_editor::build_graph(const project_editor& pj_ed,
 bool flat_simulation_editor::display(application&    app,
                                      project_editor& pj_ed) noexcept
 {
+    // A model created or freed, or a simulation built again: a new layout.
+    if (const auto count = pj_ed.sim_player.player.edit_count();
+        count != edit_count) {
+        edit_count = count;
+        is_ready.clear();
+    }
+
     if (not is_ready.test_and_set()) {
         rebuild(app, pj_ed);
         return false;
@@ -713,6 +720,10 @@ void flat_simulation_editor::rebuild(application&    app,
                                      project_editor& pj_ed) noexcept
 {
     app.add_gui_task([&]() {
+        // The containers stay as they are during the layout: no rewind, no
+        // edition, no rebuild of the simulation.
+        const auto structure = pj_ed.sim_player.player.lock_structure();
+
         data.write([&](auto& d) {
             // Indexed by identifiers: the capacity covers the holes.
             const auto mdls = pj_ed.pj.sim.models.capacity();

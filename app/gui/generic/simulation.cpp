@@ -1206,48 +1206,46 @@ void generic_simulation_editor::init(application&     app,
                                      const component& /*compo*/,
                                      const generic_component& /*gen*/) noexcept
 {
-    enable_show = false;
-
-    app.add_gui_task([&]() {
-        nodes_2nd.clear();
-        links_2nd.clear();
-
-        build_nodes(pj_ed.pj.sim, tn, nodes_2nd);
-        build_links(pj_ed.pj.sim, std::span(nodes_2nd.data(), nodes_2nd.size()),
-                    links_2nd);
-
-        if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(links, links_2nd);
-            std::swap(nodes, nodes_2nd);
-            need_reset = true;
-        }
-
-        current     = pj_ed.pj.tree_nodes.get_id(tn);
-        enable_show = true;
-        rebuild_wip = false;
-    });
+    start_init_task(app, pj_ed, pj_ed.pj.tree_nodes.get_id(tn));
 }
 
 void generic_simulation_editor::init(application&    app,
                                      project_editor& pj_ed) noexcept
 {
+    start_init_task(app, pj_ed, undefined<tree_node_id>());
+}
+
+void generic_simulation_editor::start_init_task(
+  application&       app,
+  project_editor&    pj_ed,
+  const tree_node_id tn_id) noexcept
+{
     enable_show = false;
 
-    app.add_gui_task([&]() {
+    app.add_gui_task([&, tn_id]() {
         nodes_2nd.clear();
         links_2nd.clear();
 
-        build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes_2nd);
+        // The simulation can be rebuilt or edited by its task meanwhile: the
+        // tree node is searched again under the lock.
+        const auto structure = pj_ed.sim_player.player.lock_structure();
+
+        if (const auto* tn = pj_ed.pj.tree_nodes.try_to_get(tn_id))
+            build_nodes(pj_ed.pj.sim, *tn, nodes_2nd);
+        else
+            build_flat_nodes(pj_ed, pj_ed.pj.sim, nodes_2nd);
+
         build_links(pj_ed.pj.sim, std::span(nodes_2nd.data(), nodes_2nd.size()),
                     links_2nd);
 
-        if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(links, links_2nd);
-            std::swap(nodes, nodes_2nd);
-            need_reset = true;
-        }
+        const auto count = pj_ed.sim_player.player.edit_count();
 
-        current     = undefined<tree_node_id>();
+        std::unique_lock lock(mutex);
+        std::swap(links, links_2nd);
+        std::swap(nodes, nodes_2nd);
+        current     = tn_id;
+        edit_count  = count;
+        need_reset  = true;
         enable_show = true;
         rebuild_wip = false;
     });

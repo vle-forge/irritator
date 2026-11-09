@@ -406,6 +406,8 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
         auto& app = container_of(this, &application::sim_to_cpp);
 
         app.add_gui_task([&]() {
+            const auto structure = ed.sim_player.player.lock_structure();
+
             const auto ret = write_test_simulation(
               stdout, ed.pj.name.sv(), ed.pj.sim, ed.pj.sim.limits.begin(),
               ed.pj.sim.limits.end(),
@@ -1021,23 +1023,30 @@ void application::start_init_source(const project_id  pj_id,
 
     add_gui_task([this, pj_id, id, type]() noexcept {
         if (auto* sim_ed = pjs.try_to_get(pj_id)) {
+            // The preview works on a copy: the source of the simulation, maybe
+            // used by a step now, keeps its state.
+            const auto structure = sim_ed->sim_player.player.lock_structure();
+
             if (type == source_type::constant) {
                 const auto constant_id = enum_cast<constant_source_id>(id);
 
-                if (auto* c = sim_ed->pj.sim.srcs.constant_sources.try_to_get(
-                      constant_id)) {
-                    if (c->init().has_error())
+                if (const auto* src = sim_ed->pj.sim.srcs.constant_sources
+                                        .try_to_get(constant_id)) {
+                    constant_source c(*src);
+
+                    if (c.init().has_error())
                         return;
 
-                    data_ed.fill_plot(std::span(c->buffer.data(), c->length));
+                    data_ed.fill_plot(std::span(c.buffer.data(), c.length));
                 }
             } else {
                 const auto random_id = enum_cast<random_source_id>(id);
 
-                if (auto* c = sim_ed->pj.sim.srcs.random_sources.try_to_get(
-                      random_id)) {
+                if (const auto* original = sim_ed->pj.sim.srcs.random_sources
+                                             .try_to_get(random_id)) {
+                    random_source c(*original);
 
-                    if (c->init().has_error())
+                    if (c.init().has_error())
                         return;
 
                     source      src;
@@ -1048,7 +1057,7 @@ void application::start_init_source(const project_id  pj_id,
 
                     data.chunk_id[0] = 0x648593178264597;
                     data.chunk_id[1] = static_cast<u64>(
-                      reinterpret_cast<uintptr_t>(c));
+                      reinterpret_cast<uintptr_t>(original));
                     data.chunk_id[2] = 0;
                     data.chunk_id[3] = 0;
                     data.chunk_id[4] = 0;
@@ -1056,7 +1065,7 @@ void application::start_init_source(const project_id  pj_id,
 
                     chunk_type buffer;
 
-                    c->fill(std::span(buffer), src, data);
+                    c.fill(std::span(buffer), src, data);
 
                     data_ed.fill_plot(buffer);
                 }

@@ -405,14 +405,20 @@ void project_editor::schedule_player(application& app) noexcept
         if (not replay and not load)
             sim_player.journal.clear();
 
-        if (pj.simulation_init(app.mod).has_error()) {
-            sim_player.current = mode::paused;
-            return;
-        }
+        {
+            // The tasks of the views that read the simulation wait.
+            const auto structure = sim_player.player
+                                     .lock_structure_for_rebuild();
 
-        // After the build: the names of the journal are resolved in it.
-        if (load and not load_journal_file(app, *this))
-            sim_player.journal.clear();
+            if (pj.simulation_init(app.mod).has_error()) {
+                sim_player.current = mode::paused;
+                return;
+            }
+
+            // After the build: the names of the journal are resolved in it.
+            if (load and not load_journal_file(app, *this))
+                sim_player.journal.clear();
+        }
 
         sim_player.player.reset();
 
@@ -774,6 +780,9 @@ static bool show_project_simulation_settings(application&    app,
 
             app.add_gui_task([&app, pj_id]() {
                 auto& ed = app.pjs.get(pj_id);
+
+                // The task of the simulation can add a model to a tree node.
+                const auto structure = ed.sim_player.player.lock_structure();
 
                 app.mod.files.read([&](const auto& fs, auto) noexcept {
                     app.mod.ids.read([&](const auto& ids, auto) noexcept {

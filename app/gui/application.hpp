@@ -819,9 +819,9 @@ private:
     /// Set by the rebuild tasks: the editor caches refer to the old nodes.
     bool need_reset = false;
 
-    bool enable_show = true;  /**< @c false, the display of nodes and links are
-                                 disabled. Mainly  use during @c rebuild or @c
-                                 init. */
+    std::atomic<bool> enable_show{ true }; /**< @c false, the display of nodes
+                                 and links are disabled. Mainly  use during @c
+                                 rebuild or @c init. */
     bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
                                  progress. No other rebuild can occured. */
 
@@ -829,6 +829,9 @@ private:
     u64 edit_count = std::numeric_limits<u64>::max();
 
     void rebuild(const project_editor& pj_ed) noexcept;
+    void start_init_task(application&       app,
+                         project_editor&    pj_ed,
+                         const tree_node_id tn_id) noexcept;
     void place_new_nodes(const project_editor& pj_ed) noexcept;
     int  show_menu(project_editor& pj_ed, const ImVec2 click_pos) noexcept;
 
@@ -887,6 +890,9 @@ private:
     /// to be moved in the view.
     vector<ImVec2> positions;
     u64            version = std::numeric_limits<u64>::max();
+
+    /// The edition count of the player of the last layout.
+    u64 edit_count = std::numeric_limits<u64>::max();
 
     std::atomic_flag is_ready = ATOMIC_FLAG_INIT;
 };
