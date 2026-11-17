@@ -6,6 +6,7 @@
 #include <irritator/format.hpp>
 #include <irritator/random.hpp>
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <fstream>
@@ -224,6 +225,78 @@ static constexpr bool starts_as_number(int c) noexcept
     }
 }
 
+/// Open addressing hash table with linear probing. Node names are never
+/// removed during the parsing, so no tombstone is required.
+class node_name_index
+{
+    struct slot {
+        std::string_view name;
+        graph_node_id    id = undefined<graph_node_id>();
+    };
+
+    vector<slot> m_slots;
+    std::size_t  m_size = 0;
+
+    static constexpr std::size_t hash(const std::string_view str) noexcept
+    {
+        std::uint64_t h = 14695981039346656037ull; // FNV-1a
+        for (const auto c : str) {
+            h ^= static_cast<unsigned char>(c);
+            h *= 1099511628211ull;
+        }
+
+        return static_cast<std::size_t>(h);
+    }
+
+    std::size_t find_slot(const std::string_view name) const noexcept
+    {
+        const auto mask = m_slots.size() - 1u;
+        auto       i    = hash(name) & mask;
+
+        while (is_defined(m_slots[i].id) and m_slots[i].name != name)
+            i = (i + 1u) & mask;
+
+        return i;
+    }
+
+    bool rehash(const std::size_t capacity) noexcept
+    {
+        vector<slot> old;
+        std::swap(old, m_slots);
+
+        if (not m_slots.resize(capacity, slot{}))
+            return false;
+
+        for (const auto& s : old)
+            if (is_defined(s.id))
+                m_slots[find_slot(s.name)] = s;
+
+        return true;
+    }
+
+public:
+    const graph_node_id* get(const std::string_view name) const noexcept
+    {
+        if (m_slots.empty())
+            return nullptr;
+
+        const auto& s = m_slots[find_slot(name)];
+        return is_defined(s.id) ? &s.id : nullptr;
+    }
+
+    /// The @a name must outlive the index and must not be already inserted.
+    bool insert(const std::string_view name, const graph_node_id id) noexcept
+    {
+        if ((m_size + 1u) * 2u > m_slots.size())
+            if (not rehash(m_slots.empty() ? 1024u : m_slots.size() * 2u))
+                return false;
+
+        m_slots[find_slot(name)] = slot{ name, id };
+        ++m_size;
+        return true;
+    }
+};
+
 class input_stream_buffer
 {
 private:
@@ -384,11 +457,9 @@ public:
 
     graph g;
 
-    irt::table<std::string_view, graph_node_id> name_to_node_id;
+    node_name_index name_to_node_id;
 
     error_code ec;
-
-    bool sort_before_search = false;
 
     /** Default is to fill the token ring buffer from the @c std::istream.
      *
@@ -425,11 +496,6 @@ private:
     auto find_or_add_node(std::string_view name) noexcept
       -> expected<graph_node_id>
     {
-        if (sort_before_search) {
-            name_to_node_id.sort();
-            sort_before_search = false;
-        }
-
         if (auto* found = name_to_node_id.get(name); found)
             return *found;
 
@@ -452,8 +518,8 @@ private:
         g.node_labels[idx]    = std::string_view{};
         g.node_positions[idx] = { 0.f, 0.f, 0.f };
         g.node_areas[idx]     = 0.f;
-        name_to_node_id.data.emplace_back(g.node_names[idx], id);
-        sort_before_search = true;
+        if (not name_to_node_id.insert(g.node_names[idx], id))
+            return make_error(modeling_errc::dot_memory_insufficient);
 
         return id;
     }
@@ -1216,8 +1282,13 @@ public:
     {
         (void)fill_tokens();
 
-        if (parse_graph())
+        if (parse_graph()) {
+            if (g.flags[graph::option_flags::strict] and
+                g.remove_duplicated_edges().has_error())
+                return make_error(modeling_errc::dot_memory_insufficient);
+
             return std::move(g);
+        }
 
         return make_error(modeling_errc::dot_format_illegible);
     }
@@ -1588,10 +1659,6 @@ expected<graph_node_id> graph::alloc_node() noexcept
 expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
                                           graph_node_id dst) noexcept
 {
-    for (auto id : edges)
-        if (edges_nodes[id][0].first == src and edges_nodes[id][1].first == dst)
-            return make_error(modeling_errc::graph_connection_already_exists);
-
     if (not edges.can_alloc(1)) {
         if (not edges.grow<2, 1>())
             return make_error(modeling_errc::graph_connection_container_full);
@@ -1610,6 +1677,38 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
     edges_nodes[id][1].second = std::string_view();
     edges_penwidths[id]       = 0.f;
     return id;
+}
+
+expected<void> graph::remove_duplicated_edges() noexcept
+{
+    const auto is_directed = flags[option_flags::directed];
+
+    const auto ends = [&](const graph_edge_id id) noexcept {
+        const auto src = edges_nodes[id][0].first;
+        const auto dst = edges_nodes[id][1].first;
+
+        return (is_directed or src <= dst) ? std::make_pair(src, dst)
+                                           : std::make_pair(dst, src);
+    };
+
+    vector<graph_edge_id> sorted;
+    if (not sorted.reserve(edges.size()))
+        return make_error(modeling_errc::dot_memory_insufficient);
+
+    for (const auto id : edges)
+        sorted.emplace_back(id);
+
+    std::sort(sorted.begin(), sorted.end(), [&](const auto a, const auto b) {
+        const auto ea = ends(a);
+        const auto eb = ends(b);
+        return ea != eb ? ea < eb : a < b;
+    });
+
+    for (std::size_t i = 1; i < sorted.size(); ++i)
+        if (ends(sorted[i - 1]) == ends(sorted[i]))
+            edges.free(sorted[i]);
+
+    return success();
 }
 
 expected<void> graph::reserve(int n, int e) noexcept

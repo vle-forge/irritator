@@ -34,7 +34,7 @@ enum class graph_component_id : u32;
 enum class grid_component_id : u32;
 enum class simulation_component_id : u32;
 enum class tree_node_id : u64;
-enum class child_id : u32;
+enum class child_id : u64;
 enum class connection_id : u64;
 enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
@@ -42,8 +42,8 @@ enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 enum class global_observable_id : u64;
 
-enum class graph_node_id : irt::u32;
-enum class graph_edge_id : irt::u32;
+enum class graph_node_id : irt::u64;
+enum class graph_edge_id : irt::u64;
 
 using port_str           = small_string<8>;
 using description_str    = small_string<1024>;
@@ -635,14 +635,18 @@ public:
     expected<graph_node_id> alloc_node() noexcept;
 
     /**
-     * Add a new edge in graph if the @a src and @a dst exists and the edge
-     * doe not already exist.
-     * @param src
-     * @param dst
-     * @return
+     * Add a new edge in graph in constant time. Multiple edges between the
+     * same nodes are allowed: use @a exists_edge before or
+     * @a remove_duplicated_edges after to build a strict graph.
      */
     expected<graph_edge_id> alloc_edge(graph_node_id src,
                                        graph_node_id dst) noexcept;
+
+    /**
+     * Keep only the first edge of each pair of nodes, the order of the nodes
+     * is ignored in undirected graph. Runs in O(E log E).
+     */
+    expected<void> remove_duplicated_edges() noexcept;
 
     /** Return true if an edge exists in vector.
      * The input and output ports names are not used in the comparison result.

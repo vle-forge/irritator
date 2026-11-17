@@ -67,7 +67,7 @@ static auto get_edges(
   const component_access&                             ids,
   const graph_component&                              graph,
   const table<graph_node_id, child_id>&               vertex,
-  const u16                                           index,
+  const graph_edge_id                                 index,
   const data_array<graph_component::child, child_id>& cache) noexcept
   -> std::optional<get_edges_result>
 {
@@ -341,8 +341,7 @@ static status build_graph_connections(
     switch (graph.type) {
     case graph_component::connection_type::in_out:
         for (const auto id : graph.g.edges) {
-            const auto idx       = get_index(id);
-            const auto edges_opt = get_edges(ids, graph, vertex, idx, cache);
+            const auto edges_opt = get_edges(ids, graph, vertex, id, cache);
 
             if (edges_opt.has_value()) {
                 in_out_connection_add(ids, *edges_opt, cache_connections);
@@ -352,8 +351,7 @@ static status build_graph_connections(
 
     case graph_component::connection_type::name:
         for (const auto id : graph.g.edges) {
-            const auto idx       = get_index(id);
-            const auto edges_opt = get_edges(ids, graph, vertex, idx, cache);
+            const auto edges_opt = get_edges(ids, graph, vertex, id, cache);
 
             if (edges_opt.has_value()) {
                 named_connection_add(ids, graph, *edges_opt, cache_connections);
@@ -363,8 +361,7 @@ static status build_graph_connections(
 
     case graph_component::connection_type::name_suffix:
         for (const auto id : graph.g.edges) {
-            const auto idx       = get_index(id);
-            const auto edges_opt = get_edges(ids, graph, vertex, idx, cache);
+            const auto edges_opt = get_edges(ids, graph, vertex, id, cache);
 
             if (edges_opt.has_value()) {
                 named_suffix_connection_add(ids, *edges_opt, cache_connections);
