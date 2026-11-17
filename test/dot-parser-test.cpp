@@ -8,6 +8,8 @@
 
 #include <fmt/format.h>
 
+#include <string>
+
 using namespace std::literals;
 
 irt::expected<irt::graph> irt_parse_dot_buffer(irt::modeling&        mod,
@@ -453,5 +455,73 @@ int main()
 
         expect(load_buf.has_value() >> fatal);
         check_buffer(*load_buf);
+    };
+
+    "multi-edges-kept-in-non-strict-graph"_test = [&] {
+        const std::string_view buf = R"(graph G {
+            A -- B
+            A -- B
+            B -- A
+        })";
+
+        auto ret = irt_parse_dot_buffer(mod, buf);
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret->nodes.ssize(), 2));
+        expect(eq(ret->edges.ssize(), 3));
+    };
+
+    "multi-edges-removed-in-strict-graph"_test = [&] {
+        const std::string_view buf = R"(strict graph G {
+            A -- B
+            A -- B
+            B -- A
+            B -- C
+        })";
+
+        auto ret = irt_parse_dot_buffer(mod, buf);
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret->nodes.ssize(), 3));
+        expect(eq(ret->edges.ssize(), 2));
+    };
+
+    "multi-edges-removed-in-strict-digraph"_test = [&] {
+        const std::string_view buf = R"(strict digraph G {
+            A -> B
+            A -> B
+            B -> A
+        })";
+
+        auto ret = irt_parse_dot_buffer(mod, buf);
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret->nodes.ssize(), 2));
+        expect(eq(ret->edges.ssize(), 2));
+    };
+
+    "large-graph-beyond-16-bits-identifiers"_test = [&] {
+        constexpr int nodes = 100'000;
+        constexpr int edges = 3 * nodes;
+
+        std::string buf;
+        buf.reserve(edges * 24);
+        buf += "graph G {\n";
+        for (int i = 0; i < nodes; ++i)
+            for (int k = 1; k <= 3; ++k) {
+                buf += 'n';
+                buf += std::to_string(i);
+                buf += " -- n";
+                buf += std::to_string((i + k * 7919) % nodes);
+                buf += '\n';
+            }
+        buf += "}\n";
+
+        auto ret = irt_parse_dot_buffer(mod, buf);
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret->nodes.ssize(), nodes));
+        expect(eq(ret->edges.ssize(), edges));
+
+        const auto toc = ret->make_toc();
+        expect(eq(toc.ssize(), nodes));
+        expect(toc.get("n0"sv) != nullptr);
+        expect(toc.get("n99999"sv) != nullptr);
     };
 }
