@@ -4,7 +4,9 @@
 
 #include <irritator/core.hpp>
 
+#include <cmath>
 #include <functional>
+#include <vector>
 
 #include <fmt/format.h>
 
@@ -86,6 +88,48 @@ static double e2b_sim(double a0,
     boost::ut::expect(not ret.has_error());
 
     return sim.active_output_messages.back()[2];
+}
+
+struct dated_value {
+    double t;
+    double value;
+};
+
+/// Runs @a sim until its end and returns the dates and the last values of the
+/// messages received by @a cnt.
+static std::vector<dated_value> run_and_record(irt::simulation&     sim,
+                                               const irt::counter& cnt)
+{
+    std::vector<dated_value> ret;
+
+    boost::ut::expect(boost::ut::fatal(sim.initialize().has_value()));
+
+    do {
+        const auto before = cnt.event_number;
+        boost::ut::expect(boost::ut::fatal(sim.run().has_value()));
+        if (cnt.event_number != before)
+            ret.push_back({ sim.current_time(), cnt.last_value });
+    } while (not sim.current_time_expired());
+
+    return ret;
+}
+
+/// A QSS2 integrator of a constant @a slope from @a x0: its output is the
+/// exact line @a x0 + @a slope * t after its first quantum.
+static irt::qss2_integrator& alloc_qss2_line(irt::simulation& sim,
+                                             const double     x0,
+                                             const double     slope)
+{
+    auto& cst   = sim.alloc<irt::constant>();
+    auto& integ = sim.alloc<irt::qss2_integrator>();
+    sim.parameters[irt::get_index(sim.get_id(cst))].clear().set_constant(slope);
+    sim.parameters[irt::get_index(sim.get_id(integ))]
+      .clear()
+      .set_integrator(x0, 0.001);
+    boost::ut::expect(boost::ut::fatal(
+      sim.connect_dynamics(cst, 0, integ, 0).has_value()));
+
+    return integ;
 }
 
 int main()
@@ -339,5 +383,108 @@ int main()
           -three * c * v1 * v2 + s * v1 * v1 * v1 / two);
 
         expect(not fail);
+    };
+
+    "compute-wake-up"_test = [] {
+        expect(eq(irt::compute_wake_up(1.0, 0.0, 2.0), 0.5));
+        expect(eq(irt::compute_wake_up(-1.0, 0.0, -4.0), 0.25));
+        expect(irt::time_domain<irt::time>::is_infinity(
+          irt::compute_wake_up(1.0, 0.0, -2.0)));
+        expect(irt::time_domain<irt::time>::is_infinity(
+          irt::compute_wake_up(1.0, 0.0, 0.0)));
+
+        expect(eq(irt::compute_wake_up(1.0, 0.0, 2.0, 0.0), 0.5));
+        expect(eq(irt::compute_wake_up(4.0, 0.0, 0.0, 1.0), 2.0));
+        expect(eq(irt::compute_wake_up(3.0, 0.0, 2.0, 1.0), 1.0));
+        expect(irt::time_domain<irt::time>::is_infinity(
+          irt::compute_wake_up(1.0, 0.0, 0.0, -1.0)));
+    };
+
+    "qss2-integer-crosses-each-integer"_test = [] {
+        irt::simulation sim;
+        auto&           line = alloc_qss2_line(sim, 0.0, 4.0);
+        auto&           itg  = sim.alloc<irt::qss2_integer>();
+        auto&           cnt  = sim.alloc<irt::counter>();
+        expect(fatal(sim.connect_dynamics(line, 0, itg, 0).has_value()));
+        expect(fatal(sim.connect_dynamics(itg, 0, cnt, 0).has_value()));
+        sim.limits.set_bound(0, 1.1);
+
+        const auto events = run_and_record(sim, cnt);
+
+        expect(fatal(eq(events.size(), 5u)));
+        for (std::size_t i = 0; i != events.size(); ++i) {
+            expect(lt(std::abs(events[i].t - 0.25 * static_cast<double>(i)),
+                      1e-9));
+            expect(eq(events[i].value, static_cast<double>(i)));
+        }
+    };
+
+    "qss2-compare-sends-the-value-after-the-crossing"_test = [] {
+        for (const auto x0 : { -1.0, -0.7, -0.3 }) {
+            irt::simulation sim;
+            auto&           line = alloc_qss2_line(sim, x0, 1.0);
+            auto&           cmp  = sim.alloc<irt::qss2_compare>();
+            auto&           cnt  = sim.alloc<irt::counter>();
+            sim.parameters[irt::get_index(sim.get_id(cmp))]
+              .clear()
+              .set_compare(1.0, 0.0);
+            expect(fatal(sim.connect_dynamics(line, 0, cmp, 0).has_value()));
+            expect(fatal(sim.connect_dynamics(cmp, 0, cnt, 0).has_value()));
+            sim.limits.set_bound(0, 3);
+
+            const auto events = run_and_record(sim, cnt);
+
+            expect(fatal(eq(events.size(), 2u)));
+            expect(eq(events[0].t, 0.0));
+            expect(eq(events[0].value, 0.0));
+            expect(lt(std::abs(events[1].t + x0), 1e-9));
+            expect(eq(events[1].value, 1.0));
+        }
+    };
+
+    "generator-confluent-multiplies-the-new-period"_test = [] {
+        irt::simulation sim;
+        auto&           gen = sim.alloc<irt::generator>();
+        auto&           cst = sim.alloc<irt::constant>();
+        auto&           cnt = sim.alloc<irt::counter>();
+        sim.parameters[irt::get_index(sim.get_id(gen))]
+          .clear()
+          .set_generator_ta(1.0);
+        sim.parameters[irt::get_index(sim.get_id(cst))].clear().set_constant(
+          2.0, 1.0);
+        expect(fatal(sim.connect_dynamics(cst, 0, gen, irt::generator::x_mult_tr)
+                       .has_value()));
+        expect(fatal(sim.connect_dynamics(gen, 0, cnt, 0).has_value()));
+        sim.limits.set_bound(0, 5.5);
+
+        const auto events = run_and_record(sim, cnt);
+
+        expect(fatal(eq(events.size(), 4u)));
+        expect(eq(events[0].t, 1.0));
+        expect(eq(events[1].t, 3.0));
+        expect(eq(events[2].t, 4.0));
+        expect(eq(events[3].t, 5.0));
+    };
+
+    "generator-external-keeps-the-remaining-time"_test = [] {
+        irt::simulation sim;
+        auto&           gen = sim.alloc<irt::generator>();
+        auto&           cst = sim.alloc<irt::constant>();
+        auto&           cnt = sim.alloc<irt::counter>();
+        sim.parameters[irt::get_index(sim.get_id(gen))]
+          .clear()
+          .set_generator_ta(1.0);
+        sim.parameters[irt::get_index(sim.get_id(cst))].clear().set_constant(
+          -1.0, 0.5);
+        expect(fatal(
+          sim.connect_dynamics(cst, 0, gen, irt::generator::x_t).has_value()));
+        expect(fatal(sim.connect_dynamics(gen, 0, cnt, 0).has_value()));
+        sim.limits.set_bound(0, 2.5);
+
+        const auto events = run_and_record(sim, cnt);
+
+        expect(fatal(eq(events.size(), 2u)));
+        expect(eq(events[0].t, 1.0));
+        expect(eq(events[1].t, 2.0));
     };
 }
