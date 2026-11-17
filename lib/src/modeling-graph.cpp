@@ -12,6 +12,7 @@
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
+#include <tuple>
 
 namespace irt {
 
@@ -168,19 +169,33 @@ void graph_component::reset_position() noexcept
     bottom_right_limit = { -INFINITY, -INFINITY };
 }
 
-static constexpr auto exists_connection(
-  const data_array<connection, connection_id>& cache_connections,
-  const child_id                               src_id,
-  const port_id                                p_src,
-  const child_id                               dst_id,
-  const port_id                                p_dst) noexcept -> bool
+static status remove_duplicated_connections(
+  data_array<connection, connection_id>& cache_connections) noexcept
 {
-    for (const auto& elem : cache_connections)
-        if (elem.src == src_id and elem.dst == dst_id and
-            elem.index_src.compo == p_src and elem.index_dst.compo == p_dst)
-            return true;
+    const auto key = [&](const connection_id id) noexcept {
+        const auto& c = cache_connections.get(id);
+        return std::make_tuple(
+          c.src, c.index_src.compo, c.dst, c.index_dst.compo);
+    };
 
-    return false;
+    vector<connection_id> sorted;
+    if (not sorted.reserve(cache_connections.size()))
+        return make_error(modeling_errc::graph_connection_container_full);
+
+    for (const auto& c : cache_connections)
+        sorted.emplace_back(cache_connections.get_id(c));
+
+    std::sort(sorted.begin(), sorted.end(), [&](const auto a, const auto b) {
+        const auto ka = key(a);
+        const auto kb = key(b);
+        return ka != kb ? ka < kb : a < b;
+    });
+
+    for (std::size_t i = 1; i < sorted.size(); ++i)
+        if (key(sorted[i - 1]) == key(sorted[i]))
+            cache_connections.free(sorted[i]);
+
+    return success();
 }
 
 enum connection_add_result : u8 { done, nomem, noexist };
@@ -296,10 +311,6 @@ static connection_add_result named_suffix_connection_add(
                   const auto dname = c_dst.x.get<port_str>(did).sv();
                   const auto dual  = split(dname, '_');
                   if (dual.first == sname.sv()) {
-                      if (exists_connection(
-                            cache_connections, edge.src, sid, edge.dst, did))
-                          continue;
-
                       if (connection_add(
                             edge.src, sid, edge.dst, did, cache_connections) ==
                           connection_add_result::nomem)
@@ -367,7 +378,8 @@ static status build_graph_connections(
                 named_suffix_connection_add(ids, *edges_opt, cache_connections);
             }
         }
-        break;
+
+        return remove_duplicated_connections(cache_connections);
     }
 
     return success();
