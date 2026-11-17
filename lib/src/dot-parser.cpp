@@ -1704,9 +1704,13 @@ expected<void> graph::remove_duplicated_edges() noexcept
         return ea != eb ? ea < eb : a < b;
     });
 
-    for (std::size_t i = 1; i < sorted.size(); ++i)
-        if (ends(sorted[i - 1]) == ends(sorted[i]))
+    std::size_t kept = 0;
+    for (std::size_t i = 1; i < sorted.size(); ++i) {
+        if (ends(sorted[kept]) == ends(sorted[i]))
             edges.free(sorted[i]);
+        else
+            kept = i;
+    }
 
     return success();
 }

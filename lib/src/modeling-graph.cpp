@@ -191,9 +191,13 @@ static status remove_duplicated_connections(
         return ka != kb ? ka < kb : a < b;
     });
 
-    for (std::size_t i = 1; i < sorted.size(); ++i)
-        if (key(sorted[i - 1]) == key(sorted[i]))
+    std::size_t kept = 0;
+    for (std::size_t i = 1; i < sorted.size(); ++i) {
+        if (key(sorted[kept]) == key(sorted[i]))
             cache_connections.free(sorted[i]);
+        else
+            kept = i;
+    }
 
     return success();
 }
