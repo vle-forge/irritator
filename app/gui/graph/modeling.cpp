@@ -202,6 +202,10 @@ bool graph_component_editor_data::show_graph(application& app,
                 const auto e = selected_nodes.size();
                 for (sz i = 0; i < e; ++i) {
                     for (sz j = i + 1; j < e; ++j) {
+                        if (data.g.exists_edge(selected_nodes[i],
+                                               selected_nodes[j]))
+                            continue;
+
                         if (const auto ret = data.g.alloc_edge(
                               selected_nodes[i], selected_nodes[j]);
                             ret.has_error()) {
@@ -248,7 +252,9 @@ bool graph_component_editor_data::show_graph(application& app,
         ImGui::EndPopup();
     }
 
-    if (ev.link_created) {
+    if (ev.link_created and
+        not data.g.exists_edge(m_nodes[ev.link_created->out.node],
+                               m_nodes[ev.link_created->in.node])) {
         if (const auto ret = data.g.alloc_edge(
               m_nodes[ev.link_created->out.node],
               m_nodes[ev.link_created->in.node]);
