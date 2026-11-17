@@ -2615,64 +2615,45 @@ constexpr void update(std::span<real, QssLevel> values,
     }
 }
 
+/// @return The first strictly positive date where @c value_0 + @c value_1 * t
+/// reaches @a threshold or infinity.
 inline time compute_wake_up(real threshold, real value_0, real value_1) noexcept
 {
-    time ret = time_domain<time>::infinity;
+    if (value_1 == zero)
+        return time_domain<time>::infinity;
 
-    if (value_1 != 0) {
-        const auto a = value_1;
-        const auto b = value_0 - threshold;
-        const auto d = -b * a;
+    const auto d = (threshold - value_0) / value_1;
 
-        ret = (d > zero) ? d : time_domain<time>::infinity;
-    }
-
-    return ret;
+    return d > zero ? d : time_domain<time>::infinity;
 }
 
+/// @return The first strictly positive date where @c value_0 + @c value_1 * t
+/// + @c value_2 * t * t reaches @a threshold or infinity.
 inline time compute_wake_up(real threshold,
                             real value_0,
                             real value_1,
                             real value_2) noexcept
 {
-    time ret = time_domain<time>::infinity;
+    if (value_2 == zero)
+        return compute_wake_up(threshold, value_0, value_1);
 
-    if (value_1 != 0) {
-        if (value_2 != 0) {
-            const auto a = value_2;
-            const auto b = value_1;
-            const auto c = value_0 - threshold;
-            const auto d = b * b - four * a * c;
+    const auto a = value_2;
+    const auto b = value_1;
+    const auto c = value_0 - threshold;
+    const auto d = b * b - four * a * c;
 
-            if (d > zero) {
-                const auto sqrt_d = std::sqrt(d);
-                const auto x1     = (-b + sqrt_d) / (two * a);
-                const auto x2     = (-b - sqrt_d) / (two * a);
+    if (d < zero)
+        return time_domain<time>::infinity;
 
-                if (x1 > zero) {
-                    if (x2 > zero) {
-                        ret = std::min(x1, x2);
-                    } else {
-                        ret = x1;
-                    }
-                } else {
-                    if (x2 > 0)
-                        ret = x2;
-                }
-            } else if (is_zero(d)) {
-                const auto x = -b / (two * a);
-                if (x > zero)
-                    ret = x;
-            }
-        } else {
-            const auto a = value_1;
-            const auto b = value_0 - threshold;
-            const auto d = -b * a;
+    const auto sqrt_d = std::sqrt(d);
+    const auto x1     = (-b + sqrt_d) / (two * a);
+    const auto x2     = (-b - sqrt_d) / (two * a);
 
-            if (d > zero)
-                ret = d;
-        }
-    }
+    auto ret = time_domain<time>::infinity;
+    if (x1 > zero)
+        ret = x1;
+    if (x2 > zero and x2 < ret)
+        ret = x2;
 
     return ret;
 }
@@ -4302,44 +4283,29 @@ struct abstract_compare {
         return success();
     }
 
-    time compute_next_cross() const noexcept
+    /// @param x The difference @c a - @c b, null just after a crossing to
+    /// skip the root of this crossing.
+    time compute_next_cross(const real x) const noexcept
     {
-        if constexpr (QssLevel == 2) {
-            const auto y  = a[1] - b[1];
-            const auto x  = a[0] - b[0];
-            const auto s1 = not is_zero(y) ? -x / y
-                                           : time_domain<time>::infinity;
+        if constexpr (QssLevel == 2)
+            return compute_wake_up(zero, x, a[1] - b[1]);
 
-            return s1 > 0 ? s1 : time_domain<time>::infinity;
-        }
-
-        if constexpr (QssLevel == 3) {
-            const auto z  = a[2] - b[2];
-            const auto y  = a[1] - b[1];
-            const auto x  = a[0] - b[0];
-            auto       s1 = time_domain<time>::infinity;
-            auto       s2 = time_domain<time>::infinity;
-
-            if (is_zero(z)) {
-                if (not is_zero(y))
-                    s1 = -x / y;
-            } else {
-                s1 = (-y + std::sqrt(y * y - four * z * x)) / two / z;
-                s2 = (-y - std::sqrt(y * y - four * z * x)) / two / z;
-            }
-
-            if ((s1 > zero) and ((s1 < s2) or (s2 < zero)))
-                return s1;
-
-            if (s2 > zero)
-                return s2;
-        }
+        if constexpr (QssLevel == 3)
+            return compute_wake_up(zero, x, a[1] - b[1], a[2] - b[2]);
 
         return time_domain<time>::infinity;
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    /// A finite and strictly positive time advance is the date of a predicted
+    /// crossing of @c a and @c b: the output is the value after the crossing.
+    bool is_crossing() const noexcept
     {
+        return sigma > zero and not time_domain<time>::is_infinity(sigma);
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
+    {
+        const auto crossing  = is_zero(r) and is_crossing();
         const auto lst_a     = get_message(sim, x[0]);
         const auto lst_b     = get_message(sim, x[1]);
         const auto message_a = not lst_a.empty();
@@ -4391,7 +4357,18 @@ struct abstract_compare {
             }
         }
 
-        const auto cross = compute_next_cross();
+        // At a predicted crossing, the extrapolated difference is null up to
+        // the rounding errors: its sign can not decide the new state.
+        if (crossing) {
+            is_a_less_b = not is_a_less_b;
+
+            if (not message_a and not message_b) {
+                sigma = compute_next_cross(zero);
+                return success();
+            }
+        }
+
+        const auto cross = compute_next_cross(a[0] - b[0]);
         if (a[0] - b[0] > 0 and is_a_less_b) {
             is_a_less_b = false;
             sigma       = zero;
@@ -4407,7 +4384,8 @@ struct abstract_compare {
 
     status lambda(simulation& sim) noexcept
     {
-        return send_message(sim, y[0], output[is_a_less_b]);
+        return send_message(
+          sim, y[0], output[is_crossing() ? not is_a_less_b : is_a_less_b]);
     }
 
     raw_sample observation(time t, time /*e*/) const noexcept
@@ -5034,12 +5012,16 @@ struct generator {
     {
         auto update_source_by_input_port = false;
 
+        // The kernel computes the next date from the date of this transition:
+        // an external event keeps the remaining time.
+        if (not is_zero(r))
+            sigma = r;
+
         if (const auto lst_value = get_message(sim, x[x_value]);
             not lst_value.empty()) {
             for (const auto& msg : lst_value)
                 value = msg[0];
 
-            sigma                       = r;
             update_source_by_input_port = true;
         }
 
@@ -5092,11 +5074,14 @@ struct generator {
             if (not lst_t.empty() and t >= zero) {
                 sigma = t;
             } else {
+                // At an internal event, the time remaining is the new time
+                // advance: the confluent transition is the external
+                // transition after the internal one.
                 if (std::isfinite(add_tr))
-                    sigma = r + add_tr;
+                    sigma = sigma + add_tr;
 
                 if (std::isnormal(mult_tr))
-                    sigma = r * mult_tr;
+                    sigma = sigma * mult_tr;
             }
         }
 
