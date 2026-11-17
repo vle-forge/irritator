@@ -3753,4 +3753,37 @@ int main()
         consumer.join();
         expect(eq(received, static_cast<std::size_t>(total)));
     };
+
+    "graph name_suffix ignores duplicated edges"_test = [] {
+        irt::modeling mod;
+
+        mod.ids.write([&](auto& ids) {
+            const auto c_id = ids.alloc_generic_component();
+            auto&      c    = ids.components[c_id];
+            c.get_or_add_y("M");
+            c.get_or_add_x("M_0");
+            c.get_or_add_x("M_1");
+
+            irt::graph_component g;
+            g.type = irt::graph_component::connection_type::name_suffix;
+
+            const auto a = g.g.alloc_node();
+            const auto b = g.g.alloc_node();
+            expect(a.has_value() and b.has_value()) << fatal;
+            g.g.node_components[*a] = c_id;
+            g.g.node_components[*b] = c_id;
+
+            expect(g.g.alloc_edge(*a, *b).has_value());
+            expect(g.g.alloc_edge(*a, *b).has_value());
+            expect(g.g.alloc_edge(*b, *a).has_value());
+
+            irt::data_array<irt::graph_component::child, irt::child_id> cache;
+            irt::data_array<irt::connection, irt::connection_id>        cons;
+            irt::vector<irt::name_str>                                  names;
+
+            expect(g.build_cache(ids, cache, cons, names).has_value());
+            expect(eq(cache.ssize(), 2));
+            expect(eq(cons.ssize(), 4));
+        });
+    };
 }
