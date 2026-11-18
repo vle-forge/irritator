@@ -1473,11 +1473,6 @@ protected:
 template<typename T, typename Identifier, typename A>
 class data_array;
 
-/** Specialization of data_array for void types */
-template<typename T, typename Identifier, typename A>
-    requires std::is_void_v<T>
-class data_array<T, Identifier, A>;
-
 template<typename T, typename Identifier, typename A, class... Ts>
 class id_data_array;
 
