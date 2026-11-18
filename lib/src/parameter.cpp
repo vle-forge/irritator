@@ -562,6 +562,28 @@ static void parameter_init(
   const abstract_min_max<QssLevel, IsMax>& /*dyn*/) noexcept
 {}
 
+template<size_t QssLevel, size_t PortNumber>
+static void model_init(const parameter&                         param,
+                       abstract_priority<QssLevel, PortNumber>& dyn) noexcept
+{
+    for (size_t i = 0; i != PortNumber; ++i) {
+        const auto type_i = param.integers[i];
+        dyn.selections[i] = 0 <= type_i and
+                                type_i < std::ssize(priority_selection_names)
+                              ? enum_cast<priority_selection>(type_i)
+                              : priority_selection::maximum;
+    }
+}
+
+template<size_t QssLevel, size_t PortNumber>
+static void parameter_init(
+  parameter&                                     param,
+  const abstract_priority<QssLevel, PortNumber>& dyn) noexcept
+{
+    for (size_t i = 0; i != PortNumber; ++i)
+        param.integers[i] = static_cast<i64>(ordinal(dyn.selections[i]));
+}
+
 template<size_t QssLevel>
 static void model_init(const parameter&               param,
                        abstract_saturation<QssLevel>& dyn) noexcept

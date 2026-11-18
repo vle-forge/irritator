@@ -549,6 +549,42 @@ struct maximum_tag {
     static constexpr const port_type y_types[] = { qss };
 };
 
+struct qss_priority_2_tag {
+    static constexpr std::string_view x_names[] = { "in-1", "in-2" };
+    static constexpr std::string_view y_names[] = { "out" };
+
+    static constexpr const port_type x_types[] = { qss, qss };
+    static constexpr const port_type y_types[] = { qss };
+
+    enum parameter_names : u8 { i_selection1 = 0, i_selection2 };
+};
+
+struct qss_priority_3_tag {
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
+    static constexpr std::string_view y_names[] = { "out" };
+
+    static constexpr const port_type x_types[] = { qss, qss, qss };
+    static constexpr const port_type y_types[] = { qss };
+
+    enum parameter_names : u8 { i_selection1 = 0, i_selection2, i_selection3 };
+};
+
+struct qss_priority_4_tag {
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
+                                                    "in-4" };
+    static constexpr std::string_view y_names[] = { "out" };
+
+    static constexpr const port_type x_types[] = { qss, qss, qss, qss };
+    static constexpr const port_type y_types[] = { qss };
+
+    enum parameter_names : u8 {
+        i_selection1 = 0,
+        i_selection2,
+        i_selection3,
+        i_selection4
+    };
+};
+
 struct saturation_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
@@ -868,6 +904,21 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss2_maximum:
     case dynamics_type::qss3_maximum:
         return std::invoke(std::forward<Function>(f), maximum_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_priority_2:
+    case dynamics_type::qss2_priority_2:
+    case dynamics_type::qss3_priority_2:
+        return std::invoke(std::forward<Function>(f), qss_priority_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_priority_3:
+    case dynamics_type::qss2_priority_3:
+    case dynamics_type::qss3_priority_3:
+        return std::invoke(std::forward<Function>(f), qss_priority_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_priority_4:
+    case dynamics_type::qss2_priority_4:
+    case dynamics_type::qss3_priority_4:
+        return std::invoke(std::forward<Function>(f), qss_priority_4_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_saturation:
     case dynamics_type::qss2_saturation:

@@ -1040,6 +1040,9 @@ enum class dynamics_type : u8 {
     qss1_hysteresis,
     qss1_maximum,
     qss1_minimum,
+    qss1_priority_2,
+    qss1_priority_3,
+    qss1_priority_4,
     qss1_saturation,
     qss1_sigmoid,
     qss1_sign,
@@ -1084,6 +1087,9 @@ enum class dynamics_type : u8 {
     qss2_hysteresis,
     qss2_maximum,
     qss2_minimum,
+    qss2_priority_2,
+    qss2_priority_3,
+    qss2_priority_4,
     qss2_saturation,
     qss2_sigmoid,
     qss2_sign,
@@ -1128,6 +1134,9 @@ enum class dynamics_type : u8 {
     qss3_hysteresis,
     qss3_maximum,
     qss3_minimum,
+    qss3_priority_2,
+    qss3_priority_3,
+    qss3_priority_4,
     qss3_saturation,
     qss3_sigmoid,
     qss3_sign,
@@ -7364,6 +7373,135 @@ using qss1_maximum = abstract_min_max<1, true>;
 using qss2_maximum = abstract_min_max<2, true>;
 using qss3_maximum = abstract_min_max<3, true>;
 
+/** Reduction of the simultaneous messages of one port of a priority model. */
+enum class priority_selection : u8 { maximum, minimum, mean };
+
+inline constexpr std::string_view priority_selection_names[] = { "maximum",
+                                                                 "minimum",
+                                                                 "mean" };
+
+/** Forwards the message of the last emitting source. Simultaneous messages
+ * on several ports: the port of the smallest index wins. Simultaneous
+ * messages on the same port: they are reduced by the @c selection_type of
+ * the port. */
+template<std::size_t QssLevel, std::size_t PortNumber>
+struct abstract_priority {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+    static_assert(2 <= PortNumber && PortNumber <= 4, "Only 2, 3 or 4 ports");
+
+    using selection_type = priority_selection;
+
+    input_port     x[PortNumber] = {};
+    output_port_id y[1]          = {};
+
+    std::array<selection_type, PortNumber> selections;
+    std::array<real, QssLevel>             value;
+    time                                   sigma;
+
+    abstract_priority() noexcept = default;
+
+    abstract_priority(const abstract_priority& other) noexcept
+      : selections(other.selections)
+      , value(other.value)
+      , sigma(other.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+        sigma = time_domain<time>::infinity;
+
+        return success();
+    }
+
+    static bool less(const message& a, const message& b) noexcept
+    {
+        for (std::size_t i = 0; i != QssLevel; ++i)
+            if (a[i] != b[i])
+                return a[i] < b[i];
+
+        return false;
+    }
+
+    void select(std::span<const message> msgs,
+                const selection_type     type) noexcept
+    {
+        switch (type) {
+        case selection_type::minimum: {
+            const auto& m = *std::ranges::min_element(msgs, less);
+            for (std::size_t i = 0; i != QssLevel; ++i)
+                value[i] = m[i];
+        } break;
+
+        case selection_type::mean:
+            value.fill(zero);
+            for (const auto& m : msgs)
+                for (std::size_t i = 0; i != QssLevel; ++i)
+                    value[i] += m[i];
+            for (auto& v : value)
+                v /= static_cast<real>(msgs.size());
+            break;
+
+        case selection_type::maximum:
+        default: {
+            const auto& m = *std::ranges::max_element(msgs, less);
+            for (std::size_t i = 0; i != QssLevel; ++i)
+                value[i] = m[i];
+        } break;
+        }
+    }
+
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        for (std::size_t i = 0; i != PortNumber; ++i) {
+            const auto lst = get_message(sim, x[i]);
+
+            if (not lst.empty()) {
+                select(lst, selections[i]);
+                sigma = time_domain<time>::zero;
+                return success();
+            }
+        }
+
+        sigma = time_domain<time>::infinity;
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0]);
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], value[0], value[1]);
+        if constexpr (QssLevel == 3)
+            return send_message(sim, y[0], value[0], value[1], value[2]);
+        return success();
+    }
+
+    raw_sample observation(time t, time e) const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return { t, value[0] };
+        else if constexpr (QssLevel == 2)
+            return { t, value[0] + value[1] * e };
+        else
+            return { t, value[0] + value[1] * e + value[2] * e * e };
+    }
+};
+
+using qss1_priority_2 = abstract_priority<1, 2>;
+using qss1_priority_3 = abstract_priority<1, 3>;
+using qss1_priority_4 = abstract_priority<1, 4>;
+using qss2_priority_2 = abstract_priority<2, 2>;
+using qss2_priority_3 = abstract_priority<2, 3>;
+using qss2_priority_4 = abstract_priority<2, 4>;
+using qss3_priority_2 = abstract_priority<3, 2>;
+using qss3_priority_3 = abstract_priority<3, 3>;
+using qss3_priority_4 = abstract_priority<3, 4>;
+
 template<std::size_t QssLevel>
 struct abstract_wrap {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -8853,7 +8991,10 @@ constexpr sz max_size_in_bytes() noexcept
       sizeof(qss2_sign), sizeof(qss3_sign), sizeof(qss1_hysteresis),
       sizeof(qss2_hysteresis), sizeof(qss3_hysteresis), sizeof(qss1_minimum),
       sizeof(qss2_minimum), sizeof(qss3_minimum), sizeof(qss1_maximum),
-      sizeof(qss2_maximum), sizeof(qss3_maximum), sizeof(qss1_wrap),
+      sizeof(qss2_maximum), sizeof(qss3_maximum), sizeof(qss1_priority_2),
+      sizeof(qss2_priority_2), sizeof(qss3_priority_2), sizeof(qss1_priority_3),
+      sizeof(qss2_priority_3), sizeof(qss3_priority_3), sizeof(qss1_priority_4),
+      sizeof(qss2_priority_4), sizeof(qss3_priority_4), sizeof(qss1_wrap),
       sizeof(qss2_wrap), sizeof(qss3_wrap));
 }
 
@@ -9000,6 +9141,15 @@ concept dynamics = std::is_same_v<Dynamics, qss1_integrator> or
                    std::is_same_v<Dynamics, qss1_maximum> or
                    std::is_same_v<Dynamics, qss2_maximum> or
                    std::is_same_v<Dynamics, qss3_maximum> or
+                   std::is_same_v<Dynamics, qss1_priority_2> or
+                   std::is_same_v<Dynamics, qss1_priority_3> or
+                   std::is_same_v<Dynamics, qss1_priority_4> or
+                   std::is_same_v<Dynamics, qss2_priority_2> or
+                   std::is_same_v<Dynamics, qss2_priority_3> or
+                   std::is_same_v<Dynamics, qss2_priority_4> or
+                   std::is_same_v<Dynamics, qss3_priority_2> or
+                   std::is_same_v<Dynamics, qss3_priority_3> or
+                   std::is_same_v<Dynamics, qss3_priority_4> or
                    std::is_same_v<Dynamics, qss1_wrap> or
                    std::is_same_v<Dynamics, qss2_wrap> or
                    std::is_same_v<Dynamics, qss3_wrap>;
@@ -9370,6 +9520,33 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 
     if constexpr (std::is_same_v<Dynamics, qss3_maximum>)
         return dynamics_type::qss3_maximum;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_priority_2>)
+        return dynamics_type::qss1_priority_2;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_priority_3>)
+        return dynamics_type::qss1_priority_3;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_priority_4>)
+        return dynamics_type::qss1_priority_4;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_priority_2>)
+        return dynamics_type::qss2_priority_2;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_priority_3>)
+        return dynamics_type::qss2_priority_3;
+
+    if constexpr (std::is_same_v<Dynamics, qss2_priority_4>)
+        return dynamics_type::qss2_priority_4;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_priority_2>)
+        return dynamics_type::qss3_priority_2;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_priority_3>)
+        return dynamics_type::qss3_priority_3;
+
+    if constexpr (std::is_same_v<Dynamics, qss3_priority_4>)
+        return dynamics_type::qss3_priority_4;
 
     if constexpr (std::is_same_v<Dynamics, qss1_wrap>)
         return dynamics_type::qss1_wrap;
@@ -9961,6 +10138,51 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
                            *reinterpret_cast<const qss3_maximum*>(&mdl.dyn),
                            std::forward<Args>(args)...);
 
+    case dynamics_type::qss1_priority_2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_priority_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_priority_3:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_priority_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_priority_4:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_priority_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_priority_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_3:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_priority_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_4:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_priority_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_2:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_priority_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_3:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_priority_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_4:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_priority_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+
     case dynamics_type::qss1_wrap:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_wrap*>(&mdl.dyn),
@@ -10493,6 +10715,42 @@ constexpr auto dispatch(model& mdl, Function&& f, Args&&... args) noexcept
         return f(*reinterpret_cast<qss3_maximum*>(&mdl.dyn),
                  std::forward<Args>(args)...);
 
+    case dynamics_type::qss1_priority_2:
+        return f(*reinterpret_cast<qss1_priority_2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_priority_3:
+        return f(*reinterpret_cast<qss1_priority_3*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_priority_4:
+        return f(*reinterpret_cast<qss1_priority_4*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_2:
+        return f(*reinterpret_cast<qss2_priority_2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_3:
+        return f(*reinterpret_cast<qss2_priority_3*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss2_priority_4:
+        return f(*reinterpret_cast<qss2_priority_4*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_2:
+        return f(*reinterpret_cast<qss3_priority_2*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_3:
+        return f(*reinterpret_cast<qss3_priority_3*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
+    case dynamics_type::qss3_priority_4:
+        return f(*reinterpret_cast<qss3_priority_4*>(&mdl.dyn),
+                 std::forward<Args>(args)...);
+
     case dynamics_type::qss1_wrap:
         return f(*reinterpret_cast<qss1_wrap*>(&mdl.dyn),
                  std::forward<Args>(args)...);
@@ -10726,6 +10984,15 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_maximum:
     case dynamics_type::qss2_maximum:
     case dynamics_type::qss3_maximum:
+    case dynamics_type::qss1_priority_2:
+    case dynamics_type::qss1_priority_3:
+    case dynamics_type::qss1_priority_4:
+    case dynamics_type::qss2_priority_2:
+    case dynamics_type::qss2_priority_3:
+    case dynamics_type::qss2_priority_4:
+    case dynamics_type::qss3_priority_2:
+    case dynamics_type::qss3_priority_3:
+    case dynamics_type::qss3_priority_4:
     case dynamics_type::qss1_wrap:
     case dynamics_type::qss2_wrap:
     case dynamics_type::qss3_wrap:
@@ -11883,6 +12150,9 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_hysteresis:
     case dynamics_type::qss1_maximum:
     case dynamics_type::qss1_minimum:
+    case dynamics_type::qss1_priority_2:
+    case dynamics_type::qss1_priority_3:
+    case dynamics_type::qss1_priority_4:
     case dynamics_type::qss1_saturation:
     case dynamics_type::qss1_sigmoid:
     case dynamics_type::qss1_sign:
@@ -11928,6 +12198,9 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_hysteresis:
     case dynamics_type::qss2_maximum:
     case dynamics_type::qss2_minimum:
+    case dynamics_type::qss2_priority_2:
+    case dynamics_type::qss2_priority_3:
+    case dynamics_type::qss2_priority_4:
     case dynamics_type::qss2_saturation:
     case dynamics_type::qss2_sigmoid:
     case dynamics_type::qss2_sign:
@@ -11973,6 +12246,9 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_hysteresis:
     case dynamics_type::qss3_maximum:
     case dynamics_type::qss3_minimum:
+    case dynamics_type::qss3_priority_2:
+    case dynamics_type::qss3_priority_3:
+    case dynamics_type::qss3_priority_4:
     case dynamics_type::qss3_saturation:
     case dynamics_type::qss3_sigmoid:
     case dynamics_type::qss3_sign:

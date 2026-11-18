@@ -932,6 +932,17 @@ void binary_serialize(Ar& ar, abstract_min_max<QssLevel, IsMax>& d) noexcept
     ar(x, y, values, sigma, sel_a, emit);
 }
 
+template<typename Ar, std::size_t QssLevel, std::size_t PortNumber>
+void binary_serialize(Ar&                                      ar,
+                      abstract_priority<QssLevel, PortNumber>& d) noexcept
+{
+    auto& [x, y, selections, value, sigma] = d;
+    ar(x, y);
+    for (auto& selection : selections)
+        io_enum(ar, selection, priority_selection::mean);
+    ar(value, sigma);
+}
+
 template<typename Ar, std::size_t QssLevel>
 void binary_serialize(Ar& ar, abstract_wrap<QssLevel>& d) noexcept
 {

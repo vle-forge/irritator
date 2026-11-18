@@ -747,6 +747,54 @@ struct json_reader {
         });
     }
 
+    bool copy_string_to(priority_selection& type) noexcept
+    {
+        return copy_name_to(priority_selection_names, type,
+                            "priority selection");
+    }
+
+    template<std::size_t PortNumber>
+    bool read_priority(const rapidjson::Value& val, parameter& p) noexcept
+    {
+        static constexpr std::string_view n[] = { "selection-0", "selection-1",
+                                                  "selection-2",
+                                                  "selection-3" };
+
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              if (std::cmp_greater_equal(idx, PortNumber))
+                  return error("unknown element");
+
+              auto type = priority_selection::maximum;
+              return read_temp_string(value) && copy_string_to(type) &&
+                     copy(ordinal(type), p.integers[idx]);
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       qss_priority_2_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics qss priority 2");
+        return read_priority<2>(val, p);
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       qss_priority_3_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics qss priority 3");
+        return read_priority<3>(val, p);
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
+                       qss_priority_4_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics qss priority 4");
+        return read_priority<4>(val, p);
+    }
+
     bool read_dynamics(const rapidjson::Value& val,
                        qss_wsum_2_tag,
                        parameter& p) noexcept
@@ -4862,6 +4910,63 @@ struct json_writer {
     {
         writer.StartObject();
         writer.EndObject();
+    }
+
+    template<std::size_t PortNumber, typename Writer>
+    void write_priority(Writer& writer, const parameter& p) noexcept
+    {
+        static constexpr std::string_view n[] = { "selection-0", "selection-1",
+                                                  "selection-2",
+                                                  "selection-3" };
+
+        writer.StartObject();
+        for (std::size_t i = 0; i != PortNumber; ++i) {
+            const auto type_i = p.integers[i];
+            const auto type   = 0 <= type_i and
+                                  type_i < std::ssize(priority_selection_names)
+                                  ? enum_cast<priority_selection>(type_i)
+                                  : priority_selection::maximum;
+            const auto sv     = priority_selection_names[ordinal(type)];
+
+            writer.Key(n[i].data(),
+                       static_cast<rapidjson::SizeType>(n[i].size()));
+            writer.String(sv.data(),
+                          static_cast<rapidjson::SizeType>(sv.size()));
+        }
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const qss_priority_2_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        write_priority<2>(writer, p);
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const qss_priority_3_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        write_priority<3>(writer, p);
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const qss_priority_4_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        write_priority<4>(writer, p);
     }
 
     template<typename Writer>
