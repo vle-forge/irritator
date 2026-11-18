@@ -379,6 +379,15 @@ static void show_dynamics_values(
     ImGui::LabelFormat("value", "{}", dyn.values[0]);
 }
 
+template<std::size_t QssLevel, std::size_t PortNumber>
+static void show_dynamics_values(
+  application& /*app*/,
+  project_editor& /*sim*/,
+  const struct abstract_priority<QssLevel, PortNumber>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
 template<std::size_t QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,

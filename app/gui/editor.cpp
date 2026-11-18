@@ -104,6 +104,68 @@ static bool show_parameter(counter_tag,
     return up;
 }
 
+template<typename Tag>
+static bool show_priority_parameter(parameter& p) noexcept
+{
+    auto up = false;
+
+    for (std::size_t port = 0; port < std::size(Tag::x_names); ++port) {
+        const auto type_i = p.integers[port];
+        const auto type   = 0 <= type_i and
+                              type_i < std::ssize(priority_selection_names)
+                              ? enum_cast<priority_selection>(type_i)
+                              : priority_selection::maximum;
+
+        small_string<64> combo_label(priority_selection_names[ordinal(type)]);
+        small_string<16> port_label(Tag::x_names[port]);
+
+        if (ImGui::BeginCombo(port_label.c_str(), combo_label.c_str())) {
+            for (sz i = 0; i < std::size(priority_selection_names); ++i) {
+                const bool is_selected = ordinal(type) == i;
+
+                combo_label = priority_selection_names[i];
+                if (ImGui::Selectable(combo_label.c_str(), is_selected)) {
+                    p.integers[port] = static_cast<i64>(i);
+                    up               = true;
+                }
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    return up;
+}
+
+template<typename ExternalSourceType>
+static bool show_parameter(qss_priority_2_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& p) noexcept
+{
+    return show_priority_parameter<qss_priority_2_tag>(p);
+}
+
+template<typename ExternalSourceType>
+static bool show_parameter(qss_priority_3_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& p) noexcept
+{
+    return show_priority_parameter<qss_priority_3_tag>(p);
+}
+
+template<typename ExternalSourceType>
+static bool show_parameter(qss_priority_4_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& p) noexcept
+{
+    return show_priority_parameter<qss_priority_4_tag>(p);
+}
+
 template<typename ExternalSourceType>
 static bool show_parameter(qss_integrator_tag,
                            application& /*app*/,

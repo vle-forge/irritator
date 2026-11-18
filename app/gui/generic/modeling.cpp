@@ -885,6 +885,18 @@ static bool show_continuous_maps(generic_component& gen,
                    "Selects the smaller of two continuous "
                    "inputs, switching at their crossing");
 
+    u += show_menu(gen, dynamics_type::qss1_priority_2, offset, pos,
+                   "Forwards the last received message; on simultaneous "
+                   "messages, the first port wins (2 inputs)");
+
+    u += show_menu(gen, dynamics_type::qss1_priority_3, offset, pos,
+                   "Forwards the last received message; on simultaneous "
+                   "messages, the first port wins (3 inputs)");
+
+    u += show_menu(gen, dynamics_type::qss1_priority_4, offset, pos,
+                   "Forwards the last received message; on simultaneous "
+                   "messages, the first port wins (4 inputs)");
+
     u += show_menu(gen, dynamics_type::qss1_wrap, offset, pos,
                    "Folds the signal into [origin, origin + modulo), jumping "
                    "by  ±modulo at each boundary (e.g. angle wrapping)");
