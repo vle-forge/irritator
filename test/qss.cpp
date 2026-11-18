@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <functional>
+#include <type_traits>
 #include <vector>
 
 #include <fmt/format.h>
@@ -130,6 +131,48 @@ static irt::qss2_integrator& alloc_qss2_line(irt::simulation& sim,
       sim.connect_dynamics(cst, 0, integ, 0).has_value()));
 
     return integ;
+}
+
+/// An integrator of a constant slope 1 from 0, forced to 10 at t = 5, and
+/// a constant @a late_slope sent at t = 5 when it is not zero.
+template<typename Integrator>
+static void check_integrator_reset(const double late_slope)
+{
+    using namespace boost::ut;
+
+    const auto      slope_value = late_slope == 0.0 ? 1.0 : late_slope;
+    irt::simulation sim;
+    auto&           slope = sim.alloc<irt::constant>();
+    auto&           force = sim.alloc<irt::constant>();
+    auto&           integ = sim.alloc<Integrator>();
+    auto&           cnt   = sim.alloc<irt::counter>();
+
+    sim.parameters[irt::get_index(sim.get_id(slope))].clear().set_constant(
+      slope_value, late_slope == 0.0 ? 0.0 : 5.0);
+    sim.parameters[irt::get_index(sim.get_id(force))].clear().set_constant(
+      10.0, 5.0);
+    sim.parameters[irt::get_index(sim.get_id(integ))]
+      .clear()
+      .set_integrator(0.0, 0.1);
+    sim.parameters[irt::get_index(sim.get_id(cnt))].clear();
+    expect(fatal(sim.connect_dynamics(slope, 0, integ, 0).has_value()));
+    expect(fatal(sim.connect_dynamics(force, 0, integ, 1).has_value()));
+    expect(fatal(sim.connect_dynamics(integ, 0, cnt, 0).has_value()));
+    sim.limits.set_bound(0, 8);
+
+    const auto events = run_and_record(sim, cnt);
+
+    expect(eq(integ.u, slope_value));
+    expect(fatal(not events.empty()));
+
+    if constexpr (std::is_same_v<Integrator, irt::qss1_integrator>) {
+        expect(gt(events.back().t, 7.8));
+        expect(lt(std::abs(events.back().value - (10.0 + slope_value * 3.0)),
+                  0.2));
+    } else {
+        expect(eq(events.back().t, 5.0));
+        expect(eq(events.back().value, 10.0));
+    }
 }
 
 int main()
@@ -486,5 +529,17 @@ int main()
         expect(fatal(eq(events.size(), 2u)));
         expect(eq(events[0].t, 1.0));
         expect(eq(events[1].t, 2.0));
+    };
+
+    "integrator-reset-keeps-the-derivative"_test = [] {
+        check_integrator_reset<irt::qss1_integrator>(0.0);
+        check_integrator_reset<irt::qss2_integrator>(0.0);
+        check_integrator_reset<irt::qss3_integrator>(0.0);
+    };
+
+    "integrator-reset-takes-the-simultaneous-derivative"_test = [] {
+        check_integrator_reset<irt::qss1_integrator>(2.0);
+        check_integrator_reset<irt::qss2_integrator>(2.0);
+        check_integrator_reset<irt::qss3_integrator>(2.0);
     };
 }
