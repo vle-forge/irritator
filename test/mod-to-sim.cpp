@@ -2903,6 +2903,49 @@ int main()
         expect(same_buffers(first, json_save_component(mod, *read)));
     };
 
+    "json: the priority selections survive a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_generic_component();
+            auto&      compo = ids.components[id];
+            auto&      gen   = ids.generic_components.get(compo.id.generic_id);
+            auto&      prio  = gen.alloc(irt::dynamics_type::qss2_priority_3);
+            auto&      p = gen.children_parameters[gen.children.get_id(prio)];
+
+            p.integers[0] = irt::ordinal(irt::priority_selection::minimum);
+            p.integers[1] = irt::ordinal(irt::priority_selection::mean);
+            p.integers[2] = irt::ordinal(irt::priority_selection::maximum);
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto text  = std::string_view(first.data(), first.size());
+        expect(text.find("\"selection-1\": \"mean\"") != text.npos);
+
+        const auto read = json_load_component(mod, text);
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& compo = ids.components[*read];
+            const auto& gen   = ids.generic_components.get(compo.id.generic_id);
+            expect(fatal(eq(gen.children.ssize(), 1)));
+
+            for (const auto& child : gen.children) {
+                expect(child.id.mdl_type ==
+                       irt::dynamics_type::qss2_priority_3);
+                const auto&
+                  p = gen.children_parameters[gen.children.get_id(child)];
+                expect(eq(p.integers[0], 1));
+                expect(eq(p.integers[1], 2));
+                expect(eq(p.integers[2], 0));
+            }
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
     "json: a failed read releases its internal component"_test = [] {
         auto callback = std::exchange(irt::on_error_callback, nullptr);
 

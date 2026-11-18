@@ -744,6 +744,36 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
         expect(bad == 0_i) << "the reader rejects or changes a legal heap";
     };
 
+    "dynamics: the priority model survives a dump"_test = [] {
+        simulation sim;
+        auto&      prio = sim.alloc<qss3_priority_4>();
+        sim.parameters[get_index(sim.get_id(prio))]
+          .clear()
+          .integers[3] = ordinal(priority_selection::mean);
+
+        for (int i = 0; i != 4; ++i) {
+            auto& cst = sim.alloc<irt::constant>();
+            sim.parameters[get_index(sim.get_id(cst))].clear().set_constant(
+              i + 1.0, 1.0);
+            ut::expect(sim.connect_dynamics(cst, 0, prio, 3).has_value());
+        }
+
+        ut::expect(start(sim));
+        ut::expect(run_steps(sim, 2));
+        ut::expect(ut::eq(prio.value[0], 2.5));
+
+        const auto d = dump(sim);
+        simulation fresh;
+        ut::expect(ut::fatal(load_dump(fresh, d)));
+
+        const auto& mdl = fresh.models.get(sim.get_id(prio));
+        ut::expect(ut::fatal(mdl.type == dynamics_type::qss3_priority_4));
+        const auto& read = get_dyn<qss3_priority_4>(mdl);
+        ut::expect(read.selections == prio.selections);
+        ut::expect(read.value == prio.value);
+        ut::expect(ut::eq(read.sigma, prio.sigma));
+    };
+
     "dynamics: every byte of every dynamics is written"_test = [] {
         // The reader of a dump refuses nothing here: it is the writer that
         // must not omit a byte. A model whose bytes are all set to a

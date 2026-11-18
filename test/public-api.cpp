@@ -762,6 +762,20 @@ int main()
         static_assert(irt::has_output_port<irt::qss3_maximum>);
         static_assert(irt::has_observation_function<irt::qss3_maximum>);
 
+        static_assert(irt::has_initialize_function<irt::qss1_priority_2>);
+        static_assert(irt::has_lambda_function<irt::qss1_priority_2>);
+        static_assert(irt::has_transition_function<irt::qss1_priority_2>);
+        static_assert(irt::has_input_port<irt::qss1_priority_2>);
+        static_assert(irt::has_output_port<irt::qss1_priority_2>);
+        static_assert(irt::has_observation_function<irt::qss1_priority_2>);
+
+        static_assert(irt::has_initialize_function<irt::qss3_priority_4>);
+        static_assert(irt::has_lambda_function<irt::qss3_priority_4>);
+        static_assert(irt::has_transition_function<irt::qss3_priority_4>);
+        static_assert(irt::has_input_port<irt::qss3_priority_4>);
+        static_assert(irt::has_output_port<irt::qss3_priority_4>);
+        static_assert(irt::has_observation_function<irt::qss3_priority_4>);
+
         static_assert(irt::has_initialize_function<irt::qss1_wrap>);
         static_assert(irt::has_lambda_function<irt::qss1_wrap>);
         static_assert(irt::has_transition_function<irt::qss1_wrap>);

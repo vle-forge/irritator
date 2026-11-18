@@ -181,6 +181,46 @@ static void check_integrator_reset(const double late_slope)
     }
 }
 
+/// A constant @a value sent at @a date to the port @a port of @a dst.
+template<typename Dynamics>
+static void send_at(irt::simulation& sim,
+                    Dynamics&        dst,
+                    const int        port,
+                    const double     value,
+                    const double     date)
+{
+    auto& cst = sim.alloc<irt::constant>();
+    sim.parameters[irt::get_index(sim.get_id(cst))].clear().set_constant(value,
+                                                                         date);
+    boost::ut::expect(
+      boost::ut::fatal(sim.connect_dynamics(cst, 0, dst, port).has_value()));
+}
+
+/// The value sent by a priority model which receives 1, 2 and 6 at the same
+/// date on its first port, reduced by @a selection.
+static double priority_select(const irt::priority_selection selection)
+{
+    using namespace boost::ut;
+
+    irt::simulation sim;
+    auto&           prio = sim.alloc<irt::qss1_priority_2>();
+    auto&           cnt  = sim.alloc<irt::counter>();
+    sim.parameters[irt::get_index(sim.get_id(prio))]
+      .clear()
+      .integers[0] = irt::ordinal(selection);
+    send_at(sim, prio, 0, 1.0, 1.0);
+    send_at(sim, prio, 0, 2.0, 1.0);
+    send_at(sim, prio, 0, 6.0, 1.0);
+    expect(fatal(sim.connect_dynamics(prio, 0, cnt, 0).has_value()));
+    sim.limits.set_bound(0, 2);
+
+    const auto events = run_and_record(sim, cnt);
+
+    expect(fatal(eq(events.size(), 1u)));
+    expect(eq(events.front().t, 1.0));
+    return events.front().value;
+}
+
 int main()
 {
     using namespace boost::ut;
@@ -569,5 +609,65 @@ int main()
         check_integrator_reset<irt::qss1_integrator>(2.0);
         check_integrator_reset<irt::qss2_integrator>(2.0);
         check_integrator_reset<irt::qss3_integrator>(2.0);
+    };
+
+    "priority-forwards-the-last-message"_test = [] {
+        irt::simulation sim;
+        auto&           prio = sim.alloc<irt::qss1_priority_2>();
+        auto&           cnt  = sim.alloc<irt::counter>();
+        sim.parameters[irt::get_index(sim.get_id(prio))].clear();
+        send_at(sim, prio, 0, 1.0, 1.0);
+        send_at(sim, prio, 1, 2.0, 2.0);
+        send_at(sim, prio, 0, 3.0, 3.0);
+        expect(fatal(sim.connect_dynamics(prio, 0, cnt, 0).has_value()));
+        sim.limits.set_bound(0, 4);
+
+        const auto events = run_and_record(sim, cnt);
+
+        expect(fatal(eq(events.size(), 3u)));
+        for (std::size_t i = 0; i != events.size(); ++i) {
+            expect(eq(events[i].t, static_cast<double>(i + 1)));
+            expect(eq(events[i].value, static_cast<double>(i + 1)));
+        }
+    };
+
+    "priority-first-port-wins-on-simultaneous-messages"_test = [] {
+        irt::simulation sim;
+        auto&           prio = sim.alloc<irt::qss1_priority_3>();
+        auto&           cnt  = sim.alloc<irt::counter>();
+        sim.parameters[irt::get_index(sim.get_id(prio))].clear();
+        send_at(sim, prio, 2, 9.0, 1.0);
+        send_at(sim, prio, 1, 5.0, 1.0);
+        send_at(sim, prio, 2, 7.0, 2.0);
+        expect(fatal(sim.connect_dynamics(prio, 0, cnt, 0).has_value()));
+        sim.limits.set_bound(0, 3);
+
+        const auto events = run_and_record(sim, cnt);
+
+        expect(fatal(eq(events.size(), 2u)));
+        expect(eq(events[0].value, 5.0));
+        expect(eq(events[1].value, 7.0));
+    };
+
+    "priority-reduces-the-simultaneous-messages-of-a-port"_test = [] {
+        expect(eq(priority_select(irt::priority_selection::maximum), 6.0));
+        expect(eq(priority_select(irt::priority_selection::minimum), 1.0));
+        expect(eq(priority_select(irt::priority_selection::mean), 3.0));
+    };
+
+    "priority-qss2-forwards-the-slope"_test = [] {
+        irt::simulation sim;
+        auto&           line = alloc_qss2_line(sim, 0.0, 4.0);
+        auto&           prio = sim.alloc<irt::qss2_priority_2>();
+        sim.parameters[irt::get_index(sim.get_id(prio))].clear();
+        expect(fatal(sim.connect_dynamics(line, 0, prio, 1).has_value()));
+        sim.limits.set_bound(0, 1);
+
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            expect(fatal(sim.run().has_value()));
+        } while (not sim.current_time_expired());
+
+        expect(eq(prio.value[1], 4.0));
     };
 }
