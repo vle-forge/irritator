@@ -2735,7 +2735,7 @@ struct abstract_integrator<1> {
         if (!(std::isfinite(dQ) && dQ > zero))
             return make_error(simulation_errc::abstract_integrator_dq_error);
 
-        q = std::floor(X / dQ) * dQ;
+        q = X;
         u = zero;
 
         sigma = time_domain<time>::zero;
@@ -2763,7 +2763,7 @@ struct abstract_integrator<1> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
-        q     = std::floor(X / dQ) * dQ;
+        q     = X;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2813,8 +2813,7 @@ struct abstract_integrator<1> {
 
     status lambda(simulation& sim) noexcept
     {
-        return send_message(sim, y[0],
-                            is_zero(u) ? q : q + dQ * u / std::abs(u));
+        return send_message(sim, y[0], X + u * sigma);
     }
 
     raw_sample observation(time t, time e) const noexcept
