@@ -4,6 +4,7 @@
 
 #include <irritator/core.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <type_traits>
@@ -164,6 +165,11 @@ static void check_integrator_reset(const double late_slope)
 
     expect(eq(integ.u, slope_value));
     expect(fatal(not events.empty()));
+    expect(eq(events.front().t, 0.0));
+    expect(eq(events.front().value, 0.0));
+    expect(std::ranges::any_of(events, [](const dated_value& ev) {
+        return ev.t == 5.0 and ev.value == 10.0;
+    }));
 
     if constexpr (std::is_same_v<Integrator, irt::qss1_integrator>) {
         expect(gt(events.back().t, 7.8));
@@ -529,6 +535,28 @@ int main()
         expect(fatal(eq(events.size(), 2u)));
         expect(eq(events[0].t, 1.0));
         expect(eq(events[1].t, 2.0));
+    };
+
+    "integrator-sends-its-initial-value"_test = [] {
+        auto check = []<typename Integrator>(Integrator*) {
+            irt::simulation sim;
+            auto&           integ = sim.alloc<Integrator>();
+            auto&           cnt   = sim.alloc<irt::counter>();
+            sim.parameters[irt::get_index(sim.get_id(integ))]
+              .clear()
+              .set_integrator(0.25, 0.1);
+            expect(fatal(sim.connect_dynamics(integ, 0, cnt, 0).has_value()));
+            sim.limits.set_bound(0, 1);
+
+            const auto events = run_and_record(sim, cnt);
+
+            expect(fatal(eq(events.size(), 1u)));
+            expect(eq(events.front().value, 0.25));
+        };
+
+        check(static_cast<irt::qss1_integrator*>(nullptr));
+        check(static_cast<irt::qss2_integrator*>(nullptr));
+        check(static_cast<irt::qss3_integrator*>(nullptr));
     };
 
     "integrator-reset-keeps-the-derivative"_test = [] {
