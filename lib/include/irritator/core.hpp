@@ -2764,7 +2764,6 @@ struct abstract_integrator<1> {
     {
         X     = msg[0];
         q     = std::floor(X / dQ) * dQ;
-        u     = zero;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2790,8 +2789,15 @@ struct abstract_integrator<1> {
         if (not have_msg)
             return internal();
 
-        if (have_reset_msg)
-            return reset(get_qss_message<1>(lst_reset));
+        // The reset forces the state but keeps the derivatives: they are only
+        // sent again when the upstream models change.
+        if (have_reset_msg) {
+            irt_check(reset(get_qss_message<1>(lst_reset)));
+            return have_x_dot_msg
+                     ? external(zero, get_qss_message<1>(lst_x_dot))
+                     : success();
+        }
+
         // A message at the date of the internal event: the internal transition
         // goes first, as the confluent transition of Parallel DEVS.
         if (is_zero(r)) {
@@ -2940,10 +2946,8 @@ struct abstract_integrator<2> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
-        u     = zero;
-        mu    = zero;
         q     = X;
-        mq    = zero;
+        mq    = u;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2960,8 +2964,15 @@ struct abstract_integrator<2> {
         if (not have_msg)
             return internal();
 
-        if (have_reset_msg)
-            return reset(get_qss_message<2>(lst_reset));
+        // The reset forces the state but keeps the derivatives: they are only
+        // sent again when the upstream models change.
+        if (have_reset_msg) {
+            irt_check(reset(get_qss_message<2>(lst_reset)));
+            return have_x_dot_msg
+                     ? external(zero, get_qss_message<2>(lst_x_dot))
+                     : success();
+        }
+
         // A message at the date of the internal event: the internal transition
         // goes first, as the confluent transition of Parallel DEVS.
         if (is_zero(r)) {
@@ -3269,17 +3280,12 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    /** Reset the integrator if and only if only if the value change and
-     * all state are not zero. */
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
-        u     = zero;
-        mu    = zero;
-        pu    = zero;
         q     = X;
-        mq    = zero;
-        pq    = zero;
+        mq    = u;
+        pq    = mu / two;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -3296,8 +3302,15 @@ struct abstract_integrator<3> {
         if (not have_msg)
             return internal();
 
-        if (have_reset_msg)
-            return reset(get_qss_message<3>(lst_reset));
+        // The reset forces the state but keeps the derivatives: they are only
+        // sent again when the upstream models change.
+        if (have_reset_msg) {
+            irt_check(reset(get_qss_message<3>(lst_reset)));
+            return have_x_dot_msg
+                     ? external(zero, get_qss_message<3>(lst_x_dot))
+                     : success();
+        }
+
         // A message at the date of the internal event: the internal transition
         // goes first, as the confluent transition of Parallel DEVS.
         if (is_zero(r)) {
