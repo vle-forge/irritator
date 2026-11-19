@@ -743,7 +743,20 @@ static bool show_menu(generic_component&  gen,
 }
 
 static constexpr const char* menu_names[] = { "QSS 1", "QSS 2", "QSS 3" };
-static constexpr int         offsets[]    = { 0, 43, 86 };
+static constexpr int         offsets[]    = {
+    0,
+    ordinal(dynamics_type::qss2_integrator) -
+      ordinal(dynamics_type::qss1_integrator),
+    ordinal(dynamics_type::qss3_integrator) -
+      ordinal(dynamics_type::qss1_integrator)
+};
+
+/* The QSS1, QSS2 and QSS3 blocks of dynamics_type must keep the same layout
+   for the offsets to map each qss1 entry to its qss2 and qss3 twin. */
+static_assert(ordinal(dynamics_type::qss1_wrap) + offsets[1] ==
+                ordinal(dynamics_type::qss2_wrap) and
+              ordinal(dynamics_type::qss1_wrap) + offsets[2] ==
+                ordinal(dynamics_type::qss3_wrap));
 
 template<std::size_t QssLevel>
 static bool show_hybrid_continuous_discrete(generic_component& gen,
