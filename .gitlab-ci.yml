@@ -5,14 +5,34 @@ variables:
   GIT_SUBMODULE_STRATEGY: recursive
   CLICOLOR_FORCE: "1"
 
+# The packages are kept in the project directory to be saved by the runner
+# cache between jobs: the mirrors often fail during the downloads.
 .build_template:
   stage: build
+  variables:
+    APT_CACHE_DIR: $CI_PROJECT_DIR/.apt-cache
+    DNF_CACHE_DIR: $CI_PROJECT_DIR/.dnf-cache
+  cache:
+    key: packages-$IMAGE-$COMPILER_PACKAGE
+    paths:
+      - .apt-cache/
+      - .dnf-cache/
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - script_failure
   before_script:
     - |
       if command -v apt-get > /dev/null; then
-        apt-get update && apt-get install -y cmake ninja-build libglew-dev libglfw3-dev $COMPILER_PACKAGE
+        mkdir -p $APT_CACHE_DIR/partial
+        apt-get -o Acquire::Retries=5 update
+        apt-get -o Acquire::Retries=5 -o dir::cache::archives=$APT_CACHE_DIR \
+          install -y --no-install-recommends cmake ninja-build libglew-dev libglfw3-dev $COMPILER_PACKAGE
       elif command -v dnf > /dev/null; then
-        dnf install -y cmake ninja-build glew-devel glfw-devel $COMPILER_PACKAGE
+        dnf install -y --setopt=retries=5 --setopt=keepcache=1 --setopt=cachedir=$DNF_CACHE_DIR \
+          cmake ninja-build glew-devel glfw-devel $COMPILER_PACKAGE
       fi
   script:
     - mkdir build && cd build
