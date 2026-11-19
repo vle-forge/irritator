@@ -382,7 +382,7 @@ public:
     bool can_step_forward() const noexcept
     {
         return m_started and not finished() and
-               not(is_live() and m_sim.sched.empty());
+               not(is_live() and m_sim.models.size() == 0);
     }
 
     /// Bytes used by the keyframes and by the window.

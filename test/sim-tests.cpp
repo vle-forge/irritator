@@ -721,7 +721,7 @@ ut::suite<"irt::binary simulation"> simulation_suite = [] {
                     detached[i] = detached.back();
                     detached.pop_back();
                 }
-            } else { // pop all the earliest
+            } else if (not sim.sched.empty()) { // pop all the earliest
                 popped.clear();
                 sim.sched.pop(popped);
                 for (auto id : popped)
@@ -1193,6 +1193,30 @@ ut::suite<"irt::simulation live values"> live_values_suite = [] {
 
         sim.unwatch_all();
         expect(not sim.is_watched(alone_id));
+    };
+};
+
+ut::suite<"irt::simulation scheduler"> scheduler_suite = [] {
+    using namespace ut;
+    using namespace ut::literals;
+
+    "a passive model stays out of the scheduler until a message"_test = [] {
+        simulation sim;
+        expect(sim.grow_models_to(2) >> ut::fatal);
+        auto& cst = sim.alloc<irt::constant>();
+        auto& cnt = sim.alloc<counter>();
+        sim.parameters[get_index(sim.get_id(cst))].set_constant(1.0, 2.0);
+        expect(sim.connect_dynamics(cst, 0, cnt, 0).has_value() >> ut::fatal);
+
+        expect(start(sim) >> ut::fatal);
+        expect(not sim.sched.is_in_tree(get_model(cnt).handle));
+        expect(sim.sched.is_in_tree(get_model(cst).handle));
+
+        expect(run_steps(sim, 1) >> ut::fatal);
+        expect(sim.current_time() == 2.0_d);
+        expect(cnt.event_number == 1_i);
+        expect(not sim.sched.is_in_tree(get_model(cnt).handle));
+        expect(sim.sched.empty());
     };
 };
 

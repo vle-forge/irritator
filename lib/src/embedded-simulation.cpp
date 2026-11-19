@@ -43,7 +43,7 @@ static status copy_history(
 /// it is then finalized once and never runs again.
 static bool is_over(const simulation& sim) noexcept
 {
-    return sim.current_time_expired() or sim.sched.empty();
+    return sim.current_time_expired() or sim.models.size() == 0;
 }
 
 /// Without any more event the date is infinite, and simulation::finalize()

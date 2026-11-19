@@ -2371,6 +2371,9 @@ public:
         return ret;
     }
 
+    /** The date of the next step, infinity when nothing is scheduled. */
+    time next_time() const noexcept;
+
 private:
     void wake_up(model& mdl, time t) noexcept;
 
@@ -9546,17 +9549,14 @@ template<typename A>
 constexpr void heap<A>::destroy(handle elem) noexcept
 {
     debug::ensure(elem != invalid_heap_handle);
+    debug::ensure(not is_in_tree(elem));
 
-    if (m_size == 0) {
-        clear();
-    } else {
-        nodes[elem].prev  = invalid_heap_handle;
-        nodes[elem].child = invalid_heap_handle;
-        nodes[elem].id    = static_cast<model_id>(0);
-        nodes[elem].next  = free_list;
+    nodes[elem].prev  = invalid_heap_handle;
+    nodes[elem].child = invalid_heap_handle;
+    nodes[elem].id    = static_cast<model_id>(0);
+    nodes[elem].next  = free_list;
 
-        free_list = elem;
-    }
+    free_list = elem;
 }
 
 template<typename A>
@@ -9591,8 +9591,6 @@ constexpr void heap<A>::remove(handle elem) noexcept
         pop();
         return;
     }
-
-    debug::ensure(m_size > 0);
 
     /* If the node `elem` is not already `pop()`, we detach the
      * node and merge children. */
@@ -10324,6 +10322,11 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
     return success();
 }
 
+inline time simulation::next_time() const noexcept
+{
+    return sched.empty() ? time_domain<time>::infinity : sched.tn();
+}
+
 inline void simulation::wake_up(model& mdl, const time t) noexcept
 {
     if (mdl.handle == invalid_heap_handle)
@@ -10794,7 +10797,11 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     mdl.tn     = t + dyn.sigma;
     mdl.handle = invalid_heap_handle;
 
+    // A passive model stays out of the scheduler: a message or a wake up
+    // brings it back.
     sched.alloc(mdl, models.get_id(mdl), mdl.tn);
+    if (time_domain<time>::is_infinity(mdl.tn))
+        sched.remove(mdl);
 
     return success();
 }
@@ -10869,7 +10876,8 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         mdl.tn = std::nextafter(t, t + irt::one);
 
     debug::ensure(not sched.is_in_tree(mdl.handle));
-    sched.reintegrate(mdl, mdl.tn);
+    if (not time_domain<time>::is_infinity(mdl.tn))
+        sched.reintegrate(mdl, mdl.tn);
 
     return success();
 }
@@ -10988,18 +10996,16 @@ inline status simulation::run() noexcept
     immediate_models.clear();
     immediate_observers.clear();
 
-    if (sched.empty()) {
-        t = time_domain<time>::infinity;
-        return success();
-    }
-
     last_valid_t = t;
-    t            = sched.tn();
+    t            = next_time();
 
     if (limits.expired(t)) {
         t = limits.end();
         return success();
     }
+
+    if (sched.empty())
+        return success();
 
     sched.pop(immediate_models);
 
@@ -11063,9 +11069,18 @@ inline status simulation::run() noexcept
                               x.position = global_position;
                               global_position += x.capacity;
 
+                              // The first message of the step for a model
+                              // not imminent: an imminent model has tn equal
+                              // to t, a passive model is out of the scheduler.
                               debug::ensure(mdl.handle != invalid_heap_handle);
-                              if (sched.is_in_tree(mdl.handle)) {
-                                  sched.remove(mdl);
+                              const auto first = std::ranges::all_of(
+                                dyn.x,
+                                [](const auto& p) { return p.size == 0; });
+
+                              if (first and mdl.tn != t) {
+                                  if (sched.is_in_tree(mdl.handle))
+                                      sched.remove(mdl);
+
                                   immediate_models.emplace_back(
                                     models.get_id(mdl));
                               }

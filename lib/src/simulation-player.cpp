@@ -210,10 +210,10 @@ status simulation_player::forget_future() noexcept
 
 time simulation_player::next_time() const noexcept
 {
-    if (not m_started or m_sim.sched.empty())
+    if (not m_started)
         return time_domain<time>::infinity;
 
-    return std::min(m_sim.sched.tn(), m_sim.limits.end());
+    return std::min(m_sim.next_time(), m_sim.limits.end());
 }
 
 status simulation_player::advance_until(const time                     target,
