@@ -302,6 +302,19 @@ int main()
         fmt::print("model size:              |{:5}\n", sizeof(irt::model));
     };
 
+    "dynamics_type_name_round_trip"_test = [] {
+        for (auto i = 0, e = irt::dynamics_type_size(); i != e; ++i) {
+            const auto opt =
+              irt::get_dynamics_type(irt::dynamics_type_names[i]);
+            expect(opt.has_value() >> fatal);
+            expect(*opt == irt::enum_cast<irt::dynamics_type>(i));
+        }
+
+        expect(not irt::get_dynamics_type("unknown").has_value());
+        expect(not irt::get_dynamics_type("").has_value());
+        expect(not irt::get_dynamics_type("qss1_integrato").has_value());
+    };
+
     "model_constepxr"_test = [] {
         static_assert(irt::has_initialize_function<irt::constant>);
         static_assert(irt::has_lambda_function<irt::constant>);

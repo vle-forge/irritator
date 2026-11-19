@@ -6,6 +6,9 @@
 
 #include <fmt/format.h>
 
+#include <algorithm>
+#include <array>
+
 using namespace std::string_view_literals;
 
 namespace irt {
@@ -49,177 +52,31 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
   -> std::optional<dynamics_type>
 {
     struct string_to_type {
-        constexpr string_to_type(const std::string_view n,
-                                 const dynamics_type    t) noexcept
-          : name(n)
-          , type(t)
-        {}
-
         std::string_view name;
         dynamics_type    type;
     };
 
-    static constexpr string_to_type table[] = {
-        { "accumulator_2", dynamics_type::accumulator_2 },
-        { "constant", dynamics_type::constant },
-        { "counter", dynamics_type::counter },
-        { "dynamic_queue", dynamics_type::dynamic_queue },
-        { "generator", dynamics_type::generator },
-        { "hsm_wrapper", dynamics_type::hsm_wrapper },
-        { "logical_and_2", dynamics_type::logical_and_2 },
-        { "logical_and_3", dynamics_type::logical_and_3 },
-        { "logical_invert", dynamics_type::logical_invert },
-        { "logical_or_2", dynamics_type::logical_or_2 },
-        { "logical_or_3", dynamics_type::logical_or_3 },
-        { "priority_queue", dynamics_type::priority_queue },
-        { "qss1_abs", dynamics_type::qss1_abs },
-        { "qss1_atan", dynamics_type::qss1_atan },
-        { "qss1_atan2", dynamics_type::qss1_atan2 },
-        { "qss1_compare", dynamics_type::qss1_compare },
-        { "qss1_cos", dynamics_type::qss1_cos },
-        { "qss1_cross", dynamics_type::qss1_cross },
-        { "qss1_dead_zone", dynamics_type::qss1_dead_zone },
-        { "qss1_division", dynamics_type::qss1_division },
-        { "qss1_exp", dynamics_type::qss1_exp },
-        { "qss1_filter", dynamics_type::qss1_filter },
-        { "qss1_flipflop", dynamics_type::qss1_flipflop },
-        { "qss1_gain", dynamics_type::qss1_gain },
-        { "qss1_hysteresis", dynamics_type::qss1_hysteresis },
-        { "qss1_integer", dynamics_type::qss1_integer },
-        { "qss1_integrate_and_fire", dynamics_type::qss1_integrate_and_fire },
-        { "qss1_integrator", dynamics_type::qss1_integrator },
-        { "qss1_inverse", dynamics_type::qss1_inverse },
-        { "qss1_log", dynamics_type::qss1_log },
-        { "qss1_max_hold", dynamics_type::qss1_max_hold },
-        { "qss1_maximum", dynamics_type::qss1_maximum },
-        { "qss1_min_hold", dynamics_type::qss1_min_hold },
-        { "qss1_minimum", dynamics_type::qss1_minimum },
-        { "qss1_multiplier", dynamics_type::qss1_multiplier },
-        { "qss1_power", dynamics_type::qss1_power },
-        { "qss1_priority_2", dynamics_type::qss1_priority_2 },
-        { "qss1_priority_3", dynamics_type::qss1_priority_3 },
-        { "qss1_priority_4", dynamics_type::qss1_priority_4 },
-        { "qss1_pwm", dynamics_type::qss1_pwm },
-        { "qss1_quantizer", dynamics_type::qss1_quantizer },
-        { "qss1_sample_hold", dynamics_type::qss1_sample_hold },
-        { "qss1_saturation", dynamics_type::qss1_saturation },
-        { "qss1_sigmoid", dynamics_type::qss1_sigmoid },
-        { "qss1_sign", dynamics_type::qss1_sign },
-        { "qss1_sin", dynamics_type::qss1_sin },
-        { "qss1_sqrt", dynamics_type::qss1_sqrt },
-        { "qss1_square", dynamics_type::qss1_square },
-        { "qss1_sum_2", dynamics_type::qss1_sum_2 },
-        { "qss1_sum_3", dynamics_type::qss1_sum_3 },
-        { "qss1_sum_4", dynamics_type::qss1_sum_4 },
-        { "qss1_tan", dynamics_type::qss1_tan },
-        { "qss1_tanh", dynamics_type::qss1_tanh },
-        { "qss1_threshold_crossing", dynamics_type::qss1_threshold_crossing },
-        { "qss1_wrap", dynamics_type::qss1_wrap },
-        { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
-        { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
-        { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
-        { "qss2_abs", dynamics_type::qss2_abs },
-        { "qss2_atan", dynamics_type::qss2_atan },
-        { "qss2_atan2", dynamics_type::qss2_atan2 },
-        { "qss2_compare", dynamics_type::qss2_compare },
-        { "qss2_cos", dynamics_type::qss2_cos },
-        { "qss2_cross", dynamics_type::qss2_cross },
-        { "qss2_dead_zone", dynamics_type::qss2_dead_zone },
-        { "qss2_division", dynamics_type::qss2_division },
-        { "qss2_exp", dynamics_type::qss2_exp },
-        { "qss2_filter", dynamics_type::qss2_filter },
-        { "qss2_flipflop", dynamics_type::qss2_flipflop },
-        { "qss2_gain", dynamics_type::qss2_gain },
-        { "qss2_hysteresis", dynamics_type::qss2_hysteresis },
-        { "qss2_integer", dynamics_type::qss2_integer },
-        { "qss2_integrate_and_fire", dynamics_type::qss2_integrate_and_fire },
-        { "qss2_integrator", dynamics_type::qss2_integrator },
-        { "qss2_inverse", dynamics_type::qss2_inverse },
-        { "qss2_log", dynamics_type::qss2_log },
-        { "qss2_max_hold", dynamics_type::qss2_max_hold },
-        { "qss2_maximum", dynamics_type::qss2_maximum },
-        { "qss2_min_hold", dynamics_type::qss2_min_hold },
-        { "qss2_minimum", dynamics_type::qss2_minimum },
-        { "qss2_multiplier", dynamics_type::qss2_multiplier },
-        { "qss2_power", dynamics_type::qss2_power },
-        { "qss2_priority_2", dynamics_type::qss2_priority_2 },
-        { "qss2_priority_3", dynamics_type::qss2_priority_3 },
-        { "qss2_priority_4", dynamics_type::qss2_priority_4 },
-        { "qss2_pwm", dynamics_type::qss2_pwm },
-        { "qss2_quantizer", dynamics_type::qss2_quantizer },
-        { "qss2_sample_hold", dynamics_type::qss2_sample_hold },
-        { "qss2_saturation", dynamics_type::qss2_saturation },
-        { "qss2_sigmoid", dynamics_type::qss2_sigmoid },
-        { "qss2_sign", dynamics_type::qss2_sign },
-        { "qss2_sin", dynamics_type::qss2_sin },
-        { "qss2_sqrt", dynamics_type::qss2_sqrt },
-        { "qss2_square", dynamics_type::qss2_square },
-        { "qss2_sum_2", dynamics_type::qss2_sum_2 },
-        { "qss2_sum_3", dynamics_type::qss2_sum_3 },
-        { "qss2_sum_4", dynamics_type::qss2_sum_4 },
-        { "qss2_tan", dynamics_type::qss2_tan },
-        { "qss2_tanh", dynamics_type::qss2_tanh },
-        { "qss2_threshold_crossing", dynamics_type::qss2_threshold_crossing },
-        { "qss2_wrap", dynamics_type::qss2_wrap },
-        { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
-        { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
-        { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
-        { "qss3_abs", dynamics_type::qss3_abs },
-        { "qss3_atan", dynamics_type::qss3_atan },
-        { "qss3_atan2", dynamics_type::qss3_atan2 },
-        { "qss3_compare", dynamics_type::qss3_compare },
-        { "qss3_cos", dynamics_type::qss3_cos },
-        { "qss3_cross", dynamics_type::qss3_cross },
-        { "qss3_dead_zone", dynamics_type::qss3_dead_zone },
-        { "qss3_division", dynamics_type::qss3_division },
-        { "qss3_exp", dynamics_type::qss3_exp },
-        { "qss3_filter", dynamics_type::qss3_filter },
-        { "qss3_flipflop", dynamics_type::qss3_flipflop },
-        { "qss3_gain", dynamics_type::qss3_gain },
-        { "qss3_hysteresis", dynamics_type::qss3_hysteresis },
-        { "qss3_integer", dynamics_type::qss3_integer },
-        { "qss3_integrate_and_fire", dynamics_type::qss3_integrate_and_fire },
-        { "qss3_integrator", dynamics_type::qss3_integrator },
-        { "qss3_inverse", dynamics_type::qss3_inverse },
-        { "qss3_log", dynamics_type::qss3_log },
-        { "qss3_max_hold", dynamics_type::qss3_max_hold },
-        { "qss3_maximum", dynamics_type::qss3_maximum },
-        { "qss3_min_hold", dynamics_type::qss3_min_hold },
-        { "qss3_minimum", dynamics_type::qss3_minimum },
-        { "qss3_multiplier", dynamics_type::qss3_multiplier },
-        { "qss3_power", dynamics_type::qss3_power },
-        { "qss3_priority_2", dynamics_type::qss3_priority_2 },
-        { "qss3_priority_3", dynamics_type::qss3_priority_3 },
-        { "qss3_priority_4", dynamics_type::qss3_priority_4 },
-        { "qss3_pwm", dynamics_type::qss3_pwm },
-        { "qss3_quantizer", dynamics_type::qss3_quantizer },
-        { "qss3_sample_hold", dynamics_type::qss3_sample_hold },
-        { "qss3_saturation", dynamics_type::qss3_saturation },
-        { "qss3_sigmoid", dynamics_type::qss3_sigmoid },
-        { "qss3_sign", dynamics_type::qss3_sign },
-        { "qss3_sin", dynamics_type::qss3_sin },
-        { "qss3_sqrt", dynamics_type::qss3_sqrt },
-        { "qss3_square", dynamics_type::qss3_square },
-        { "qss3_sum_2", dynamics_type::qss3_sum_2 },
-        { "qss3_sum_3", dynamics_type::qss3_sum_3 },
-        { "qss3_sum_4", dynamics_type::qss3_sum_4 },
-        { "qss3_tan", dynamics_type::qss3_tan },
-        { "qss3_tanh", dynamics_type::qss3_tanh },
-        { "qss3_threshold_crossing", dynamics_type::qss3_threshold_crossing },
-        { "qss3_wrap", dynamics_type::qss3_wrap },
-        { "qss3_wsum_2", dynamics_type::qss3_wsum_2 },
-        { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
-        { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
-        { "queue", dynamics_type::queue },
-        { "simulation_wrapper", dynamics_type::simulation_wrapper },
-        { "time_func", dynamics_type::time_func },
-        { "zero_order_hold", dynamics_type::zero_order_hold }
-    };
+    static constexpr auto table = []() noexcept {
+        std::array<string_to_type, std::size(dynamics_type_names)> t{};
+        for (sz i = 0; i < t.size(); ++i)
+            t[i] = { dynamics_type_names[i], enum_cast<dynamics_type>(i) };
 
-    static_assert(std::size(table) == static_cast<sz>(dynamics_type_size()));
+        std::sort(t.begin(), t.end(), [](const auto a, const auto b) noexcept {
+            return a.name < b.name;
+        });
+
+        return t;
+    }();
+
+    static_assert(std::adjacent_find(table.begin(),
+                                     table.end(),
+                                     [](const auto a, const auto b) noexcept {
+                                         return a.name == b.name;
+                                     }) == table.end(),
+                  "dynamics_type_names must be unique");
 
     auto it = binary_find(
-      std::begin(table), std::end(table), dynamics_name,
+      table.begin(), table.end(), dynamics_name,
       [](auto left, auto right) noexcept -> bool {
           if constexpr (std::is_same_v<decltype(left), std::string_view>)
               return left < right.name;
@@ -227,7 +84,7 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
               return left.name < right;
       });
 
-    return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
+    return it == table.end() ? std::nullopt : std::make_optional(it->type);
 }
 
 auto get_distribution_type(std::string_view name) noexcept
