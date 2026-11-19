@@ -179,13 +179,13 @@ int main()
                                                      0.00000000000000000 };
 
         auto& mdl_15                             = sim.alloc<irt::constant>();
-        sim.parameters[sim.get_id(mdl_15)].reals = { 11.00000000000000000,
+        sim.parameters[sim.get_id(mdl_15)].reals = { 10.50000000000000000,
                                                      0.00000000000000000,
                                                      0.00000000000000000,
                                                      0.00000000000000000 };
 
-        auto& mdl_16 = sim.alloc<irt::qss3_integer>();
-        sim.parameters[sim.get_id(mdl_16)].reals = { 0.00000000000000000,
+        auto& mdl_16 = sim.alloc<irt::qss3_quantizer>();
+        sim.parameters[sim.get_id(mdl_16)].reals = { 1.00000000000000000,
                                                      0.00000000000000000,
                                                      0.00000000000000000,
                                                      0.00000000000000000 };

@@ -31,11 +31,6 @@ static void model_init(const parameter&         param,
 }
 
 template<size_t QssLevel>
-static void model_init(const parameter& /*param*/,
-                       abstract_integer<QssLevel>& /*dyn*/) noexcept
-{}
-
-template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_compare<QssLevel>& dyn) noexcept
 {
@@ -49,11 +44,6 @@ static void parameter_init(parameter&                     param,
 {
     param.reals[qss_gain_tag::k] = dyn.k;
 }
-
-template<size_t QssLevel>
-static void parameter_init(parameter& /*param*/,
-                           const abstract_integer<QssLevel>& /*dyn*/) noexcept
-{}
 
 template<size_t QssLevel>
 static void parameter_init(parameter& /*param*/,

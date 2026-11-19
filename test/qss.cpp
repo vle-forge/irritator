@@ -489,22 +489,24 @@ int main()
           irt::compute_wake_up(1.0, 0.0, 0.0, -1.0)));
     };
 
-    "qss2-integer-crosses-each-integer"_test = [] {
+    "qss2-quantizer-sends-each-level"_test = [] {
         irt::simulation sim;
         auto&           line = alloc_qss2_line(sim, 0.0, 4.0);
-        auto&           itg  = sim.alloc<irt::qss2_integer>();
+        auto&           qnt  = sim.alloc<irt::qss2_quantizer>();
         auto&           cnt  = sim.alloc<irt::counter>();
-        expect(fatal(sim.connect_dynamics(line, 0, itg, 0).has_value()));
-        expect(fatal(sim.connect_dynamics(itg, 0, cnt, 0).has_value()));
+        sim.parameters[irt::get_index(sim.get_id(qnt))].reals[0] = 1.0;
+        expect(fatal(sim.connect_dynamics(line, 0, qnt, 0).has_value()));
+        expect(fatal(sim.connect_dynamics(qnt, 0, cnt, 0).has_value()));
         sim.limits.set_bound(0, 1.1);
 
         const auto events = run_and_record(sim, cnt);
 
         expect(fatal(eq(events.size(), 5u)));
-        for (std::size_t i = 0; i != events.size(); ++i) {
-            expect(lt(std::abs(events[i].t - 0.25 * static_cast<double>(i)),
-                      1e-9));
-            expect(eq(events[i].value, static_cast<double>(i)));
+        expect(eq(events[0].t, 0.0));
+        for (std::size_t i = 1; i != events.size(); ++i) {
+            const auto level = static_cast<double>(i);
+            expect(lt(std::abs(events[i].t - (level - 0.5) / 4.0), 1e-9));
+            expect(eq(events[i].value, level));
         }
     };
 

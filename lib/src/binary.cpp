@@ -703,13 +703,6 @@ void binary_serialize(Ar& ar, abstract_multiplier<QssLevel>& d) noexcept
 }
 
 template<typename Ar, std::size_t QssLevel>
-void binary_serialize(Ar& ar, abstract_integer<QssLevel>& d) noexcept
-{
-    auto& [x, y, value, sigma, upper, lower, to_send, last_send_value, reach_upper, reach_lower] = d;
-    ar(x, y, value, sigma, upper, lower, to_send, last_send_value, reach_upper, reach_lower);
-}
-
-template<typename Ar, std::size_t QssLevel>
 void binary_serialize(Ar& ar, abstract_compare<QssLevel>& d) noexcept
 {
     auto& [x, y, a, b, output, sigma, is_a_less_b] = d;

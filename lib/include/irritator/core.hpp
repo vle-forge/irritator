@@ -1019,7 +1019,6 @@ enum class dynamics_type : u8 {
     qss1_wsum_3,
     qss1_wsum_4,
     qss1_inverse,
-    qss1_integer,
     qss1_compare,
     qss1_gain,
     qss1_sin,
@@ -1065,7 +1064,6 @@ enum class dynamics_type : u8 {
     qss2_wsum_3,
     qss2_wsum_4,
     qss2_inverse,
-    qss2_integer,
     qss2_compare,
     qss2_gain,
     qss2_sin,
@@ -1111,7 +1109,6 @@ enum class dynamics_type : u8 {
     qss3_wsum_3,
     qss3_wsum_4,
     qss3_inverse,
-    qss3_integer,
     qss3_compare,
     qss3_gain,
     qss3_sin,
@@ -4123,140 +4120,6 @@ struct abstract_multiplier {
 using qss1_multiplier = abstract_multiplier<1>;
 using qss2_multiplier = abstract_multiplier<2>;
 using qss3_multiplier = abstract_multiplier<3>;
-
-template<typename std::size_t QssLevel>
-struct abstract_integer {
-    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
-
-    input_port     x[1] = {};
-    output_port_id y[1] = {};
-
-    std::array<real, QssLevel> value;
-    time                       sigma   = time_domain<time>::infinity;
-    real                       upper   = std::numeric_limits<real>::infinity();
-    real                       lower   = -std::numeric_limits<real>::infinity();
-    real                       to_send = zero;
-    real last_send_value               = std::numeric_limits<real>::infinity();
-
-    bool reach_upper = false;
-    bool reach_lower = false;
-
-    abstract_integer() noexcept = default;
-
-    abstract_integer(const abstract_integer& other) noexcept
-      : value(other.value)
-      , sigma(other.sigma)
-      , upper(other.upper)
-      , lower(other.lower)
-      , to_send(other.to_send)
-      , last_send_value(other.last_send_value)
-      , reach_upper(other.reach_upper)
-      , reach_lower(other.reach_lower)
-    {}
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        value.fill(zero);
-
-        sigma           = time_domain<time>::infinity;
-        upper           = std::numeric_limits<real>::infinity();
-        lower           = -std::numeric_limits<real>::infinity();
-        reach_upper     = false;
-        reach_lower     = false;
-        to_send         = zero;
-        last_send_value = std::numeric_limits<real>::infinity();
-
-        return success();
-    }
-
-    void compute_next_cross(const real val) noexcept
-    {
-        if (val < 0) {
-            upper = std::trunc(val);
-            lower = upper - 1.0;
-        } else {
-            lower = std::trunc(val);
-            upper = lower + 1.0;
-        }
-    }
-
-    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
-    {
-        const auto lst            = get_message(sim, x[0]);
-        const auto have_msg       = not lst.empty();
-        auto       external_cross = false;
-
-        // lambda sent to_send when the internal event is due, even with a
-        // message at the same date.
-        if (not have_msg or is_zero(r))
-            last_send_value = to_send;
-
-        if (not have_msg) {
-            if constexpr (QssLevel == 2)
-                value[0] += value[1] * e;
-            if constexpr (QssLevel == 3) {
-                value[0] += value[1] * e + value[2] * e * e;
-                value[1] += two * value[2] * e;
-            }
-        } else {
-            const auto& msg = get_qss_message<QssLevel>(lst);
-
-            if (last_send_value != std::trunc(msg[0])) {
-                external_cross = true;
-            }
-
-            value[0] = msg[0];
-            if constexpr (QssLevel >= 2)
-                value[1] = msg[1];
-            if constexpr (QssLevel == 3)
-                value[2] = msg[2];
-        }
-
-        compute_next_cross(value[0]);
-
-        if (external_cross) {
-            to_send = value[0];
-            sigma   = 0.0;
-        } else {
-            if constexpr (QssLevel == 1) {
-                sigma   = time_domain<time>::infinity;
-                to_send = value[0];
-            } else if constexpr (QssLevel == 2) {
-                sigma   = std::min(compute_wake_up(upper, value[0], value[1]),
-                                   compute_wake_up(lower, value[0], value[1]));
-                to_send = value[0] + value[1] * sigma;
-            } else if constexpr (QssLevel == 3) {
-                sigma = std::min(
-                  compute_wake_up(upper, value[0], value[1], value[2]),
-                  compute_wake_up(lower, value[0], value[1], value[2]));
-                to_send = value[0] + value[1] * sigma +
-                          value[2] * sigma * sigma;
-            }
-        }
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        return send_message(sim, y[0], std::trunc(to_send));
-    }
-
-    raw_sample observation(time t, time e) const noexcept
-    {
-        if constexpr (QssLevel == 1)
-            return { t, std::trunc(value[0]) };
-        else if constexpr (QssLevel == 2)
-            return { t, std::trunc(value[0] + value[1] * e) };
-        else if constexpr (QssLevel == 3)
-            return { t,
-                     std::trunc(value[0] + value[1] * e + value[2] * e * e) };
-    }
-};
-
-using qss1_integer = abstract_integer<1>;
-using qss2_integer = abstract_integer<2>;
-using qss3_integer = abstract_integer<3>;
 
 template<typename std::size_t QssLevel>
 struct abstract_compare {
@@ -8747,7 +8610,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss1_wsum_3,
                                 qss1_wsum_4,
                                 qss1_inverse,
-                                qss1_integer,
                                 qss1_compare,
                                 qss1_gain,
                                 qss1_sin,
@@ -8792,7 +8654,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss2_wsum_3,
                                 qss2_wsum_4,
                                 qss2_inverse,
-                                qss2_integer,
                                 qss2_compare,
                                 qss2_gain,
                                 qss2_sin,
@@ -8837,7 +8698,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss3_wsum_3,
                                 qss3_wsum_4,
                                 qss3_inverse,
-                                qss3_integer,
                                 qss3_compare,
                                 qss3_gain,
                                 qss3_sin,
@@ -9185,9 +9045,6 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_pwm:
     case dynamics_type::qss2_pwm:
     case dynamics_type::qss3_pwm:
-    case dynamics_type::qss1_integer:
-    case dynamics_type::qss2_integer:
-    case dynamics_type::qss3_integer:
     case dynamics_type::qss1_compare:
     case dynamics_type::qss2_compare:
     case dynamics_type::qss3_compare:
@@ -10290,7 +10147,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss1_wsum_4:
     case dynamics_type::qss1_inverse:
-    case dynamics_type::qss1_integer:
     case dynamics_type::qss1_compare:
     case dynamics_type::qss1_gain:
     case dynamics_type::qss1_sin:
@@ -10337,7 +10193,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss2_wsum_4:
     case dynamics_type::qss2_inverse:
-    case dynamics_type::qss2_integer:
     case dynamics_type::qss2_compare:
     case dynamics_type::qss2_gain:
     case dynamics_type::qss2_sin:
@@ -10384,7 +10239,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
     case dynamics_type::qss3_inverse:
-    case dynamics_type::qss3_integer:
     case dynamics_type::qss3_compare:
     case dynamics_type::qss3_gain:
     case dynamics_type::qss3_sin:

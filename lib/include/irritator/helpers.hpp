@@ -183,14 +183,6 @@ struct qss_inverse_tag {
     static constexpr const port_type y_types[] = { qss };
 };
 
-struct qss_integer_tag {
-    static constexpr std::string_view x_names[] = { "in" };
-    static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-};
-
 struct qss_compare_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
@@ -717,11 +709,6 @@ constexpr auto dispatch(const dynamics_type type,
         return std::invoke(std::forward<Function>(f), qss_inverse_tag{},
                            std::forward<Args>(args)...);
 
-    case dynamics_type::qss1_integer:
-    case dynamics_type::qss2_integer:
-    case dynamics_type::qss3_integer:
-        return std::invoke(std::forward<Function>(f), qss_integer_tag{},
-                           std::forward<Args>(args)...);
 
     case dynamics_type::qss1_compare:
     case dynamics_type::qss2_compare:

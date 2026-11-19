@@ -783,10 +783,6 @@ static bool show_hybrid_continuous_discrete(generic_component& gen,
                    "y = q · round(x / q); emits an event each time the input "
                    "crosses a quantization level.");
 
-    u += show_menu(gen, dynamics_type::qss1_integer, offset, pos,
-                   "y = round(x); emits an event each time the input "
-                   "crosses a integer level.");
-
     u += show_menu(gen, dynamics_type::qss1_threshold_crossing, offset, pos,
                    "Emits an event (±1) when the input crosses a level; a "
                    "decoupled zero-crossing detector");

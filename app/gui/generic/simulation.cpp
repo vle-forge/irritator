@@ -250,14 +250,6 @@ static void show_dynamics_values(application& /*app*/,
 template<sz QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
-                                 const abstract_integer<QssLevel>& dyn)
-{
-    ImGui::LabelFormat("value", "{}", dyn.value[0]);
-}
-
-template<sz QssLevel>
-static void show_dynamics_values(application& /*app*/,
-                                 project_editor& /*sim*/,
                                  const abstract_compare<QssLevel>& dyn)
 {
     ImGui::LabelFormat("a", "{}", dyn.a[0]);

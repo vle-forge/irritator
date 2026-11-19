@@ -865,14 +865,6 @@ int main()
         static_assert(irt::has_input_port<irt::qss1_inverse>);
         static_assert(irt::has_output_port<irt::qss1_inverse>);
         static_assert(irt::has_observation_function<irt::qss1_inverse>);
-
-        static_assert(irt::has_initialize_function<irt::qss1_integer>);
-        static_assert(irt::has_lambda_function<irt::qss1_integer>);
-        static_assert(irt::has_transition_function<irt::qss1_integer>);
-        static_assert(irt::has_input_port<irt::qss1_integer>);
-        static_assert(irt::has_output_port<irt::qss1_integer>);
-        static_assert(irt::has_observation_function<irt::qss1_integer>);
-
         static_assert(irt::has_initialize_function<irt::qss1_compare>);
         static_assert(irt::has_lambda_function<irt::qss1_compare>);
         static_assert(irt::has_transition_function<irt::qss1_compare>);

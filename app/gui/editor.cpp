@@ -47,15 +47,6 @@ static bool show_parameter(qss_cos_tag,
 }
 
 template<typename ExternalSourceType>
-static bool show_parameter(qss_integer_tag,
-                           application& /*app*/,
-                           ExternalSourceType& /*srcs*/,
-                           parameter& /*p*/) noexcept
-{
-    return false;
-}
-
-template<typename ExternalSourceType>
 static bool show_parameter(qss_compare_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,
