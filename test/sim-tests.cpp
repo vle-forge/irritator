@@ -1218,6 +1218,29 @@ ut::suite<"irt::simulation scheduler"> scheduler_suite = [] {
         expect(not sim.sched.is_in_tree(get_model(cnt).handle));
         expect(sim.sched.empty());
     };
+
+    "a null time advance runs at the same date without the scheduler"_test =
+      [] {
+          simulation sim;
+          expect(sim.grow_models_to(2) >> ut::fatal);
+          auto& cst = sim.alloc<irt::constant>();
+          auto& cnt = sim.alloc<counter>();
+          sim.parameters[get_index(sim.get_id(cst))].set_constant(1.0);
+          expect(
+            sim.connect_dynamics(cst, 0, cnt, 0).has_value() >> ut::fatal);
+          expect(sim.zero_ta_models.empty());
+
+          expect(start(sim) >> ut::fatal);
+          expect(not sim.sched.is_in_tree(get_model(cst).handle));
+          expect(sim.zero_ta_models.size() == 1u);
+          expect(sim.next_time() == 0.0_d);
+
+          expect(run_steps(sim, 1) >> ut::fatal);
+          expect(sim.current_time() == 0.0_d);
+          expect(cnt.event_number == 1_i);
+          expect(sim.zero_ta_models.empty());
+          expect(sim.sched.empty());
+      };
 };
 
 int main() {}

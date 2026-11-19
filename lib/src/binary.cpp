@@ -1516,6 +1516,21 @@ struct binary_access {
         if (not heap_ok(h))
             return false;
 
+        // A model with a null time advance is out of the heap and runs at the
+        // next step. Its date is the current date, or an earlier date when
+        // the simulation stopped at its end. The identifier of a deleted model
+        // is ignored by the next step.
+        for (const auto id : sim.zero_ta_models) {
+            const auto* mdl = sim.models.try_to_get(id);
+            if (mdl == nullptr)
+                continue;
+
+            if (mdl->handle == invalid_heap_handle or
+                h.is_in_tree(mdl->handle) or
+                not(mdl->tn <= sim.t.load(std::memory_order_acquire)))
+                return false;
+        }
+
         for (u32 i = 0; i != h.max_size; ++i) {
             if (ordinal(h.nodes[i].id) == 0)
                 continue;
@@ -1731,6 +1746,7 @@ struct binary_access {
 
         ar(sim.observers, sim.nodes, sim.output_ports, sim.dated_messages);
         io(ar, sim.sched.m_heap);
+        ar(sim.zero_ta_models);
         ar(sim.message_buffer);
         io_embedded_states(ar, sim);
 
@@ -1897,6 +1913,7 @@ struct binary_access {
         sim.output_ports.clear();
         sim.dated_messages.clear();
         sim.sched.clear();
+        sim.zero_ta_models.clear();
         sim.message_buffer.clear();
     }
 

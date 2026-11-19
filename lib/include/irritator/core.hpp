@@ -1778,8 +1778,9 @@ public:
     void decrease(model& mdl, time tn) noexcept;
 
     /**
-       Remove all @c node with the same @c tn from the tree of the heap. The
-       @c node can be reuse with the @c reintegrate() function.
+       Remove all @c node with the same @c tn from the tree of the heap and
+       append their models to @c out. The @c node can be reuse with the @c
+       reintegrate() function.
      */
     void pop(vector<model_id>& out) noexcept;
 
@@ -2088,6 +2089,10 @@ class simulation
 {
 public:
     vector<model_id>       immediate_models;
+
+    /** The models with a null time advance: they run at the next step
+     * without going through the scheduler. */
+    vector<model_id>       zero_ta_models;
     vector<output_port_id> active_output_ports;
     vector<message>        active_output_messages;
     vector<message>        message_buffer;
@@ -2371,7 +2376,8 @@ public:
         return ret;
     }
 
-    /** The date of the next step, infinity when nothing is scheduled. */
+    /** The date of the next step: the current date for the models with a
+     * null time advance, infinity when nothing is scheduled. */
     time next_time() const noexcept;
 
 private:
@@ -9888,7 +9894,6 @@ inline void scheduller<A>::pop(vector<model_id>& out) noexcept
 {
     time t = tn();
 
-    out.clear();
     out.emplace_back(m_heap[m_heap.pop()].id);
 
     while (!m_heap.empty() && t == tn())
@@ -9964,6 +9969,7 @@ inline simulation::simulation(
   const simulation_reserve_definition&      res,
   const external_source_reserve_definition& p_srcs) noexcept
   : immediate_models(res.models.value())
+  , zero_ta_models(res.models.value(), reserve_tag)
   , active_output_ports(res.models.value())
   , active_output_messages(res.models.value())
   , message_buffer(res.connections.value())
@@ -9981,6 +9987,7 @@ inline simulation::simulation(
 
 inline simulation::simulation(const simulation& other) noexcept
   : immediate_models(other.immediate_models)
+  , zero_ta_models(other.zero_ta_models)
   , active_output_ports(other.active_output_ports)
   , active_output_messages(other.active_output_messages)
   , message_buffer(other.message_buffer)
@@ -10005,6 +10012,7 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
         return *this;
 
     immediate_models    = other.immediate_models;
+    zero_ta_models      = other.zero_ta_models;
     active_output_ports = other.active_output_ports;
     active_output_messages = other.active_output_messages;
     message_buffer      = other.message_buffer;
@@ -10036,7 +10044,7 @@ bool simulation::grow_models() noexcept
                        : nb;
 
     return models.reserve(req) and immediate_models.resize(req) and
-           parameters.resize(req) and observers.reserve(req) and
+           zero_ta_models.reserve(req) and parameters.resize(req) and observers.reserve(req) and
            sched.reserve(req) and immediate_observers.resize(req);
 }
 
@@ -10046,7 +10054,7 @@ inline bool simulation::grow_models_to(std::integral auto capacity) noexcept
         return true;
 
     return models.reserve(capacity) and immediate_models.resize(capacity) and
-           parameters.resize(capacity) and observers.reserve(capacity) and
+           zero_ta_models.reserve(capacity) and parameters.resize(capacity) and observers.reserve(capacity) and
            sched.reserve(capacity) and immediate_observers.reserve(capacity);
 }
 
@@ -10074,6 +10082,7 @@ inline bool simulation::grow_connections_to(
 inline void simulation::destroy() noexcept
 {
     immediate_models.destroy();
+    zero_ta_models.destroy();
     active_output_ports.destroy();
     active_output_messages.destroy();
     message_buffer.destroy();
@@ -10109,6 +10118,7 @@ inline void simulation::clean() noexcept
     sched.clear();
 
     immediate_models.clear();
+    zero_ta_models.clear();
     active_output_ports.clear();
     active_output_messages.clear();
     message_buffer.clear();
@@ -10324,11 +10334,19 @@ inline status simulation::observe(model& mdl, const time dt) noexcept
 
 inline time simulation::next_time() const noexcept
 {
+    if (not zero_ta_models.empty())
+        return t.load(std::memory_order_relaxed);
+
     return sched.empty() ? time_domain<time>::infinity : sched.tn();
 }
 
 inline void simulation::wake_up(model& mdl, const time t) noexcept
 {
+    // A model with a null time advance already runs at the current date.
+    if (mdl.handle != invalid_heap_handle and not sched.is_in_tree(mdl.handle) and
+        mdl.tn == this->t)
+        return;
+
     if (mdl.handle == invalid_heap_handle)
         sched.alloc(mdl, models.get_id(mdl), t);
     else if (sched.is_in_tree(mdl.handle))
@@ -10798,10 +10816,15 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     mdl.handle = invalid_heap_handle;
 
     // A passive model stays out of the scheduler: a message or a wake up
-    // brings it back.
+    // brings it back. A model with a null time advance runs at the next step
+    // without going through the scheduler.
     sched.alloc(mdl, models.get_id(mdl), mdl.tn);
-    if (time_domain<time>::is_infinity(mdl.tn))
+    if (time_domain<time>::is_infinity(mdl.tn)) {
         sched.remove(mdl);
+    } else if (dyn.sigma == zero) {
+        sched.remove(mdl);
+        zero_ta_models.emplace_back(models.get_id(mdl));
+    }
 
     return success();
 }
@@ -10876,7 +10899,9 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         mdl.tn = std::nextafter(t, t + irt::one);
 
     debug::ensure(not sched.is_in_tree(mdl.handle));
-    if (not time_domain<time>::is_infinity(mdl.tn))
+    if (dyn.sigma == zero)
+        zero_ta_models.emplace_back(models.get_id(mdl));
+    else if (not time_domain<time>::is_infinity(mdl.tn))
         sched.reintegrate(mdl, mdl.tn);
 
     return success();
@@ -11004,10 +11029,15 @@ inline status simulation::run() noexcept
         return success();
     }
 
-    if (sched.empty())
-        return success();
+    for (const auto id : zero_ta_models)
+        immediate_models.emplace_back(id);
+    zero_ta_models.clear();
 
-    sched.pop(immediate_models);
+    if (not sched.empty() and sched.tn() == t)
+        sched.pop(immediate_models);
+
+    if (immediate_models.empty())
+        return success();
 
     // A step of Parallel DEVS: the outputs of all the imminent models, the
     // routing of the messages, then one transition for each imminent or
