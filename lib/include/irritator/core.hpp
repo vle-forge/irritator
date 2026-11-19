@@ -8171,14 +8171,15 @@ struct abstract_cross {
     abstract_cross() noexcept = default;
 
     abstract_cross(const abstract_cross& other) noexcept
-      : value(other.value)
+      : output_values(other.output_values)
+      , value(other.value)
       , threshold(other.threshold)
       , sigma(other.sigma)
       , zone(other.zone)
     {}
 
-    enum o_port_name : u8 { port_value, port_threshold };
-    enum i_port_name : u8 { port_up, port_down };
+    enum i_port_name : u8 { port_value, port_threshold };
+    enum o_port_name : u8 { port_up, port_down };
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -8259,6 +8260,12 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
+        // A strictly positive time advance is a predicted crossing: the zone
+        // is still the old one, the next transition changes it and the
+        // output is sent at the same date.
+        if (sigma > time_domain<time>::zero)
+            return success();
+
         return zone == zone_type::up
                  ? send_message(sim, y[port_up], output_values[0])
                  : send_message(sim, y[port_down], output_values[1]);

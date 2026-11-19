@@ -510,6 +510,56 @@ int main()
         }
     };
 
+    "qss2-cross-sends-each-direction-on-its-port"_test = [] {
+        using cross = irt::qss2_cross;
+
+        irt::simulation sim;
+        auto&           line = alloc_qss2_line(sim, -1.0, 1.0);
+        auto&           crs  = sim.alloc<cross>();
+        auto&           up   = sim.alloc<irt::counter>();
+        auto&           down = sim.alloc<irt::counter>();
+        sim.parameters[irt::get_index(sim.get_id(crs))].clear().set_cross(
+          0.0, 5.0, 7.0);
+        expect(fatal(
+          sim.connect_dynamics(line, 0, crs, cross::port_value).has_value()));
+        expect(fatal(
+          sim.connect_dynamics(crs, cross::port_up, up, 0).has_value()));
+        expect(fatal(
+          sim.connect_dynamics(crs, cross::port_down, down, 0).has_value()));
+        sim.limits.set_bound(0, 3);
+
+        std::vector<dated_value> ups, downs;
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            const auto up_before   = up.event_number;
+            const auto down_before = down.event_number;
+            expect(fatal(sim.run().has_value()));
+            if (up.event_number != up_before)
+                ups.push_back({ sim.current_time(), up.last_value });
+            if (down.event_number != down_before)
+                downs.push_back({ sim.current_time(), down.last_value });
+        } while (not sim.current_time_expired());
+
+        expect(fatal(eq(downs.size(), 1u)));
+        expect(eq(downs[0].t, 0.0));
+        expect(eq(downs[0].value, 7.0));
+        expect(fatal(eq(ups.size(), 1u)));
+        expect(lt(std::abs(ups[0].t - 1.0), 1e-9));
+        expect(eq(ups[0].value, 5.0));
+    };
+
+    "cross-copy-keeps-the-output-values"_test = [] {
+        irt::qss3_cross src;
+        src.output_values = { 5.0, 7.0 };
+        src.threshold     = 2.0;
+
+        const irt::qss3_cross copy(src);
+
+        expect(eq(copy.output_values[0], 5.0));
+        expect(eq(copy.output_values[1], 7.0));
+        expect(eq(copy.threshold, 2.0));
+    };
+
     "qss2-compare-sends-the-value-after-the-crossing"_test = [] {
         for (const auto x0 : { -1.0, -0.7, -0.3 }) {
             irt::simulation sim;
