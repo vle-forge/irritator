@@ -3090,27 +3090,15 @@ struct abstract_integrator<3> {
 
                 if (i2 > zero) {
                     i2     = std::sqrt(i2);
-                    auto A = i1 + i2;
-                    auto B = i1 - i2;
+                    const auto A = std::cbrt(i1 + i2);
+                    const auto B = std::cbrt(i1 - i2);
 
-                    if (A > zero)
-                        A = std::pow(A, one / three);
-                    else
-                        A = -std::pow(std::abs(A), one / three);
-                    if (B > zero)
-                        B = std::pow(B, one / three);
-                    else
-                        B = -std::pow(std::abs(B), one / three);
 
                     s = A + B - a / three;
                     if (s < zero)
                         s = time_domain<time>::infinity;
                 } else if (is_zero(i2)) {
-                    auto A = i1;
-                    if (A > zero)
-                        A = std::pow(A, one / three);
-                    else
-                        A = -std::pow(std::abs(A), one / three);
+                    const auto A = std::cbrt(i1);
                     auto x1 = two * A - a / three;
                     auto x2 = -(A + a / three);
                     if (x1 < zero) {
@@ -3147,26 +3135,14 @@ struct abstract_integrator<3> {
                 i2 = i1 * i1 + v * v * v / real(27);
                 if (i2 > zero) {
                     i2     = std::sqrt(i2);
-                    auto A = i1 + i2;
-                    auto B = i1 - i2;
-                    if (A > zero)
-                        A = std::pow(A, one / three);
-                    else
-                        A = -std::pow(std::abs(A), one / three);
-                    if (B > zero)
-                        B = std::pow(B, one / three);
-                    else
-                        B = -std::pow(std::abs(B), one / three);
+                    const auto A = std::cbrt(i1 + i2);
+                    const auto B = std::cbrt(i1 - i2);
                     sigma = A + B - a / three;
 
                     if (s < sigma || sigma < zero)
                         sigma = s;
                 } else if (is_zero(i2)) {
-                    auto A = i1;
-                    if (A > zero)
-                        A = std::pow(A, one / three);
-                    else
-                        A = -std::pow(std::abs(A), one / three);
+                    const auto A = std::cbrt(i1);
                     auto x1 = two * A - a / three;
                     auto x2 = -(A + a / three);
                     if (x1 < zero) {
@@ -3285,7 +3261,7 @@ struct abstract_integrator<3> {
         pq = mu / two;
 
         sigma = is_zero(pu) ? time_domain<time>::infinity
-                            : std::pow(std::abs(three * dQ / pu), one / three);
+                            : std::cbrt(std::abs(three * dQ / pu));
 
         return success();
     }
