@@ -391,16 +391,6 @@ static void show_dynamics_values(
 template<std::size_t QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
-                                 const abstract_filter<QssLevel>& dyn)
-{
-    ImGui::LabelFormat("value", "{}", dyn.value[0]);
-    ImGui::LabelFormat("lower-threshold", "{}", dyn.lower_threshold);
-    ImGui::LabelFormat("upper-threshold", "{}", dyn.upper_threshold);
-}
-
-template<std::size_t QssLevel>
-static void show_dynamics_values(application& /*app*/,
-                                 project_editor& /*sim*/,
                                  const abstract_inverse<QssLevel>& dyn)
 {
     ImGui::LabelFormat("value", "{}", dyn.value[0]);

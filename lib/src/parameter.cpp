@@ -364,22 +364,6 @@ static void parameter_init(parameter& /*param*/,
 {}
 
 template<size_t QssLevel>
-static void model_init(const parameter&           param,
-                       abstract_filter<QssLevel>& dyn) noexcept
-{
-    dyn.lower_threshold = param.reals[qss_filter_tag::lower_bound];
-    dyn.upper_threshold = param.reals[qss_filter_tag::upper_bound];
-}
-
-template<size_t QssLevel>
-static void parameter_init(parameter&                       param,
-                           const abstract_filter<QssLevel>& dyn) noexcept
-{
-    param.reals[qss_filter_tag::lower_bound] = dyn.lower_threshold;
-    param.reals[qss_filter_tag::upper_bound] = dyn.upper_threshold;
-}
-
-template<size_t QssLevel>
 static void model_init(const parameter&                param,
                        abstract_sample_hold<QssLevel>& dyn) noexcept
 {
@@ -820,11 +804,6 @@ void parameter::init_from(const dynamics_type type) noexcept
               param.set_power(1.0);
           }
 
-          if constexpr (std::is_same_v<Tag, qss_filter_tag>) {
-              param.set_filter(-std::numeric_limits<real>::infinity(),
-                               +std::numeric_limits<real>::infinity());
-          }
-
           if constexpr (std::is_same_v<Tag, sample_hold_tag>) {
               param.reals[sample_hold_tag::ts] = 0.1;
           }
@@ -942,24 +921,6 @@ parameter& parameter::set_cross(real threshold,
 parameter& parameter::set_power(real expoonent) noexcept
 {
     reals[qss_power_tag::exponent] = std::isfinite(expoonent) ? expoonent : 1.0;
-    return *this;
-}
-
-parameter& parameter::set_filter(real lower_bound, real upper_bound) noexcept
-{
-    reals[qss_filter_tag::lower_bound] = std::isfinite(lower_bound)
-                                           ? lower_bound
-                                           : -std::numeric_limits<
-                                               real>::infinity();
-    reals[qss_filter_tag::upper_bound] = std::isfinite(upper_bound)
-                                           ? upper_bound
-                                           : +std::numeric_limits<
-                                               real>::infinity();
-
-    if (reals[qss_filter_tag::lower_bound] > reals[qss_filter_tag::upper_bound])
-        std::swap(reals[qss_filter_tag::lower_bound],
-                  reals[qss_filter_tag::upper_bound]);
-
     return *this;
 }
 

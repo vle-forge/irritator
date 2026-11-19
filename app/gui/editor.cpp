@@ -540,18 +540,6 @@ static bool show_parameter(qss_flipflop_tag,
 }
 
 template<typename ExternalSourceType>
-static bool show_parameter(qss_filter_tag,
-                           application& /*app*/,
-                           ExternalSourceType& /*srcs*/,
-                           parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("lower threshold", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-template<typename ExternalSourceType>
 static bool show_parameter(qss_power_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

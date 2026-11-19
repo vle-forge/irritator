@@ -879,10 +879,6 @@ static bool show_continuous_maps(generic_component& gen,
                    "Limits the signal to [lower, upper]; "
                    "passes through in-band, flat outside.");
 
-    u += show_menu(gen, dynamics_type::qss1_filter, offset, pos,
-                   "Limits the signal to [lower, upper]; "
-                   "sends 0 on one events.");
-
     u += show_menu(gen, dynamics_type::qss1_dead_zone, offset, pos,
                    "Zero output inside [lower, upper], linear (shifted) "
                    "beyond; suppresses small signals");

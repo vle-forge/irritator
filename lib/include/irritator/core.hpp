@@ -1010,7 +1010,6 @@ enum class dynamics_type : u8 {
     qss1_max_hold,
     qss1_min_hold,
     qss1_flipflop,
-    qss1_filter,
     qss1_power,
     qss1_square,
     qss1_sum_2,
@@ -1057,7 +1056,6 @@ enum class dynamics_type : u8 {
     qss2_max_hold,
     qss2_min_hold,
     qss2_flipflop,
-    qss2_filter,
     qss2_power,
     qss2_square,
     qss2_sum_2,
@@ -1104,7 +1102,6 @@ enum class dynamics_type : u8 {
     qss3_max_hold,
     qss3_min_hold,
     qss3_flipflop,
-    qss3_filter,
     qss3_power,
     qss3_square,
     qss3_sum_2,
@@ -1208,7 +1205,6 @@ struct parameter {
     parameter& set_cross(real threshold,
                          real up_value   = one,
                          real down_value = one) noexcept;
-    parameter& set_filter(real lower_bound, real upper_bound) noexcept;
     parameter& set_compare(real equal, real not_equal) noexcept;
     parameter& set_gain(real k) noexcept;
 
@@ -5403,209 +5399,6 @@ using qss2_min_hold = abstract_min_max_hold<2, false>;
 using qss3_min_hold = abstract_min_max_hold<3, false>;
 
 template<std::size_t QssLevel>
-struct abstract_filter {
-    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
-
-    input_port     x[1] = {};
-    output_port_id y[3] = {};
-
-    time                       sigma;
-    real                       lower_threshold;
-    real                       upper_threshold;
-    std::array<real, QssLevel> value;
-
-    bool reach_lower_threshold = false;
-    bool reach_upper_threshold = false;
-
-    abstract_filter() noexcept = default;
-
-    abstract_filter(const abstract_filter& other) noexcept
-      : sigma(other.sigma)
-      , lower_threshold(other.lower_threshold)
-      , upper_threshold(other.upper_threshold)
-      , value(other.value)
-      , reach_lower_threshold(other.reach_lower_threshold)
-      , reach_upper_threshold(other.reach_upper_threshold)
-    {}
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        if (lower_threshold >= upper_threshold)
-            return make_error(
-              simulation_errc::abstract_filter_threshold_condition_error);
-
-        reach_lower_threshold = false;
-        reach_upper_threshold = false;
-
-        value.fill(zero);
-
-        sigma = time_domain<time>::infinity;
-
-        return success();
-    }
-
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
-    {
-        const auto lst = get_message(sim, x[0]);
-
-        if (lst.empty()) {
-            if constexpr (QssLevel == 2)
-                value[0] += value[1] * e;
-            if constexpr (QssLevel == 3) {
-                value[0] += value[1] * e + value[2] * e * e;
-                value[1] += two * value[2] * e;
-            }
-        } else {
-            const auto& msg = get_qss_message<QssLevel>(lst);
-            value[0]        = msg[0];
-            if constexpr (QssLevel >= 2)
-                value[1] = msg[1];
-            if constexpr (QssLevel == 3)
-                value[2] = msg[2];
-        }
-
-        reach_lower_threshold = false;
-        reach_upper_threshold = false;
-
-        if (value[0] >= upper_threshold) {
-            reach_upper_threshold = true;
-            sigma                 = time_domain<time>::zero;
-        } else if (value[0] <= lower_threshold) {
-            reach_lower_threshold = true;
-            sigma                 = time_domain<time>::zero;
-        } else {
-            if constexpr (QssLevel == 1)
-                sigma = time_domain<time>::infinity;
-            if constexpr (QssLevel == 2)
-                sigma = std::min(
-                  compute_wake_up(upper_threshold, value[0], value[1]),
-                  compute_wake_up(lower_threshold, value[0], value[1]));
-            if constexpr (QssLevel == 3)
-                sigma = std::min(compute_wake_up(upper_threshold, value[0],
-                                                 value[1], value[2]),
-                                 compute_wake_up(lower_threshold, value[0],
-                                                 value[1], value[2]));
-        }
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        if constexpr (QssLevel == 1) {
-            if (reach_upper_threshold) {
-                irt_check(send_message(sim, y[0], upper_threshold));
-                irt_check(send_message(sim, y[1], one));
-            } else {
-                irt_check(send_message(sim, y[0], value[0]));
-                irt_check(send_message(sim, y[1], zero));
-            }
-
-            if (reach_lower_threshold) {
-                irt_check(send_message(sim, y[0], lower_threshold));
-                irt_check(send_message(sim, y[2], one));
-            } else {
-                irt_check(send_message(sim, y[0], value[0]));
-                irt_check(send_message(sim, y[2], zero));
-            }
-        }
-
-        if constexpr (QssLevel == 2) {
-            if (reach_upper_threshold) {
-                irt_check(send_message(sim, y[0], upper_threshold));
-                irt_check(send_message(sim, y[1], one));
-            } else {
-                irt_check(send_message(sim, y[0], value[0], value[1]));
-                irt_check(send_message(sim, y[1], zero));
-            }
-
-            if (reach_lower_threshold) {
-                irt_check(send_message(sim, y[0], lower_threshold));
-                irt_check(send_message(sim, y[2], one));
-            } else {
-                irt_check(send_message(sim, y[0], value[0], value[1]));
-                irt_check(send_message(sim, y[2], zero));
-            }
-
-            return success();
-        }
-
-        if constexpr (QssLevel == 3) {
-            if (reach_upper_threshold) {
-                irt_check(send_message(sim, y[0], upper_threshold));
-                irt_check(send_message(sim, y[1], one));
-            } else {
-                irt_check(
-                  send_message(sim, y[0], value[0], value[1], value[2]));
-                irt_check(send_message(sim, y[1], zero));
-            }
-
-            if (reach_lower_threshold) {
-                irt_check(send_message(sim, y[0], lower_threshold));
-                irt_check(send_message(sim, y[2], one));
-            } else {
-                irt_check(
-                  send_message(sim, y[0], value[0], value[1], value[2]));
-                irt_check(send_message(sim, y[2], zero));
-            }
-
-            return success();
-        }
-
-        return success();
-    }
-
-    raw_sample observation(time t, time e) const noexcept
-    {
-        if constexpr (QssLevel == 1) {
-            if (reach_upper_threshold) {
-                return { t, upper_threshold };
-            } else {
-                return { t, value[0] };
-            }
-
-            if (reach_lower_threshold) {
-                return { t, lower_threshold };
-            } else {
-                return { t, value[0] };
-            }
-        }
-
-        if constexpr (QssLevel == 2) {
-            if (reach_upper_threshold) {
-                return { t, upper_threshold };
-            } else {
-                return qss_observation(value[0], value[1], t, e);
-            }
-
-            if (reach_lower_threshold) {
-                return { t, lower_threshold };
-            } else {
-                return qss_observation(value[0], value[1], t, e);
-            }
-        }
-
-        if constexpr (QssLevel == 3) {
-            if (reach_upper_threshold) {
-                return { t, upper_threshold };
-            } else {
-                return qss_observation(value[0], value[1], value[2], t, e);
-            }
-
-            if (reach_lower_threshold) {
-                return { t, lower_threshold };
-            } else {
-                return qss_observation(value[0], value[1], value[2], t, e);
-            }
-        }
-    }
-};
-
-using qss1_filter = abstract_filter<1>;
-using qss2_filter = abstract_filter<2>;
-using qss3_filter = abstract_filter<3>;
-
-template<std::size_t QssLevel>
 struct abstract_sample_hold {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
@@ -8945,7 +8738,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss1_max_hold,
                                 qss1_min_hold,
                                 qss1_flipflop,
-                                qss1_filter,
                                 qss1_power,
                                 qss1_square,
                                 qss1_sum_2,
@@ -8991,7 +8783,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss2_max_hold,
                                 qss2_min_hold,
                                 qss2_flipflop,
-                                qss2_filter,
                                 qss2_power,
                                 qss2_square,
                                 qss2_sum_2,
@@ -9037,7 +8828,6 @@ using dynamics_list = type_list<qss1_integrator,
                                 qss3_max_hold,
                                 qss3_min_hold,
                                 qss3_flipflop,
-                                qss3_filter,
                                 qss3_power,
                                 qss3_square,
                                 qss3_sum_2,
@@ -9430,22 +9220,6 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
               dynamics_type::logical_and_2, dynamics_type::logical_and_3,
               dynamics_type::logical_or_2, dynamics_type::logical_or_3,
               dynamics_type::logical_invert);
-        } else {
-            return !any_equal(
-              mdl_dst, dynamics_type::logical_and_2,
-              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
-              dynamics_type::logical_or_3, dynamics_type::logical_invert);
-        }
-        return true;
-
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-    case dynamics_type::qss1_filter:
-        if (any_equal(o_port_index, 1, 2)) {
-            return any_equal(
-              mdl_dst, dynamics_type::counter, dynamics_type::logical_and_2,
-              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
-              dynamics_type::logical_or_3, dynamics_type::logical_invert);
         } else {
             return !any_equal(
               mdl_dst, dynamics_type::logical_and_2,
@@ -10507,7 +10281,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_max_hold:
     case dynamics_type::qss1_min_hold:
     case dynamics_type::qss1_flipflop:
-    case dynamics_type::qss1_filter:
     case dynamics_type::qss1_power:
     case dynamics_type::qss1_square:
     case dynamics_type::qss1_sum_2:
@@ -10555,7 +10328,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_max_hold:
     case dynamics_type::qss2_min_hold:
     case dynamics_type::qss2_flipflop:
-    case dynamics_type::qss2_filter:
     case dynamics_type::qss2_power:
     case dynamics_type::qss2_square:
     case dynamics_type::qss2_sum_2:
@@ -10603,7 +10375,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_max_hold:
     case dynamics_type::qss3_min_hold:
     case dynamics_type::qss3_flipflop:
-    case dynamics_type::qss3_filter:
     case dynamics_type::qss3_power:
     case dynamics_type::qss3_square:
     case dynamics_type::qss3_sum_2:

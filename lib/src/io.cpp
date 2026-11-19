@@ -329,15 +329,6 @@ static void write_test_simulation_model(std::FILE*           os,
           o_param.reals(param, qss_cross_tag::bottom_value));
         break;
 
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-        fmt::print(
-          os, R"(    sim.parameters[sim.get_id(mdl_{})].set_filter({}, {});)",
-          idx, o_param.reals(param, qss_filter_tag::lower_bound),
-          o_param.reals(param, qss_filter_tag::upper_bound));
-        break;
-
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:

@@ -85,7 +85,6 @@ enum class simulation_errc : std::int16_t {
     input_port_error, /**< The input port does not exist. */
 
     abstract_compare_output_value_error,
-    abstract_filter_threshold_condition_error,
     abstract_integrator_dq_error,
     abstract_integrator_x_error,
     abstract_power_n_error,

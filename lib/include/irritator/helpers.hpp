@@ -101,16 +101,6 @@ struct qss_flipflop_tag {
     static constexpr const port_type y_types[] = { qss };
 };
 
-struct qss_filter_tag {
-    static constexpr std::string_view x_names[] = { "in" };
-    static constexpr std::string_view y_names[] = { "out", "up", "down" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss, scalar, scalar };
-
-    enum parameter_names : u8 { lower_bound = 0, upper_bound };
-};
-
 struct qss_power_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
@@ -679,11 +669,6 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss2_flipflop:
     case dynamics_type::qss3_flipflop:
         return std::invoke(std::forward<Function>(f), qss_flipflop_tag{},
-                           std::forward<Args>(args)...);
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-        return std::invoke(std::forward<Function>(f), qss_filter_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:

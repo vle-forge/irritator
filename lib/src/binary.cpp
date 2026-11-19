@@ -788,13 +788,6 @@ void binary_serialize(Ar& ar, abstract_min_max_hold<QssLevel, IsMax>& d) noexcep
 }
 
 template<typename Ar, std::size_t QssLevel>
-void binary_serialize(Ar& ar, abstract_filter<QssLevel>& d) noexcept
-{
-    auto& [x, y, sigma, lower_threshold, upper_threshold, value, reach_lower_threshold, reach_upper_threshold] = d;
-    ar(x, y, sigma, lower_threshold, upper_threshold, value, reach_lower_threshold, reach_upper_threshold);
-}
-
-template<typename Ar, std::size_t QssLevel>
 void binary_serialize(Ar& ar, abstract_sample_hold<QssLevel>& d) noexcept
 {
     auto& [x, y, value, sample, ts, sigma, emit] = d;

@@ -1118,25 +1118,6 @@ struct json_reader {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       qss_filter_tag,
-                       parameter& p) noexcept
-    {
-        auto_stack a(this, "dynamics_qss_filter");
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("lower-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_real_to(p.reals[qss_filter_tag::lower_bound]);
-              if ("upper-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_real_to(p.reals[qss_filter_tag::upper_bound]);
-
-              return error("unknown element");
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val,
                        sample_hold_tag,
                        parameter& p) noexcept
     {
@@ -5599,22 +5580,6 @@ struct json_writer {
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const file_access& /*files*/,
-               const component_access& /*ids*/,
-               const qss_filter_tag,
-               const component& /*compo*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("lower-threshold");
-        writer.Double(p.reals[qss_filter_tag::lower_bound]);
-        writer.Key("upper-threshold");
-        writer.Double(p.reals[qss_filter_tag::upper_bound]);
         writer.EndObject();
     }
 
