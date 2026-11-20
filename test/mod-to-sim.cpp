@@ -3405,6 +3405,45 @@ int main()
         expect(same_buffers(first, json_save_component(mod, *read)));
     };
 
+    "json: a connection to an unknown port of a model is refused"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+
+            auto& cst = gen.alloc(irt::dynamics_type::constant);
+            auto& g   = gen.alloc(irt::dynamics_type::generator);
+            gen.children_parameters[gen.children.get_id(cst)] = irt::parameter(
+              irt::dynamics_type::constant);
+            gen.children_parameters[gen.children.get_id(g)] = irt::parameter(
+              irt::dynamics_type::generator);
+
+            irt::connection::port src, dst;
+            src.model = 0;
+            dst.model = irt::generator::x_t;
+            expect(gen.connect(cst, src, g, dst).has_value());
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        auto       json  = std::string(first.data(), first.size());
+        expect(fatal(json_load_component(mod, json).has_value()));
+
+        // The generator has two input ports since the removal of add-tr and
+        // mult-tr: an old file connected to them is refused.
+        const auto old_port = std::string(R"("port-destination": 1)");
+        const auto pos      = json.find(old_port);
+        expect(fatal(pos != std::string::npos));
+        json.replace(pos, old_port.size(), R"("port-destination": 2)");
+
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        expect(not json_load_component(mod, json).has_value());
+        irt::on_error_callback = callback;
+    };
+
     "json: the malformed files are refused"_test = [] {
         auto callback = std::exchange(irt::on_error_callback, nullptr);
 

@@ -2479,6 +2479,17 @@ struct json_reader {
         return error("unknown generic component child");
     }
 
+    /// The ports of a simulation wrapper depend on its embedded simulation:
+    /// they are checked when the simulation is built.
+    static bool is_model_port(
+      const dynamics_type                     type,
+      const int                               port,
+      const std::span<const std::string_view> names) noexcept
+    {
+        return type == dynamics_type::simulation_wrapper or
+               (0 <= port and port < std::ssize(names));
+    }
+
     bool get_x_port(const component_access&                ids,
                     generic_component&                     generic,
                     const child_id                         dst_id,
@@ -2492,6 +2503,11 @@ struct json_reader {
             if (dst_int_port.has_value()) {
                 if (child->type != child_type::model)
                     return error("unknwon generic component port");
+
+                if (not is_model_port(child->id.mdl_type, *dst_int_port,
+                                      get_input_port_names(child->id.mdl_type)))
+                    return error("unknown input port {} of the model",
+                                 *dst_int_port);
 
                 out = std::make_optional(
                   connection::port{ .model = *dst_int_port });
@@ -2531,6 +2547,12 @@ struct json_reader {
             if (src_int_port.has_value()) {
                 if (child->type != child_type::model)
                     return error("unknwon generic component port");
+
+                if (not is_model_port(
+                      child->id.mdl_type, *src_int_port,
+                      get_output_port_names(child->id.mdl_type)))
+                    return error("unknown output port {} of the model",
+                                 *src_int_port);
 
                 out = std::make_optional(
                   connection::port{ .model = *src_int_port });
