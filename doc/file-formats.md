@@ -423,13 +423,20 @@ parameters. The QSS models exist in three orders with the prefixes `qss1_`,
 | `qssN_hysteresis`                           | `lower`, `upper`, `out-low`, `out-high`.       |
 | `qssN_wrap`                                 | `origin`, `modulo`.                            |
 | `counter`                                   | `observation-type`: `event-number`, `last-value` or `sum-values`. |
-| `queue`                                     | `ta`: the delay, > 0.                          |
-| `dynamic_queue`, `priority_queue`           | `source-id`: the source of the delays.         |
+| `queue`                                     | `ta`: the delay, > 0; `overflow`, `capacity`.  |
+| `dynamic_queue`, `priority_queue`           | `source-id`: the source of the delays; `overflow`, `capacity`. |
 | `generator`                                 | `ta-is-external`, `value-is-external` (booleans), then `source-ta-id` or `sigma`, and `source-value-id` or `value`. |
 | `constant`                                  | `value`, `offset` (≥ 0), `type` and, for the `_n` types, `port`. |
 | `time_func`                                 | `function` (`time`, `square` or `sin`), `timestep`, `offset`. |
 | `hsm_wrapper`                               | `hsm`: a component reference to an `hsm` component; `i1`, `i2`, `r1`, `r2`, `timeout`; `source-id` when the machine uses a source. |
 | `simulation_wrapper`                        | `sim`: a component reference to a `simulation` component; `run-type` (`bag`, `complete`, `during`, `time` or `until`); `factors` and `selections`, their numbers. The input ports are `init`, `run` then the factors; the output ports are the factors then the selections. |
+
+The `overflow` of a queue is what it does with a new message when its fifo
+is full: `grow` (the default) doubles the capacity, `error` stops the
+simulation, `replace-first` removes the message which leaves first,
+`replace-last` removes the message which leaves last and `forget` ignores the
+new message. The `capacity` (≥ 1, 32 by default) is the initial number of
+messages with `grow`, the maximal number otherwise. Both are optional.
 
 The `constant` `type` is `constant`, `incoming_component_all`,
 `outcoming_component_all`, `incoming_component_n` or `outcoming_component_n`.
