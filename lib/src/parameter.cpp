@@ -144,36 +144,77 @@ static void parameter_init(parameter& /*param*/,
                            const accumulator<PortNumber>& /*dyn*/) noexcept
 {}
 
+static_assert(
+  ordinal(queue_tag::i_overflow) == ordinal(dynamic_queue_tag::i_overflow) and
+  ordinal(queue_tag::i_overflow) == ordinal(priority_queue_tag::i_overflow) and
+  ordinal(queue_tag::i_capacity) == ordinal(dynamic_queue_tag::i_capacity) and
+  ordinal(queue_tag::i_capacity) == ordinal(priority_queue_tag::i_capacity));
+
+static fifo_overflow get_fifo_overflow(const parameter& param) noexcept
+{
+    const auto i = param.integers[queue_tag::i_overflow];
+
+    return 0 <= i and i < std::ssize(fifo_overflow_names)
+             ? enum_cast<fifo_overflow>(i)
+             : fifo_overflow::grow;
+}
+
+static i32 get_fifo_capacity(const parameter& param) noexcept
+{
+    const auto i = param.integers[queue_tag::i_capacity];
+
+    // The ring buffer of the fifo needs one more slot.
+    return 0 < i and i < std::numeric_limits<i32>::max()
+             ? static_cast<i32>(i)
+             : default_fifo_capacity;
+}
+
+template<typename Queue>
+static void fifo_parameter_init(parameter& param, const Queue& dyn) noexcept
+{
+    param.integers[queue_tag::i_overflow] = ordinal(dyn.overflow);
+    param.integers[queue_tag::i_capacity] = dyn.capacity;
+}
+
 static void model_init(const parameter& param, queue& dyn) noexcept
 {
-    dyn.ta = param.reals[queue_tag::sigma];
+    dyn.ta       = param.reals[queue_tag::sigma];
+    dyn.overflow = get_fifo_overflow(param);
+    dyn.capacity = get_fifo_capacity(param);
 }
 
 static void parameter_init(parameter& param, const queue& dyn) noexcept
 {
     param.reals[queue_tag::sigma] = dyn.ta;
+    fifo_parameter_init(param, dyn);
 }
 
 static void model_init(const parameter& param, dynamic_queue& dyn) noexcept
 {
     dyn.source_ta.reset(param.integers[dynamic_queue_tag::source_ta]);
+    dyn.overflow = get_fifo_overflow(param);
+    dyn.capacity = get_fifo_capacity(param);
 }
 
 static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 {
     param.integers[dynamic_queue_tag::source_ta] = from_source(dyn.source_ta);
+    fifo_parameter_init(param, dyn);
 }
 
 static void model_init(const parameter& param, priority_queue& dyn) noexcept
 {
     dyn.ta = param.reals[priority_queue_tag::sigma];
     dyn.source_ta.reset(param.integers[priority_queue_tag::source_ta]);
+    dyn.overflow = get_fifo_overflow(param);
+    dyn.capacity = get_fifo_capacity(param);
 }
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 {
     param.reals[priority_queue_tag::sigma]        = dyn.ta;
     param.integers[priority_queue_tag::source_ta] = from_source(dyn.source_ta);
+    fifo_parameter_init(param, dyn);
 }
 
 static void model_init(const parameter& param, generator& dyn) noexcept
@@ -872,6 +913,12 @@ void parameter::init_from(const dynamics_type type) noexcept
           if constexpr (std::is_same_v<Tag, queue_tag>) {
               param.set_queue(one);
           }
+
+          if constexpr (std::is_same_v<Tag, queue_tag> or
+                        std::is_same_v<Tag, dynamic_queue_tag> or
+                        std::is_same_v<Tag, priority_queue_tag>) {
+              param.set_queue_fifo(fifo_overflow::grow, default_fifo_capacity);
+          }
       },
       *this);
 };
@@ -980,6 +1027,18 @@ parameter& parameter::set_wsum4(real coeff1,
 parameter& parameter::set_queue(real sigma) noexcept
 {
     reals[queue_tag::sigma] = std::isfinite(sigma) ? sigma : 1.0;
+    return *this;
+}
+
+parameter& parameter::set_queue_fifo(fifo_overflow overflow,
+                                     i32           capacity) noexcept
+{
+    const auto is_valid = capacity > 0 and
+                          capacity < std::numeric_limits<i32>::max();
+
+    integers[queue_tag::i_overflow] = ordinal(overflow);
+    integers[queue_tag::i_capacity] = is_valid ? capacity
+                                               : default_fifo_capacity;
     return *this;
 }
 

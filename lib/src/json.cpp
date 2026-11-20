@@ -753,6 +753,31 @@ struct json_reader {
                             "priority selection");
     }
 
+    bool copy_string_to(fifo_overflow& type) noexcept
+    {
+        return copy_name_to(fifo_overflow_names, type, "fifo overflow");
+    }
+
+    /// Reads the members of the fifo of the queues.
+    /// @return std::nullopt if @a name is not a member of the fifo.
+    std::optional<bool> read_fifo(const std::string_view  name,
+                                  const rapidjson::Value& value,
+                                  parameter&              p) noexcept
+    {
+        if ("overflow"sv == name) {
+            auto overflow = fifo_overflow::grow;
+            return read_temp_string(value) && copy_string_to(overflow) &&
+                   copy(ordinal(overflow), p.integers[queue_tag::i_overflow]);
+        }
+
+        if ("capacity"sv == name)
+            return read_temp_i64(value) && is_i64_greater_equal_than(1) &&
+                   is_i64_less_than(std::numeric_limits<i32>::max()) &&
+                   copy_i64_to(p.integers[queue_tag::i_capacity]);
+
+        return std::nullopt;
+    }
+
     template<std::size_t PortNumber>
     bool read_priority(const rapidjson::Value& val, parameter& p) noexcept
     {
@@ -924,6 +949,9 @@ struct json_reader {
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
                          copy_real_to(p.reals[queue_tag::sigma]);
 
+              if (const auto ret = read_fifo(name, value, p))
+                  return *ret;
+
               return error("unknown element");
           });
     }
@@ -965,6 +993,9 @@ struct json_reader {
                          copy_source_to_parameter(
                            p.integers[dynamic_queue_tag::source_ta]);
 
+              if (const auto ret = read_fifo(name, value, p))
+                  return *ret;
+
               return error("unknown element");
           });
     }
@@ -981,6 +1012,9 @@ struct json_reader {
                   return read_temp_u64(value) &&
                          copy_source_to_parameter(
                            p.integers[priority_queue_tag::source_ta]);
+
+              if (const auto ret = read_fifo(name, value, p))
+                  return *ret;
 
               return error("unknown element");
           });
@@ -4893,6 +4927,27 @@ struct json_writer {
         writer.EndObject();
     }
 
+    template<typename Writer>
+    void write_fifo(Writer& writer, const parameter& p) noexcept
+    {
+        const auto overflow_i = p.integers[queue_tag::i_overflow];
+        const auto overflow   = 0 <= overflow_i and
+                                  overflow_i < std::ssize(fifo_overflow_names)
+                                  ? enum_cast<fifo_overflow>(overflow_i)
+                                  : fifo_overflow::grow;
+        const auto sv         = fifo_overflow_names[ordinal(overflow)];
+
+        const auto capacity_i = p.integers[queue_tag::i_capacity];
+
+        writer.Key("overflow");
+        writer.String(sv.data(), static_cast<rapidjson::SizeType>(sv.size()));
+        writer.Key("capacity");
+        writer.Int64(0 < capacity_i and
+                         capacity_i < std::numeric_limits<i32>::max()
+                       ? capacity_i
+                       : default_fifo_capacity);
+    }
+
     template<std::size_t PortNumber, typename Writer>
     void write_priority(Writer& writer, const parameter& p) noexcept
     {
@@ -5107,6 +5162,7 @@ struct json_writer {
         writer.StartObject();
         writer.Key("ta");
         writer.Double(p.reals[queue_tag::sigma]);
+        write_fifo(writer, p);
         writer.EndObject();
     }
 
@@ -5122,6 +5178,7 @@ struct json_writer {
         writer.Key("source-id");
         writer.Uint64(get_index(enum_cast<external_source_definition::id>(
           p.integers[dynamic_queue_tag::source_ta])));
+        write_fifo(writer, p);
         writer.EndObject();
     }
 
@@ -5137,6 +5194,7 @@ struct json_writer {
         writer.Key("source-id");
         writer.Uint64(get_index(enum_cast<external_source_definition::id>(
           p.integers[priority_queue_tag::source_ta])));
+        write_fifo(writer, p);
         writer.EndObject();
     }
 

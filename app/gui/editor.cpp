@@ -253,6 +253,45 @@ static bool show_parameter(qss_wsum_4_tag,
     return b1 or b2 or b3 or b4;
 }
 
+static bool show_fifo_parameter(parameter& p) noexcept
+{
+    auto up = false;
+
+    const auto overflow_i = p.integers[queue_tag::i_overflow];
+    const auto overflow   = 0 <= overflow_i and
+                              overflow_i < std::ssize(fifo_overflow_names)
+                              ? enum_cast<fifo_overflow>(overflow_i)
+                              : fifo_overflow::grow;
+
+    small_string<32> label(fifo_overflow_names[ordinal(overflow)]);
+    if (ImGui::BeginCombo("overflow", label.c_str())) {
+        for (sz i = 0; i < std::size(fifo_overflow_names); ++i) {
+            const bool is_selected = ordinal(overflow) == i;
+
+            label = fifo_overflow_names[i];
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                p.integers[queue_tag::i_overflow] = static_cast<i64>(i);
+                up                                = true;
+            }
+
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
+    auto capacity = p.integers[queue_tag::i_capacity];
+    if (ImGui::InputScalar("capacity", ImGuiDataType_S64, &capacity) and
+        0 < capacity and capacity < std::numeric_limits<i32>::max()) {
+        p.integers[queue_tag::i_capacity] = capacity;
+        up                                = true;
+    }
+    ImGui::SetItemTooltip("The initial number of messages with the grow "
+                          "overflow, the maximal number otherwise.");
+
+    return up;
+}
+
 template<typename ExternalSourceType>
 static bool show_parameter(queue_tag,
                            application& /*app*/,
@@ -261,14 +300,17 @@ static bool show_parameter(queue_tag,
 {
     auto value = p.reals[0];
 
+    auto up = false;
     if (ImGui::InputReal("delay", &value)) {
         if (not std::isnormal(value) or not std::signbit(value)) {
             p.reals[queue_tag::sigma] = value;
-            return true;
+            up                        = true;
         }
     }
 
-    return false;
+    const auto fifo = show_fifo_parameter(p);
+
+    return up or fifo;
 }
 
 template<typename ExternalSourceType>
@@ -277,9 +319,11 @@ static bool show_parameter(dynamic_queue_tag,
                            ExternalSourceType& srcs,
                            parameter&          p) noexcept
 {
-
-    return show_external_sources_combo(
+    const auto src = show_external_sources_combo(
       "Time", srcs, p.integers[dynamic_queue_tag::source_ta]);
+    const auto fifo = show_fifo_parameter(p);
+
+    return src or fifo;
 }
 
 template<typename ExternalSourceType>
@@ -293,8 +337,9 @@ static bool show_parameter(priority_queue_tag,
 
     const auto b2 = show_external_sources_combo(
       "Time", srcs, p.integers[priority_queue_tag::source_ta]);
+    const auto b3 = show_fifo_parameter(p);
 
-    return b1 or b2;
+    return b1 or b2 or b3;
 }
 
 template<typename ExternalSourceType>

@@ -1070,26 +1070,43 @@ void binary_serialize(Ar& ar, time_func& d) noexcept
 }
 
 template<typename Ar>
+void io_fifo(Ar& ar, fifo_overflow& overflow, i32& capacity) noexcept
+{
+    io_enum(ar, overflow, fifo_overflow::forget);
+    ar(capacity);
+
+    if constexpr (Ar::is_reader) {
+        if (capacity < 1 or capacity == std::numeric_limits<i32>::max()) {
+            ar.fail();
+            capacity = default_fifo_capacity;
+        }
+    }
+}
+
+template<typename Ar>
 void binary_serialize(Ar& ar, queue& d) noexcept
 {
-    auto& [x, y, sigma, fifo, ta] = d;
+    auto& [x, y, sigma, fifo, ta, overflow, capacity] = d;
     ar(x, y, sigma, fifo, ta);
+    io_fifo(ar, overflow, capacity);
 }
 
 template<typename Ar>
 void binary_serialize(Ar& ar, dynamic_queue& d) noexcept
 {
-    auto& [x, y, sigma, fifo, src_data, source_ta] = d;
+    auto& [x, y, sigma, fifo, src_data, source_ta, overflow, capacity] = d;
     ar(x, y, sigma, fifo, src_data);
     io_source(ar, source_ta, src_data);
+    io_fifo(ar, overflow, capacity);
 }
 
 template<typename Ar>
 void binary_serialize(Ar& ar, priority_queue& d) noexcept
 {
-    auto& [x, y, sigma, fifo, ta, src_data, source_ta] = d;
+    auto& [x, y, sigma, fifo, ta, src_data, source_ta, overflow, capacity] = d;
     ar(x, y, sigma, fifo, ta, src_data);
     io_source(ar, source_ta, src_data);
+    io_fifo(ar, overflow, capacity);
 }
 
 /* * * * * * * * * *

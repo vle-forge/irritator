@@ -293,6 +293,18 @@ static void write_test_simulation_header(std::FILE*             os,
                name, sim.models.ssize(), sim.hsms.ssize());
 }
 
+static void print_queue_fifo(std::FILE*           os,
+                             const u32            idx,
+                             parameter_to_string& o_param,
+                             const parameter&     param) noexcept
+{
+    fmt::print(os,
+               R"(
+    sim.parameters[sim.get_id(mdl_{})].set_queue_fifo(irt::enum_cast<irt::fifo_overflow>({}), {});)",
+               idx, o_param.integers(param, queue_tag::i_overflow),
+               o_param.integers(param, queue_tag::i_capacity));
+}
+
 static void write_test_simulation_model(std::FILE*           os,
                                         const simulation&    sim,
                                         const model&         mdl,
@@ -390,6 +402,7 @@ static void write_test_simulation_model(std::FILE*           os,
         fmt::print(os,
                    R"(    sim.parameters[sim.get_id(mdl_{})].set_queue({});)",
                    idx, o_param.reals(param, queue_tag::sigma));
+        print_queue_fifo(os, idx, o_param, param);
         break;
 
     case dynamics_type::dynamic_queue:
@@ -397,15 +410,19 @@ static void write_test_simulation_model(std::FILE*           os,
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_dynamic_queue_ta(get_source({}));)",
           idx, o_param.integers(param, dynamic_queue_tag::source_ta));
+        print_queue_fifo(os, idx, o_param, param);
         break;
 
     case dynamics_type::priority_queue:
         fmt::print(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue({});)",
-          R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
-          idx, o_param.reals(param, priority_queue_tag::sigma),
-          o_param.integers(param, priority_queue_tag::source_ta));
+          idx, o_param.reals(param, priority_queue_tag::sigma));
+        fmt::print(os,
+                   R"(
+    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
+                   idx, o_param.integers(param, priority_queue_tag::source_ta));
+        print_queue_fifo(os, idx, o_param, param);
         break;
 
     case dynamics_type::generator: {

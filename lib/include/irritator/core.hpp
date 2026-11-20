@@ -1170,6 +1170,23 @@ constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
  *
  ****************************************************************************/
 
+/** What a queue does with a new message when its fifo is full. */
+enum class fifo_overflow : u8 {
+    grow,          /**< Doubles the capacity of the fifo. */
+    error,         /**< Fails with @c simulation_errc::queue_full. */
+    replace_first, /**< Removes the message which leaves first. */
+    replace_last,  /**< Removes the message which leaves last. */
+    forget         /**< Forgets the new message. */
+};
+
+inline constexpr std::string_view fifo_overflow_names[] = {
+    "grow", "error", "replace-first", "replace-last", "forget"
+};
+
+/** The number of messages of a fifo: its initial size with @c
+ * fifo_overflow::grow, its maximal size otherwise. */
+inline constexpr i32 default_fifo_capacity = 32;
+
 /**
    Stores dynamics model parameters for each @c irt::dynamics.
 
@@ -1222,6 +1239,10 @@ struct parameter {
                                real timer) noexcept;
 
     parameter& set_queue(real sigma) noexcept;
+
+    /** The fifo of a queue, a dynamic queue or a priority queue. A @a
+     * capacity lower than 1 is replaced by @c default_fifo_capacity. */
+    parameter& set_queue_fifo(fifo_overflow overflow, i32 capacity) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
     parameter& set_generator_ta(real sigma) noexcept;
@@ -8446,18 +8467,26 @@ struct queue {
 
     real ta = one;
 
+    fifo_overflow overflow = fifo_overflow::grow;
+    i32           capacity = default_fifo_capacity;
+
     queue() noexcept = default;
 
     queue(const queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
       , ta(other.ta)
+      , overflow(other.overflow)
+      , capacity(other.capacity)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
         if (ta <= 0)
             return make_error(simulation_errc::queue_ta_error);
+
+        if (capacity < 1)
+            return make_error(simulation_errc::queue_capacity_error);
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -8494,16 +8523,24 @@ struct dynamic_queue {
     source_data src_data;
     source      source_ta;
 
+    fifo_overflow overflow = fifo_overflow::grow;
+    i32           capacity = default_fifo_capacity;
+
     dynamic_queue() noexcept = default;
 
     dynamic_queue(const dynamic_queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
       , source_ta(other.source_ta)
+      , overflow(other.overflow)
+      , capacity(other.capacity)
     {}
 
     status initialize(simulation& sim) noexcept
     {
+        if (capacity < 1)
+            return make_error(simulation_errc::queue_capacity_error);
+
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
 
@@ -8544,6 +8581,9 @@ struct priority_queue {
     source_data src_data;
     source      source_ta;
 
+    fifo_overflow overflow = fifo_overflow::grow;
+    i32           capacity = default_fifo_capacity;
+
     priority_queue() noexcept = default;
 
     priority_queue(const priority_queue& other) noexcept
@@ -8551,10 +8591,15 @@ struct priority_queue {
       , fifo(undefined<dated_message_id>())
       , ta(other.ta)
       , source_ta(other.source_ta)
+      , overflow(other.overflow)
+      , capacity(other.capacity)
     {}
 
     status initialize(simulation& sim) noexcept
     {
+        if (capacity < 1)
+            return make_error(simulation_errc::queue_capacity_error);
+
         irt_check(sim.srcs.initialize_source(*this, source_ta, src_data));
 
         sigma = time_domain<time>::infinity;
@@ -11404,27 +11449,52 @@ inline bool is_ports_compatible(const model& mdl_src,
 ///
 /// Model implementation
 
-/// Gets the @c fifo of a queue, allocates it if it does not exist and grows it
-/// if it is full.
-inline ring_buffer<dated_message>* get_queue_fifo(
-  simulation&       sim,
-  dated_message_id& fifo) noexcept
+/// Gets the @c fifo of a queue with room for a new message: allocates it if it
+/// does not exist and applies the @a overflow policy if it is full.
+/// @return The fifo, or nullptr when the new message is forgotten.
+inline expected<ring_buffer<dated_message>*> get_queue_fifo(
+  simulation&         sim,
+  dated_message_id&   fifo,
+  const fifo_overflow overflow,
+  const i32           capacity) noexcept
 {
-    if (auto* ar = sim.dated_messages.try_to_get(fifo)) {
-        if (ar->full() and not ar->reserve(ar->capacity() * 2))
-            return nullptr;
+    auto* ar = sim.dated_messages.try_to_get(fifo);
 
-        return ar;
+    if (not ar) {
+        if (not sim.dated_messages.can_alloc(1) and
+            not sim.dated_messages.grow<2, 1>())
+            return make_error(simulation_errc::dated_messages_container_full);
+
+        // A ring buffer keeps one empty slot.
+        ar   = &sim.dated_messages.alloc(capacity + 1);
+        fifo = sim.dated_messages.get_id(*ar);
     }
 
-    if (not sim.dated_messages.can_alloc(1) and
-        not sim.dated_messages.grow<2, 1>())
+    if (not ar->full())
+        return ar;
+
+    switch (overflow) {
+    case fifo_overflow::grow:
+        if (not ar->reserve(ar->capacity() * 2))
+            return make_error(simulation_errc::dated_messages_container_full);
+        return ar;
+
+    case fifo_overflow::error:
+        return make_error(simulation_errc::queue_full);
+
+    case fifo_overflow::replace_first:
+        ar->pop_head();
+        return ar;
+
+    case fifo_overflow::replace_last:
+        ar->pop_tail();
+        return ar;
+
+    case fifo_overflow::forget:
         return nullptr;
+    }
 
-    auto& ar = sim.dated_messages.alloc(32);
-    fifo     = sim.dated_messages.get_id(ar);
-
-    return &ar;
+    unreachable();
 }
 
 /// Removes the message sent by the @c lambda: the head of the @c fifo if its
@@ -11496,11 +11566,12 @@ inline status queue::transition(simulation& sim,
 
     // The time advance is constant: the dates of the fifo are sorted.
     for (const auto& msg : get_message(sim, x[0])) {
-        auto* ar = get_queue_fifo(sim, fifo);
+        auto ar = get_queue_fifo(sim, fifo, overflow, capacity);
         if (not ar)
-            return make_error(simulation_errc::dated_messages_container_full);
+            return ar.error();
 
-        ar->push_tail({ t + ta, msg[0], msg[1], msg[2] });
+        if (*ar)
+            (*ar)->push_tail({ t + ta, msg[0], msg[1], msg[2] });
     }
 
     sigma = queue_time_advance(sim, fifo, t);
@@ -11523,9 +11594,13 @@ inline status dynamic_queue::transition(simulation& sim,
     const auto lst = get_message(sim, x[0]);
 
     for (const auto& msg : lst) {
-        auto* ar = get_queue_fifo(sim, fifo);
+        auto fifo_ar = get_queue_fifo(sim, fifo, overflow, capacity);
+        if (not fifo_ar)
+            return fifo_ar.error();
+
+        auto* ar = *fifo_ar;
         if (not ar)
-            return make_error(simulation_errc::dated_messages_container_full);
+            continue;
 
         auto ta = queue_next_ta(sim, source_ta, src_data);
         if (not ta)
@@ -11558,9 +11633,13 @@ inline status priority_queue::transition(simulation& sim,
     const auto lst = get_message(sim, x[0]);
 
     for (const auto& msg : lst) {
-        auto* ar = get_queue_fifo(sim, fifo);
+        auto fifo_ar = get_queue_fifo(sim, fifo, overflow, capacity);
+        if (not fifo_ar)
+            return fifo_ar.error();
+
+        auto* ar = *fifo_ar;
         if (not ar)
-            return make_error(simulation_errc::dated_messages_container_full);
+            continue;
 
         auto ta = queue_next_ta(sim, source_ta, src_data);
         if (not ta)

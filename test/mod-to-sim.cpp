@@ -3336,6 +3336,75 @@ int main()
         expect(not r.initialized);
     };
 
+    "json: the fifo of the queues survives a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_generic_component();
+            auto&      compo = ids.components[id];
+            auto&      gen   = ids.generic_components.get(compo.id.generic_id);
+
+            const auto alloc = [&](irt::dynamics_type type,
+                                   irt::fifo_overflow overflow,
+                                   irt::i32           capacity) {
+                auto& child = gen.alloc(type);
+                gen.children_parameters[gen.children.get_id(
+                  child)]   = irt::parameter(type).set_queue_fifo(overflow,
+                                                                  capacity);
+            };
+
+            alloc(irt::dynamics_type::queue, irt::fifo_overflow::forget, 7);
+            alloc(irt::dynamics_type::dynamic_queue,
+                  irt::fifo_overflow::replace_first, 8);
+            alloc(irt::dynamics_type::priority_queue, irt::fifo_overflow::error,
+                  9);
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+
+            int found = 0;
+            for (const auto& child : gen.children) {
+                const auto&
+                  p = gen.children_parameters[gen.children.get_id(child)];
+                const auto overflow = p.integers[irt::queue_tag::i_overflow];
+                const auto capacity = p.integers[irt::queue_tag::i_capacity];
+
+                switch (child.id.mdl_type) {
+                case irt::dynamics_type::queue:
+                    expect(overflow == ordinal(irt::fifo_overflow::forget));
+                    expect(capacity == 7);
+                    ++found;
+                    break;
+                case irt::dynamics_type::dynamic_queue:
+                    expect(overflow ==
+                           ordinal(irt::fifo_overflow::replace_first));
+                    expect(capacity == 8);
+                    ++found;
+                    break;
+                case irt::dynamics_type::priority_queue:
+                    expect(overflow == ordinal(irt::fifo_overflow::error));
+                    expect(capacity == 9);
+                    ++found;
+                    break;
+                default:
+                    break;
+                }
+            }
+            expect(eq(found, 3));
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
     "json: the malformed files are refused"_test = [] {
         auto callback = std::exchange(irt::on_error_callback, nullptr);
 

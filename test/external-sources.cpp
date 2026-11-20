@@ -782,6 +782,142 @@ int main()
                              });
       };
 
+    "simulation: the overflow of the fifo of the queues"_test = [] {
+        struct output {
+            real t;
+            real value;
+
+            bool operator==(const output&) const = default;
+        };
+
+        struct result {
+            std::vector<output> outputs;
+            error_code          error;
+        };
+
+        // Four constants send 10, 20, 30, 40 at t = 1, 2, 3, 4 to a queue of
+        // two messages with a delay of 10: the fifo is full at t = 3 and 4.
+        const auto run_queue = [](auto tag, fifo_overflow overflow) {
+            using Queue = decltype(tag);
+
+            simulation sim(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .constant_nb = 1 });
+
+            const real delays[]   = { 10 };
+            auto&      cst_delays = sim.srcs.constant_sources.alloc(delays);
+            const auto delay_id = sim.srcs.constant_sources.get_id(cst_delays);
+
+            auto& queue = sim.alloc<Queue>();
+            auto& cnt   = sim.alloc<counter>();
+
+            for (int i = 1; i <= 4; ++i) {
+                auto& cst = sim.alloc<irt::constant>();
+                get_p(sim, cst).set_constant(10.0 * i, i);
+                (void)sim.connect_dynamics(cst, 0, queue, 0);
+            }
+
+            if constexpr (std::is_same_v<Queue, irt::queue>)
+                get_p(sim, queue).set_queue(10.0);
+            else if constexpr (std::is_same_v<Queue, dynamic_queue>)
+                get_p(sim, queue)
+                  .set_dynamic_queue_ta(source_type::constant, delay_id);
+            else
+                get_p(sim, queue)
+                  .set_priority_queue_ta(source_type::constant, delay_id);
+
+            get_p(sim, queue).set_queue_fifo(overflow, 2);
+            (void)sim.connect_dynamics(queue, 0, cnt, 0);
+
+            result r;
+            sim.limits.set_bound(0, 20);
+            if (auto ret = sim.srcs.prepare(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+            if (auto ret = sim.initialize(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+
+            do {
+                const auto events = cnt.event_number;
+                if (auto ret = sim.run(); not ret) {
+                    r.error = ret.error();
+                    return r;
+                }
+
+                if (cnt.event_number != events)
+                    r.outputs.push_back({ sim.current_time(), cnt.last_value });
+            } while (not sim.current_time_expired());
+
+            return r;
+        };
+
+        const auto check = [&](auto tag) {
+            const auto grow = run_queue(tag, fifo_overflow::grow);
+            expect(grow.outputs == std::vector<output>{ { 11.0, 10.0 },
+                                                        { 12.0, 20.0 },
+                                                        { 13.0, 30.0 },
+                                                        { 14.0, 40.0 } });
+
+            const auto first = run_queue(tag, fifo_overflow::replace_first);
+            expect(first.outputs ==
+                   std::vector<output>{ { 13.0, 30.0 }, { 14.0, 40.0 } });
+
+            const auto last = run_queue(tag, fifo_overflow::replace_last);
+            expect(last.outputs ==
+                   std::vector<output>{ { 11.0, 10.0 }, { 14.0, 40.0 } });
+
+            const auto forget = run_queue(tag, fifo_overflow::forget);
+            expect(forget.outputs ==
+                   std::vector<output>{ { 11.0, 10.0 }, { 12.0, 20.0 } });
+
+            const auto error = run_queue(tag, fifo_overflow::error);
+            expect(error.error == error_code(simulation_errc::queue_full));
+            expect(error.outputs.empty());
+        };
+
+        check(irt::queue{});
+        check(dynamic_queue{});
+        check(priority_queue{});
+    };
+
+    "simulation: a queue needs a capacity of one message"_test = [] {
+        simulation sim;
+        auto&      q = sim.alloc<queue>();
+        q.capacity   = 0;
+
+        const auto ret = q.initialize(sim);
+        expect(not ret.has_value() and
+               ret.error() ==
+                 error_code(simulation_errc::queue_capacity_error));
+    };
+
+    "parameter: the fifo of the queues"_test = [] {
+        simulation sim;
+        auto&      q = sim.alloc<priority_queue>();
+
+        parameter p(dynamics_type::priority_queue);
+        expect(p.integers[priority_queue_tag::i_capacity] ==
+               default_fifo_capacity);
+
+        p.set_queue_fifo(fifo_overflow::replace_last, 5);
+        p.copy_to(get_model(q));
+        expect(q.overflow == fifo_overflow::replace_last);
+        expect(q.capacity == 5);
+
+        const parameter back(get_model(q));
+        expect(back.integers[priority_queue_tag::i_overflow] ==
+               ordinal(fifo_overflow::replace_last));
+        expect(back.integers[priority_queue_tag::i_capacity] == 5);
+
+        // An old file without capacity: the default capacity.
+        p.integers[priority_queue_tag::i_capacity] = 0;
+        p.copy_to(get_model(q));
+        expect(q.capacity == default_fifo_capacity);
+    };
+
     "external_source"_test = [] {
         std::error_code ec;
 

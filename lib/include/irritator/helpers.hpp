@@ -250,7 +250,7 @@ struct queue_tag {
     static constexpr const port_type x_types[] = { qss };
     static constexpr const port_type y_types[] = { qss };
 
-    enum parameter_names : u8 { sigma = 0 };
+    enum parameter_names : u8 { sigma = 0, i_overflow = 1, i_capacity = 2 };
 };
 
 struct dynamic_queue_tag {
@@ -260,7 +260,7 @@ struct dynamic_queue_tag {
     static constexpr const port_type x_types[] = { qss };
     static constexpr const port_type y_types[] = { qss };
 
-    enum parameter_names : u8 { source_ta = 0 };
+    enum parameter_names : u8 { source_ta = 0, i_overflow = 1, i_capacity = 2 };
 };
 
 struct priority_queue_tag {
@@ -270,7 +270,12 @@ struct priority_queue_tag {
     static constexpr const port_type x_types[] = { qss };
     static constexpr const port_type y_types[] = { qss };
 
-    enum parameter_names : u8 { sigma = 0, source_ta = 0 };
+    enum parameter_names : u8 {
+        sigma      = 0,
+        source_ta  = 0,
+        i_overflow = 1,
+        i_capacity = 2
+    };
 };
 
 struct generator_tag {
