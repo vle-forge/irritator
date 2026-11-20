@@ -19,7 +19,7 @@ struct file_dialog {
     std::filesystem::path         selected;
     std::filesystem::path         next;
     std::filesystem::path         result;
-    std::u8string                 temp;
+    vector<char8_t>               temp;
     vector<char8_t>               buffer;
     uint32_t                      drives = 0;
     status                        state;

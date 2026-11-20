@@ -103,10 +103,7 @@ public:
 
 private:
     /** Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or
-     * @a `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. @TODO move from
-     * std::string into small_string or vector<char> with cold memory
-     * allocator.
-     */
+     * @a `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. */
     const path m_path;
 };
 

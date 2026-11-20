@@ -17,7 +17,6 @@
 #include <algorithm>
 #include <array>
 #include <filesystem>
-#include <vector>
 
 #if defined(__linux__)
 #include <errno.h>
@@ -119,6 +118,23 @@ static void copy_files_and_directories(
             }
         }
     }
+}
+
+static const char* set_entry_label(vector<char8_t>&         label,
+                                   const bool               is_directory,
+                                   const std::u8string_view filename) noexcept
+{
+    constexpr std::u8string_view prefix = u8"[Dir] ";
+    const std::size_t prefix_size       = is_directory ? prefix.size() : 0u;
+
+    if (not label.resize(prefix_size + filename.size() + 1u))
+        return "";
+
+    auto it = std::copy_n(prefix.data(), prefix_size, label.begin());
+    it      = std::ranges::copy(filename, it).out;
+    *it     = u8'\0';
+
+    return reinterpret_cast<const char*>(label.data());
 }
 
 static void sort(vector<std::filesystem::path>& paths) noexcept
@@ -296,16 +312,10 @@ bool file_dialog::show_load_file(const char*     title,
             }
 
             for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
-                temp.clear();
                 std::error_code ec;
-                if (std::filesystem::is_directory(*it, ec))
-                    temp = u8"[Dir] ";
-
-                const auto u8filename = it->filename().u8string();
-                temp += u8filename;
-
-                auto* u8c_str = temp.c_str();
-                auto* c_str   = reinterpret_cast<const char*>(u8c_str);
+                const auto      u8filename = it->filename().u8string();
+                const auto*     c_str      = set_entry_label(
+                  temp, std::filesystem::is_directory(*it, ec), u8filename);
 
                 if (ImGui::Selectable(c_str, (it->filename() == selected))) {
                     selected = it->filename();
@@ -422,16 +432,12 @@ bool file_dialog::show_save_file(const char*        title,
             }
 
             for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
-                temp.clear();
                 std::error_code ec;
-                if (std::filesystem::is_directory(*it, ec))
-                    temp = u8"[Dir] ";
+                const auto      u8filename = it->filename().u8string();
+                const auto*     c_str      = set_entry_label(
+                  temp, std::filesystem::is_directory(*it, ec), u8filename);
 
-                const auto u8filename = it->filename().u8string();
-                temp += u8filename;
-
-                if (ImGui::Selectable((const char*)temp.c_str(),
-                                      (it->filename() == selected))) {
+                if (ImGui::Selectable(c_str, (it->filename() == selected))) {
                     selected = it->filename();
 
                     if (std::filesystem::is_directory(*it, ec)) {
@@ -546,13 +552,12 @@ bool file_dialog::show_select_directory(const char* title) noexcept
             }
 
             for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
-                temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec)) {
-                    temp = u8"[Dir] ";
-                    temp += it->filename().u8string();
+                    const auto* c_str = set_entry_label(
+                      temp, true, it->filename().u8string());
 
-                    if (ImGui::Selectable((const char*)temp.c_str(),
+                    if (ImGui::Selectable(c_str,
                                           (it->filename() == selected))) {
                         selected = it->filename();
 

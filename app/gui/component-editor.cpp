@@ -24,6 +24,10 @@ enum class component_editor_result_type : u8 {
 
 using component_editor_result = bitflags<component_editor_result_type>;
 
+/* ImGui needs a null-terminated label: the names stored as string_view are
+ * copied, and truncated if too long. */
+using label_str = small_string<128>;
+
 static small_string<64> make_title(const std::string_view name,
                                    const component_id     compo_id) noexcept
 {
@@ -651,13 +655,11 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
                                     generic_component& g,
                                     child_id           selected) noexcept
 {
-    const auto label = std::string{
-        g.children.try_to_get(selected)
-          ? g.children_names[get_index(selected)].sv()
-          : "-"
-    };
+    const auto* label = g.children.try_to_get(selected)
+                          ? g.children_names[get_index(selected)].c_str()
+                          : "-";
 
-    if (ImGui::BeginCombo("Child", label.c_str())) {
+    if (ImGui::BeginCombo("Child", label)) {
         if (ImGui::IsWindowAppearing()) {
             ImGui::SetKeyboardFocusHere();
             filter.Clear();
@@ -677,11 +679,11 @@ static child_id show_node_selection(ImGuiTextFilter&   filter,
             ImGui::PushID(idx);
 
             if (not g.children_names[idx].empty()) {
-                const auto temp = std::string{ g.children_names[idx].sv() };
+                const auto* name = g.children_names[idx].c_str();
 
-                if (filter.PassFilter(temp.c_str())) {
+                if (filter.PassFilter(name)) {
                     ImGui::PushID(idx);
-                    if (ImGui::Selectable(temp.c_str(), selected == id)) {
+                    if (ImGui::Selectable(name, selected == id)) {
                         selected = id;
                     }
                     ImGui::PopID();
@@ -701,9 +703,9 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
                                          graph_component& graph,
                                          graph_node_id    selected) noexcept
 {
-    const auto label = std::string{ graph.g.nodes.exists(selected)
-                                      ? graph.g.node_names[get_index(selected)]
-                                      : std::string_view{ "-" } };
+    const auto label = label_str{ graph.g.nodes.exists(selected)
+                                    ? graph.g.node_names[get_index(selected)]
+                                    : std::string_view{ "-" } };
 
     if (ImGui::BeginCombo("Node", label.c_str())) {
         if (ImGui::IsWindowAppearing()) {
@@ -724,7 +726,7 @@ static graph_node_id show_node_selection(ImGuiTextFilter& filter,
             ImGui::PushID(idx);
 
             if (not graph.g.node_names[idx].empty()) {
-                const auto temp = std::string{ graph.g.node_names[idx] };
+                const auto temp = label_str{ graph.g.node_names[idx] };
 
                 if (filter.PassFilter(temp.c_str())) {
                     ImGui::PushID(idx);
@@ -942,7 +944,7 @@ static bool show_input_connections_new(const component_access& ids,
                                        generic_component&      g) noexcept
 {
     auto& con    = tab.input_gen_con;
-    auto  temp   = std::string{};
+    auto  temp   = label_str{};
     auto  filter = ImGuiTextFilter{};
     auto  u      = 0;
 
@@ -1075,7 +1077,7 @@ static bool show_output_connections_new(const component_access& ids,
 {
     auto& con    = tab.output_gen_con;
     auto  filter = ImGuiTextFilter{};
-    auto  temp   = std::string{};
+    auto  temp   = label_str{};
     auto  u      = 0;
 
     con.y = show_output_port(tab.compo, con.y);
@@ -1208,7 +1210,7 @@ static bool show_input_connections_new(const component_access& ids,
 {
     auto& con    = tab.input_graph_con;
     auto  filter = ImGuiTextFilter{};
-    auto  temp   = std::string{};
+    auto  temp   = label_str{};
     auto  u      = 0;
 
     con.x = show_input_port(tab.compo, con.x);
@@ -1285,7 +1287,7 @@ static bool show_output_connections_new(const component_access& ids,
 {
     auto& con    = tab.output_graph_con;
     auto  filter = ImGuiTextFilter{};
-    auto  temp   = std::string{};
+    auto  temp   = label_str{};
     auto  u      = 0;
 
     con.y = show_output_port(tab.compo, con.y);

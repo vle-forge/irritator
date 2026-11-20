@@ -13,7 +13,6 @@
 #include <chrono>
 #include <filesystem>
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include <fmt/color.h>
@@ -389,8 +388,10 @@ private:
 #else
     static bool parse_real(std::string_view& str, irt::real& r) noexcept
     {
-        const std::string copy(str.data(), str.size());
-        char*             end = nullptr;
+        /* strtod needs a null-terminated string. Only the beginning of str
+         * is parsed: a truncated copy is enough for any real. */
+        const irt::small_string<128> copy(str);
+        char*                        end = nullptr;
 
         const auto dbl = std::strtod(copy.c_str(), &end);
         if (end == copy.c_str())
