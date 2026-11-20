@@ -94,20 +94,6 @@ constexpr file_type get_extension(const std::string_view filename) noexcept
     return file_type::undefined_file;
 }
 
-/// Checks if the file path string has a valid filename and has the
-/// corresponding @c type extension.
-constexpr bool is_valid_filename(
-  const std::string_view filename,
-  file_type              type = file_type::component_file) noexcept
-{
-    return not filename.empty() and filename[0] != '.' and
-           filename[0] != '-' and all_char_valid(filename) and
-           filename.ends_with(file_type_names[ordinal(type)]);
-}
-
-static_assert(is_valid_filename("file.irt"));
-static_assert(is_valid_filename("file.pirt", file_type::project_file));
-
 inline std::optional<path> make_file(const registred_path& r,
                                      const dir_path&       d,
                                      const file_path&      f) noexcept

@@ -979,12 +979,6 @@ constexpr auto get_output_port_names() -> std::span<const std::string_view>
       });
 }
 
-template<typename>
-struct is_expected : std::false_type {};
-
-template<typename T>
-struct is_expected<::irt::expected<T>> : std::true_type {};
-
 /** A for-each-condition function which reads each element of the vector @c
  * Vec and apply the function @c Fn. If the function @c Fn returns true, the
  * element is removed from the vector using the @c vector<T>::erase .
