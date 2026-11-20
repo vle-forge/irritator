@@ -255,6 +255,28 @@ int main()
 {
     using namespace boost::ut;
 
+    "constrained-value-keeps-its-bounds"_test = [] {
+        using capacity = irt::constrained_value<int, 512, 1024>;
+        static_assert(std::is_trivially_copyable_v<capacity>);
+        static_assert(capacity::lower_bound() == 512);
+        static_assert(capacity::upper_bound() == 1024);
+
+        expect(eq(capacity{}.value(), 512));
+        expect(eq(capacity{ 0 }.value(), 512));
+        expect(eq(capacity{ 600 }.value(), 600));
+        expect(eq(capacity{ 2048 }.value(), 1024));
+
+        capacity source{ 600 };
+        capacity moved{ std::move(source) };
+        expect(eq(moved.value(), 600));
+        expect(ge(source.value(), capacity::lower_bound()));
+
+        capacity assigned;
+        assigned = std::move(moved);
+        expect(eq(assigned.value(), 600));
+        expect(ge(moved.value(), capacity::lower_bound()));
+    };
+
     "bitflags"_test = [] {
         enum class test_1 : std::uint8_t { a, b, c, d, e, f };
 

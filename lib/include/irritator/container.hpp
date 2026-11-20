@@ -395,41 +395,16 @@ public:
     using value_type = T;
 
 private:
-    static_assert(std::is_trivial_v<T>,
-                  "T must be a trivial type in ratio_parameter");
+    static_assert(std::integral<T> or std::floating_point<T>);
     static_assert(Lower < Upper);
 
-    T m_value;
+    T m_value = Lower;
 
 public:
     /// Default is to assign @a Lower value.
-    constexpr constrained_value() noexcept
-      : m_value(Lower)
-    {}
-
-    constexpr constrained_value(const constrained_value& o) noexcept
-      : m_value(o.m_value)
-    {}
-
-    constexpr constrained_value(constrained_value&& o) noexcept
-      : m_value(std::exchange(o.m_value, T{}))
-    {}
-
-    constexpr constrained_value& operator=(const constrained_value& o) noexcept
-    {
-        m_value = o.m_value;
-        return *this;
-    }
-
-    constexpr constrained_value& operator=(constrained_value&& o) noexcept
-    {
-        m_value = std::exchange(o.m_value, T{});
-        return *this;
-    }
+    constexpr constrained_value() noexcept = default;
 
     /// Assign a clamp value between @a Lower and @a Upper.
-    ///
-    /// \param value_ The value to copy.
     constexpr constrained_value(const T value_) noexcept
       : m_value(value_ < Lower   ? Lower
                 : value_ < Upper ? value_
@@ -439,6 +414,9 @@ public:
     constexpr explicit   operator T() const noexcept { return m_value; }
     constexpr value_type operator*() const noexcept { return m_value; }
     constexpr value_type value() const noexcept { return m_value; }
+
+    static constexpr T lower_bound() noexcept { return Lower; }
+    static constexpr T upper_bound() noexcept { return Upper; }
 };
 
 /**
