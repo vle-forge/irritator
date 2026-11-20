@@ -87,6 +87,45 @@ int main()
 {
     using namespace boost::ut;
 
+    // First test: the registry is still at its initial capacity, so the 64
+    // threads below force it to grow.
+    "journal-keeps-its-address-while-the-registry-grows"_test = [] {
+        std::atomic<bool> attached{ false };
+        std::atomic<bool> release{ false };
+
+        std::thread first([&] {
+            irt::journal_scope scope;
+            attached = true;
+            while (not release)
+                std::this_thread::yield();
+            irt::log(irt::log_level::info,
+                     std::string_view{ "journal-first-thread" });
+        });
+
+        while (not attached)
+            std::this_thread::yield();
+
+        for (int i = 0; i < 64; ++i)
+            std::thread([] { irt::journal_scope scope; }).join();
+
+        release = true;
+        first.join();
+
+        irt::log_history history;
+        history.collect();
+
+        auto found   = false;
+        auto version = irt::u64{ 0 };
+        auto cursor  = irt::u64{ 0 };
+        history.read_log(version, cursor, [&](const auto logs) noexcept {
+            for (const auto& l : logs)
+                if (l.msg.sv() == "journal-first-thread")
+                    found = true;
+        });
+
+        expect(found);
+    };
+
     "data-task-copy-capture"_test = [] {
         irt::data_array<data_task, data_task_id> d(32);
 

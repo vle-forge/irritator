@@ -38,12 +38,14 @@ public:
         return r;
     }
 
-    thread_journal& attach() noexcept
+    /** @return @c nullptr if the journal can not be allocated: the logs of
+     * the thread are then ignored. */
+    thread_journal* attach() noexcept
     {
         std::scoped_lock lock(m_mutex);
 
-        m_journals.push_back(std::make_unique<thread_journal>());
-        return *m_journals.back();
+        auto* journal = m_journals.emplace_back(1);
+        return journal and not journal->empty() ? journal->data() : nullptr;
     }
 
     template<typename F>
@@ -52,19 +54,20 @@ public:
         std::scoped_lock lock(m_mutex);
 
         for (auto& j : m_journals)
-            f(*j);
+            if (not j.empty())
+                f(j.front());
     }
 
 private:
-    spin_mutex                              m_mutex;
-    vector<std::unique_ptr<thread_journal>> m_journals;
+    spin_mutex m_mutex;
+
+    /* Each journal owns its buffer: current_journal keeps its address
+     * while the registry grows. */
+    vector<vector<thread_journal>> m_journals;
 };
 
 struct journal_scope {
-    journal_scope()
-    {
-        current_journal = &journal_registry::instance().attach();
-    }
+    journal_scope() { current_journal = journal_registry::instance().attach(); }
 };
 
 /** Aggregation and diffusion journal log
