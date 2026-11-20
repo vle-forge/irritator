@@ -181,24 +181,22 @@ expected<path> get_executable_directory() noexcept
 #elif defined(_WIN32)
 expected<path> get_executable_directory() noexcept
 {
-    std::wstring filepath;
-    DWORD        len   = MAX_PATH;
-    DWORD        error = ERROR_SUCCESS;
-
-    filepath.resize(len, '\0');
+    DWORD           error = ERROR_SUCCESS;
+    vector<wchar_t> filepath(MAX_PATH);
 
     for (int i = 1; i < 16; ++i) {
-        auto size = ::GetModuleFileNameW(nullptr, filepath.data(), len);
+        const auto size = ::GetModuleFileNameW(
+          nullptr, filepath.data(), static_cast<DWORD>(filepath.size()));
         if (size == 0) {
             error = ::GetLastError();
-            len *= 2;
-            filepath.resize(len);
+            if (not filepath.resize(filepath.size() * 2))
+                break;
         } else {
-            filepath.resize(static_cast<std::size_t>(size));
-            auto  std_path = std::filesystem::path(filepath);
-            auto  u8       = std_path.u8string();
-            auto* ptr      = reinterpret_cast<const char*>(u8.c_str());
-            auto  len      = u8.size();
+            auto std_path = std::filesystem::path(
+              std::wstring_view(filepath.data(), size));
+            auto  u8  = std_path.u8string();
+            auto* ptr = reinterpret_cast<const char*>(u8.c_str());
+            auto  len = u8.size();
 
             return path{ std::string_view(ptr, len) };
         }
