@@ -4812,12 +4812,16 @@ struct counter {
     }
 };
 
+/** Sends a value at each time advance. The input port @c x_value replaces the
+ * value of the next outputs. The input port @c x_t replaces the time advance
+ * from now: @c 0 sends at once, an infinite value pauses the generator until
+ * the next message on @c x_t, a negative or NaN value is ignored. */
 struct generator {
-    enum : u8 { x_value, x_t, x_add_tr, x_mult_tr };
+    enum : u8 { x_value, x_t };
 
     enum class option : u8 { ta_use_source, value_use_source };
 
-    input_port     x[4] = {};
+    input_port     x[2] = {};
     output_port_id y[1] = {};
 
     time sigma = time_domain<time>::infinity;
@@ -4940,35 +4944,9 @@ struct generator {
             }
         }
 
-        const auto lst_t = get_message(sim, x[x_t]);
-        const auto t     = get_min_message(lst_t);
-
-        const auto lst_add_tr = get_message(sim, x[x_add_tr]);
-        real       add_tr     = time_domain<time>::infinity;
-        if (not lst_add_tr.empty())
-            for (const auto& msg : lst_add_tr)
-                add_tr = std::min(msg[0], add_tr);
-
-        const auto lst_mult_tr = get_message(sim, x[x_mult_tr]);
-        real       mult_tr     = zero;
-        if (not lst_mult_tr.empty())
-            for (const auto& msg : lst_mult_tr)
-                mult_tr = std::max(msg[0], mult_tr);
-
-        if (not(lst_t.empty() and lst_add_tr.empty() and lst_mult_tr.empty())) {
-            if (not lst_t.empty() and t >= zero) {
+        if (const auto lst_t = get_message(sim, x[x_t]); not lst_t.empty())
+            if (const auto t = get_min_message(lst_t); t >= zero)
                 sigma = t;
-            } else {
-                // At an internal event, the time remaining is the new time
-                // advance: the confluent transition is the external
-                // transition after the internal one.
-                if (std::isfinite(add_tr))
-                    sigma = sigma + add_tr;
-
-                if (std::isnormal(mult_tr))
-                    sigma = sigma * mult_tr;
-            }
-        }
 
         if (sigma < 0.0)
             sigma = 0.0;

@@ -274,11 +274,10 @@ struct priority_queue_tag {
 };
 
 struct generator_tag {
-    static constexpr std::string_view x_names[] = { "value", "t", "+", "x" };
+    static constexpr std::string_view x_names[] = { "value", "t" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { scalar, scalar, scalar,
-                                                   scalar };
+    static constexpr const port_type x_types[] = { scalar, scalar };
     static constexpr const port_type y_types[] = { scalar };
 
     enum parameter_names : u8 {

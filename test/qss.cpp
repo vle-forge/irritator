@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/helpers.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -596,28 +597,35 @@ int main()
         }
     };
 
-    "generator-confluent-multiplies-the-new-period"_test = [] {
+    "generator-t-pauses-and-restarts"_test = [] {
+        // A constant refuses an infinite value: a second generator sends the
+        // pauses at t = 0.5, 1, 1.5, ... and a constant restarts at 3.5. With
+        // the two messages at 3.5, the smallest wins: one output at 3.5.
         irt::simulation sim;
-        auto&           gen = sim.alloc<irt::generator>();
-        auto&           cst = sim.alloc<irt::constant>();
-        auto&           cnt = sim.alloc<irt::counter>();
+        auto&           gen   = sim.alloc<irt::generator>();
+        auto&           pause = sim.alloc<irt::generator>();
+        auto&           start = sim.alloc<irt::constant>();
+        auto&           cnt   = sim.alloc<irt::counter>();
         sim.parameters[irt::get_index(sim.get_id(gen))]
           .clear()
           .set_generator_ta(1.0);
-        sim.parameters[irt::get_index(sim.get_id(cst))].clear().set_constant(
-          2.0, 1.0);
-        expect(fatal(sim.connect_dynamics(cst, 0, gen, irt::generator::x_mult_tr)
+        auto& pause_p = sim.parameters[irt::get_index(sim.get_id(pause))];
+        pause_p.clear().set_generator_ta(0.5);
+        pause_p.reals[irt::generator_tag::value] = std::numeric_limits<
+          irt::real>::infinity();
+        sim.parameters[irt::get_index(sim.get_id(start))].clear().set_constant(
+          0.0, 3.5);
+        expect(fatal(sim.connect_dynamics(pause, 0, gen, irt::generator::x_t)
+                       .has_value()));
+        expect(fatal(sim.connect_dynamics(start, 0, gen, irt::generator::x_t)
                        .has_value()));
         expect(fatal(sim.connect_dynamics(gen, 0, cnt, 0).has_value()));
-        sim.limits.set_bound(0, 5.5);
+        sim.limits.set_bound(0, 6);
 
         const auto events = run_and_record(sim, cnt);
 
-        expect(fatal(eq(events.size(), 4u)));
-        expect(eq(events[0].t, 1.0));
-        expect(eq(events[1].t, 3.0));
-        expect(eq(events[2].t, 4.0));
-        expect(eq(events[3].t, 5.0));
+        expect(fatal(eq(events.size(), 1u)));
+        expect(eq(events[0].t, 3.5));
     };
 
     "generator-external-keeps-the-remaining-time"_test = [] {
