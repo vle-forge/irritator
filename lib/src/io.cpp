@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/format.hpp>
 #include <irritator/io.hpp>
 
 #include <fmt/format.h>
@@ -231,33 +232,23 @@ void write_dot_graph_simulation(std::FILE* os, const simulation& sim) noexcept
 class parameter_to_string
 {
 public:
-    parameter_to_string() noexcept
-    {
-        for (auto& str : m_reals)
-            str.reserve(64);
-
-        for (auto& str : m_integers)
-            str.reserve(32);
-    }
-
     template<typename Enum>
         requires(std::is_enum_v<Enum>)
     constexpr auto reals(const parameter& p, const Enum index) noexcept
       -> std::string_view
     {
-        m_reals[ordinal(index)].clear();
+        auto& str = m_reals[ordinal(index)];
 
         if (p.reals[ordinal(index)] == std::numeric_limits<real>::infinity())
-            m_reals[ordinal(index)] = "std::numeric_limits<real>::infinity()";
+            str = "std::numeric_limits<real>::infinity()";
         else if (p.reals[ordinal(index)] ==
                  -std::numeric_limits<real>::infinity())
-            m_reals[ordinal(index)] = "-std::numeric_limits<real>::infinity()";
+            str = "-std::numeric_limits<real>::infinity()";
         else
-            fmt::format_to(std::back_inserter(m_reals[ordinal(index)]),
-                           "{:.{}g}", p.reals[ordinal(index)],
-                           std::numeric_limits<real>::max_digits10);
+            format(str, "{:.{}g}", p.reals[ordinal(index)],
+                   std::numeric_limits<real>::max_digits10);
 
-        return m_reals[ordinal(index)];
+        return str.sv();
     }
 
     template<typename Enum>
@@ -265,17 +256,17 @@ public:
     constexpr auto integers(const parameter& p, const Enum index) noexcept
       -> std::string_view
     {
-        m_integers[ordinal(index)].clear();
+        auto& str = m_integers[ordinal(index)];
+        format(str, "{}", p.integers[ordinal(index)]);
 
-        fmt::format_to(std::back_inserter(m_integers[ordinal(index)]), "{}",
-                       p.integers[ordinal(index)]);
-
-        return m_integers[ordinal(index)];
+        return str.sv();
     }
 
 private:
-    std::array<std::string, 4> m_reals    = {};
-    std::array<std::string, 4> m_integers = {};
+    /* 38 characters for the negative infinity, 24 for a real with
+     * max_digits10 digits. */
+    std::array<small_string<64>, 4> m_reals    = {};
+    std::array<small_string<32>, 4> m_integers = {};
 };
 
 static void write_test_simulation_header(std::FILE*             os,

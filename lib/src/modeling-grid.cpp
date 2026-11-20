@@ -122,7 +122,7 @@ struct split_name {
         if (pos != std::string_view::npos and
             std::cmp_less(pos + 1, str.size())) {
             left  = str.substr(0, pos);
-            right = str.substr(pos + 1, std::string::npos);
+            right = str.substr(pos + 1);
         } else {
             left = str;
         }
