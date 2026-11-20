@@ -1166,7 +1166,7 @@ public:
     ImPlotContext* output_context = nullptr;
 
     /** Number of column in the tree node observation. */
-    using tree_node_observation_t = constrained_value<int, 1, 100>;
+    using tree_node_observation_t = clamped_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 300.f;
 

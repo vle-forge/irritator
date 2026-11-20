@@ -375,21 +375,26 @@ struct human_readable_time {
     display_type type;
 };
 
-//! Assign a value constrained by the template parameters.
-//!
-//! @code
-//! static int v = 0;
-//! if (ImGui::InputInt("test", &v)) {
-//!     f(v);
-//! }
-//!
-//! void f(constrained_value<int, 0, 100> v)
-//! {
-//!     assert(0 <= *v && *v <= 100);
-//! }
-//! @endcode
+/** A value clamped between @a Lower and @a Upper at construction.
+ *
+ * For capacity hints and user interface values, where the nearest bound is a
+ * sound answer. A value read from a file must be refused with an error
+ * instead.
+ *
+ * @code
+ * static int v = 0;
+ * if (ImGui::InputInt("test", &v)) {
+ *     f(v);
+ * }
+ *
+ * void f(clamped_value<int, 0, 100> v)
+ * {
+ *     assert(0 <= *v && *v <= 100);
+ * }
+ * @endcode
+ */
 template<typename T = int, T Lower = 0, T Upper = 100>
-class constrained_value
+class clamped_value
 {
 public:
     using value_type = T;
@@ -402,10 +407,10 @@ private:
 
 public:
     /// Default is to assign @a Lower value.
-    constexpr constrained_value() noexcept = default;
+    constexpr clamped_value() noexcept = default;
 
     /// Assign a clamp value between @a Lower and @a Upper.
-    constexpr constrained_value(const T value_) noexcept
+    constexpr clamped_value(const T value_) noexcept
       : m_value(value_ < Lower   ? Lower
                 : value_ < Upper ? value_
                                  : Upper)

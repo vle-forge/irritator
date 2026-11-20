@@ -931,19 +931,19 @@ public:
 };
 
 struct external_source_reserve_definition {
-    constrained_value<int, 0, INT_MAX> constant_nb{};
-    constrained_value<int, 0, INT_MAX> text_file_nb{};
-    constrained_value<int, 0, INT_MAX> binary_file_nb{};
-    constrained_value<int, 0, INT_MAX> random_nb{};
-    constrained_value<int, 8, INT_MAX> binary_file_max_client{};
-    constrained_value<int, 8, INT_MAX> random_max_client{};
+    clamped_value<int, 0, INT_MAX> constant_nb{};
+    clamped_value<int, 0, INT_MAX> text_file_nb{};
+    clamped_value<int, 0, INT_MAX> binary_file_nb{};
+    clamped_value<int, 0, INT_MAX> random_nb{};
+    clamped_value<int, 8, INT_MAX> binary_file_max_client{};
+    clamped_value<int, 8, INT_MAX> random_max_client{};
 };
 
 struct simulation_reserve_definition {
-    constrained_value<int, 512, INT_MAX>  models{};
-    constrained_value<int, 1024, INT_MAX> connections{};
-    constrained_value<int, 16, INT_MAX>   hsms{};
-    constrained_value<int, 256, INT_MAX>  dated_messages{};
+    clamped_value<int, 512, INT_MAX>  models{};
+    clamped_value<int, 1024, INT_MAX> connections{};
+    clamped_value<int, 16, INT_MAX>   hsms{};
+    clamped_value<int, 256, INT_MAX>  dated_messages{};
 };
 
 class external_source
@@ -1657,7 +1657,7 @@ public:
     heap() noexcept = default;
 
     explicit constexpr heap(
-      constrained_value<int, 512, INT_MAX> pcapacity) noexcept;
+      clamped_value<int, 512, INT_MAX> pcapacity) noexcept;
 
     constexpr heap(const heap& other) noexcept;
     constexpr heap(heap&& other) noexcept;
@@ -1752,7 +1752,7 @@ public:
     using handle              = u32;
 
     scheduller() noexcept = default;
-    explicit scheduller(constrained_value<int, 512, INT_MAX> capacity) noexcept;
+    explicit scheduller(clamped_value<int, 512, INT_MAX> capacity) noexcept;
 
     bool reserve(std::integral auto new_capacity) noexcept;
     void clear() noexcept;
@@ -9403,7 +9403,7 @@ inline auto get_hierarchical_state_machine(simulation&  sim,
 //
 
 template<typename A>
-constexpr heap<A>::heap(constrained_value<int, 512, INT_MAX> pcapacity) noexcept
+constexpr heap<A>::heap(clamped_value<int, 512, INT_MAX> pcapacity) noexcept
 {
     reserve(pcapacity.value());
 }
@@ -9795,7 +9795,7 @@ constexpr void heap<A>::detach_subheap(handle elem) noexcept
 
 template<typename A>
 inline scheduller<A>::scheduller(
-  constrained_value<int, 512, INT_MAX> capacity) noexcept
+  clamped_value<int, 512, INT_MAX> capacity) noexcept
   : m_heap(capacity)
 {}
 

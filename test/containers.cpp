@@ -255,8 +255,8 @@ int main()
 {
     using namespace boost::ut;
 
-    "constrained-value-keeps-its-bounds"_test = [] {
-        using capacity = irt::constrained_value<int, 512, 1024>;
+    "clamped-value-keeps-its-bounds"_test = [] {
+        using capacity = irt::clamped_value<int, 512, 1024>;
         static_assert(std::is_trivially_copyable_v<capacity>);
         static_assert(capacity::lower_bound() == 512);
         static_assert(capacity::upper_bound() == 1024);

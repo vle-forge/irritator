@@ -267,8 +267,8 @@ inline void hsm_component::clear() noexcept
 class generic_component
 {
 public:
-    using child_limiter      = constrained_value<i32, 64, 64 * 16>;
-    using connection_limiter = constrained_value<i32, 64 * 4, 64 * 16 * 4>;
+    using child_limiter      = clamped_value<i32, 64, 64 * 16>;
+    using connection_limiter = clamped_value<i32, 64 * 4, 64 * 16 * 4>;
 
     generic_component() noexcept;
 
@@ -406,7 +406,7 @@ public:
 class grid_component
 {
 public:
-    using slimit = constrained_value<i32, 1, 1024>;
+    using slimit = clamped_value<i32, 1, 1024>;
 
 private:
     i32                  m_row    = slimit::lower_bound();
@@ -1094,10 +1094,10 @@ struct tree_node {
 };
 
 struct project_reserve_definition {
-    constrained_value<int, 256, INT_MAX> nodes;
-    constrained_value<int, 256, INT_MAX> grids;
-    constrained_value<int, 256, INT_MAX> graphs;
-    constrained_value<int, 256, INT_MAX> vars;
+    clamped_value<int, 256, INT_MAX> nodes;
+    clamped_value<int, 256, INT_MAX> grids;
+    clamped_value<int, 256, INT_MAX> graphs;
+    clamped_value<int, 256, INT_MAX> vars;
 };
 
 enum class simulation_status : u8 {
@@ -1652,14 +1652,14 @@ public:
 };
 
 struct modeling_reserve_definition {
-    constrained_value<int, 512, INT_MAX> components{};
-    constrained_value<int, 512, INT_MAX> grid_compos{};
-    constrained_value<int, 512, INT_MAX> graph_compos{};
-    constrained_value<int, 512, INT_MAX> generic_compos{};
-    constrained_value<int, 512, INT_MAX> hsm_compos{};
-    constrained_value<int, 16, INT_MAX>  regs{};
-    constrained_value<int, 32, INT_MAX>  dirs{};
-    constrained_value<int, 512, INT_MAX> files{};
+    clamped_value<int, 512, INT_MAX> components{};
+    clamped_value<int, 512, INT_MAX> grid_compos{};
+    clamped_value<int, 512, INT_MAX> graph_compos{};
+    clamped_value<int, 512, INT_MAX> generic_compos{};
+    clamped_value<int, 512, INT_MAX> hsm_compos{};
+    clamped_value<int, 16, INT_MAX>  regs{};
+    clamped_value<int, 32, INT_MAX>  dirs{};
+    clamped_value<int, 512, INT_MAX> files{};
 };
 
 /** A wrapper to a simulation project. Stores a references to the project file
