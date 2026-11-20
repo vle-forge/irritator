@@ -24,11 +24,13 @@ namespace irt {
  *
  * * * * */
 
+/** Owns the journals of the threads. A journal released by a finished thread
+ * is given to the next thread: its remaining records are still collected. */
 class journal_registry
 {
 private:
     journal_registry() noexcept
-      : m_journals(8, reserve_tag)
+      : m_slots(8, reserve_tag)
     {}
 
 public:
@@ -44,8 +46,36 @@ public:
     {
         std::scoped_lock lock(m_mutex);
 
-        auto* journal = m_journals.emplace_back(1);
-        return journal and not journal->empty() ? journal->data() : nullptr;
+        for (auto& slot : m_slots) {
+            if (not slot.in_use) {
+                slot.in_use = true;
+                return slot.journal.data();
+            }
+        }
+
+        auto* slot = m_slots.emplace_back();
+        if (not slot)
+            return nullptr;
+
+        if (not slot->journal.resize(1)) {
+            m_slots.pop_back();
+            return nullptr;
+        }
+
+        slot->in_use = true;
+        return slot->journal.data();
+    }
+
+    void detach(const thread_journal& journal) noexcept
+    {
+        std::scoped_lock lock(m_mutex);
+
+        for (auto& slot : m_slots) {
+            if (slot.journal.data() == &journal) {
+                slot.in_use = false;
+                return;
+            }
+        }
     }
 
     template<typename F>
@@ -53,21 +83,59 @@ public:
     {
         std::scoped_lock lock(m_mutex);
 
-        for (auto& j : m_journals)
-            if (not j.empty())
-                f(j.front());
+        for (auto& slot : m_slots)
+            f(slot.journal.front());
+    }
+
+    /** Number of journals allocated, used or not. */
+    int size() noexcept
+    {
+        std::scoped_lock lock(m_mutex);
+
+        return m_slots.ssize();
     }
 
 private:
-    spin_mutex m_mutex;
+    struct slot {
+        /* A single journal in its own buffer: current_journal keeps its
+         * address while the registry grows. */
+        vector<thread_journal> journal;
+        bool                   in_use = false;
+    };
 
-    /* Each journal owns its buffer: current_journal keeps its address
-     * while the registry grows. */
-    vector<vector<thread_journal>> m_journals;
+    spin_mutex   m_mutex;
+    vector<slot> m_slots;
 };
 
-struct journal_scope {
-    journal_scope() { current_journal = journal_registry::instance().attach(); }
+/** Gives a journal to the current thread while the scope lives, then restores
+ * the previous one. */
+class journal_scope
+{
+public:
+    journal_scope() noexcept
+      : m_previous(current_journal)
+      , m_journal(journal_registry::instance().attach())
+    {
+        if (m_journal)
+            current_journal = m_journal;
+    }
+
+    ~journal_scope() noexcept
+    {
+        current_journal = m_previous;
+
+        if (m_journal)
+            journal_registry::instance().detach(*m_journal);
+    }
+
+    journal_scope(const journal_scope&)            = delete;
+    journal_scope& operator=(const journal_scope&) = delete;
+    journal_scope(journal_scope&&)                 = delete;
+    journal_scope& operator=(journal_scope&&)      = delete;
+
+private:
+    thread_journal* m_previous;
+    thread_journal* m_journal;
 };
 
 /** Aggregation and diffusion journal log

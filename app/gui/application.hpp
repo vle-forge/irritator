@@ -1614,7 +1614,10 @@ public:
     ~application() noexcept;
 
 private:
-    task_manager task_mgr;
+    /* The main thread keeps its journal during the whole life of the
+     * application. */
+    journal_scope m_journal;
+    task_manager  task_mgr;
 
 public:
     ImFont* icons = nullptr;

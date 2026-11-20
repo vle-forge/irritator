@@ -478,7 +478,6 @@ application::application(log_history& jn_) noexcept
     settings_wnd.apply_style(config.vars.theme.load());
 
     task_mgr.start();
-    journal_scope j;
 
     log(log_level::info, [&](auto& m) noexcept {
         format(m,

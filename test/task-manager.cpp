@@ -83,6 +83,23 @@ struct destruction_counter {
 
 // ---------------------------------------------------------------------------
 
+static int count_logs(const std::string_view msg) noexcept
+{
+    irt::log_history history;
+    history.collect();
+
+    auto found   = 0;
+    auto version = irt::u64{ 0 };
+    auto cursor  = irt::u64{ 0 };
+    history.read_log(version, cursor, [&](const auto logs) noexcept {
+        for (const auto& l : logs)
+            if (l.msg.sv() == msg)
+                ++found;
+    });
+
+    return found;
+}
+
 int main()
 {
     using namespace boost::ut;
@@ -90,8 +107,10 @@ int main()
     // First test: the registry is still at its initial capacity, so the 64
     // threads below force it to grow.
     "journal-keeps-its-address-while-the-registry-grows"_test = [] {
+        constexpr int     others = 64;
         std::atomic<bool> attached{ false };
         std::atomic<bool> release{ false };
+        std::atomic<int>  others_attached{ 0 };
 
         std::thread first([&] {
             irt::journal_scope scope;
@@ -105,25 +124,62 @@ int main()
         while (not attached)
             std::this_thread::yield();
 
-        for (int i = 0; i < 64; ++i)
-            std::thread([] { irt::journal_scope scope; }).join();
+        std::vector<std::thread> threads;
+        for (int i = 0; i < others; ++i)
+            threads.emplace_back([&] {
+                irt::journal_scope scope;
+                ++others_attached;
+                while (not release)
+                    std::this_thread::yield();
+            });
+
+        while (others_attached < others)
+            std::this_thread::yield();
+
+        expect(ge(irt::journal_registry::instance().size(), others + 1));
 
         release = true;
         first.join();
+        for (auto& t : threads)
+            t.join();
 
-        irt::log_history history;
-        history.collect();
+        expect(eq(count_logs("journal-first-thread"), 1));
+    };
 
-        auto found   = false;
-        auto version = irt::u64{ 0 };
-        auto cursor  = irt::u64{ 0 };
-        history.read_log(version, cursor, [&](const auto logs) noexcept {
-            for (const auto& l : logs)
-                if (l.msg.sv() == "journal-first-thread")
-                    found = true;
-        });
+    "journal-of-a-finished-thread-is-reused"_test = [] {
+        const auto before = irt::journal_registry::instance().size();
 
-        expect(found);
+        for (int i = 0; i < 16; ++i)
+            std::thread([] {
+                irt::journal_scope scope;
+                irt::log(irt::log_level::info,
+                         std::string_view{ "journal-reused" });
+            }).join();
+
+        expect(le(irt::journal_registry::instance().size(), before + 1));
+        expect(eq(count_logs("journal-reused"), 16));
+    };
+
+    "journal-scope-restores-the-previous-journal"_test = [] {
+        const auto*                before      = irt::current_journal;
+        const irt::thread_journal* outer       = nullptr;
+        const irt::thread_journal* inner       = nullptr;
+        const irt::thread_journal* after_inner = nullptr;
+
+        {
+            irt::journal_scope outer_scope;
+            outer = irt::current_journal;
+            {
+                irt::journal_scope inner_scope;
+                inner = irt::current_journal;
+            }
+            after_inner = irt::current_journal;
+        }
+
+        expect(outer != nullptr);
+        expect(inner != nullptr and inner != outer);
+        expect(after_inner == outer);
+        expect(irt::current_journal == before);
     };
 
     "data-task-copy-capture"_test = [] {
