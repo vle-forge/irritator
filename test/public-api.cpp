@@ -3898,4 +3898,20 @@ int main()
         expect(op_move_copy_pj.parameters.exists(pj_id_1));
         expect(op_move_copy_pj.parameters.exists(pj_id_2));
     };
+
+    "write-test-simulation-reports-success"_test = [] {
+        irt::simulation sim;
+        expect(fatal(sim.can_alloc(1)));
+        sim.alloc<irt::counter>();
+
+        auto* os = std::tmpfile();
+        expect(fatal(os != nullptr));
+
+        expect(eq(
+          irt::ordinal(irt::write_test_simulation(
+            os, "t", sim, 0.0, 1.0, irt::write_test_simulation_options::none)),
+          irt::ordinal(irt::write_test_simulation_result::success)));
+
+        std::fclose(os);
+    };
 }

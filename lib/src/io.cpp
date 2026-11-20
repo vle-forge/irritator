@@ -892,8 +892,8 @@ auto write_test_simulation(std::FILE*                          os,
 
     fmt::print(os, "}};\n");
 
-    return std::ferror(os) ? write_test_simulation_result::success
-                           : write_test_simulation_result::output_error;
+    return std::ferror(os) ? write_test_simulation_result::output_error
+                           : write_test_simulation_result::success;
 }
 
 } // namespace irt
