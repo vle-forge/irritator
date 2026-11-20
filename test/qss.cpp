@@ -548,6 +548,19 @@ int main()
         expect(eq(ups[0].value, 5.0));
     };
 
+    "generator-copy-keeps-the-flags"_test = [] {
+        irt::generator src;
+        src.flags.reset();
+        src.flags.set(irt::generator::option::value_use_source);
+        src.ta = 2.0;
+
+        const irt::generator copy(src);
+
+        expect(not copy.flags[irt::generator::option::ta_use_source]);
+        expect(copy.flags[irt::generator::option::value_use_source]);
+        expect(eq(copy.ta, 2.0));
+    };
+
     "cross-copy-keeps-the-output-values"_test = [] {
         irt::qss3_cross src;
         src.output_values = { 5.0, 7.0 };

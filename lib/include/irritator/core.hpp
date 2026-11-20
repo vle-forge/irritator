@@ -4839,7 +4839,7 @@ struct generator {
       , value(other.value)
       , source_ta(other.source_ta)
       , source_value(other.source_value)
-      , flags(option::ta_use_source, option::value_use_source)
+      , flags(other.flags)
     {}
 
     /// Before calling this function, the @c sigma member is initialized
