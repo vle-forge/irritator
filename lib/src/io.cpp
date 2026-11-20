@@ -416,12 +416,8 @@ static void write_test_simulation_model(std::FILE*           os,
     case dynamics_type::priority_queue:
         fmt::print(
           os,
-          R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue({});)",
-          idx, o_param.reals(param, priority_queue_tag::sigma));
-        fmt::print(os,
-                   R"(
-    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
-                   idx, o_param.integers(param, priority_queue_tag::source_ta));
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
+          idx, o_param.integers(param, priority_queue_tag::source_ta));
         print_queue_fifo(os, idx, o_param, param);
         break;
 

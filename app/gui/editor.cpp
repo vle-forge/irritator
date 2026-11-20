@@ -332,14 +332,11 @@ static bool show_parameter(priority_queue_tag,
                            ExternalSourceType& srcs,
                            parameter&          p) noexcept
 {
-    const auto b1 =
-      ImGui::InputReal("priority delta", &p.reals[priority_queue_tag::sigma]);
-
-    const auto b2 = show_external_sources_combo(
+    const auto src = show_external_sources_combo(
       "Time", srcs, p.integers[priority_queue_tag::source_ta]);
-    const auto b3 = show_fifo_parameter(p);
+    const auto fifo = show_fifo_parameter(p);
 
-    return b1 or b2 or b3;
+    return src or fifo;
 }
 
 template<typename ExternalSourceType>

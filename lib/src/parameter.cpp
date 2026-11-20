@@ -204,7 +204,6 @@ static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 
 static void model_init(const parameter& param, priority_queue& dyn) noexcept
 {
-    dyn.ta = param.reals[priority_queue_tag::sigma];
     dyn.source_ta.reset(param.integers[priority_queue_tag::source_ta]);
     dyn.overflow = get_fifo_overflow(param);
     dyn.capacity = get_fifo_capacity(param);
@@ -212,7 +211,6 @@ static void model_init(const parameter& param, priority_queue& dyn) noexcept
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 {
-    param.reals[priority_queue_tag::sigma]        = dyn.ta;
     param.integers[priority_queue_tag::source_ta] = from_source(dyn.source_ta);
     fifo_parameter_init(param, dyn);
 }
@@ -906,10 +904,6 @@ void parameter::init_from(const dynamics_type type) noexcept
               param.set_time_func(zero, 0.01, 0);
           }
 
-          if constexpr (std::is_same_v<Tag, priority_queue_tag>) {
-              param.set_priority_queue(one);
-          }
-
           if constexpr (std::is_same_v<Tag, queue_tag>) {
               param.set_queue(one);
           }
@@ -1039,12 +1033,6 @@ parameter& parameter::set_queue_fifo(fifo_overflow overflow,
     integers[queue_tag::i_overflow] = ordinal(overflow);
     integers[queue_tag::i_capacity] = is_valid ? capacity
                                                : default_fifo_capacity;
-    return *this;
-}
-
-parameter& parameter::set_priority_queue(real sigma) noexcept
-{
-    reals[priority_queue_tag::sigma] = std::isfinite(sigma) ? sigma : 1.0;
     return *this;
 }
 

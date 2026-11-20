@@ -270,12 +270,7 @@ struct priority_queue_tag {
     static constexpr const port_type x_types[] = { qss };
     static constexpr const port_type y_types[] = { qss };
 
-    enum parameter_names : u8 {
-        sigma      = 0,
-        source_ta  = 0,
-        i_overflow = 1,
-        i_capacity = 2
-    };
+    enum parameter_names : u8 { source_ta = 0, i_overflow = 1, i_capacity = 2 };
 };
 
 struct generator_tag {

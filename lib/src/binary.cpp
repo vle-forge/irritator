@@ -1103,8 +1103,8 @@ void binary_serialize(Ar& ar, dynamic_queue& d) noexcept
 template<typename Ar>
 void binary_serialize(Ar& ar, priority_queue& d) noexcept
 {
-    auto& [x, y, sigma, fifo, ta, src_data, source_ta, overflow, capacity] = d;
-    ar(x, y, sigma, fifo, ta, src_data);
+    auto& [x, y, sigma, fifo, src_data, source_ta, overflow, capacity] = d;
+    ar(x, y, sigma, fifo, src_data);
     io_source(ar, source_ta, src_data);
     io_fifo(ar, overflow, capacity);
 }

@@ -1243,7 +1243,6 @@ struct parameter {
     /** The fifo of a queue, a dynamic queue or a priority queue. A @a
      * capacity lower than 1 is replaced by @c default_fifo_capacity. */
     parameter& set_queue_fifo(fifo_overflow overflow, i32 capacity) noexcept;
-    parameter& set_priority_queue(real sigma) noexcept;
 
     parameter& set_generator_ta(real sigma) noexcept;
     parameter& set_generator_ta(const source_type   type,
@@ -8576,7 +8575,6 @@ struct priority_queue {
     output_port_id   y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
-    real             ta   = 1.0;
 
     source_data src_data;
     source      source_ta;
@@ -8589,7 +8587,6 @@ struct priority_queue {
     priority_queue(const priority_queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
-      , ta(other.ta)
       , source_ta(other.source_ta)
       , overflow(other.overflow)
       , capacity(other.capacity)
