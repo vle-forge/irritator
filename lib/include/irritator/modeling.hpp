@@ -267,8 +267,8 @@ inline void hsm_component::clear() noexcept
 class generic_component
 {
 public:
-    using child_limiter      = static_bounded_value<i32, 64, 64 * 16>;
-    using connection_limiter = static_bounded_value<i32, 64 * 4, 64 * 16 * 4>;
+    using child_limiter      = constrained_value<i32, 64, 64 * 16>;
+    using connection_limiter = constrained_value<i32, 64 * 4, 64 * 16 * 4>;
 
     generic_component() noexcept;
 
@@ -407,7 +407,7 @@ class grid_component
 {
 public:
     using limit  = bounded_value<i32>;
-    using slimit = static_bounded_value<i32, 1, 1024>;
+    using slimit = constrained_value<i32, 1, 1024>;
 
 private:
     i32                  m_row    = slimit::lower_bound();
@@ -459,8 +459,8 @@ public:
 
     void resize(slimit rows, slimit cols, component_id id) noexcept
     {
-        m_row    = rows;
-        m_column = cols;
+        m_row    = rows.value();
+        m_column = cols.value();
 
         m_children.resize(m_row * m_column);
         std::fill_n(m_children.data(), m_children.size(), id);

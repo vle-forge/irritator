@@ -999,27 +999,6 @@ public:
     constexpr   operator T() const noexcept { return m_value; }
 };
 
-template<typename T, T Lower, T Upper>
-    requires std::integral<T>
-class static_bounded_value
-{
-    static_assert(Lower < Upper);
-
-    T m_value;
-
-public:
-    constexpr static_bounded_value(const T value) noexcept
-      : m_value(std::clamp(value, Lower, Upper))
-    {}
-
-    constexpr T value() const noexcept { return m_value; }
-    constexpr   operator T() noexcept { return m_value; }
-    constexpr   operator T() const noexcept { return m_value; }
-
-    static constexpr T lower_bound() noexcept { return Lower; }
-    static constexpr T upper_bound() noexcept { return Upper; }
-};
-
 template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
     requires std::floating_point<T>
 class static_bounded_floating_point
