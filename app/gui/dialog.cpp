@@ -428,7 +428,7 @@ bool file_dialog::show_save_file(const char*        title,
                     temp = u8"[Dir] ";
 
                 const auto u8filename = it->filename().u8string();
-                temp                  = u8filename;
+                temp += u8filename;
 
                 if (ImGui::Selectable((const char*)temp.c_str(),
                                       (it->filename() == selected))) {
