@@ -130,21 +130,20 @@ static bool is_running_under_debugger() noexcept
 #endif
 
 #ifdef IRRITATOR_USE_TTF
+/* The view points into data: it stays valid until data is reused. */
 auto GetSystemFontFile(std::wstring_view        font,
                        HKEY                     hKey,
                        std::shared_ptr<WCHAR[]> name,
                        std::shared_ptr<BYTE[]>  data,
                        const DWORD              name_size,
                        const DWORD              value_size) noexcept
-  -> std::optional<std::wstring>
+  -> std::optional<std::wstring_view>
 {
-    HRESULT      result;
-    std::wstring font_found;
-    DWORD        index = 0;
-    DWORD        type  = 0;
+    HRESULT result;
+    DWORD   index = 0;
+    DWORD   type  = 0;
 
     do {
-        font_found.clear();
         auto data_len = value_size;
         auto name_len = name_size;
 
@@ -160,9 +159,12 @@ auto GetSystemFontFile(std::wstring_view        font,
         if (result != ERROR_SUCCESS || type != REG_SZ)
             continue;
 
-        font_found.assign(name.get(), name_len);
-        if (::_wcsnicmp(font.data(), font_found.c_str(), font.size()) == 0)
-            return std::wstring(reinterpret_cast<WCHAR*>(data.get()), data_len);
+        if (name_len >= font.size() and
+            ::_wcsnicmp(font.data(), name.get(), font.size()) == 0) {
+            const auto* value = reinterpret_cast<const WCHAR*>(data.get());
+            return std::wstring_view(
+              value, ::wcsnlen(value, data_len / sizeof(WCHAR)));
+        }
 
     } while (result != ERROR_NO_MORE_ITEMS);
 
@@ -172,23 +174,23 @@ auto GetSystemFontFile(std::wstring_view        font,
 auto GetSystemFontFilePath(std::wstring_view font_name) noexcept
   -> std::optional<std::filesystem::path>
 {
-    std::wstring windir(MAX_PATH, L'\0');
-    UINT         windir_len =
-      ::GetWindowsDirectoryW(windir.data(), static_cast<UINT>(windir.size()));
+    irt::vector<wchar_t> windir(MAX_PATH);
+    UINT                 windir_len = ::GetWindowsDirectoryW(windir.data(),
+                                                             static_cast<UINT>(windir.size()));
 
-    if (std::cmp_greater_equal(windir_len, static_cast<UINT>(windir.size()))) {
-        windir.resize(windir_len + 1u, L'\0');
+    if (std::cmp_greater_equal(windir_len, windir.size())) {
+        if (not windir.resize(windir_len + 1u))
+            return std::nullopt;
+
         windir_len = ::GetWindowsDirectoryW(windir.data(),
                                             static_cast<UINT>(windir.size()));
     }
 
-    if (windir_len == 0)
+    if (windir_len == 0 or std::cmp_greater_equal(windir_len, windir.size()))
         return std::nullopt;
 
-    windir.resize(windir_len);
-
     try {
-        std::filesystem::path ret(windir);
+        std::filesystem::path ret(std::wstring_view(windir.data(), windir_len));
         ret /= L"Fonts";
         ret /= font_name;
         return ret;
