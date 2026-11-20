@@ -267,46 +267,39 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("sum-values", "{}", dyn.sum_values);
 }
 
+/// A fifo is allocated on the first message and stays allocated once empty.
+static void show_queue_fifo(project_editor& sim, const dated_message_id fifo)
+{
+    const auto* ar = sim.pj.sim.dated_messages.try_to_get(fifo);
+
+    if (not ar or ar->empty()) {
+        ImGui::LabelFormat("queue", "{}", "empty");
+    } else {
+        ImGui::LabelFormat("size", "{}", ar->size());
+        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
+        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
+    }
+}
+
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& sim,
                                  const queue&    dyn)
 {
-    auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
-
-    if (not ar) {
-        ImGui::LabelFormat("queue", "{}", "empty");
-    } else {
-        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
-        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
-    }
+    show_queue_fifo(sim, dyn.fifo);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor&      sim,
                                  const dynamic_queue& dyn)
 {
-    auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
-
-    if (not ar) {
-        ImGui::LabelFormat("queue", "{}", "empty");
-    } else {
-        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
-        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
-    }
+    show_queue_fifo(sim, dyn.fifo);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor&       sim,
                                  const priority_queue& dyn)
 {
-    auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
-
-    if (not ar) {
-        ImGui::LabelFormat("queue", "{}", "empty");
-    } else {
-        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
-        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
-    }
+    show_queue_fifo(sim, dyn.fifo);
 }
 
 static void show_dynamics_values(application& /*app*/,
