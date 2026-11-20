@@ -979,49 +979,6 @@ constexpr auto get_output_port_names() -> std::span<const std::string_view>
       });
 }
 
-template<typename T>
-    requires std::integral<T> or std::floating_point<T>
-class bounded_value
-{
-    T m_lower;
-    T m_upper;
-    T m_value;
-
-public:
-    constexpr bounded_value(const T& lower_, const T& upper_) noexcept
-      : m_lower{ lower_ }
-      , m_upper{ upper_ }
-    {
-        debug::ensure(lower_ < upper_);
-    }
-
-    constexpr   operator T() noexcept { return m_value; }
-    constexpr   operator T() const noexcept { return m_value; }
-};
-
-template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
-    requires std::floating_point<T>
-class static_bounded_floating_point
-{
-public:
-    static inline constexpr T lower = static_cast<T>(LowerNum) /
-                                      static_cast<T>(LowerDenom);
-    static inline constexpr T upper = static_cast<T>(UpperNum) /
-                                      static_cast<T>(UpperDenom);
-    static_assert(lower < upper);
-
-private:
-    T m_value;
-
-public:
-    constexpr static_bounded_floating_point(const T value) noexcept
-      : m_value(std::clamp(value, lower, upper))
-    {}
-
-    constexpr   operator T() noexcept { return m_value; }
-    constexpr   operator T() const noexcept { return m_value; }
-};
-
 template<typename>
 struct is_expected : std::false_type {};
 

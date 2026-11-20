@@ -406,7 +406,6 @@ public:
 class grid_component
 {
 public:
-    using limit  = bounded_value<i32>;
     using slimit = constrained_value<i32, 1, 1024>;
 
 private:
@@ -472,8 +471,8 @@ public:
 
     /**
      * @brief Compute the number of cells in the grid.
-     * @return A integer between @a limit::lower_bound() squared to @a
-     * limit::upper_bound() squared.
+     * @return A integer between @a slimit::lower_bound() squared to @a
+     * slimit::upper_bound() squared.
      */
     constexpr i32 cells_number() const noexcept { return m_column * m_row; }
 
