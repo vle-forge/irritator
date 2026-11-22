@@ -707,15 +707,10 @@ static auto make_tree_leaf(project_to_simulation&          sc,
                            const generic_component::child& ch) noexcept
   -> expected<model_id>
 {
-    if (not sc.pj.sim.models.can_alloc()) {
-        const auto increase = sc.pj.sim.models.capacity() == 0
-                                ? 1024
-                                : sc.pj.sim.models.capacity();
-
-        if (not data_array_reserve_add(sc.pj.sim.models, increase) or
-            not vector_reserve_add(sc.pj.sim.parameters, increase))
-            return make_error(project_errc::memory_error);
-    }
+    // The parameters, the scheduller and the observers are indexed by the
+    // model identifier: they must grow with the models.
+    if (not sc.pj.sim.models.can_alloc() and not sc.pj.sim.grow_models<2, 1>())
+        return make_error(project_errc::memory_error);
 
     const auto ch_idx     = get_index(ch_id);
     auto&      new_mdl    = sc.pj.sim.models.alloc();
@@ -2190,8 +2185,9 @@ status project::set(const component_access& ids,
         return make_error(project_errc::memory_error);
 
     sim.clear();
-    sim.grow_models_to(req.model_nb);
-    sim.grow_connections_to(req.model_nb * 8);
+    if (not sim.grow_models_to(req.model_nb) or
+        not sim.grow_connections_to(req.model_nb * 8))
+        return make_error(project_errc::memory_error);
 
     log(log_level::debug, [&](auto& m) {
         format(m,
