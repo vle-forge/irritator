@@ -2866,6 +2866,59 @@ int main()
         expect(same_buffers(first, json_save_component(mod, *read)));
     };
 
+    "json: the connections between incompatible ports are skipped"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+
+            auto& sum = gen.alloc(irt::dynamics_type::qss1_sum_2);
+            auto& cst = gen.alloc(irt::dynamics_type::constant);
+            auto& lgc = gen.alloc(irt::dynamics_type::logical_and_2);
+
+            expect(!!gen.connect(cst, irt::connection::port{ .model = 0 }, lgc,
+                                 irt::connection::port{ .model = 1 }));
+
+            const auto callback = std::exchange(irt::on_error_callback,
+                                                nullptr);
+            const auto refused  = gen.connect(
+              sum, irt::connection::port{ .model = 0 }, lgc,
+              irt::connection::port{ .model = 0 });
+            irt::on_error_callback = callback;
+
+            expect(not refused.has_value());
+            expect(
+              refused.error() ==
+              irt::error_code(
+                irt::modeling_errc::generic_connection_compatibility_error));
+
+            // Written as a file from before the port types were checked.
+            gen.connections.alloc(
+              gen.children.get_id(sum), irt::connection::port{ .model = 0 },
+              gen.children.get_id(lgc), irt::connection::port{ .model = 0 });
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+
+        const auto callback = std::exchange(irt::on_error_callback, nullptr);
+        const auto read     = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        irt::on_error_callback = callback;
+
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+            expect(eq(gen.children.size(), 3u));
+            expect(eq(gen.connections.size(), 1u));
+        });
+    };
+
     "json: the hsm source and constants survive a round trip"_test = [] {
         irt::modeling mod;
 

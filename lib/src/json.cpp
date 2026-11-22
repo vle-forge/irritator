@@ -2423,10 +2423,27 @@ struct json_reader {
     {
         auto_stack a(this, "component generic connect");
 
-        if (auto* c_src = compo.children.try_to_get(src); c_src)
-            if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
-                if (compo.connect(*c_src, p_src, *c_dst, p_dst))
+        if (auto* c_src = compo.children.try_to_get(src); c_src) {
+            if (auto* c_dst = compo.children.try_to_get(dst); c_dst) {
+                const auto ret = compo.connect(*c_src, p_src, *c_dst, p_dst);
+                if (ret)
                     return true;
+
+                // A file written before the port types were checked can hold
+                // such a connection: dropping it keeps the file readable.
+                if (ret.error() ==
+                    error_code(
+                      modeling_errc::generic_connection_compatibility_error)) {
+                    warning("skip the connection between incompatible ports "
+                            "{} ({}) and {} ({})",
+                            dynamics_type_names[ordinal(c_src->id.mdl_type)],
+                            p_src.model,
+                            dynamics_type_names[ordinal(c_dst->id.mdl_type)],
+                            p_dst.model);
+                    return true;
+                }
+            }
+        }
 
         return error("fail to connect generic component children");
     }
