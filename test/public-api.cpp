@@ -1211,6 +1211,54 @@ int main()
         expect(eq(ret_2, 579.0));
     };
 
+    "ports-compatibility"_test = [] {
+        using irt::dynamics_type;
+        using irt::is_ports_compatible;
+
+        static_assert(is_ports_compatible(dynamics_type::qss1_integrator, 0,
+                                          dynamics_type::qss1_sum_2, 1));
+        static_assert(is_ports_compatible(dynamics_type::constant, 0,
+                                          dynamics_type::logical_and_2, 0));
+        static_assert(is_ports_compatible(dynamics_type::qss2_cross, 1,
+                                          dynamics_type::logical_or_2, 1));
+        static_assert(is_ports_compatible(dynamics_type::logical_and_2, 0,
+                                          dynamics_type::counter, 0));
+        static_assert(is_ports_compatible(dynamics_type::logical_invert, 0,
+                                          dynamics_type::qss1_flipflop, 1));
+        static_assert(is_ports_compatible(dynamics_type::generator, 0,
+                                          dynamics_type::qss3_integrator, 0));
+        static_assert(is_ports_compatible(
+          dynamics_type::constant, 0, dynamics_type::simulation_wrapper, 5));
+
+        static_assert(not is_ports_compatible(dynamics_type::qss1_sum_2, 0,
+                                              dynamics_type::logical_and_2, 0));
+        static_assert(not is_ports_compatible(dynamics_type::qss1_sqrt, 0,
+                                              dynamics_type::logical_and_3, 2));
+        static_assert(not is_ports_compatible(
+          dynamics_type::logical_or_2, 0, dynamics_type::qss1_integrator, 0));
+        static_assert(not is_ports_compatible(dynamics_type::qss1_cross, 2,
+                                              dynamics_type::logical_and_2, 0));
+        static_assert(not is_ports_compatible(
+          dynamics_type::constant, 0, dynamics_type::qss1_integrator, 2));
+        static_assert(not is_ports_compatible(dynamics_type::constant, 0,
+                                              dynamics_type::qss1_sum_2, -1));
+        static_assert(not is_ports_compatible(dynamics_type::counter, 0,
+                                              dynamics_type::qss1_sum_2, 0));
+
+        irt::simulation sim;
+        auto&           sum = sim.alloc<irt::qss1_sum_2>();
+        auto&           lgc = sim.alloc<irt::logical_and_2>();
+
+        // The refused connection is an expected error.
+        const auto callback    = std::exchange(irt::on_error_callback, nullptr);
+        const auto ret         = sim.connect_dynamics(sum, 0, lgc, 0);
+        irt::on_error_callback = callback;
+
+        expect(not ret.has_value());
+        expect(ret.error() ==
+               irt::error_code(irt::simulation_errc::connection_incompatible));
+    };
+
     "constant_simulation"_test = [] {
         irt::on_error_callback = irt::debug::breakpoint;
         fmt::print("constant_simulation\n");

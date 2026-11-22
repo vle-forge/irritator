@@ -13,13 +13,6 @@
 
 namespace irt {
 
-enum port_type : u8 {
-    qss,     //<! QSS port type with 2, 3 or 4 reals.
-    scalar,  //<! Only one real
-    boolean, //<! Only one boolean (0.0 or 1.0)
-    ping,    //<! Just the event no data read
-};
-
 template<typename T>
 concept have_output_port_type = requires(const T) {
     { T::y_names };
@@ -30,31 +23,9 @@ concept have_input_port_type = requires(const T) {
     { T::x_names };
 };
 
-/**
- *  +-----------------------------------------------+
- *  |        |   qss   |  scalar | boolean |  ping  |
- *  |--------+---------+---------+---------+--------|
- *  |    qss |    v    |   (1)   |   (2)   |   v    |
- *  | scalar |   (3)   |    v    |   (2)   |   v    |
- *  |boolean |   (4)   |   (5)   |    v    |   v    |
- *  |   ping |    x    |    x    |    x    |   v    |
- *  +-----------------------------------------------+
- *
- *  (1) scalar equals message[0]
- *  (2) boolean equals TRUE if message[0] > 0 FALSE otherwise
- *  (3) qss x[0] = message[0] and x[1], x[2] = 0.0
- *  (4) qss x[0] = ONE if message[0] is TRUE, 0 otherwise
- *  (5) scalar equals ONE if message si TRUE, 0 otherwise
- */
-static constexpr bool validity[16] = { true,  true,  true,  true, true, true,
-                                       true,  true,  true,  true, true, true,
-                                       false, false, false, true };
-
 struct qss_integrator_tag {
     static constexpr std::string_view x_names[] = { "X_dot", "reset" };
     static constexpr std::string_view y_names[] = { "out" };
-    static constexpr const port_type  x_types[] = { qss, scalar };
-    static constexpr const port_type  y_types[] = { qss };
 
     enum parameter_names : u8 { X = 0, dQ };
 };
@@ -63,50 +34,32 @@ struct qss_cross_tag {
     static constexpr std::string_view x_names[] = { "in", "threshold" };
     static constexpr std::string_view y_names[] = { "up", "down" };
 
-    static constexpr const port_type x_types[] = { qss, scalar };
-    static constexpr const port_type y_types[] = { scalar, scalar };
-
     enum parameter_names : u8 { threshold, up_value, bottom_value };
 };
 
 struct qss_min_hold_tag {
     static constexpr std::string_view x_names[] = { "in", "threshold" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, scalar };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_max_hold_tag {
     static constexpr std::string_view x_names[] = { "in", "threshold" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, scalar };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_multiplier_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_flipflop_tag {
     static constexpr std::string_view x_names[] = { "in", "event" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, ping };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_power_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { exponent = 0 };
 };
@@ -114,42 +67,27 @@ struct qss_power_tag {
 struct qss_square_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_sum_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_sum_3_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_sum_4_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_wsum_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { coeff1 = 0, coeff2 };
 };
@@ -157,9 +95,6 @@ struct qss_wsum_2_tag {
 struct qss_wsum_3_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3 };
 };
@@ -169,26 +104,17 @@ struct qss_wsum_4_tag {
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss, qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3, coeff4 };
 };
 
 struct qss_inverse_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_compare_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { scalar };
 
     enum parameter_names : u8 { equal = 0, not_equal };
 };
@@ -197,48 +123,31 @@ struct qss_gain_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { k = 0 };
 };
 
 struct qss_sin_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_cos_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_exp_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_log_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct counter_tag {
     static constexpr std::string_view x_names[] = { "in" };
-
-    static constexpr const port_type x_types[] = { scalar };
 
     enum parameter_names : u8 { i_obs_type = 0 };
 };
@@ -247,18 +156,12 @@ struct queue_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { sigma = 0, i_overflow = 1, i_capacity = 2 };
 };
 
 struct dynamic_queue_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { source_ta = 0, i_overflow = 1, i_capacity = 2 };
 };
@@ -267,18 +170,12 @@ struct priority_queue_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { source_ta = 0, i_overflow = 1, i_capacity = 2 };
 };
 
 struct generator_tag {
     static constexpr std::string_view x_names[] = { "value", "t" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { scalar, scalar };
-    static constexpr const port_type y_types[] = { scalar };
 
     enum parameter_names : u8 {
         i_options = 0,
@@ -292,15 +189,11 @@ struct generator_tag {
 struct constant_tag {
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type y_types[] = { scalar };
-
     enum parameter_names : u8 { value = 0, offset, i_type = 0, i_port };
 };
 
 struct time_func_tag {
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type y_types[] = { scalar };
 
     enum parameter_names : u8 { offset = 0, timestep, i_type = 0 };
 };
@@ -308,49 +201,31 @@ struct time_func_tag {
 struct accumulator_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "value-1",
                                                     "value-2" };
-
-    static constexpr const port_type x_types[] = { boolean, boolean, scalar,
-                                                   scalar };
 };
 
 struct logical_and_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { boolean, boolean };
-    static constexpr const port_type y_types[] = { boolean };
 };
 
 struct logical_and_3_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { boolean, boolean, boolean };
-    static constexpr const port_type y_types[] = { boolean };
 };
 
 struct logical_or_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { boolean, boolean };
-    static constexpr const port_type y_types[] = { boolean };
 };
 
 struct logical_or_3_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { boolean, boolean, boolean };
-    static constexpr const port_type y_types[] = { boolean };
 };
 
 struct logical_invert_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { boolean };
-    static constexpr const port_type y_types[] = { boolean };
 };
 
 struct hsm_wrapper_tag {
@@ -358,9 +233,6 @@ struct hsm_wrapper_tag {
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out-1", "out-2", "out-3",
                                                     "out-4" };
-
-    static constexpr const port_type x_types[] = { qss, qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss, qss, qss, qss };
 
     enum parameter_names : u8 {
         r1 = 0,
@@ -376,8 +248,6 @@ struct hsm_wrapper_tag {
 struct simulation_wrapper_tag {
     static constexpr std::string_view x_names[] = { "init", "run" };
 
-    static constexpr const port_type x_types[] = { qss, qss };
-
     enum parameter_names : u8 {
         run = 0,
         id,
@@ -390,26 +260,17 @@ struct sample_hold_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { ts = 0 };
 };
 
 struct zero_order_hold_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct quantizer_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { step = 0 };
 };
@@ -418,18 +279,12 @@ struct integrate_and_fire_tag {
     static constexpr std::string_view x_names[] = { "in", "reset" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { threshold = 0 };
 };
 
 struct threshold_crossing_tag {
     static constexpr std::string_view x_names[] = { "in", "threshold" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { level = 0 };
 };
@@ -438,106 +293,67 @@ struct pwm_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { period = 0, amplitude };
 };
 
 struct sqrt_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct atan_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct tan_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct tanh_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct sigmoid_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct division_tag {
     static constexpr std::string_view x_names[] = { "in", "divisor" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct atan2_tag {
     static constexpr std::string_view x_names[] = { "in", "x" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct abs_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct sign_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct minimum_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct maximum_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 };
 
 struct qss_priority_2_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { i_selection1 = 0, i_selection2 };
 };
@@ -546,9 +362,6 @@ struct qss_priority_3_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { i_selection1 = 0, i_selection2, i_selection3 };
 };
 
@@ -556,9 +369,6 @@ struct qss_priority_4_tag {
     static constexpr std::string_view x_names[] = { "in-1", "in-2", "in-3",
                                                     "in-4" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss, qss, qss, qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 {
         i_selection1 = 0,
@@ -572,18 +382,12 @@ struct saturation_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { lower = 0, upper };
 };
 
 struct dead_zone_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { lower = 0, upper };
 };
@@ -592,18 +396,12 @@ struct hysteresis_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
-
     enum parameter_names : u8 { lower = 0, upper, out_low, out_high };
 };
 
 struct wrap_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
-
-    static constexpr const port_type x_types[] = { qss };
-    static constexpr const port_type y_types[] = { qss };
 
     enum parameter_names : u8 { origin = 0, modulo };
 };
@@ -709,7 +507,6 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss3_inverse:
         return std::invoke(std::forward<Function>(f), qss_inverse_tag{},
                            std::forward<Args>(args)...);
-
 
     case dynamics_type::qss1_compare:
     case dynamics_type::qss2_compare:

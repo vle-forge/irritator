@@ -18,6 +18,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -1163,6 +1164,54 @@ constexpr int dynamics_type_last() noexcept
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
+
+/** The kind of data a port reads or sends. A dynamics declares the type of its
+ * ports in @c x_types and @c y_types; the ports without declaration are @c qss.
+ */
+enum class port_type : u8 {
+    qss,     //!< A value and its derivatives.
+    scalar,  //!< A single value.
+    boolean, //!< A single value, false if null.
+    ping,    //!< Only the arrival of the message counts.
+};
+
+/** @return true if an output port of type @c out can feed an input port of
+ * type @c in. */
+constexpr bool is_convertible(const port_type out, const port_type in) noexcept
+{
+    // A qss value is not a logical value: only a single value (a constant, a
+    // compare or a cross output) can feed a boolean port, and a boolean only
+    // feeds a boolean port or a port where the arrival alone counts.
+    constexpr bool table[4][4] = {
+        //   qss   scalar boolean ping
+        { true, true, false, true },   // qss
+        { true, true, true, true },    // scalar
+        { false, false, true, true },  // boolean
+        { false, false, false, true }, // ping
+    };
+
+    return table[static_cast<u8>(out)][static_cast<u8>(in)];
+}
+
+template<std::size_t N>
+constexpr auto repeat_port_type(const port_type type) noexcept
+  -> std::array<port_type, N>
+{
+    std::array<port_type, N> ret;
+    ret.fill(type);
+    return ret;
+}
+
+template<std::size_t N, std::size_t M>
+constexpr auto concat_port_types(const std::array<port_type, N>& lhs,
+                                 const std::array<port_type, M>& rhs) noexcept
+  -> std::array<port_type, N + M>
+{
+    std::array<port_type, N + M> ret;
+    std::copy_n(lhs.begin(), N, ret.begin());
+    std::copy_n(rhs.begin(), M, ret.begin() + N);
+    return ret;
+}
 
 /*****************************************************************************
  *
@@ -2738,6 +2787,8 @@ template<>
 struct abstract_integrator<1> {
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
 
     real dQ;
     real X;
@@ -2863,6 +2914,8 @@ template<>
 struct abstract_integrator<2> {
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
 
     real dQ;
     real X;
@@ -3032,6 +3085,8 @@ template<>
 struct abstract_integrator<3> {
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
 
     real dQ;
     real X;
@@ -4132,6 +4187,7 @@ struct abstract_compare {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> a;
     std::array<real, QssLevel> b;
@@ -4743,6 +4799,7 @@ using qss3_cos = abstract_cos<3>;
 
 struct counter {
     input_port x[1] = {};
+    static constexpr port_type x_types[] = { port_type::ping };
 
     /// Enumeration mainly used in @c observation function to output the
     /// correct number
@@ -4823,6 +4880,9 @@ struct generator {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::scalar,
+                                             port_type::scalar };
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     time sigma = time_domain<time>::infinity;
     time ta    = one;
@@ -4967,6 +5027,7 @@ struct generator {
 
 struct constant {
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
     time           sigma;
 
     enum class init_type : u8 {
@@ -5075,6 +5136,8 @@ struct abstract_min_max_hold {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       extremum;
@@ -5250,6 +5313,7 @@ struct abstract_sample_hold {
 
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       sample;
@@ -5322,6 +5386,7 @@ using qss3_sample_hold = abstract_sample_hold<3>;
 struct zero_order_hold {
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     real held;
     time sigma;
@@ -5373,6 +5438,7 @@ struct abstract_quantizer {
 
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       q;
@@ -5469,6 +5535,9 @@ struct abstract_integrate_and_fire {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       acc;
@@ -5563,6 +5632,9 @@ struct abstract_threshold_crossing {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       threshold;
@@ -5661,6 +5733,7 @@ struct abstract_pwm {
 
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       period;
@@ -6679,6 +6752,7 @@ struct abstract_sign {
 
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -6776,6 +6850,7 @@ struct abstract_hysteresis {
 
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     std::array<real, QssLevel> value;
     real                       lower;    // param (down threshold)
@@ -7269,6 +7344,9 @@ template<typename AbstractLogicalTester, std::size_t PortNumber>
 struct abstract_logical {
     input_port     x[PortNumber];
     output_port_id y[1];
+    static constexpr auto x_types = repeat_port_type<PortNumber>(
+      port_type::boolean);
+    static constexpr port_type y_types[] = { port_type::boolean };
 
     std::array<bool, PortNumber> values;
     time                         sigma = time_domain<time>::infinity;
@@ -7333,6 +7411,8 @@ using logical_or_3  = abstract_logical<abstract_or_check, 3>;
 struct logical_invert {
     input_port     x[1] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::boolean };
+    static constexpr port_type y_types[] = { port_type::boolean };
 
     time sigma         = time_domain<time>::infinity;
     bool value         = false;
@@ -7991,6 +8071,14 @@ struct hsm_wrapper {
 
     input_port     x[4] = {};
     output_port_id y[4] = {};
+    static constexpr port_type x_types[] = { port_type::scalar,
+                                             port_type::scalar,
+                                             port_type::scalar,
+                                             port_type::scalar };
+    static constexpr port_type y_types[] = { port_type::scalar,
+                                             port_type::scalar,
+                                             port_type::scalar,
+                                             port_type::scalar };
 
     hsm::execution exec;
 
@@ -8030,6 +8118,11 @@ struct simulation_wrapper {
     /** y[0..] send the factors values of the best sub-simulation, then the
      * results of its selections. */
     small_vector<output_port_id, 12> y;
+
+    static constexpr port_type x_types[] = { port_type::ping, port_type::ping };
+    static constexpr port_type x_extra_type                = port_type::scalar;
+    static constexpr std::array<port_type, 0> y_types      = {};
+    static constexpr port_type                y_extra_type = port_type::scalar;
 
     /** Identifier of the source of the simulation to run. This
      * identifier references simulation in simulation::sims member. */
@@ -8086,6 +8179,9 @@ struct simulation_wrapper {
 template<std::size_t PortNumber>
 struct accumulator {
     input_port x[2u * PortNumber] = {};
+    static constexpr auto x_types            = concat_port_types(
+      repeat_port_type<PortNumber>(port_type::boolean),
+      repeat_port_type<PortNumber>(port_type::scalar));
     time       sigma;
     real       number;
     real       numbers[PortNumber];
@@ -8144,6 +8240,10 @@ struct abstract_cross {
 
     input_port     x[2] = {};
     output_port_id y[2] = {};
+    static constexpr port_type x_types[] = { port_type::qss,
+                                             port_type::scalar };
+    static constexpr port_type y_types[] = { port_type::scalar,
+                                             port_type::scalar };
 
     std::array<real, 2>        output_values;
     std::array<real, QssLevel> value;
@@ -8279,6 +8379,7 @@ struct abstract_flipflop {
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
+    static constexpr port_type x_types[] = { port_type::qss, port_type::ping };
 
     std::array<real, QssLevel> value;
     time                       sigma = zero;
@@ -8360,6 +8461,7 @@ using qss3_flipflop = abstract_flipflop<3>;
 
 struct time_func {
     output_port_id y[1] = {};
+    static constexpr port_type y_types[] = { port_type::scalar };
 
     enum class function_type : u8 { sine, square, linear };
     constexpr static u8 function_type_count = ordinal(function_type::linear);
@@ -8819,6 +8921,126 @@ static_assert(dynamics_typeof<counter>() == dynamics_type::counter);
 static_assert(dynamics_typeof<zero_order_hold>() ==
               dynamics_type::zero_order_hold);
 
+namespace detail {
+
+template<typename Ports>
+consteval int port_count() noexcept
+{
+    // The ports of a simulation_wrapper are only known at run time.
+    if constexpr (std::is_array_v<Ports>)
+        return static_cast<int>(std::extent_v<Ports>);
+    else
+        return std::numeric_limits<int>::max();
+}
+
+template<typename Dynamics>
+consteval bool have_one_type_per_port() noexcept
+{
+    if constexpr (requires { Dynamics::x_types; })
+        if constexpr (std::is_array_v<decltype(Dynamics::x)>)
+            static_assert(std::size(Dynamics::x_types) ==
+                          std::extent_v<decltype(Dynamics::x)>);
+
+    if constexpr (requires { Dynamics::y_types; })
+        if constexpr (std::is_array_v<decltype(Dynamics::y)>)
+            static_assert(std::size(Dynamics::y_types) ==
+                          std::extent_v<decltype(Dynamics::y)>);
+
+    return true;
+}
+
+} // namespace detail
+
+static_assert([]<typename... Ts>(type_list<Ts...>) {
+    return (detail::have_one_type_per_port<Ts>() and ...);
+}(dynamics_list{}));
+
+/** @return the type of the input port @c port of @c Dynamics or @c nullopt if
+ * this port does not exist. */
+template<typename Dynamics>
+constexpr auto get_input_port_type(const int port) noexcept
+  -> std::optional<port_type>
+{
+    if constexpr (not requires { Dynamics::x; }) {
+        return std::nullopt;
+    } else {
+        if (port < 0 or port >= detail::port_count<decltype(Dynamics::x)>())
+            return std::nullopt;
+
+        if constexpr (requires { Dynamics::x_types; })
+            if (port < std::ssize(Dynamics::x_types))
+                return Dynamics::x_types[port];
+
+        if constexpr (requires { Dynamics::x_extra_type; })
+            return Dynamics::x_extra_type;
+        else
+            return port_type::qss;
+    }
+}
+
+/** @return the type of the output port @c port of @c Dynamics or @c nullopt
+ * if this port does not exist. */
+template<typename Dynamics>
+constexpr auto get_output_port_type(const int port) noexcept
+  -> std::optional<port_type>
+{
+    if constexpr (not requires { Dynamics::y; }) {
+        return std::nullopt;
+    } else {
+        if (port < 0 or port >= detail::port_count<decltype(Dynamics::y)>())
+            return std::nullopt;
+
+        if constexpr (requires { Dynamics::y_types; })
+            if (port < std::ssize(Dynamics::y_types))
+                return Dynamics::y_types[port];
+
+        if constexpr (requires { Dynamics::y_extra_type; })
+            return Dynamics::y_extra_type;
+        else
+            return port_type::qss;
+    }
+}
+
+namespace detail {
+
+using port_type_function = std::optional<port_type> (*)(int) noexcept;
+
+template<typename... Ts>
+constexpr auto make_input_port_types(type_list<Ts...>) noexcept
+{
+    return std::array<port_type_function, sizeof...(Ts)>{
+        &get_input_port_type<Ts>...
+    };
+}
+
+template<typename... Ts>
+constexpr auto make_output_port_types(type_list<Ts...>) noexcept
+{
+    return std::array<port_type_function, sizeof...(Ts)>{
+        &get_output_port_type<Ts>...
+    };
+}
+
+inline constexpr auto input_port_types = make_input_port_types(dynamics_list{});
+inline constexpr auto output_port_types = make_output_port_types(
+  dynamics_list{});
+
+} // namespace detail
+
+constexpr auto get_input_port_type(const dynamics_type type,
+                                   const int           port) noexcept
+  -> std::optional<port_type>
+{
+    return detail::input_port_types[ordinal(type)](port);
+}
+
+constexpr auto get_output_port_type(const dynamics_type type,
+                                    const int           port) noexcept
+  -> std::optional<port_type>
+{
+    return detail::output_port_types[ordinal(type)](port);
+}
+
 /// One function per dynamics, called through a table indexed by the
 /// @c dynamics_type: a single indirect call, as a jump table of a switch, and
 /// the body of @c Function stays inlined in each function.
@@ -8920,196 +9142,17 @@ constexpr const model& get_model(const Dynamics& d) noexcept
 //                                                block_node_id*& p)
 //                                                noexcept;
 
-inline bool is_ports_compatible(const dynamics_type mdl_src,
-                                const int           o_port_index,
-                                const dynamics_type mdl_dst,
-                                const int /*i_port_index*/) noexcept
+/** @return true if the output port @c o_port_index of a @c mdl_src dynamics
+ * can feed the input port @c i_port_index of a @c mdl_dst dynamics. */
+constexpr bool is_ports_compatible(const dynamics_type mdl_src,
+                                   const int           o_port_index,
+                                   const dynamics_type mdl_dst,
+                                   const int           i_port_index) noexcept
 {
-    // @TODO replace this function with a more readable large boolean
-    // table?
+    const auto out = get_output_port_type(mdl_src, o_port_index);
+    const auto in  = get_input_port_type(mdl_dst, i_port_index);
 
-    switch (mdl_src) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss1_flipflop:
-    case dynamics_type::qss1_max_hold:
-    case dynamics_type::qss1_min_hold:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss1_inverse:
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss2_flipflop:
-    case dynamics_type::qss2_max_hold:
-    case dynamics_type::qss2_min_hold:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss2_inverse:
-    case dynamics_type::qss3_integrator:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss3_flipflop:
-    case dynamics_type::qss3_max_hold:
-    case dynamics_type::qss3_min_hold:
-    case dynamics_type::qss3_square:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::qss3_wsum_4:
-    case dynamics_type::qss3_inverse:
-        if (any_equal(mdl_dst, dynamics_type::logical_and_2,
-                      dynamics_type::logical_and_3, dynamics_type::logical_or_2,
-                      dynamics_type::logical_or_3,
-                      dynamics_type::logical_invert))
-            return false;
-        return true;
-
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::generator:
-    case dynamics_type::time_func:
-    case dynamics_type::hsm_wrapper:
-    case dynamics_type::simulation_wrapper:
-    case dynamics_type::accumulator_2:
-    case dynamics_type::qss1_sample_hold:
-    case dynamics_type::qss2_sample_hold:
-    case dynamics_type::qss3_sample_hold:
-    case dynamics_type::zero_order_hold:
-    case dynamics_type::qss1_sqrt:
-    case dynamics_type::qss2_sqrt:
-    case dynamics_type::qss3_sqrt:
-    case dynamics_type::qss1_atan:
-    case dynamics_type::qss2_atan:
-    case dynamics_type::qss3_atan:
-    case dynamics_type::qss1_tan:
-    case dynamics_type::qss2_tan:
-    case dynamics_type::qss3_tan:
-    case dynamics_type::qss1_tanh:
-    case dynamics_type::qss2_tanh:
-    case dynamics_type::qss3_tanh:
-    case dynamics_type::qss1_sigmoid:
-    case dynamics_type::qss2_sigmoid:
-    case dynamics_type::qss3_sigmoid:
-    case dynamics_type::qss1_division:
-    case dynamics_type::qss2_division:
-    case dynamics_type::qss3_division:
-    case dynamics_type::qss1_atan2:
-    case dynamics_type::qss2_atan2:
-    case dynamics_type::qss3_atan2:
-    case dynamics_type::qss1_saturation:
-    case dynamics_type::qss2_saturation:
-    case dynamics_type::qss3_saturation:
-    case dynamics_type::qss1_dead_zone:
-    case dynamics_type::qss2_dead_zone:
-    case dynamics_type::qss3_dead_zone:
-    case dynamics_type::qss1_abs:
-    case dynamics_type::qss2_abs:
-    case dynamics_type::qss3_abs:
-    case dynamics_type::qss1_sign:
-    case dynamics_type::qss2_sign:
-    case dynamics_type::qss3_sign:
-    case dynamics_type::qss1_hysteresis:
-    case dynamics_type::qss2_hysteresis:
-    case dynamics_type::qss3_hysteresis:
-    case dynamics_type::qss1_minimum:
-    case dynamics_type::qss2_minimum:
-    case dynamics_type::qss3_minimum:
-    case dynamics_type::qss1_maximum:
-    case dynamics_type::qss2_maximum:
-    case dynamics_type::qss3_maximum:
-    case dynamics_type::qss1_priority_2:
-    case dynamics_type::qss1_priority_3:
-    case dynamics_type::qss1_priority_4:
-    case dynamics_type::qss2_priority_2:
-    case dynamics_type::qss2_priority_3:
-    case dynamics_type::qss2_priority_4:
-    case dynamics_type::qss3_priority_2:
-    case dynamics_type::qss3_priority_3:
-    case dynamics_type::qss3_priority_4:
-    case dynamics_type::qss1_wrap:
-    case dynamics_type::qss2_wrap:
-    case dynamics_type::qss3_wrap:
-    case dynamics_type::qss1_quantizer:
-    case dynamics_type::qss2_quantizer:
-    case dynamics_type::qss3_quantizer:
-    case dynamics_type::qss1_integrate_and_fire:
-    case dynamics_type::qss2_integrate_and_fire:
-    case dynamics_type::qss3_integrate_and_fire:
-    case dynamics_type::qss1_threshold_crossing:
-    case dynamics_type::qss2_threshold_crossing:
-    case dynamics_type::qss3_threshold_crossing:
-    case dynamics_type::qss1_pwm:
-    case dynamics_type::qss2_pwm:
-    case dynamics_type::qss3_pwm:
-    case dynamics_type::qss1_compare:
-    case dynamics_type::qss2_compare:
-    case dynamics_type::qss3_compare:
-    case dynamics_type::qss1_gain:
-    case dynamics_type::qss2_gain:
-    case dynamics_type::qss3_gain:
-    case dynamics_type::qss1_sin:
-    case dynamics_type::qss2_sin:
-    case dynamics_type::qss3_sin:
-    case dynamics_type::qss1_cos:
-    case dynamics_type::qss2_cos:
-    case dynamics_type::qss3_cos:
-    case dynamics_type::qss1_log:
-    case dynamics_type::qss2_log:
-    case dynamics_type::qss3_log:
-    case dynamics_type::qss1_exp:
-    case dynamics_type::qss2_exp:
-    case dynamics_type::qss3_exp:
-        return true;
-
-    case dynamics_type::constant:
-        return true;
-
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss3_cross:
-    case dynamics_type::qss1_cross:
-        if (o_port_index == 2) {
-            return any_equal(
-              mdl_dst, dynamics_type::counter, dynamics_type::hsm_wrapper,
-              dynamics_type::logical_and_2, dynamics_type::logical_and_3,
-              dynamics_type::logical_or_2, dynamics_type::logical_or_3,
-              dynamics_type::logical_invert);
-        } else {
-            return !any_equal(
-              mdl_dst, dynamics_type::logical_and_2,
-              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
-              dynamics_type::logical_or_3, dynamics_type::logical_invert);
-        }
-        return true;
-
-    case dynamics_type::logical_and_2:
-    case dynamics_type::logical_and_3:
-    case dynamics_type::logical_or_2:
-    case dynamics_type::logical_or_3:
-    case dynamics_type::logical_invert:
-        if (any_equal(
-              mdl_dst, dynamics_type::counter, dynamics_type::logical_and_2,
-              dynamics_type::logical_and_3, dynamics_type::logical_or_2,
-              dynamics_type::logical_or_3, dynamics_type::logical_invert))
-            return true;
-    }
-
-    return false;
+    return out.has_value() and in.has_value() and is_convertible(*out, *in);
 }
 
 inline bool is_ports_compatible(const model& mdl_src,
