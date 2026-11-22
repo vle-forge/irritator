@@ -306,9 +306,11 @@ struct time_func_tag {
 };
 
 struct accumulator_2_tag {
-    static constexpr std::string_view x_names[] = { "in-1", "in-2" };
+    static constexpr std::string_view x_names[] = { "in-1", "in-2", "value-1",
+                                                    "value-2" };
 
-    static constexpr const port_type x_types[] = { scalar, scalar };
+    static constexpr const port_type x_types[] = { boolean, boolean, scalar,
+                                                   scalar };
 };
 
 struct logical_and_2_tag {
@@ -483,18 +485,18 @@ struct sigmoid_tag {
 };
 
 struct division_tag {
-    static constexpr std::string_view x_names[] = { "in" };
+    static constexpr std::string_view x_names[] = { "in", "divisor" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
+    static constexpr const port_type x_types[] = { qss, qss };
     static constexpr const port_type y_types[] = { qss };
 };
 
 struct atan2_tag {
-    static constexpr std::string_view x_names[] = { "in" };
+    static constexpr std::string_view x_names[] = { "in", "x" };
     static constexpr std::string_view y_names[] = { "out" };
 
-    static constexpr const port_type x_types[] = { qss };
+    static constexpr const port_type x_types[] = { qss, qss };
     static constexpr const port_type y_types[] = { qss };
 };
 
@@ -978,6 +980,43 @@ constexpr auto get_output_port_names() -> std::span<const std::string_view>
           return {};
       });
 }
+
+namespace detail {
+
+template<typename Ports>
+consteval bool have_port_count(const std::size_t names) noexcept
+{
+    // The ports of a simulation_wrapper are only known at run time.
+    if constexpr (std::is_array_v<Ports>)
+        return std::extent_v<Ports> == names;
+    else
+        return true;
+}
+
+template<typename Dynamics>
+consteval bool have_one_name_per_port() noexcept
+{
+    constexpr auto x_names = get_input_port_names<Dynamics>().size();
+    constexpr auto y_names = get_output_port_names<Dynamics>().size();
+
+    if constexpr (requires { Dynamics::x; })
+        static_assert(have_port_count<decltype(Dynamics::x)>(x_names));
+    else
+        static_assert(x_names == 0);
+
+    if constexpr (requires { Dynamics::y; })
+        static_assert(have_port_count<decltype(Dynamics::y)>(y_names));
+    else
+        static_assert(y_names == 0);
+
+    return true;
+}
+
+} // namespace detail
+
+static_assert([]<typename... Ts>(type_list<Ts...>) {
+    return (detail::have_one_name_per_port<Ts>() and ...);
+}(dynamics_list{}));
 
 /** A for-each-condition function which reads each element of the vector @c
  * Vec and apply the function @c Fn. If the function @c Fn returns true, the
