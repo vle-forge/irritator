@@ -1189,6 +1189,12 @@ static void error_not_connection_auth() noexcept
     });
 }
 
+static void error_incompatible_ports() noexcept
+{
+    log(log_level::error,
+        [&](auto& m) { m = "modeling: the ports are not compatible"; });
+}
+
 static bool connect(const component_access&         ids,
                     generic_component&              gen,
                     editor_data&                    data,
@@ -1225,7 +1231,16 @@ static bool connect(const component_access&         ids,
     auto&      dst      = gen.children.get(in.child);
     const auto port_dst = child_port(ids, dst, req.in.port, true);
 
-    return port_dst and gen.connect(src, *port_src, dst, *port_dst).has_value();
+    if (not port_dst)
+        return false;
+
+    const auto ret = gen.connect(src, *port_src, dst, *port_dst);
+    if (not ret and
+        ret.error() ==
+          error_code(modeling_errc::generic_connection_compatibility_error))
+        error_incompatible_ports();
+
+    return ret.has_value();
 }
 
 static bool show_component_editor(component_editor&       ed,

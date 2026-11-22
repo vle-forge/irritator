@@ -913,8 +913,12 @@ static int connect(project_editor&                                pj_ed,
     const auto port_out = static_cast<int>(req.out.port);
     const auto port_in  = static_cast<int>(req.in.port);
 
-    if (not is_ports_compatible(*out, port_out, *in, port_in))
+    if (not is_ports_compatible(*out, port_out, *in, port_in)) {
+        log(log_level::error, [](auto& msg) noexcept {
+            msg = "simulation: the ports are not compatible";
+        });
         return 0;
+    }
 
     return push_command(pj_ed,
                         command{ .type = command_type::new_connection,
