@@ -48,9 +48,9 @@ static auto build_graph_children(
     tr.sort();
     cache_names.resize(tr.size());
 
-    for (const auto x : tr.data) {
-        cache_names[x.value] = graph.make_unique_name_id(x.id);
-    }
+    for (const auto x : tr.data)
+        if (is_defined(x.value))
+            cache_names[x.value] = graph.make_unique_name_id(x.id);
 
     return tr;
 }

@@ -1635,6 +1635,79 @@ int main()
         expect(eq(connected_counters, 1));
     };
 
+    "graph-with-a-removed-node-connects-the-right-node"_test = [] {
+        irt::modeling mod;
+        irt::project  pj;
+        irt::name_str target_name;
+
+        const auto root_id = mod.ids.write([&](auto& ids) {
+            const auto node_id = ids.alloc_generic_component();
+            auto&      node    = ids.components[node_id];
+            auto& gen_node     = ids.generic_components.get(node.id.generic_id);
+            auto& cnt          = gen_node.alloc(irt::dynamics_type::counter);
+            auto  node_in      = node.get_or_add_x("in");
+            expect(!!gen_node.connect_input(
+              node_in, cnt, irt::connection::port{ .model = 0 }));
+
+            const auto graph_id = ids.alloc_graph_component();
+            auto&      graph    = ids.components[graph_id];
+            auto&      g        = ids.graph_components.get(graph.id.graph_id);
+            g.g_type            = irt::graph_component::graph_type::dot_file;
+            expect(fatal(g.g.reserve(3, 0).has_value()));
+
+            std::array<irt::graph_node_id, 3> v{};
+            for (auto& id : v) {
+                const auto ret = g.g.alloc_node();
+                expect(fatal(ret.has_value()));
+                id                      = *ret;
+                g.g.node_components[id] = node_id;
+            }
+            g.g.nodes.free(v[0]);
+            g.g.node_components[v[2]] = irt::undefined<irt::component_id>();
+
+            auto graph_in = graph.get_or_add_x("in");
+            expect(fatal(g.connect_input(graph_in, v[1], node_in).has_value()));
+            target_name = g.make_unique_name_id(v[1]);
+
+            const auto root_id = ids.alloc_generic_component();
+            auto&      root    = ids.components[root_id];
+            auto& gen_root     = ids.generic_components.get(root.id.generic_id);
+            auto& cst          = gen_root.alloc(irt::dynamics_type::constant);
+            auto& ch_graph     = gen_root.alloc(graph_id);
+            expect(!!gen_root.connect(
+              cst, irt::connection::port{ .model = 0 }, ch_graph,
+              irt::connection::port{ .compo = graph_in }));
+
+            return root_id;
+        });
+
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, root_id).has_value()));
+            });
+        });
+
+        int connected_counters = 0;
+        for (const auto& tn : pj.tree_nodes) {
+            for (const auto& ch : tn.children) {
+                if (not ch.is_model())
+                    continue;
+
+                const auto& mdl = pj.sim.models.get(ch.mdl);
+                if (mdl.type != irt::dynamics_type::counter)
+                    continue;
+
+                const auto nb = get_input_connection_number(pj.sim, ch.mdl, 0);
+                if (nb > 0) {
+                    ++connected_counters;
+                    expect(tn.unique_id == target_name);
+                }
+            }
+        }
+
+        expect(eq(connected_counters, 1));
+    };
+
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
 

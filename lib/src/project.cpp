@@ -269,6 +269,11 @@ struct graph_component_cache {
     data_array<graph_component::child, child_id> cache;
     data_array<connection, connection_id>        cache_connections;
     vector<name_str>                             cache_names;
+
+    /** The child of each node: the removed nodes and the nodes without
+     * component have no child, the identifiers of the cache do not follow
+     * the nodes. */
+    vector<child_id> by_node;
 };
 
 // using grid_cache_type  = table<grid_component_id, grid_component_cache>;
@@ -403,6 +408,14 @@ public:
 
             if (ret.has_error())
                 return make_error(project_errc::component_cache_error);
+
+            auto& value = graph_caches.data.back().value;
+            if (not value.by_node.resize(graph.g.node_components.size(),
+                                         undefined<child_id>()))
+                return make_error(project_errc::memory_error);
+
+            for (const auto& ch : value.cache)
+                value.by_node[ch.node_id] = value.cache.get_id(ch);
         }
 
         grid_caches.sort();
@@ -1195,6 +1208,18 @@ static auto grid_child(const grid_component&       grid,
                                                         : undefined<child_id>();
 }
 
+static auto graph_child(const graph_component&       graph,
+                        const graph_component_cache& cache,
+                        const graph_node_id          v) noexcept -> child_id
+{
+    if (not graph.g.nodes.exists(v))
+        return undefined<child_id>();
+
+    return std::cmp_less(get_index(v), cache.by_node.size())
+             ? cache.by_node[v]
+             : undefined<child_id>();
+}
+
 static void get_input_models(vector<model_port>&          inputs,
                              const project_to_simulation& sc,
                              const component_access&      ids,
@@ -1233,18 +1258,19 @@ static void get_input_models(vector<model_port>&          inputs,
                              const component_access&      ids,
                              const tree_node&             tn,
                              const graph_component&       graph,
+                             const graph_component_cache& cache,
                              const port_id                p) noexcept
 {
     for (const auto& con : graph.input_connections) {
         if (con.x != p)
             continue;
 
-        if (not graph.g.nodes.exists(con.v))
+        const auto ch_id = graph_child(graph, cache, con.v);
+        if (is_undefined(ch_id))
             continue;
 
-        const auto idx = get_index(con.v);
-        debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, sc, ids, *tn.children[idx].tn, con.id);
+        debug::ensure(tn.children[ch_id].tn);
+        get_input_models(inputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
 
@@ -1365,7 +1391,7 @@ static void get_input_models(vector<model_port>&          inputs,
         if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
             const auto* gcache = sc.graph_caches.get(compo.id.graph_id);
             fatal::ensure(gcache);
-            get_input_models(inputs, sc, ids, tn, *g, p);
+            get_input_models(inputs, sc, ids, tn, *g, *gcache, p);
             get_input_pack_models(inputs, sc, ids, tn, compo, p, gcache->cache);
         }
 
@@ -1425,18 +1451,19 @@ static void get_output_models(vector<model_port>&          outputs,
                               const component_access&      ids,
                               const tree_node&             tn,
                               const graph_component&       graph,
+                              const graph_component_cache& cache,
                               const port_id                p) noexcept
 {
     for (const auto& con : graph.output_connections) {
         if (con.y != p)
             continue;
 
-        if (not graph.g.nodes.exists(con.v))
+        const auto ch_id = graph_child(graph, cache, con.v);
+        if (is_undefined(ch_id))
             continue;
 
-        const auto idx = get_index(con.v);
-        debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, sc, ids, *tn.children[idx].tn, con.id);
+        debug::ensure(tn.children[ch_id].tn);
+        get_output_models(outputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
 
@@ -1557,7 +1584,7 @@ static void get_output_models(vector<model_port>&          outputs,
         if (auto* g = ids.graph_components.try_to_get(compo.id.graph_id)) {
             const auto* gcache = sc.graph_caches.get(compo.id.graph_id);
             fatal::ensure(gcache);
-            get_output_models(outputs, sc, ids, tn, *g, p);
+            get_output_models(outputs, sc, ids, tn, *g, *gcache, p);
             get_output_pack_models(outputs, sc, ids, tn, compo, p,
                                    gcache->cache);
         }
