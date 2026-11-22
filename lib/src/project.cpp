@@ -160,7 +160,9 @@ private:
     model_id mdl        = undefined<model_id>();
     int      port       = 0;
 
-    bool output_already_connected = false;
+    /** The models inside the component of the sum port: connected once
+     * whatever the number of connections on this port. */
+    bool inner_end_connected = false;
 
     status add_output_sum_model(simulation& sim) noexcept
     {
@@ -210,26 +212,21 @@ public:
         return tn == tn_ and id == p_id_;
     }
 
-    status add_output_connection(simulation&    sim,
-                                 const model_id dst,
-                                 int            port_dst) noexcept
+    status add_destination(simulation&    sim,
+                           const model_id dst,
+                           const int      port_dst) noexcept
     {
         if (is_undefined(output_mdl))
             if (auto ret = add_output_sum_model(sim); not ret)
                 return ret.error();
 
-        if (output_already_connected)
-            return success();
-
-        output_already_connected = true;
-
         return sim.connect(sim.models.get(output_mdl), 0, sim.models.get(dst),
                            port_dst);
     }
 
-    status add_source_connection(simulation& sim,
-                                 model_id    src,
-                                 int         port_src) noexcept
+    status add_source(simulation&    sim,
+                      const model_id src,
+                      const int      port_src) noexcept
     {
         if (is_undefined(output_mdl))
             if (auto ret = add_output_sum_model(sim); not ret)
@@ -242,6 +239,30 @@ public:
 
         return sim.connect(sim.models.get(src), port_src, sim.models.get(mdl),
                            port++);
+    }
+
+    /** For an input sum port, @c inner are the models fed by the port and
+     * @c outer the sources of one connection; for an output sum port, @c inner
+     * are the models feeding the port and @c outer the destinations of one
+     * connection. */
+    status add_connection(simulation&                 sim,
+                          const bool                  is_input_port,
+                          std::span<const model_port> inner,
+                          std::span<const model_port> outer) noexcept
+    {
+        if (not inner_end_connected) {
+            inner_end_connected = true;
+
+            for (const auto& m : inner)
+                irt_check(is_input_port ? add_destination(sim, m.mdl, m.port)
+                                        : add_source(sim, m.mdl, m.port));
+        }
+
+        for (const auto& m : outer)
+            irt_check(is_input_port ? add_source(sim, m.mdl, m.port)
+                                    : add_destination(sim, m.mdl, m.port));
+
+        return success();
     }
 
     constexpr bool operator==(const sum_connection& other) const noexcept
@@ -1741,27 +1762,20 @@ static status simulation_copy_sum_connections(
   const vector<model_port>& outputs,
   const tree_node&          tn,
   const port_id             p_id,
+  const bool                is_input_port,
   vector<sum_connection>&   connections,
   simulation&               sim) noexcept
 {
-    if (auto it = std::ranges::find_if(
-          connections,
-          [&](auto& elem) noexcept { return elem.is_equal(&tn, p_id); });
-        it != connections.end()) {
+    auto it = std::ranges::find_if(connections, [&](auto& elem) noexcept {
+        return elem.is_equal(&tn, p_id);
+    });
 
-        for (const auto& dst : inputs) {
-            if (auto ret = it->add_output_connection(sim, dst.mdl, dst.port);
-                not ret)
-                return ret.error();
-        }
+    debug::ensure(it != connections.end());
+    if (it == connections.end())
+        return success();
 
-        for (const auto& src : outputs)
-            if (auto ret = it->add_source_connection(sim, src.mdl, src.port);
-                not ret)
-                return ret.error();
-    }
-
-    return success();
+    return is_input_port ? it->add_connection(sim, true, inputs, outputs)
+                         : it->add_connection(sim, false, outputs, inputs);
 }
 
 template<typename Child>
@@ -1790,65 +1804,47 @@ static status simulation_copy_connections(
         const auto src_idx = get_index(cnx.src);
         const auto dst_idx = get_index(cnx.dst);
 
-        auto       port        = undefined<port_id>();
+        auto       src_port    = undefined<port_id>();
+        auto       dst_port    = undefined<port_id>();
         auto       input_type  = port_option::classic;
         auto       output_type = port_option::classic;
-        tree_node* tn          = nullptr;
+        tree_node* src_tn      = nullptr;
+        tree_node* dst_tn      = nullptr;
 
         if (tree.is_model(cnx.src)) {
             sc.outputs.emplace_back(tree.children[src_idx].mdl,
                                     cnx.index_src.model);
-
-            if (tree.is_model(cnx.dst)) {
-                sc.inputs.emplace_back(tree.children[dst_idx].mdl,
-                                       cnx.index_dst.model);
-            } else {
-                port = cnx.index_dst.compo;
-                tn   = tree.children[dst_idx].tn;
-                get_input_models(sc.inputs, sc, ids, *tn, port);
-
-                input_type = get_input_connection_type(ids, tn->id, port);
-            }
         } else {
-            port = cnx.index_src.compo;
-            tn   = tree.children[src_idx].tn;
-            get_output_models(sc.outputs, sc, ids, *tn, port);
+            src_port = cnx.index_src.compo;
+            src_tn   = tree.children[src_idx].tn;
+            get_output_models(sc.outputs, sc, ids, *src_tn, src_port);
+            output_type = get_output_connection_type(ids, src_tn->id, src_port);
+        }
 
-            output_type = get_output_connection_type(
-              ids, tree.children[src_idx].tn->id, cnx.index_src.compo);
-
-            if (tree.is_model(cnx.dst)) {
-                sc.inputs.emplace_back(tree.children[dst_idx].mdl,
-                                       cnx.index_dst.model);
-            } else {
-                port = cnx.index_dst.compo;
-                tn   = tree.children[dst_idx].tn;
-                get_input_models(sc.inputs, sc, ids, *tn, port);
-
-                input_type = get_input_connection_type(ids, tn->id, port);
-            }
+        if (tree.is_model(cnx.dst)) {
+            sc.inputs.emplace_back(tree.children[dst_idx].mdl,
+                                   cnx.index_dst.model);
+        } else {
+            dst_port = cnx.index_dst.compo;
+            dst_tn   = tree.children[dst_idx].tn;
+            get_input_models(sc.inputs, sc, ids, *dst_tn, dst_port);
+            input_type = get_input_connection_type(ids, dst_tn->id, dst_port);
         }
 
         if (input_type == port_option::sum and output_type == port_option::sum)
             return make_error(project_errc::connection_between_sum_ports);
 
-        if (input_type == port_option::classic) {
-            if (output_type == port_option::classic) {
-                irt_check(simulation_copy_connections(sc.inputs, sc.outputs,
-                                                      sc.pj.sim));
-            } else {
-                irt_check(simulation_copy_sum_connections(
-                  sc.inputs, sc.outputs, *tn, port, sc.sum_output_connections,
-                  sc.pj.sim));
-            }
+        if (input_type == port_option::sum) {
+            irt_check(simulation_copy_sum_connections(
+              sc.inputs, sc.outputs, *dst_tn, dst_port, true,
+              sc.sum_input_connections, sc.pj.sim));
+        } else if (output_type == port_option::sum) {
+            irt_check(simulation_copy_sum_connections(
+              sc.inputs, sc.outputs, *src_tn, src_port, false,
+              sc.sum_output_connections, sc.pj.sim));
         } else {
-            if (output_type == port_option::classic) {
-                irt_check(simulation_copy_sum_connections(
-                  sc.inputs, sc.outputs, *tn, port, sc.sum_input_connections,
-                  sc.pj.sim));
-            } else {
-                return make_error(project_errc::connection_between_sum_ports);
-            }
+            irt_check(
+              simulation_copy_connections(sc.inputs, sc.outputs, sc.pj.sim));
         }
     }
 

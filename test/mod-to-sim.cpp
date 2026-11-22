@@ -1708,6 +1708,148 @@ int main()
         expect(eq(connected_counters, 1));
     };
 
+    "sum-ports-connect-every-end-once"_test = [] {
+        // Returns the number of qss3_sum_4, the number of connections they
+        // receive and the number of counters each receiving one connection.
+        const auto count = [](const irt::project& pj) {
+            int         sums = 0, sum_inputs = 0, fed_counters = 0;
+            const auto& sim = pj.sim;
+
+            for (const auto& mdl : sim.models) {
+                const auto id = sim.models.get_id(mdl);
+                if (mdl.type == irt::dynamics_type::qss3_sum_4) {
+                    ++sums;
+                    for (int p = 0; p < 4; ++p)
+                        sum_inputs += static_cast<int>(
+                          get_input_connection_number(sim, id, p));
+                } else if (mdl.type == irt::dynamics_type::counter) {
+                    if (get_input_connection_number(sim, id, 0) == 1u)
+                        ++fed_counters;
+                }
+            }
+
+            return std::array<int, 3>{ sums, sum_inputs, fed_counters };
+        };
+
+        const auto build = [](irt::modeling& mod, irt::project& pj,
+                              auto&& make_root) {
+            const auto root_id = mod.ids.write([&](auto& ids) {
+                // A: two constants summed on its output port.
+                const auto a_id = ids.alloc_generic_component();
+                auto&      a    = ids.components[a_id];
+                auto&      ga   = ids.generic_components.get(a.id.generic_id);
+                auto&      c1   = ga.alloc(irt::dynamics_type::constant);
+                auto&      c2   = ga.alloc(irt::dynamics_type::constant);
+                const auto a_y  = a.get_or_add_y("out");
+                a.y.template get<irt::port_option>(a_y) = irt::port_option::sum;
+                expect(!!ga.connect_output(
+                  a_y, c1, irt::connection::port{ .model = 0 }));
+                expect(!!ga.connect_output(
+                  a_y, c2, irt::connection::port{ .model = 0 }));
+
+                // B: a counter on its classic input port.
+                const auto b_id = ids.alloc_generic_component();
+                auto&      b    = ids.components[b_id];
+                auto&      gb   = ids.generic_components.get(b.id.generic_id);
+                auto&      cb   = gb.alloc(irt::dynamics_type::counter);
+                const auto b_x  = b.get_or_add_x("in");
+                expect(!!gb.connect_input(b_x, cb,
+                                          irt::connection::port{ .model = 0 }));
+
+                // D: two counters fed by its sum input port.
+                const auto d_id = ids.alloc_generic_component();
+                auto&      d    = ids.components[d_id];
+                auto&      gd   = ids.generic_components.get(d.id.generic_id);
+                auto&      cd1  = gd.alloc(irt::dynamics_type::counter);
+                auto&      cd2  = gd.alloc(irt::dynamics_type::counter);
+                const auto d_x  = d.get_or_add_x("in");
+                d.x.template get<irt::port_option>(d_x) = irt::port_option::sum;
+                expect(!!gd.connect_input(d_x, cd1,
+                                          irt::connection::port{ .model = 0 }));
+                expect(!!gd.connect_input(d_x, cd2,
+                                          irt::connection::port{ .model = 0 }));
+
+                const auto root_id = ids.alloc_generic_component();
+                auto&      root    = ids.components[root_id];
+                auto&      gr = ids.generic_components.get(root.id.generic_id);
+                make_root(gr, a_id, a_y, b_id, b_x, d_id, d_x);
+
+                return root_id;
+            });
+
+            mod.ids.read([&](const auto& ids, auto) {
+                mod.files.read([&](const auto& fs, auto) {
+                    expect(fatal(pj.set(ids, fs, root_id).has_value()));
+                });
+            });
+        };
+
+        {
+            // A.out (sum) -> B.in: one sum of the two constants feeds B.
+            irt::modeling mod;
+            irt::project  pj;
+            build(mod, pj,
+                  [](auto& gr, auto a_id, auto a_y, auto b_id, auto b_x, auto,
+                     auto) {
+                      auto& ca = gr.alloc(a_id);
+                      auto& cb = gr.alloc(b_id);
+                      expect(!!gr.connect(
+                        ca, irt::connection::port{ .compo = a_y }, cb,
+                        irt::connection::port{ .compo = b_x }));
+                  });
+
+            const auto [sums, sum_inputs, fed] = count(pj);
+            expect(eq(sums, 1));
+            expect(eq(sum_inputs, 2));
+            expect(eq(fed, 1));
+        }
+
+        {
+            // A.out (sum) -> two counters: the constants enter the sum once.
+            irt::modeling mod;
+            irt::project  pj;
+            build(
+              mod, pj,
+              [](auto& gr, auto a_id, auto a_y, auto, auto, auto, auto) {
+                  auto& ca = gr.alloc(a_id);
+                  auto& k1 = gr.alloc(irt::dynamics_type::counter);
+                  auto& k2 = gr.alloc(irt::dynamics_type::counter);
+                  expect(!!gr.connect(ca, irt::connection::port{ .compo = a_y },
+                                      k1, irt::connection::port{ .model = 0 }));
+                  expect(!!gr.connect(ca, irt::connection::port{ .compo = a_y },
+                                      k2, irt::connection::port{ .model = 0 }));
+              });
+
+            const auto [sums, sum_inputs, fed] = count(pj);
+            expect(eq(sums, 1));
+            expect(eq(sum_inputs, 2));
+            expect(eq(fed, 2));
+        }
+
+        {
+            // Two constants -> D.in (sum): the sum feeds both counters of D.
+            irt::modeling mod;
+            irt::project  pj;
+            build(mod, pj,
+                  [](auto& gr, auto, auto, auto, auto, auto d_id, auto d_x) {
+                      auto& k1 = gr.alloc(irt::dynamics_type::constant);
+                      auto& k2 = gr.alloc(irt::dynamics_type::constant);
+                      auto& cd = gr.alloc(d_id);
+                      expect(!!gr.connect(
+                        k1, irt::connection::port{ .model = 0 }, cd,
+                        irt::connection::port{ .compo = d_x }));
+                      expect(!!gr.connect(
+                        k2, irt::connection::port{ .model = 0 }, cd,
+                        irt::connection::port{ .compo = d_x }));
+                  });
+
+            const auto [sums, sum_inputs, fed] = count(pj);
+            expect(eq(sums, 1));
+            expect(eq(sum_inputs, 2));
+            expect(eq(fed, 2));
+        }
+    };
+
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
 
