@@ -1572,6 +1572,69 @@ int main()
         }
     };
 
+    "grid-with-an-empty-cell-connects-the-right-cell"_test = [] {
+        irt::modeling mod;
+        irt::project  pj;
+        irt::name_str target_name;
+
+        const auto root_id = mod.ids.write([&](auto& ids) {
+            const auto cell_id = ids.alloc_generic_component();
+            auto&      cell    = ids.components[cell_id];
+            auto& gen_cell     = ids.generic_components.get(cell.id.generic_id);
+            auto& cnt          = gen_cell.alloc(irt::dynamics_type::counter);
+            auto  cell_in      = cell.get_or_add_x("in");
+            expect(!!gen_cell.connect_input(
+              cell_in, cnt, irt::connection::port{ .model = 0 }));
+
+            const auto grid_id = ids.alloc_grid_component();
+            auto&      grid    = ids.components[grid_id];
+            auto&      g       = ids.grid_components.get(grid.id.grid_id);
+            g.resize(3, 3, cell_id);
+            g.children()[g.pos(0, 0)] = irt::undefined<irt::component_id>();
+            g.opts                    = irt::grid_component::options::none;
+            auto grid_in              = grid.get_or_add_x("in");
+            expect(!!g.connect_input(grid_in, 2, 2, cell_in));
+            target_name = g.make_unique_name_id(2, 2);
+
+            const auto root_id = ids.alloc_generic_component();
+            auto&      root    = ids.components[root_id];
+            auto& gen_root     = ids.generic_components.get(root.id.generic_id);
+            auto& cst          = gen_root.alloc(irt::dynamics_type::constant);
+            auto& ch_grid      = gen_root.alloc(grid_id);
+            expect(!!gen_root.connect(
+              cst, irt::connection::port{ .model = 0 }, ch_grid,
+              irt::connection::port{ .compo = grid_in }));
+
+            return root_id;
+        });
+
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, root_id).has_value()));
+            });
+        });
+
+        int connected_counters = 0;
+        for (const auto& tn : pj.tree_nodes) {
+            for (const auto& ch : tn.children) {
+                if (not ch.is_model())
+                    continue;
+
+                const auto& mdl = pj.sim.models.get(ch.mdl);
+                if (mdl.type != irt::dynamics_type::counter)
+                    continue;
+
+                const auto nb = get_input_connection_number(pj.sim, ch.mdl, 0);
+                if (nb > 0) {
+                    ++connected_counters;
+                    expect(tn.unique_id == target_name);
+                }
+            }
+        }
+
+        expect(eq(connected_counters, 1));
+    };
+
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
 

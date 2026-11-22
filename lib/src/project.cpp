@@ -259,6 +259,10 @@ struct grid_component_cache {
     data_array<grid_component::child, child_id> cache;
     data_array<connection, connection_id>       cache_connections;
     vector<name_str>                            cache_names;
+
+    /** The child of each cell: the empty cells have no child, the identifiers
+     * of the cache do not follow the positions. */
+    vector<child_id> by_position;
 };
 
 struct graph_component_cache {
@@ -377,6 +381,15 @@ public:
 
             if (ret.has_error())
                 return make_error(project_errc::component_cache_error);
+
+            auto& value = grid_caches.data.back().value;
+            if (not value.by_position.resize(grid.cells_number(),
+                                             undefined<child_id>()))
+                return make_error(project_errc::memory_error);
+
+            for (const auto& ch : value.cache)
+                value.by_position[grid.pos(ch.row, ch.col)] = value.cache
+                                                                .get_id(ch);
         }
 
         for (const auto& graph : ids.graph_components) {
@@ -1168,6 +1181,20 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
     return success();
 }
 
+static auto grid_child(const grid_component&       grid,
+                       const grid_component_cache& cache,
+                       const i32                   row,
+                       const i32                   col) noexcept -> child_id
+{
+    if (row < 0 or row >= grid.row() or col < 0 or col >= grid.column())
+        return undefined<child_id>();
+
+    const auto idx = grid.pos(row, col);
+
+    return std::cmp_less(idx, cache.by_position.size()) ? cache.by_position[idx]
+                                                        : undefined<child_id>();
+}
+
 static void get_input_models(vector<model_port>&          inputs,
                              const project_to_simulation& sc,
                              const component_access&      ids,
@@ -1226,18 +1253,19 @@ static void get_input_models(vector<model_port>&          inputs,
                              const component_access&      ids,
                              const tree_node&             tn,
                              const grid_component&        grid,
+                             const grid_component_cache&  cache,
                              const port_id                p) noexcept
 {
     for (const auto& con : grid.input_connections) {
         if (con.x != p)
             continue;
 
-        const auto idx = grid.pos(con.row, con.col);
-        if (is_undefined(grid.children()[idx]))
+        const auto ch_id = grid_child(grid, cache, con.row, con.col);
+        if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, sc, ids, *tn.children[idx].tn, con.id);
+        debug::ensure(tn.children[ch_id].tn);
+        get_input_models(inputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
 
@@ -1347,7 +1375,7 @@ static void get_input_models(vector<model_port>&          inputs,
         if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
             const auto* gcache = sc.grid_caches.get(compo.id.grid_id);
             fatal::ensure(gcache);
-            get_input_models(inputs, sc, ids, tn, *g, p);
+            get_input_models(inputs, sc, ids, tn, *g, *gcache, p);
             get_input_pack_models(inputs, sc, ids, tn, compo, p, gcache->cache);
         }
     } break;
@@ -1417,18 +1445,19 @@ static void get_output_models(vector<model_port>&          outputs,
                               const component_access&      ids,
                               const tree_node&             tn,
                               const grid_component&        grid,
+                              const grid_component_cache&  cache,
                               const port_id                p) noexcept
 {
     for (const auto& con : grid.output_connections) {
         if (con.y != p)
             continue;
 
-        const auto idx = grid.pos(con.row, con.col);
-        if (is_undefined(grid.children()[idx]))
+        const auto ch_id = grid_child(grid, cache, con.row, con.col);
+        if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, sc, ids, *tn.children[idx].tn, con.id);
+        debug::ensure(tn.children[ch_id].tn);
+        get_output_models(outputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
 
@@ -1538,7 +1567,7 @@ static void get_output_models(vector<model_port>&          outputs,
         if (auto* g = ids.grid_components.try_to_get(compo.id.grid_id)) {
             const auto* gcache = sc.grid_caches.get(compo.id.grid_id);
             fatal::ensure(gcache);
-            get_output_models(outputs, sc, ids, tn, *g, p);
+            get_output_models(outputs, sc, ids, tn, *g, *gcache, p);
             get_output_pack_models(outputs, sc, ids, tn, compo, p,
                                    gcache->cache);
         }
