@@ -439,16 +439,9 @@ struct parent_t {
 static auto get_incoming_connection(const generic_component& gen,
                                     const port_id            id) noexcept -> int
 {
-    const auto nb_input = std::ranges::count_if(
+    return static_cast<int>(std::ranges::count_if(
       gen.input_connections,
-      [&](const auto& input) noexcept -> bool { return input.x == id; });
-
-    const auto nb_internal = std::ranges::count_if(
-      gen.connections, [&](const auto& internal) noexcept -> bool {
-          return internal.index_dst.compo == id;
-      });
-
-    return static_cast<int>(nb_input + nb_internal);
+      [&](const auto& input) noexcept -> bool { return input.x == id; }));
 }
 
 static auto get_incoming_connection(const component_access& ids,
@@ -495,16 +488,9 @@ static auto get_incoming_connection(const component_access& ids,
 static auto get_outcoming_connection(const generic_component& gen,
                                      const port_id id) noexcept -> int
 {
-    const auto nb_input = std::ranges::count_if(
+    return static_cast<int>(std::ranges::count_if(
       gen.output_connections,
-      [&](const auto& input) noexcept -> bool { return input.y == id; });
-
-    const auto nb_internal = std::ranges::count_if(
-      gen.connections, [&](const auto& internal) noexcept -> bool {
-          return internal.index_src.compo == id;
-      });
-
-    return static_cast<int>(nb_input + nb_internal);
+      [&](const auto& output) noexcept -> bool { return output.y == id; }));
 }
 
 static auto get_outcoming_connection(const component_access& ids,
