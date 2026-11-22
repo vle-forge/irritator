@@ -785,6 +785,37 @@ int main()
         }
     };
 
+    "constant-source-larger-than-a-chunk"_test = [] {
+        irt::modeling mod;
+        irt::project  pj;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_generic_component();
+            auto&      compo = ids.components[id];
+            auto&      gen   = ids.generic_components.get(compo.id.generic_id);
+            (void)gen.alloc(irt::dynamics_type::counter);
+
+            compo.srcs.data.reserve(1);
+            auto& cst = compo.srcs.alloc_constant_source("cst");
+            for (int i = 0; i < irt::external_source_chunk_size + 88; ++i)
+                cst.data.emplace_back(static_cast<irt::real>(i));
+
+            return id;
+        });
+
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read(
+              [&](const auto& fs, auto) { expect(!!pj.set(ids, fs, id)); });
+        });
+
+        expect(eq(pj.sim.srcs.constant_sources.ssize(), 1));
+
+        irt::constant_source* src = nullptr;
+        expect(fatal(pj.sim.srcs.constant_sources.next(src)));
+        expect(eq(src->length,
+                  static_cast<irt::u32>(irt::external_source_chunk_size)));
+    };
+
     "easy"_test = [] {
         irt::modeling     mod;
         irt::project      pj;

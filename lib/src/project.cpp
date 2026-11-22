@@ -1030,10 +1030,6 @@ static status external_source_copy(const file_access&                fs,
             n_res.name    = src_names[id];
             auto n_res_id = dst.constant_sources.get_id(n_res);
 
-            for (sz i = 0; i < n_src.data.size(); ++i)
-                n_res.buffer[i] = n_src.data[i];
-            n_res.length = static_cast<unsigned>(n_src.data.size());
-
             v.emplace_back(id, n_res_id);
         } break;
 
