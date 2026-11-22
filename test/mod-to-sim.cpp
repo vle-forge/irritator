@@ -752,10 +752,11 @@ int main()
         {
             irt::modeling                            mod;
             irt::project                             pj;
-            irt::small_vector<irt::component_id, 17> components;
+            irt::small_vector<irt::component_id, irt::internal_component_count>
+              components;
 
             mod.ids.write([&](auto& ids) {
-                for (auto i = 0; i < 17; ++i) {
+                for (auto i = 0; i < irt::internal_component_count; ++i) {
                     auto c_id = ids.alloc_generic_component();
 
                     expect(
@@ -765,7 +766,7 @@ int main()
                     components.push_back(c_id);
                 }
 
-                for (auto i = 0; i < 17; ++i) {
+                for (auto i = 0; i < irt::internal_component_count; ++i) {
                     pj.clear();
 
                     mod.files.read([&](const auto& fs, auto) {
