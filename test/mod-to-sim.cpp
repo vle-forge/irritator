@@ -1850,6 +1850,67 @@ int main()
         }
     };
 
+    "freed-child-component-skips-its-connections"_test = [] {
+        irt::modeling mod;
+        irt::project  pj;
+
+        const auto root_id = mod.ids.write([&](auto& ids) {
+            // B: a counter behind an input port, freed below.
+            const auto b_id = ids.alloc_generic_component();
+            auto&      b    = ids.components[b_id];
+            auto&      gb   = ids.generic_components.get(b.id.generic_id);
+            auto&      cb   = gb.alloc(irt::dynamics_type::counter);
+            const auto b_x  = b.get_or_add_x("in");
+            expect(
+              !!gb.connect_input(b_x, cb, irt::connection::port{ .model = 0 }));
+
+            // C: forwards its input port to a B child.
+            const auto c_id = ids.alloc_generic_component();
+            auto&      c    = ids.components[c_id];
+            auto&      gc   = ids.generic_components.get(c.id.generic_id);
+            auto&      cc   = gc.alloc(b_id);
+            const auto c_x  = c.get_or_add_x("in");
+            expect(!!gc.connect_input(c_x, cc,
+                                      irt::connection::port{ .compo = b_x }));
+
+            const auto root_id = ids.alloc_generic_component();
+            auto&      root    = ids.components[root_id];
+            auto&      gr      = ids.generic_components.get(root.id.generic_id);
+            auto&      k       = gr.alloc(irt::dynamics_type::constant);
+            auto&      cnt     = gr.alloc(irt::dynamics_type::counter);
+            auto&      rb      = gr.alloc(b_id);
+            auto&      rc      = gr.alloc(c_id);
+            expect(!!gr.connect(k, irt::connection::port{ .model = 0 }, cnt,
+                                irt::connection::port{ .model = 0 }));
+            expect(!!gr.connect(k, irt::connection::port{ .model = 0 }, rb,
+                                irt::connection::port{ .compo = b_x }));
+            expect(!!gr.connect(k, irt::connection::port{ .model = 0 }, rc,
+                                irt::connection::port{ .compo = c_x }));
+
+            ids.free(b_id);
+
+            return root_id;
+        });
+
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, root_id).has_value()));
+            });
+        });
+
+        int counters = 0;
+        for (const auto& mdl : pj.sim.models) {
+            if (mdl.type == irt::dynamics_type::counter) {
+                ++counters;
+                expect(eq(get_input_connection_number(
+                            pj.sim, pj.sim.models.get_id(mdl), 0),
+                          1u));
+            }
+        }
+
+        expect(eq(counters, 1));
+    };
+
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
 

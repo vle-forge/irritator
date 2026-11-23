@@ -1266,8 +1266,7 @@ static void get_input_models(vector<model_port>&          inputs,
             debug::ensure(tn.children[con.dst].mdl);
 
             inputs.emplace_back(tn.children[con.dst].mdl, con.port.model);
-        } else {
-            debug::ensure(tn.children[con.dst].tn);
+        } else if (tn.children[con.dst].is_tree_node()) {
             get_input_models(inputs, sc, ids, *tn.children[con.dst].tn,
                              con.port.compo);
         }
@@ -1290,7 +1289,8 @@ static void get_input_models(vector<model_port>&          inputs,
         if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[ch_id].tn);
+        if (not tn.children[ch_id].is_tree_node())
+            continue;
         get_input_models(inputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
@@ -1311,7 +1311,8 @@ static void get_input_models(vector<model_port>&          inputs,
         if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[ch_id].tn);
+        if (not tn.children[ch_id].is_tree_node())
+            continue;
         get_input_models(inputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
@@ -1333,7 +1334,8 @@ static void get_input_pack_models(
             if (c.type == child_type::component and
                 c.id.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_input_models(inputs, sc, ids, *tn.children[idx].tn,
                                  con.child_port);
             }
@@ -1357,7 +1359,8 @@ static void get_input_pack_models(
         for (const auto& c : children) {
             if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_input_models(inputs, sc, ids, *tn.children[idx].tn,
                                  con.child_port);
             }
@@ -1381,7 +1384,8 @@ static void get_input_pack_models(
         for (const auto& c : children) {
             if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_input_models(inputs, sc, ids, *tn.children[idx].tn,
                                  con.child_port);
             }
@@ -1459,8 +1463,7 @@ static void get_output_models(vector<model_port>&          outputs,
             debug::ensure(tn.children[con.src].mdl);
 
             outputs.emplace_back(tn.children[con.src].mdl, con.port.model);
-        } else {
-            debug::ensure(tn.children[con.src].tn);
+        } else if (tn.children[con.src].is_tree_node()) {
             get_output_models(outputs, sc, ids, *tn.children[con.src].tn,
                               con.port.compo);
         }
@@ -1483,7 +1486,8 @@ static void get_output_models(vector<model_port>&          outputs,
         if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[ch_id].tn);
+        if (not tn.children[ch_id].is_tree_node())
+            continue;
         get_output_models(outputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
@@ -1504,7 +1508,8 @@ static void get_output_models(vector<model_port>&          outputs,
         if (is_undefined(ch_id))
             continue;
 
-        debug::ensure(tn.children[ch_id].tn);
+        if (not tn.children[ch_id].is_tree_node())
+            continue;
         get_output_models(outputs, sc, ids, *tn.children[ch_id].tn, con.id);
     }
 }
@@ -1526,7 +1531,8 @@ static void get_output_pack_models(
             if (c.type == child_type::component and
                 c.id.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_output_models(outputs, sc, ids, *tn.children[idx].tn,
                                   con.child_port);
             }
@@ -1550,7 +1556,8 @@ static void get_output_pack_models(
         for (const auto& c : children) {
             if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_output_models(outputs, sc, ids, *tn.children[idx].tn,
                                   con.child_port);
             }
@@ -1574,7 +1581,8 @@ static void get_output_pack_models(
         for (const auto& c : children) {
             if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
-                debug::ensure(tn.children[idx].tn);
+                if (not tn.children[idx].is_tree_node())
+                    continue;
                 get_output_models(outputs, sc, ids, *tn.children[idx].tn,
                                   con.child_port);
             }
@@ -1803,6 +1811,16 @@ static status simulation_copy_connections(
 
         const auto src_idx = get_index(cnx.src);
         const auto dst_idx = get_index(cnx.dst);
+
+        // A child whose component was freed has no tree node: its
+        // connections are dropped and the rest of the project is built.
+        if (tree.children[src_idx].type == tree_node::child_node::type::empty or
+            tree.children[dst_idx].type == tree_node::child_node::type::empty) {
+            log(log_level::warning, [](auto& m) noexcept {
+                m = "project: skip a connection with an unknown component";
+            });
+            continue;
+        }
 
         auto       src_port    = undefined<port_id>();
         auto       dst_port    = undefined<port_id>();
