@@ -43,6 +43,9 @@ struct circuit {
     irt::component_id         id;
     irt::vector<irt::port_id> x;
     irt::vector<irt::port_id> y;
+
+    /** The clock input of a sequential circuit, fed by the bench. */
+    std::optional<irt::port_id> clk = std::nullopt;
 };
 
 /** A signal of a generic component: an output port of a child or, without
@@ -170,9 +173,23 @@ public:
         const auto       capacity = m_gen.children.capacity();
         irt::vector<int> depth(capacity, 0);
 
-        for (auto changed = true; changed;) {
+        // The flip-flops start the columns: the connections into them close
+        // the loops of a sequential circuit. The passes are bounded by the
+        // longest path without loop.
+        const auto is_flipflop = [&](const irt::child_id id) {
+            const auto& child = m_gen.children.get(id);
+            return child.type == irt::child_type::model and
+                   child.id.mdl_type == dynamics_type::logical_d_flipflop;
+        };
+
+        auto changed = true;
+        for (int pass = 0, e = m_gen.children.ssize(); changed and pass < e;
+             ++pass) {
             changed = false;
             for (const auto& con : m_gen.connections) {
+                if (is_flipflop(con.dst))
+                    continue;
+
                 const auto src = irt::get_index(con.src);
                 const auto dst = irt::get_index(con.dst);
                 if (depth[dst] <= depth[src]) {
@@ -454,6 +471,60 @@ circuit make_alu(irt::component_access&    ids,
     return ret;
 }
 
+/** An incrementer of @c Bits bits: a chain of half adders, the carry of the
+ * bit 0 is one. */
+template<int Bits>
+std::array<wire, Bits> make_incrementer(netlist&                      n,
+                                        const std::array<wire, Bits>& q)
+{
+    std::array<wire, Bits> ret;
+    ret[0]     = n.not_(q[0]);
+    auto carry = q[0];
+
+    for (int i = 1; i < Bits; ++i) {
+        ret[i] = n.xor_(q[i], carry);
+        if (i + 1 < Bits)
+            carry = n.and_(q[i], carry);
+    }
+
+    return ret;
+}
+
+/** A counter of @c Bits bits: a register of D flip-flops fed by the
+ * incrementer of its own outputs, one increment per rising edge. */
+template<int Bits>
+circuit make_counter(irt::component_access& ids) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(0, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(Bits, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+    ret.clk   = c.get_or_add_x("clk");
+
+    netlist    n(gen);
+    const auto clk = netlist::input(*ret.clk);
+
+    std::array<wire, Bits> q;
+    for (int i = 0; i < Bits; ++i)
+        q[i] = n.gate(dynamics_type::logical_d_flipflop, {});
+
+    const auto next = make_incrementer<Bits>(n, q);
+    for (int i = 0; i < Bits; ++i) {
+        n.link(next[i], *q[i].child, mdl(irt::logical_d_flipflop::port_d));
+        n.link(clk, *q[i].child, mdl(irt::logical_d_flipflop::port_clk));
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("q{}", i).sv())),
+          q[i]);
+    }
+
+    n.place();
+
+    return ret;
+}
+
 /** The root of a circuit: one constant per input bit and one counter per
  * output bit, the counter keeps the last value received. The constants are
  * named x0, x1... and the counters y0, y1... to find them in a component read
@@ -463,6 +534,10 @@ struct bench {
     irt::vector<irt::child_id> inputs;
     irt::vector<irt::child_id> outputs;
 };
+
+/** The clock of a bench: a rising edge at each odd date, the outputs are read
+ * at the falling edges, once the circuit is stable. */
+constexpr irt::real clock_period = 2.0;
 
 bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
 {
@@ -485,6 +560,14 @@ bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
                                                           ret.inputs.ssize())
                                            .sv();
         ret.inputs.emplace_back(*cst.child);
+    }
+
+    if (tested.clk) {
+        const auto clk = n.gate(dynamics_type::logical_clock, {});
+        gen.children_parameters[*clk.child].set_logical_clock(clock_period,
+                                                              clock_period / 2);
+        gen.children_names[*clk.child] = "clk";
+        n.link(clk, dut, compo(*tested.clk));
     }
 
     for (const auto y : tested.y) {
@@ -519,17 +602,46 @@ public:
 
     irt::u64 evaluate(const irt::u64 inputs) noexcept
     {
+        start(inputs, 0);
+        do {
+            boost::ut::expect(boost::ut::fatal(m_pj.sim.run().has_value()));
+        } while (not m_pj.sim.current_time_expired());
+
+        return outputs();
+    }
+
+    /** Initializes the simulation of a sequential circuit for @c cycles
+     * clock cycles. */
+    void start(const irt::u64 inputs, const int cycles) noexcept
+    {
         const auto& head = *m_pj.tree_nodes.try_to_get(m_pj.tn_head());
 
         for (int i = 0, e = m_bench.inputs.ssize(); i != e; ++i)
             m_pj.sim.parameters[head.children[m_bench.inputs[i]].mdl]
               .set_constant(static_cast<irt::real>((inputs >> i) & 1u));
 
-        m_pj.sim.limits.set_bound(0, 10);
+        m_cycle = 0;
+        m_pj.sim.limits.set_bound(0, (cycles + 1) * clock_period);
         boost::ut::expect(boost::ut::fatal(m_pj.sim.initialize().has_value()));
-        do {
+    }
+
+    /** Runs the simulation to the falling edge after the next rising edge
+     * and returns the outputs. */
+    irt::u64 cycle() noexcept
+    {
+        const auto falling_edge = static_cast<irt::real>(++m_cycle) *
+                                  clock_period;
+
+        while (m_pj.sim.current_time() < falling_edge)
             boost::ut::expect(boost::ut::fatal(m_pj.sim.run().has_value()));
-        } while (not m_pj.sim.current_time_expired());
+
+        return outputs();
+    }
+
+private:
+    irt::u64 outputs() noexcept
+    {
+        const auto& head = *m_pj.tree_nodes.try_to_get(m_pj.tn_head());
 
         irt::u64 outputs = 0;
         for (int i = 0, e = m_bench.outputs.ssize(); i != e; ++i) {
@@ -542,9 +654,9 @@ public:
         return outputs;
     }
 
-private:
     irt::project m_pj;
     const bench& m_bench;
+    int          m_cycle = 0;
 };
 
 /** Saves the components in the directory @c dir/digital, in the order of
@@ -862,6 +974,21 @@ int main()
 
         bench_simulation sim(mod, b);
         check_alu(sim);
+    };
+
+    "counter-8-bits-counts-the-rising-edges"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write(
+          [&](auto& ids) { return make_bench(ids, make_counter<8>(ids)); });
+
+        bench_simulation sim(mod, b);
+
+        constexpr int cycles = 300;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k)
+            expect(eq(sim.cycle(), static_cast<irt::u64>(k % 256)))
+              << "cycle " << k;
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
