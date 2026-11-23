@@ -10,12 +10,15 @@
 #include <irritator/modeling.hpp>
 
 #include <array>
+#include <cstdlib>
 #include <initializer_list>
 #include <optional>
 #include <random>
 #include <span>
 
 #include <boost/ut.hpp>
+
+#include "utils.hpp"
 
 namespace {
 
@@ -157,6 +160,38 @@ public:
         }
     }
 
+    /** Places each child in the column of its longest path from the inputs
+     * of the component, to read the circuit from left to right in the
+     * editor. */
+    void place() noexcept
+    {
+        const auto       capacity = m_gen.children.capacity();
+        irt::vector<int> depth(capacity, 0);
+
+        for (auto changed = true; changed;) {
+            changed = false;
+            for (const auto& con : m_gen.connections) {
+                const auto src = irt::get_index(con.src);
+                const auto dst = irt::get_index(con.dst);
+                if (depth[dst] <= depth[src]) {
+                    depth[dst] = depth[src] + 1;
+                    changed    = true;
+                }
+            }
+        }
+
+        irt::vector<int> rows(capacity, 0);
+        for (const auto& child : m_gen.children) {
+            const auto id    = m_gen.children.get_id(child);
+            const auto level = depth[irt::get_index(id)];
+
+            m_gen.children_positions[id] = irt::position{
+                .x = static_cast<float>(level) * 200.f,
+                .y = static_cast<float>(rows[level]++) * 80.f
+            };
+        }
+    }
+
 private:
     template<typename Connections>
     static bool have_room(Connections& connections) noexcept
@@ -193,6 +228,7 @@ full_adder_component make_full_adder(irt::component_access& ids) noexcept
 
     n.output(ret.s, n.xor_(ab, cin));
     n.output(ret.cout, n.or_(n.and_(a, b), n.and_(ab, cin)));
+    n.place();
 
     return ret;
 }
@@ -232,6 +268,7 @@ adder_component<Bits> make_adder(irt::component_access&      ids,
     }
 
     n.output(ret.cout, carry);
+    n.place();
 
     return ret;
 }
@@ -410,12 +447,15 @@ circuit make_alu(irt::component_access&    ids,
     n.output(*ret.y.emplace_back(c.get_or_add_y("v")), overflow);
     n.output(*ret.y.emplace_back(c.get_or_add_y("n")), r[7]);
     n.output(*ret.y.emplace_back(c.get_or_add_y("z")), n.not_(n.any(r)));
+    n.place();
 
     return ret;
 }
 
 /** The root of a circuit: one constant per input bit and one counter per
- * output bit, the counter keeps the last value received. */
+ * output bit, the counter keeps the last value received. The constants are
+ * named x0, x1... and the counters y0, y1... to find them in a component read
+ * from a file. */
 struct bench {
     irt::component_id          id;
     irt::vector<irt::child_id> inputs;
@@ -439,14 +479,22 @@ bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
     for (const auto x : tested.x) {
         const auto cst = n.gate(dynamics_type::constant, {});
         n.link(cst, dut, compo(x));
+        gen.children_names[*cst.child] = irt::format_n<8>("x{}",
+                                                          ret.inputs.ssize())
+                                           .sv();
         ret.inputs.emplace_back(*cst.child);
     }
 
     for (const auto y : tested.y) {
         const auto cnt = n.gate(dynamics_type::counter,
                                 { netlist::output_of(dut, y) });
+        gen.children_names[*cnt.child] = irt::format_n<8>("y{}",
+                                                          ret.outputs.ssize())
+                                           .sv();
         ret.outputs.emplace_back(*cnt.child);
     }
+
+    n.place();
 
     return ret;
 }
@@ -496,6 +544,128 @@ private:
     irt::project m_pj;
     const bench& m_bench;
 };
+
+/** Saves the components in the directory @c dir/digital, in the order of
+ * their dependencies: a file references the files of its children. */
+void save_circuits(
+  irt::modeling&                                                   mod,
+  const std::string_view                                           dir,
+  std::initializer_list<std::pair<irt::component_id, const char*>> files)
+{
+    const auto dir_id = mod.files.write([&](auto& fs) {
+        const auto reg                   = fs.alloc_registred("circuits", 0);
+        fs.registred_paths.get(reg).path = dir;
+
+        const auto id               = fs.alloc_dir(reg);
+        fs.dir_paths.get(id).parent = reg;
+        fs.dir_paths.get(id).path   = "digital";
+
+        (void)fs.create_directories(reg);
+        (void)fs.create_directories(id);
+        return id;
+    });
+
+    for (const auto& [compo_id, name] : files) {
+        const auto file_id = mod.files.write([&](auto& fs) {
+            return fs.alloc_file(dir_id, name, irt::file_type::component_file);
+        });
+
+        mod.ids.write([&](auto& ids) {
+            ids.component_file_paths[compo_id].file = file_id;
+            mod.files.read([&](const auto& fs, auto) {
+                boost::ut::expect(
+                  boost::ut::fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
+        });
+    }
+}
+
+/** Reads every component of the directory @c dir and returns the bench stored
+ * in @c file. */
+bench load_bench(irt::modeling&         mod,
+                 const std::string_view dir,
+                 const std::string_view file,
+                 const int              inputs,
+                 const int              outputs)
+{
+    mod.files.write([&](auto& fs) {
+        const auto reg                   = fs.alloc_registred("circuits", 0);
+        fs.registred_paths.get(reg).path = dir;
+    });
+
+    boost::ut::expect(boost::ut::fatal(mod.fill_components().has_value()));
+
+    bench ret{ .id      = irt::undefined<irt::component_id>(),
+               .inputs  = irt::vector<irt::child_id>(inputs, irt::reserve_tag),
+               .outputs = irt::vector<irt::child_id>(outputs,
+                                                     irt::reserve_tag) };
+
+    mod.ids.read([&](const auto& ids, auto) {
+        mod.files.read([&](const auto& fs, auto) {
+            for (const auto id : ids) {
+                boost::ut::expect(
+                  irt::is_loaded(ids.components[id].file_status));
+
+                const auto* f = fs.file_paths.try_to_get(
+                  ids.component_file_paths[id].file);
+                if (f and f->path.sv() == file)
+                    ret.id = id;
+            }
+        });
+
+        boost::ut::expect(boost::ut::fatal(ids.exists(ret.id)));
+        const auto& gen = ids.generic_components.get(
+          ids.components[ret.id].id.generic_id);
+
+        const auto find = [&](const char prefix, const int i) {
+            const auto name = irt::format_n<8>("{}{}", prefix, i);
+            for (const auto& child : gen.children) {
+                const auto id = gen.children.get_id(child);
+                if (gen.children_names[id].sv() == name.sv())
+                    return id;
+            }
+
+            boost::ut::expect(boost::ut::fatal(false)) << name.sv();
+            return irt::undefined<irt::child_id>();
+        };
+
+        for (int i = 0; i < inputs; ++i)
+            ret.inputs.emplace_back(find('x', i));
+        for (int i = 0; i < outputs; ++i)
+            ret.outputs.emplace_back(find('y', i));
+    });
+
+    return ret;
+}
+
+/** Checks the ALU against @c alu_reference: every pair of the edge values and
+ * random pairs, for each operation and each carry. */
+void check_alu(bench_simulation& sim)
+{
+    constexpr std::array<unsigned, 5> edges{ 0x00, 0x01, 0x7f, 0x80, 0xff };
+    std::mt19937                      gen(12345u);
+
+    const auto check = [&](const alu_op op, const unsigned x, const unsigned y,
+                           const unsigned cin) {
+        const auto expected = alu_outputs(alu_reference(op, x, y, cin));
+        boost::ut::expect(
+          boost::ut::eq(sim.evaluate(alu_inputs(op, x, y, cin)), expected))
+          << "op " << static_cast<unsigned>(op) << " a " << x << " b " << y
+          << " cin " << cin;
+    };
+
+    for (unsigned o = 0; o < alu_op_count; ++o) {
+        const auto op = static_cast<alu_op>(o);
+        for (unsigned cin = 0; cin < 2; ++cin) {
+            for (const auto x : edges)
+                for (const auto y : edges)
+                    check(op, x, y, cin);
+
+            for (int i = 0; i < 64; ++i)
+                check(op, gen() & 0xffu, gen() & 0xffu, cin);
+        }
+    }
+}
 
 } // namespace
 
@@ -572,28 +742,36 @@ int main()
         });
 
         bench_simulation sim(mod, b);
+        check_alu(sim);
+    };
 
-        constexpr std::array<unsigned, 5> edges{ 0x00, 0x01, 0x7f, 0x80, 0xff };
-        std::mt19937                      gen(12345u);
+    "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
+        // IRRITATOR_CIRCUITS_DIR keeps the files to open them in the editor.
+        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
+        const auto  temp = irt::temp_path_with_unlink{ "digital-circuits" };
+        expect(fatal(temp.success()));
+        const std::string_view dir = keep ? keep : temp.c_str();
 
-        const auto check = [&](const alu_op op, const unsigned x,
-                               const unsigned y, const unsigned cin) {
-            const auto expected = alu_outputs(alu_reference(op, x, y, cin));
-            expect(eq(sim.evaluate(alu_inputs(op, x, y, cin)), expected))
-              << "op " << static_cast<unsigned>(op) << " a " << x << " b " << y
-              << " cin " << cin;
-        };
+        {
+            irt::modeling mod;
+            const auto    compo = mod.ids.write([&](auto& ids) {
+                const auto fa    = make_full_adder(ids);
+                const auto adder = make_adder<8>(ids, fa);
+                const auto alu   = make_alu(ids, adder);
+                const auto b     = make_bench(ids, alu);
+                return std::array{ fa.id, adder.id, alu.id, b.id };
+            });
 
-        for (unsigned o = 0; o < alu_op_count; ++o) {
-            const auto op = static_cast<alu_op>(o);
-            for (unsigned cin = 0; cin < 2; ++cin) {
-                for (const auto x : edges)
-                    for (const auto y : edges)
-                        check(op, x, y, cin);
-
-                for (int i = 0; i < 64; ++i)
-                    check(op, gen() & 0xffu, gen() & 0xffu, cin);
-            }
+            save_circuits(mod, dir,
+                          { { compo[0], "full-adder.irt" },
+                            { compo[1], "adder-8.irt" },
+                            { compo[2], "alu-8.irt" },
+                            { compo[3], "alu-bench.irt" } });
         }
+
+        irt::modeling    mod;
+        const auto       b = load_bench(mod, dir, "alu-bench.irt", 20, 12);
+        bench_simulation sim(mod, b);
+        check_alu(sim);
     };
 }
