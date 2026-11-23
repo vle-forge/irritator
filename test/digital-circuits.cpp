@@ -10,6 +10,10 @@
 #include <irritator/modeling.hpp>
 
 #include <array>
+#include <initializer_list>
+#include <optional>
+#include <random>
+#include <span>
 
 #include <boost/ut.hpp>
 
@@ -28,6 +32,141 @@ constexpr connection::port compo(const irt::port_id port) noexcept
     return connection::port{ .compo = port };
 }
 
+/** The input and output ports of a component, one per bit: a vector of
+ * inputs or outputs is packed in an integer in the same order. */
+struct circuit {
+    irt::component_id         id;
+    irt::vector<irt::port_id> x;
+    irt::vector<irt::port_id> y;
+};
+
+/** A signal of a generic component: an output port of a child or, without
+ * child, an input port of the component. */
+struct wire {
+    std::optional<irt::child_id> child;
+    connection::port             port;
+};
+
+/** Allocates the gates of a generic component and connects them. The children
+ * are kept by identifier: the children container grows during the build. */
+class netlist
+{
+public:
+    explicit netlist(irt::generic_component& gen) noexcept
+      : m_gen(gen)
+    {}
+
+    static wire input(const irt::port_id x) noexcept
+    {
+        return wire{ .child = std::nullopt, .port = compo(x) };
+    }
+
+    irt::child_id child(const irt::component_id id) noexcept
+    {
+        boost::ut::expect(boost::ut::fatal(m_gen.grow_children()));
+        return m_gen.children.get_id(m_gen.alloc(id));
+    }
+
+    static wire output_of(const irt::child_id child,
+                          const irt::port_id  y) noexcept
+    {
+        return wire{ .child = child, .port = compo(y) };
+    }
+
+    void link(const wire&            src,
+              const irt::child_id    dst,
+              const connection::port port) noexcept
+    {
+        auto& child_dst = m_gen.children.get(dst);
+
+        boost::ut::expect(boost::ut::fatal(have_room(m_gen.connections) and
+                                           have_room(m_gen.input_connections)));
+
+        if (src.child)
+            boost::ut::expect(!!m_gen.connect(m_gen.children.get(*src.child),
+                                              src.port, child_dst, port));
+        else
+            boost::ut::expect(
+              !!m_gen.connect_input(src.port.compo, child_dst, port));
+    }
+
+    void output(const irt::port_id y, const wire& src) noexcept
+    {
+        boost::ut::expect(boost::ut::fatal(src.child.has_value()));
+        boost::ut::expect(
+          boost::ut::fatal(have_room(m_gen.output_connections)));
+        boost::ut::expect(
+          !!m_gen.connect_output(y, m_gen.children.get(*src.child), src.port));
+    }
+
+    wire gate(const dynamics_type type, std::initializer_list<wire> inputs)
+    {
+        boost::ut::expect(boost::ut::fatal(m_gen.grow_children()));
+        const auto id   = m_gen.children.get_id(m_gen.alloc(type));
+        int        port = 0;
+        for (const auto& in : inputs)
+            link(in, id, mdl(port++));
+
+        return wire{ .child = id, .port = mdl(0) };
+    }
+
+    wire not_(const wire& a)
+    {
+        return gate(dynamics_type::logical_invert, { a });
+    }
+
+    wire and_(const wire& a, const wire& b)
+    {
+        return gate(dynamics_type::logical_and_2, { a, b });
+    }
+
+    wire and_(const wire& a, const wire& b, const wire& c)
+    {
+        return gate(dynamics_type::logical_and_3, { a, b, c });
+    }
+
+    wire or_(const wire& a, const wire& b)
+    {
+        return gate(dynamics_type::logical_or_2, { a, b });
+    }
+
+    wire xor_(const wire& a, const wire& b)
+    {
+        return gate(dynamics_type::logical_xor_2, { a, b });
+    }
+
+    /** A tree of or gates: three inputs per gate as long as possible. */
+    wire any(const std::span<const wire> inputs)
+    {
+        switch (inputs.size()) {
+        case 1:
+            return inputs[0];
+        case 2:
+            return or_(inputs[0], inputs[1]);
+        case 3:
+            return gate(dynamics_type::logical_or_3,
+                        { inputs[0], inputs[1], inputs[2] });
+        default: {
+            const auto first  = (inputs.size() + 2) / 3;
+            const auto second = (inputs.size() - first + 1) / 2;
+            return gate(dynamics_type::logical_or_3,
+                        { any(inputs.subspan(0, first)),
+                          any(inputs.subspan(first, second)),
+                          any(inputs.subspan(first + second)) });
+        }
+        }
+    }
+
+private:
+    template<typename Connections>
+    static bool have_room(Connections& connections) noexcept
+    {
+        return connections.can_alloc(1) or connections.template grow<2, 1>();
+    }
+
+    irt::generic_component& m_gen;
+};
+
 struct full_adder_component {
     irt::component_id id;
     irt::port_id      a, b, cin, s, cout;
@@ -45,24 +184,15 @@ full_adder_component make_full_adder(irt::component_access& ids) noexcept
     ret.cin   = c.get_or_add_x("cin");
     ret.s     = c.get_or_add_y("s");
     ret.cout  = c.get_or_add_y("cout");
-    auto& x1  = gen.alloc(dynamics_type::logical_xor_2);
-    auto& x2  = gen.alloc(dynamics_type::logical_xor_2);
-    auto& g1  = gen.alloc(dynamics_type::logical_and_2);
-    auto& g2  = gen.alloc(dynamics_type::logical_and_2);
-    auto& g3  = gen.alloc(dynamics_type::logical_or_2);
 
-    boost::ut::expect(!!gen.connect_input(ret.a, x1, mdl(0)));
-    boost::ut::expect(!!gen.connect_input(ret.a, g1, mdl(0)));
-    boost::ut::expect(!!gen.connect_input(ret.b, x1, mdl(1)));
-    boost::ut::expect(!!gen.connect_input(ret.b, g1, mdl(1)));
-    boost::ut::expect(!!gen.connect_input(ret.cin, x2, mdl(1)));
-    boost::ut::expect(!!gen.connect_input(ret.cin, g2, mdl(1)));
-    boost::ut::expect(!!gen.connect(x1, mdl(0), x2, mdl(0)));
-    boost::ut::expect(!!gen.connect(x1, mdl(0), g2, mdl(0)));
-    boost::ut::expect(!!gen.connect(g1, mdl(0), g3, mdl(0)));
-    boost::ut::expect(!!gen.connect(g2, mdl(0), g3, mdl(1)));
-    boost::ut::expect(!!gen.connect_output(ret.s, x2, mdl(0)));
-    boost::ut::expect(!!gen.connect_output(ret.cout, g3, mdl(0)));
+    netlist    n(gen);
+    const auto a   = netlist::input(ret.a);
+    const auto b   = netlist::input(ret.b);
+    const auto cin = netlist::input(ret.cin);
+    const auto ab  = n.xor_(a, b);
+
+    n.output(ret.s, n.xor_(ab, cin));
+    n.output(ret.cout, n.or_(n.and_(a, b), n.and_(ab, cin)));
 
     return ret;
 }
@@ -86,119 +216,286 @@ adder_component<Bits> make_adder(irt::component_access&      ids,
     ret.cin   = c.get_or_add_x("cin");
     ret.cout  = c.get_or_add_y("cout");
 
-    irt::generic_component::child* previous = nullptr;
+    netlist n(gen);
+    wire    carry = netlist::input(ret.cin);
     for (int i = 0; i < Bits; ++i) {
         ret.a[i] = c.get_or_add_x(irt::format_n<32>("a{}", i).sv());
         ret.b[i] = c.get_or_add_x(irt::format_n<32>("b{}", i).sv());
         ret.s[i] = c.get_or_add_y(irt::format_n<32>("s{}", i).sv());
 
-        auto& bit = gen.alloc(fa.id);
-        boost::ut::expect(!!gen.connect_input(ret.a[i], bit, compo(fa.a)));
-        boost::ut::expect(!!gen.connect_input(ret.b[i], bit, compo(fa.b)));
-        boost::ut::expect(!!gen.connect_output(ret.s[i], bit, compo(fa.s)));
-
-        if (previous)
-            boost::ut::expect(
-              !!gen.connect(*previous, compo(fa.cout), bit, compo(fa.cin)));
-        else
-            boost::ut::expect(!!gen.connect_input(ret.cin, bit, compo(fa.cin)));
-
-        previous = &bit;
+        const auto bit = n.child(fa.id);
+        n.link(netlist::input(ret.a[i]), bit, compo(fa.a));
+        n.link(netlist::input(ret.b[i]), bit, compo(fa.b));
+        n.link(carry, bit, compo(fa.cin));
+        n.output(ret.s[i], netlist::output_of(bit, fa.s));
+        carry = netlist::output_of(bit, fa.cout);
     }
 
-    boost::ut::expect(
-      !!gen.connect_output(ret.cout, *previous, compo(fa.cout)));
+    n.output(ret.cout, carry);
 
     return ret;
 }
 
-/** The root: one constant per input bit and one counter per output bit, the
- * counter keeps the last value received. */
+/** Inputs: a, b then cin. Outputs: s then cout. */
 template<int Bits>
-struct adder_bench {
-    irt::component_id                   id;
-    std::array<irt::child_id, 2 * Bits> inputs;
-    std::array<irt::child_id, Bits + 1> outputs;
+circuit as_circuit(const adder_component<Bits>& adder) noexcept
+{
+    circuit ret{ .id = adder.id,
+                 .x = irt::vector<irt::port_id>(2 * Bits + 1, irt::reserve_tag),
+                 .y = irt::vector<irt::port_id>(Bits + 1, irt::reserve_tag) };
+
+    for (const auto port : adder.a)
+        ret.x.emplace_back(port);
+    for (const auto port : adder.b)
+        ret.x.emplace_back(port);
+    ret.x.emplace_back(adder.cin);
+
+    for (const auto port : adder.s)
+        ret.y.emplace_back(port);
+    ret.y.emplace_back(adder.cout);
+
+    return ret;
+}
+
+enum class alu_op : unsigned { ora, and_, eor, adc, sbc, rol, ror, pass_b };
+
+constexpr unsigned alu_op_count = 8;
+
+/** The results of the 6502 operations on a, b and the carry: SBC is an ADC
+ * of the complement of b, and the carry of the logical operations is kept. */
+struct alu_result {
+    unsigned r, c, v;
 };
 
-template<int Bits>
-adder_bench<Bits> make_adder_bench(irt::component_access&       ids,
-                                   const adder_component<Bits>& adder) noexcept
+constexpr alu_result alu_reference(const alu_op   op,
+                                   const unsigned a,
+                                   const unsigned b,
+                                   const unsigned cin) noexcept
 {
-    adder_bench<Bits> ret;
-    ret.id    = ids.alloc_generic_component();
-    auto& c   = ids.components[ret.id];
-    auto& gen = ids.generic_components.get(c.id.generic_id);
-    auto& add = gen.alloc(adder.id);
+    const auto add = [](const unsigned x, const unsigned y, const unsigned c) {
+        const auto sum = x + y + c;
+        const auto r   = sum & 0xffu;
+        const auto v   = ((x ^ r) & (y ^ r) & 0x80u) != 0 ? 1u : 0u;
+        return alu_result{ r, sum >> 8, v };
+    };
 
-    for (int i = 0; i < Bits; ++i) {
-        auto& ka = gen.alloc(dynamics_type::constant);
-        auto& kb = gen.alloc(dynamics_type::constant);
-        boost::ut::expect(!!gen.connect(ka, mdl(0), add, compo(adder.a[i])));
-        boost::ut::expect(!!gen.connect(kb, mdl(0), add, compo(adder.b[i])));
-        ret.inputs[i]        = gen.children.get_id(ka);
-        ret.inputs[Bits + i] = gen.children.get_id(kb);
+    switch (op) {
+    case alu_op::ora:
+        return { a | b, cin, 0 };
+    case alu_op::and_:
+        return { a & b, cin, 0 };
+    case alu_op::eor:
+        return { a ^ b, cin, 0 };
+    case alu_op::adc:
+        return add(a, b, cin);
+    case alu_op::sbc:
+        return add(a, ~b & 0xffu, cin);
+    case alu_op::rol:
+        return { ((a << 1) | cin) & 0xffu, a >> 7, 0 };
+    case alu_op::ror:
+        return { (a >> 1) | (cin << 7), a & 1u, 0 };
+    case alu_op::pass_b:
+        return { b, cin, 0 };
     }
 
-    auto& kc = gen.alloc(dynamics_type::constant);
-    boost::ut::expect(!!gen.connect(kc, mdl(0), add, compo(adder.cin)));
+    return {};
+}
 
-    for (int i = 0; i <= Bits; ++i) {
-        auto& cnt = gen.alloc(dynamics_type::counter);
-        boost::ut::expect(!!gen.connect(
-          add, compo(i < Bits ? adder.s[i] : adder.cout), cnt, mdl(0)));
-        ret.outputs[i] = gen.children.get_id(cnt);
+static_assert(alu_reference(alu_op::adc, 0x50, 0x50, 0).v == 1);
+static_assert(alu_reference(alu_op::sbc, 0x50, 0x10, 1).r == 0x40);
+static_assert(alu_reference(alu_op::sbc, 0x50, 0x10, 1).c == 1);
+
+/** Inputs: a0..a7, b0..b7, cin then op0..op2. Outputs: r0..r7, c, v, n and
+ * z. */
+constexpr irt::u64 alu_inputs(const alu_op   op,
+                              const unsigned a,
+                              const unsigned b,
+                              const unsigned cin) noexcept
+{
+    return a | (b << 8) | (cin << 16) | (static_cast<irt::u64>(op) << 17);
+}
+
+constexpr irt::u64 alu_outputs(const alu_result& res) noexcept
+{
+    const auto n = res.r >> 7;
+    const auto z = res.r == 0 ? 1u : 0u;
+    return res.r | (res.c << 8) | (res.v << 9) | (n << 10) | (z << 11);
+}
+
+/** An 8 bits ALU: a decoder of the operation selects, for each bit of the
+ * result, one of the candidates computed in parallel. */
+circuit make_alu(irt::component_access&    ids,
+                 const adder_component<8>& adder) noexcept
+{
+    circuit ret{ .id = ids.alloc_generic_component(),
+                 .x  = irt::vector<irt::port_id>(20, irt::reserve_tag),
+                 .y  = irt::vector<irt::port_id>(12, irt::reserve_tag) };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    std::array<wire, 8> a, b;
+    for (int i = 0; i < 8; ++i)
+        a[i] = netlist::input(
+          *ret.x.emplace_back(c.get_or_add_x(irt::format_n<8>("a{}", i).sv())));
+    for (int i = 0; i < 8; ++i)
+        b[i] = netlist::input(
+          *ret.x.emplace_back(c.get_or_add_x(irt::format_n<8>("b{}", i).sv())));
+    const auto cin = netlist::input(*ret.x.emplace_back(c.get_or_add_x("cin")));
+
+    std::array<wire, 3> op;
+    for (int i = 0; i < 3; ++i)
+        op[i] = netlist::input(*ret.x.emplace_back(
+          c.get_or_add_x(irt::format_n<8>("op{}", i).sv())));
+
+    netlist n(gen);
+
+    const std::array<wire, 3> not_op{ n.not_(op[0]), n.not_(op[1]),
+                                      n.not_(op[2]) };
+
+    std::array<wire, alu_op_count> select;
+    for (unsigned k = 0; k < alu_op_count; ++k)
+        select[k] = n.and_(k & 1u ? op[0] : not_op[0],
+                           k & 2u ? op[1] : not_op[1],
+                           k & 4u ? op[2] : not_op[2]);
+
+    const auto is = [&](const alu_op o) { return select[static_cast<int>(o)]; };
+
+    const auto sub   = is(alu_op::sbc);
+    const auto arith = n.or_(is(alu_op::adc), sub);
+
+    const auto          add = n.child(adder.id);
+    std::array<wire, 8> b_add, s;
+    for (int i = 0; i < 8; ++i) {
+        b_add[i] = n.xor_(b[i], sub);
+        n.link(a[i], add, compo(adder.a[i]));
+        n.link(b_add[i], add, compo(adder.b[i]));
+        s[i] = netlist::output_of(add, adder.s[i]);
+    }
+    n.link(cin, add, compo(adder.cin));
+
+    std::array<wire, 8> r;
+    for (int i = 0; i < 8; ++i) {
+        const std::array candidates{
+            n.and_(is(alu_op::ora), n.or_(a[i], b[i])),
+            n.and_(is(alu_op::and_), n.and_(a[i], b[i])),
+            n.and_(is(alu_op::eor), n.xor_(a[i], b[i])),
+            n.and_(arith, s[i]),
+            n.and_(is(alu_op::rol), i == 0 ? cin : a[i - 1]),
+            n.and_(is(alu_op::ror), i == 7 ? cin : a[i + 1]),
+            n.and_(is(alu_op::pass_b), b[i]),
+        };
+
+        r[i] = n.any(candidates);
+    }
+
+    const std::array keep_carry{ is(alu_op::ora), is(alu_op::and_),
+                                 is(alu_op::eor), is(alu_op::pass_b) };
+    const std::array carry{
+        n.and_(n.any(keep_carry), cin),
+        n.and_(arith, netlist::output_of(add, adder.cout)),
+        n.and_(is(alu_op::rol), a[7]),
+        n.and_(is(alu_op::ror), a[0]),
+    };
+
+    const auto overflow = n.and_(
+      arith, n.and_(n.xor_(a[7], s[7]), n.xor_(b_add[7], s[7])));
+
+    for (int i = 0; i < 8; ++i)
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("r{}", i).sv())),
+          r[i]);
+
+    n.output(*ret.y.emplace_back(c.get_or_add_y("c")), n.any(carry));
+    n.output(*ret.y.emplace_back(c.get_or_add_y("v")), overflow);
+    n.output(*ret.y.emplace_back(c.get_or_add_y("n")), r[7]);
+    n.output(*ret.y.emplace_back(c.get_or_add_y("z")), n.not_(n.any(r)));
+
+    return ret;
+}
+
+/** The root of a circuit: one constant per input bit and one counter per
+ * output bit, the counter keeps the last value received. */
+struct bench {
+    irt::component_id          id;
+    irt::vector<irt::child_id> inputs;
+    irt::vector<irt::child_id> outputs;
+};
+
+bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
+{
+    bench ret{ .id      = ids.alloc_generic_component(),
+               .inputs  = irt::vector<irt::child_id>(tested.x.ssize(),
+                                                     irt::reserve_tag),
+               .outputs = irt::vector<irt::child_id>(tested.y.ssize(),
+                                                     irt::reserve_tag) };
+
+    auto& gen = ids.generic_components.get(
+      ids.components[ret.id].id.generic_id);
+    netlist n(gen);
+
+    const auto dut = n.child(tested.id);
+
+    for (const auto x : tested.x) {
+        const auto cst = n.gate(dynamics_type::constant, {});
+        n.link(cst, dut, compo(x));
+        ret.inputs.emplace_back(*cst.child);
+    }
+
+    for (const auto y : tested.y) {
+        const auto cnt = n.gate(dynamics_type::counter,
+                                { netlist::output_of(dut, y) });
+        ret.outputs.emplace_back(*cnt.child);
     }
 
     return ret;
 }
 
-/** Builds the simulation of the bench with the inputs @c a and @c b and
- * returns the sum read on the output counters. */
-template<int Bits>
-int simulate_addition(irt::modeling&           mod,
-                      irt::project&            pj,
-                      const adder_bench<Bits>& bench,
-                      const int                a,
-                      const int                b) noexcept
+/** Builds the simulation of the bench once: each evaluation only changes the
+ * constants and initializes the simulation again. */
+class bench_simulation
 {
-    mod.ids.write([&](auto& ids) {
-        auto& c   = ids.components[bench.id];
-        auto& gen = ids.generic_components.get(c.id.generic_id);
-
-        for (int i = 0; i < Bits; ++i) {
-            gen.children_parameters[bench.inputs[i]].reals[0] = (a >> i) & 1;
-            gen.children_parameters[bench.inputs[Bits + i]].reals[0] = (b >>
-                                                                        i) &
-                                                                       1;
-        }
-    });
-
-    mod.ids.read([&](const auto& ids, auto) {
-        mod.files.read([&](const auto& fs, auto) {
-            boost::ut::expect(
-              boost::ut::fatal(pj.set(ids, fs, bench.id).has_value()));
+public:
+    bench_simulation(irt::modeling& mod, const bench& b) noexcept
+      : m_bench(b)
+    {
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                boost::ut::expect(
+                  boost::ut::fatal(m_pj.set(ids, fs, b.id).has_value()));
+            });
         });
-    });
-
-    pj.sim.limits.set_bound(0, 10);
-    boost::ut::expect(boost::ut::fatal(pj.sim.initialize().has_value()));
-    do {
-        boost::ut::expect(boost::ut::fatal(pj.sim.run().has_value()));
-    } while (not pj.sim.current_time_expired());
-
-    const auto& head = *pj.tree_nodes.try_to_get(pj.tn_head());
-    int         sum  = 0;
-    for (int i = 0; i <= Bits; ++i) {
-        const auto& out = head.children[bench.outputs[i]];
-        const auto& cnt = irt::get_dyn<irt::counter>(
-          pj.sim.models.get(out.mdl));
-        if (cnt.last_value != 0.0)
-            sum |= 1 << i;
     }
 
-    return sum;
-}
+    irt::u64 evaluate(const irt::u64 inputs) noexcept
+    {
+        const auto& head = *m_pj.tree_nodes.try_to_get(m_pj.tn_head());
+
+        for (int i = 0, e = m_bench.inputs.ssize(); i != e; ++i)
+            m_pj.sim.parameters[head.children[m_bench.inputs[i]].mdl]
+              .set_constant(static_cast<irt::real>((inputs >> i) & 1u));
+
+        m_pj.sim.limits.set_bound(0, 10);
+        boost::ut::expect(boost::ut::fatal(m_pj.sim.initialize().has_value()));
+        do {
+            boost::ut::expect(boost::ut::fatal(m_pj.sim.run().has_value()));
+        } while (not m_pj.sim.current_time_expired());
+
+        irt::u64 outputs = 0;
+        for (int i = 0, e = m_bench.outputs.ssize(); i != e; ++i) {
+            const auto& cnt = irt::get_dyn<irt::counter>(
+              m_pj.sim.models.get(head.children[m_bench.outputs[i]].mdl));
+            if (cnt.last_value != 0.0)
+                outputs |= irt::u64{ 1 } << i;
+        }
+
+        return outputs;
+    }
+
+private:
+    irt::project m_pj;
+    const bench& m_bench;
+};
 
 } // namespace
 
@@ -250,17 +547,53 @@ int main()
 
     "adder-4-bits-every-addition"_test = [] {
         irt::modeling mod;
-        irt::project  pj;
 
-        const auto bench = mod.ids.write([&](auto& ids) {
-            const auto fa    = make_full_adder(ids);
-            const auto adder = make_adder<4>(ids, fa);
-            return make_adder_bench<4>(ids, adder);
+        const auto b = mod.ids.write([&](auto& ids) {
+            const auto fa = make_full_adder(ids);
+            return make_bench(ids, as_circuit(make_adder<4>(ids, fa)));
         });
 
-        for (int a = 0; a < 16; ++a)
-            for (int b = 0; b < 16; ++b)
-                expect(eq(simulate_addition<4>(mod, pj, bench, a, b), a + b))
-                  << a << " + " << b;
+        bench_simulation sim(mod, b);
+
+        for (irt::u64 cin = 0; cin < 2; ++cin)
+            for (irt::u64 x = 0; x < 16; ++x)
+                for (irt::u64 y = 0; y < 16; ++y)
+                    expect(
+                      eq(sim.evaluate(x | (y << 4) | (cin << 8)), x + y + cin))
+                      << x << " + " << y << " + " << cin;
+    };
+
+    "alu-8-bits-follows-the-6502-operations"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write([&](auto& ids) {
+            const auto fa = make_full_adder(ids);
+            return make_bench(ids, make_alu(ids, make_adder<8>(ids, fa)));
+        });
+
+        bench_simulation sim(mod, b);
+
+        constexpr std::array<unsigned, 5> edges{ 0x00, 0x01, 0x7f, 0x80, 0xff };
+        std::mt19937                      gen(12345u);
+
+        const auto check = [&](const alu_op op, const unsigned x,
+                               const unsigned y, const unsigned cin) {
+            const auto expected = alu_outputs(alu_reference(op, x, y, cin));
+            expect(eq(sim.evaluate(alu_inputs(op, x, y, cin)), expected))
+              << "op " << static_cast<unsigned>(op) << " a " << x << " b " << y
+              << " cin " << cin;
+        };
+
+        for (unsigned o = 0; o < alu_op_count; ++o) {
+            const auto op = static_cast<alu_op>(o);
+            for (unsigned cin = 0; cin < 2; ++cin) {
+                for (const auto x : edges)
+                    for (const auto y : edges)
+                        check(op, x, y, cin);
+
+                for (int i = 0; i < 64; ++i)
+                    check(op, gen() & 0xffu, gen() & 0xffu, cin);
+            }
+        }
     };
 }
