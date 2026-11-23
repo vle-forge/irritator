@@ -1281,6 +1281,14 @@ struct parameter {
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_logical_clock(real period, real offset = zero) noexcept;
+
+    /** The first @a size bytes of a @c logical_memory are read from the
+     * source, each value must be an integer in [0, 255]. */
+    parameter& set_logical_memory(const source_type   type,
+                                  const source_any_id id,
+                                  i32                 size) noexcept;
+    parameter& set_logical_memory(const external_source_definition::id id,
+                                  i32 size) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
     parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
     parameter& set_wsum4(real coeff1,
@@ -7565,9 +7573,11 @@ struct logical_memory {
     static constexpr auto x_types = repeat_port_type<26>(port_type::boolean);
     static constexpr auto y_types = repeat_port_type<8>(port_type::boolean);
 
-    memory_id id      = undefined<memory_id>();
-    time      sigma   = time_domain<time>::infinity;
-    u16       address = 0;
+    memory_id id = undefined<memory_id>();
+    source    content; ///< Bytes loaded from address 0 at initialization.
+    i32       content_size = 0;
+    time      sigma        = time_domain<time>::infinity;
+    u16       address      = 0;
     u8        data    = 0;
     u8        out     = 0;
     u8        changed = 0;
@@ -7577,7 +7587,10 @@ struct logical_memory {
     logical_memory() noexcept = default;
 
     /** A copy has its own bytes, allocated at its initialization. */
-    logical_memory(const logical_memory& /*other*/) noexcept {}
+    logical_memory(const logical_memory& other) noexcept
+      : content(other.content)
+      , content_size(other.content_size)
+    {}
 
     status initialize(simulation& sim) noexcept
     {
@@ -7595,15 +7608,48 @@ struct logical_memory {
 
         std::fill(bank->bytes.begin(), bank->bytes.end(), u8{ 0 });
 
-        sigma   = time_domain<time>::infinity;
+        if (content_size < 0 or content_size > memory_bank::size)
+            return make_error(simulation_errc::memory_content_error);
+
+        if (content_size > 0)
+            irt_check(load_content(sim, *bank));
+
+        // The q outputs start false: the bits of the byte at address 0 are
+        // sent at once.
         address = 0;
         data    = 0;
-        out     = 0;
-        changed = 0;
-        we      = false;
-        clk     = false;
+        out     = bank->bytes[0];
+        changed = out;
+        sigma = changed ? time_domain<time>::zero : time_domain<time>::infinity;
+        we    = false;
+        clk   = false;
 
         return success();
+    }
+
+    status load_content(simulation& sim, memory_bank& bank) noexcept
+    {
+        // finalize_source() clears the source: the model keeps it for
+        // parameter_init().
+        source      src(content);
+        source_data data;
+        if (sim.srcs.initialize_source(*this, src, data).has_error())
+            return make_error(simulation_errc::memory_content_error);
+
+        for (int i = 0; i < content_size; ++i) {
+            if (src.is_empty() and
+                sim.srcs.update_source(src, data).has_error())
+                return make_error(simulation_errc::memory_content_error);
+
+            const auto value = src.next();
+            if (not(value >= 0.0 and value <= 255.0) or
+                value != std::floor(value))
+                return make_error(simulation_errc::memory_content_error);
+
+            bank.bytes[i] = static_cast<u8>(value);
+        }
+
+        return sim.srcs.finalize_source(src, data);
     }
 
     status lambda(simulation& sim) noexcept

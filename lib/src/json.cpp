@@ -1350,6 +1350,28 @@ struct json_reader {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
+                       logical_memory_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics logical memory");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("source-content-id"sv == name)
+                  return read_temp_u64(value) and
+                         copy_source_to_parameter(
+                           p.integers[logical_memory_tag::source_content]);
+
+              if ("content-size"sv == name)
+                  return read_temp_i64(value) and
+                         copy_i64_to(
+                           p.integers[logical_memory_tag::content_size]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
                        logical_clock_tag,
                        parameter& p) noexcept
     {
@@ -5836,9 +5858,18 @@ struct json_writer {
                const component_access& /*ids*/,
                const logical_memory_tag,
                const component& /*compo*/,
-               const parameter& /*p*/) noexcept
+               const parameter& p) noexcept
     {
         writer.StartObject();
+
+        if (p.integers[logical_memory_tag::content_size] > 0) {
+            writer.Key("source-content-id");
+            writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+              p.integers[logical_memory_tag::source_content])));
+            writer.Key("content-size");
+            writer.Int64(p.integers[logical_memory_tag::content_size]);
+        }
+
         writer.EndObject();
     }
 

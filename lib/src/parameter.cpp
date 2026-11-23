@@ -713,13 +713,19 @@ static void model_init(const parameter& /*param*/,
                        logical_d_flipflop& /*dyn*/) noexcept
 {}
 
-static void model_init(const parameter& /*param*/,
-                       logical_memory& /*dyn*/) noexcept
-{}
+static void model_init(const parameter& param, logical_memory& dyn) noexcept
+{
+    dyn.content.reset(param.integers[logical_memory_tag::source_content]);
+    dyn.content_size = static_cast<i32>(
+      param.integers[logical_memory_tag::content_size]);
+}
 
-static void parameter_init(parameter& /*param*/,
-                           const logical_memory& /*dyn*/) noexcept
-{}
+static void parameter_init(parameter& param, const logical_memory& dyn) noexcept
+{
+    param.integers[logical_memory_tag::source_content] = from_source(
+      dyn.content);
+    param.integers[logical_memory_tag::content_size] = dyn.content_size;
+}
 
 static void model_init(const parameter& param, logical_clock& dyn) noexcept
 {
@@ -1139,6 +1145,24 @@ parameter& parameter::set_priority_queue_ta(const source_type   type,
                                             const source_any_id id) noexcept
 {
     integers[priority_queue_tag::source_ta] = from_source(type, id);
+    return *this;
+}
+
+parameter& parameter::set_logical_memory(const source_type   type,
+                                         const source_any_id id,
+                                         const i32           size) noexcept
+{
+    integers[logical_memory_tag::source_content] = from_source(type, id);
+    integers[logical_memory_tag::content_size]   = size;
+    return *this;
+}
+
+parameter& parameter::set_logical_memory(
+  const external_source_definition::id id,
+  const i32                            size) noexcept
+{
+    integers[logical_memory_tag::source_content] = ordinal(id);
+    integers[logical_memory_tag::content_size]   = size;
     return *this;
 }
 

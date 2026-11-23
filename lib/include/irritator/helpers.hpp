@@ -231,6 +231,8 @@ struct logical_memory_tag {
     };
     static constexpr std::string_view y_names[] = { "q0", "q1", "q2", "q3",
                                                     "q4", "q5", "q6", "q7" };
+
+    enum parameter_names : u8 { source_content = 0, content_size };
 };
 
 struct logical_clock_tag {

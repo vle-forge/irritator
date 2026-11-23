@@ -795,7 +795,10 @@ circuit make_program_counter(irt::component_access& ids) noexcept
 
 /** A component around a logical_memory. Inputs: a0..a15, d0..d7 then we.
  * Outputs: q0..q7. */
-circuit make_memory(irt::component_access& ids) noexcept
+/** A memory of 64 KiB: the first bytes are the @a content, read from a
+ * constant source of the component at the initialization. */
+circuit make_memory(irt::component_access&   ids,
+                    std::span<const irt::u8> content = {}) noexcept
 {
     circuit ret{ .id  = ids.alloc_generic_component(),
                  .x   = irt::vector<irt::port_id>(25, irt::reserve_tag),
@@ -807,6 +810,23 @@ circuit make_memory(irt::component_access& ids) noexcept
 
     netlist    n(gen);
     const auto mem = n.gate(dynamics_type::logical_memory, {});
+
+    if (not content.empty()) {
+        boost::ut::expect(
+          boost::ut::fatal(c.srcs.data.can_alloc(1) or c.srcs.data.reserve(1)));
+        const auto src_id = c.srcs.data.alloc_id();
+        c.srcs.emplace(src_id, irt::source_type::constant, "content");
+
+        auto& cst = c.srcs.data
+                      .get<irt::external_source_definition::source_element>(
+                        src_id)
+                      .cst;
+        boost::ut::expect(boost::ut::fatal(cst.data.resize(content.size())));
+        std::copy(content.begin(), content.end(), cst.data.begin());
+
+        gen.children_parameters[*mem.child].set_logical_memory(
+          src_id, static_cast<irt::i32>(content.size()));
+    }
 
     using irt::logical_memory;
     const auto input = [&](const std::string_view name, const int port) {
@@ -1074,6 +1094,35 @@ bench load_bench(irt::modeling&         mod,
 
 /** Checks the ALU against @c alu_reference: every pair of the edge values and
  * random pairs, for each operation and each carry. */
+irt::vector<irt::u8> random_bytes(const int size, const unsigned seed) noexcept
+{
+    irt::vector<irt::u8> bytes(size, irt::reserve_tag);
+    std::mt19937         gen(seed);
+    for (int i = 0; i < size; ++i)
+        bytes.emplace_back(static_cast<irt::u8>(gen() & 0xffu));
+
+    return bytes;
+}
+
+/** Reads the first addresses, beyond the @a content too, without writing. */
+void check_memory_content(bench_simulation&              sim,
+                          const std::span<const irt::u8> content) noexcept
+{
+    const int addresses = static_cast<int>(content.size()) + 100;
+    sim.start(0, addresses);
+
+    for (int address = 0; address < addresses; ++address) {
+        sim.set_inputs(static_cast<irt::u64>(address));
+        const auto expected = address < std::ssize(content)
+                                ? content[static_cast<std::size_t>(address)]
+                                : irt::u8{ 0 };
+
+        boost::ut::expect(
+          boost::ut::eq(sim.cycle(), static_cast<irt::u64>(expected)))
+          << "address " << address;
+    }
+}
+
 void check_alu(bench_simulation& sim)
 {
     constexpr std::array<unsigned, 5> edges{ 0x00, 0x01, 0x7f, 0x80, 0xff };
@@ -1524,6 +1573,95 @@ int main()
 
         sim.deallocate(sim.get_id(mem));
         expect(eq(sim.memories.ssize(), 0));
+    };
+
+    "memory-starts-with-its-content"_test = [] {
+        const auto    content = random_bytes(300, 1357u);
+        irt::modeling mod;
+        const auto    b = mod.ids.write([&](auto& ids) {
+            return make_bench(ids, make_memory(ids, content));
+        });
+
+        bench_simulation sim(mod, b);
+        check_memory_content(sim, content);
+    };
+
+    "memory-loads-its-content-at-each-initialization"_test = [] {
+        irt::simulation sim;
+        const irt::real values[] = { 0xa9, 0x2a, 0x8d };
+        expect(fatal(sim.srcs.constant_sources.reserve(1)));
+        auto& cst = sim.srcs.constant_sources.alloc(values);
+        auto& mem = sim.alloc<irt::logical_memory>();
+        sim.parameters[sim.get_id(mem)].set_logical_memory(
+          irt::source_type::constant, sim.srcs.constant_sources.get_id(cst), 5);
+
+        // The source restarts when it is empty.
+        const irt::u8 expected[] = { 0xa9, 0x2a, 0x8d, 0xa9, 0x2a, 0 };
+
+        sim.limits.set_bound(0, 1);
+        for (int run = 0; run < 2; ++run) {
+            expect(fatal(sim.initialize().has_value()));
+
+            const auto& bank = *sim.memories.try_to_get(mem.id);
+            for (int i = 0; i < 6; ++i)
+                expect(eq(static_cast<int>(bank.bytes[i]),
+                          static_cast<int>(expected[i])))
+                  << "run " << run << " byte " << i;
+
+            expect(eq(static_cast<int>(mem.out), 0xa9));
+            expect(eq(mem.sigma, irt::time_domain<irt::time>::zero));
+            expect(sim.finalize().has_value());
+        }
+    };
+
+    "memory-refuses-an-invalid-content"_test = [] {
+        const auto initialize = [](const irt::real value, const irt::i32 size) {
+            irt::simulation sim;
+            const irt::real values[] = { value };
+            expect(fatal(sim.srcs.constant_sources.reserve(1)));
+            auto& cst = sim.srcs.constant_sources.alloc(values);
+            auto& mem = sim.alloc<irt::logical_memory>();
+            sim.parameters[sim.get_id(mem)].set_logical_memory(
+              irt::source_type::constant, sim.srcs.constant_sources.get_id(cst),
+              size);
+
+            sim.limits.set_bound(0, 1);
+            return sim.initialize().has_value();
+        };
+
+        expect(initialize(255, 1));
+        expect(initialize(255, irt::memory_bank::size));
+        expect(not initialize(256, 1));
+        expect(not initialize(-1, 1));
+        expect(not initialize(1.5, 1));
+        expect(not initialize(1, irt::memory_bank::size + 1));
+        expect(not initialize(1, -1));
+    };
+
+    "memory-content-survives-a-round-trip-through-irt-files"_test = [] {
+        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
+        const auto  temp = irt::temp_path_with_unlink{ "memory-content" };
+        expect(fatal(temp.success()));
+        const std::string_view dir = keep ? keep : temp.c_str();
+
+        const auto content = random_bytes(200, 2468u);
+        {
+            irt::modeling mod;
+            const auto    compo = mod.ids.write([&](auto& ids) {
+                const auto mem = make_memory(ids, content);
+                const auto b   = make_bench(ids, mem);
+                return std::array{ mem.id, b.id };
+            });
+
+            save_circuits(
+              mod, dir,
+              { { compo[0], "memory.irt" }, { compo[1], "memory-bench.irt" } });
+        }
+
+        irt::modeling    mod;
+        const auto       b = load_bench(mod, dir, "memory-bench.irt", 25, 8);
+        bench_simulation sim(mod, b);
+        check_memory_content(sim, content);
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {

@@ -1033,10 +1033,29 @@ static bool show_parameter(logical_invert_tag,
 template<typename ExternalSourceType>
 static bool show_parameter(logical_memory_tag,
                            application& /*app*/,
-                           ExternalSourceType& /*srcs*/,
-                           parameter& /*p*/) noexcept
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
 {
-    return false;
+    auto size = static_cast<int>(p.integers[logical_memory_tag::content_size]);
+
+    ImGui::PushItemWidth(120.0f);
+    const auto b1 = ImGui::InputInt("content size", &size);
+    ImGui::PopItemWidth();
+    ImGui::SameLine();
+    HelpMarker("Number of bytes read from the source and written from address "
+               "0 at initialization. Each value must be an integer in [0, "
+               "255]. Zero fills the memory with zeros.");
+
+    if (b1)
+        p.integers[logical_memory_tag::content_size] = std::clamp(
+          size, 0, memory_bank::size);
+
+    const auto b2 = p.integers[logical_memory_tag::content_size] > 0 and
+                    show_external_sources_combo(
+                      "content", srcs,
+                      p.integers[logical_memory_tag::source_content]);
+
+    return b1 or b2;
 }
 
 template<typename ExternalSourceType>

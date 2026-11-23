@@ -953,8 +953,12 @@ void binary_serialize(Ar& ar, logical_invert& d) noexcept
 template<typename Ar>
 void binary_serialize(Ar& ar, logical_memory& d) noexcept
 {
-    auto& [x, y, id, sigma, address, data, out, changed, we, clk] = d;
-    ar(x, y, id, sigma, address, data, out, changed, we, clk);
+    auto& [x, y, id, content, content_size, sigma, address, data, out, changed,
+           we, clk] = d;
+    source_data unused;
+    ar(x, y, id);
+    io_source(ar, content, unused);
+    ar(content_size, sigma, address, data, out, changed, we, clk);
 }
 
 template<typename Ar>

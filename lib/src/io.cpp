@@ -438,6 +438,16 @@ static void write_test_simulation_model(std::FILE*           os,
           o_param.reals(param, constant_tag::offset));
         break;
 
+    case dynamics_type::logical_memory:
+        if (param.integers[logical_memory_tag::content_size] > 0) {
+            fmt::print(
+              os,
+              R"(    {{ const auto src = get_source({}); sim.parameters[sim.get_id(mdl_{})].set_logical_memory(src.first, src.second, {}); }})",
+              o_param.integers(param, logical_memory_tag::source_content), idx,
+              o_param.integers(param, logical_memory_tag::content_size));
+        }
+        break;
+
     case dynamics_type::logical_clock:
         fmt::print(
           os,
@@ -695,6 +705,16 @@ static bool write_constant_sources(std::FILE*        os,
                         return false;
                 }
             }
+        } break;
+
+        case dynamics_type::logical_memory: {
+            const auto& params = sim.parameters[sim.get_id(mdl)];
+
+            if (params.integers[logical_memory_tag::content_size] > 0 and
+                not store_if_constant(
+                  sim_to_cpp,
+                  params.integers[logical_memory_tag::source_content]))
+                return false;
         } break;
 
         case dynamics_type::dynamic_queue: {

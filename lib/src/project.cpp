@@ -127,6 +127,16 @@ constexpr void convert_mod_to_sim_source(
         }
     } break;
 
+    case dynamics_type::logical_memory: {
+        const auto mod_src = enum_cast<external_source_definition::id>(
+          p.integers[logical_memory_tag::source_content]);
+        if (const auto sim_src = convert_mod_to_sim_source_id(mapping, mod_src);
+            sim_src.has_value())
+            p.set_logical_memory(
+              sim_src->type, sim_src->sim_id,
+              static_cast<i32>(p.integers[logical_memory_tag::content_size]));
+    } break;
+
     case dynamics_type::hsm_wrapper: {
         const auto mod_src = enum_cast<external_source_definition::id>(
           p.integers[hsm_wrapper_tag::source_value]);
@@ -783,7 +793,8 @@ static auto make_tree_leaf(project_to_simulation&          sc,
           if constexpr (std::is_same_v<Dynamics, generator> or
                         std::is_same_v<Dynamics, priority_queue> or
                         std::is_same_v<Dynamics, dynamic_queue> or
-                        std::is_same_v<Dynamics, hsm_wrapper>) {
+                        std::is_same_v<Dynamics, hsm_wrapper> or
+                        std::is_same_v<Dynamics, logical_memory>) {
               if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
                   convert_mod_to_sim_source(
                     std::span(compo->data(), compo->size()), new_mdl.type,

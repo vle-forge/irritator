@@ -120,6 +120,7 @@ enum class simulation_errc : std::int16_t {
 
     clock_period_error, /**< The period of a clock is not strictly positive. */
     clock_offset_error, /**< The offset of a clock is negative. */
+    memory_content_error, /**< The initial content of a memory is invalid. */
 
     simulation_wrapper_not_enough_memory,
     simulation_wrapper_too_many_embedded_simulation_error,
