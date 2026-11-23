@@ -614,7 +614,7 @@ struct json_reader {
     bool generic_can_alloc(generic_component& compo,
                            std::integral auto i) noexcept
     {
-        if (not compo.children.can_alloc(i) and not compo.children.grow<2, 1>())
+        if (not compo.grow_children(static_cast<int>(i)))
             return error(
               "can not allocate more child in generic component (max: {})",
               compo.children.capacity());

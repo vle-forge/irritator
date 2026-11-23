@@ -138,7 +138,7 @@ status add_lif(component& dst, generic_component& com) noexcept
 
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
+    if (not com.grow_children(6))
         return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
@@ -319,7 +319,7 @@ status add_negative_lif(component& dst, generic_component& com) noexcept
 
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
+    if (not com.grow_children(6))
         return make_error(modeling_errc::generic_children_container_full);
 
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())

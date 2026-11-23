@@ -3289,6 +3289,43 @@ int main()
         });
     };
 
+    "json: the positions of many children survive a round trip"_test = [] {
+        irt::modeling mod;
+        constexpr int children = 300;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+
+            for (int i = 0; i < children; ++i) {
+                expect(fatal(gen.grow_children()));
+                auto& cst = gen.alloc(irt::dynamics_type::constant);
+                gen.children_positions[gen.children.get_id(cst)]
+                  .x = static_cast<float>(i);
+            }
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+            expect(fatal(eq(gen.children.ssize(), children)));
+            expect(eq(gen.children_positions.ssize(), gen.children.capacity()));
+
+            float sum = 0.f;
+            for (const auto& child : gen.children)
+                sum += gen.children_positions[gen.children.get_id(child)].x;
+            expect(eq(sum, static_cast<float>(children * (children - 1) / 2)));
+        });
+    };
+
     "json: the logical_xor_2 survives a round trip"_test = [] {
         irt::modeling mod;
 
