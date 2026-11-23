@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <fstream>
 #include <numeric>
+#include <optional>
 #include <thread>
 
 #include <boost/ut.hpp>
@@ -3325,6 +3326,62 @@ int main()
             expect(eq(sum, static_cast<float>(children * (children - 1) / 2)));
         });
     };
+
+    "json: the connections of a large component survive a round trip"_test =
+      [] {
+          irt::modeling mod;
+          constexpr int children = 300;
+
+          const auto id = mod.ids.write([&](auto& ids) {
+              const auto id  = ids.alloc_generic_component();
+              auto&      c   = ids.components[id];
+              auto&      gen = ids.generic_components.get(c.id.generic_id);
+              const auto x   = c.get_or_add_x("in");
+              const auto y   = c.get_or_add_y("out");
+
+              // A chain of and gates: each one also reads the input and
+              // feeds the output of the component.
+              const auto grow = [](auto& connections) {
+                  return connections.can_alloc(1) or
+                         connections.template grow<2, 1>();
+              };
+
+              std::optional<irt::child_id> previous;
+              for (int i = 0; i < children; ++i) {
+                  expect(fatal(gen.grow_children()));
+                  expect(fatal(grow(gen.connections) and
+                               grow(gen.input_connections) and
+                               grow(gen.output_connections)));
+
+                  auto& gate = gen.alloc(irt::dynamics_type::logical_and_2);
+                  if (previous)
+                      expect(
+                        !!gen.connect(gen.children.get(*previous),
+                                      irt::connection::port{ .model = 0 }, gate,
+                                      irt::connection::port{ .model = 0 }));
+                  expect(!!gen.connect_input(
+                    x, gate, irt::connection::port{ .model = 1 }));
+                  expect(!!gen.connect_output(
+                    y, gate, irt::connection::port{ .model = 0 }));
+                  previous = gen.children.get_id(gate);
+              }
+
+              return id;
+          });
+
+          const auto first = json_save_component(mod, id);
+          const auto read  = json_load_component(
+            mod, std::string_view(first.data(), first.size()));
+          expect(fatal(read.has_value()));
+
+          mod.ids.read([&](const auto& ids, auto) {
+              const auto& gen = ids.generic_components.get(
+                ids.components[*read].id.generic_id);
+              expect(eq(gen.connections.ssize(), children - 1));
+              expect(eq(gen.input_connections.ssize(), children));
+              expect(eq(gen.output_connections.ssize(), children));
+          });
+      };
 
     "json: the parameters of a logical_clock survive a round trip"_test = [] {
         irt::modeling mod;

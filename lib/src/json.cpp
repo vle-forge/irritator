@@ -2758,7 +2758,7 @@ struct json_reader {
                get_y_port(compo, str_port, port) &&
                get_y_port(ids, gen, src_id, src_str_port, src_int_port,
                           src_port) &&
-               gen.connections.can_alloc() &&
+               gen.output_connections.can_alloc() &&
                require(src_port, "port-source") && require(port, "port") &&
                modeling_connect_output(gen, src_id, *src_port, *port);
     }
@@ -2801,7 +2801,7 @@ struct json_reader {
                get_x_port(compo, str_port, port) &&
                get_x_port(ids, gen, dst_id, dst_str_port, dst_int_port,
                           dst_port) &&
-               gen.connections.can_alloc() &&
+               gen.input_connections.can_alloc() &&
                require(dst_port, "port-destination") && require(port, "port") &&
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
@@ -2903,6 +2903,22 @@ struct json_reader {
         unreachable();
     }
 
+    /** The connections of a file may exceed the default capacities. */
+    bool generic_connections_can_alloc(generic_component&        gen,
+                                       const rapidjson::SizeType n) noexcept
+    {
+        const auto fit = [n](auto& connections) noexcept {
+            return connections.can_alloc(n) or
+                   connections.reserve(connections.size() + n);
+        };
+
+        if (fit(gen.connections) and fit(gen.input_connections) and
+            fit(gen.output_connections))
+            return true;
+
+        return error("can not allocate {} connections", n);
+    }
+
     bool read_connections(const rapidjson::Value& val,
                           const file_access&      files,
                           const component_access& ids,
@@ -2912,6 +2928,7 @@ struct json_reader {
         auto_stack s(this, "component generic connections");
 
         return is_value_array(val) &&
+               generic_connections_can_alloc(gen, val.GetArray().Size()) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& val_con) noexcept -> bool {
