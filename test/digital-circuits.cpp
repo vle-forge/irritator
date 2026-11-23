@@ -525,6 +525,104 @@ circuit make_counter(irt::component_access& ids) noexcept
     return ret;
 }
 
+/** A register of @c Bits bits: on a rising edge of clk, q takes d if load is
+ * true and keeps its value otherwise. Inputs: d0.. then load. Outputs: q0..
+ */
+template<int Bits>
+circuit make_register(irt::component_access& ids) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(Bits + 1, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(Bits, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    std::array<wire, Bits> d;
+    for (int i = 0; i < Bits; ++i)
+        d[i] = netlist::input(
+          *ret.x.emplace_back(c.get_or_add_x(irt::format_n<8>("d{}", i).sv())));
+    const auto load = netlist::input(
+      *ret.x.emplace_back(c.get_or_add_x("load")));
+    ret.clk        = c.get_or_add_x("clk");
+    const auto clk = netlist::input(*ret.clk);
+
+    netlist    n(gen);
+    const auto hold = n.not_(load);
+
+    for (int i = 0; i < Bits; ++i) {
+        const auto q    = n.gate(dynamics_type::logical_d_flipflop, {});
+        const auto next = n.or_(n.and_(load, d[i]), n.and_(hold, q));
+
+        n.link(next, *q.child, mdl(irt::logical_d_flipflop::port_d));
+        n.link(clk, *q.child, mdl(irt::logical_d_flipflop::port_clk));
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("q{}", i).sv())),
+          q);
+    }
+
+    n.place();
+
+    return ret;
+}
+
+/** The accumulator of the 6502: the ALU computes from A and the inputs, and
+ * its result is loaded in A on a rising edge when load is true. Inputs: b0..b7,
+ * cin, op0..op2 then load. Outputs: a0..a7 then the c, v, n and z flags of
+ * the ALU. */
+circuit make_accumulator(irt::component_access& ids,
+                         const circuit&         alu,
+                         const circuit&         reg) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(13, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(12, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    netlist    n(gen);
+    const auto u = n.child(alu.id);
+    const auto a = n.child(reg.id);
+
+    // The ALU inputs: a0..a7, b0..b7, cin then op0..op2.
+    for (int i = 0; i < 8; ++i)
+        n.link(netlist::output_of(a, reg.y[i]), u, compo(alu.x[i]));
+
+    for (int i = 8; i < 20; ++i) {
+        const auto name = i < 16    ? irt::format_n<8>("b{}", i - 8)
+                          : i == 16 ? irt::format_n<8>("cin")
+                                    : irt::format_n<8>("op{}", i - 17);
+        n.link(netlist::input(*ret.x.emplace_back(c.get_or_add_x(name.sv()))),
+               u, compo(alu.x[i]));
+    }
+
+    // The register inputs: d0..d7 then load.
+    for (int i = 0; i < 8; ++i)
+        n.link(netlist::output_of(u, alu.y[i]), a, compo(reg.x[i]));
+    n.link(netlist::input(*ret.x.emplace_back(c.get_or_add_x("load"))), a,
+           compo(reg.x[8]));
+
+    ret.clk = c.get_or_add_x("clk");
+    n.link(netlist::input(*ret.clk), a, compo(*reg.clk));
+
+    for (int i = 0; i < 8; ++i)
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("a{}", i).sv())),
+          netlist::output_of(a, reg.y[i]));
+
+    constexpr std::array<const char*, 4> flags{ "c", "v", "n", "z" };
+    for (int i = 0; i < 4; ++i)
+        n.output(*ret.y.emplace_back(c.get_or_add_y(flags[i])),
+                 netlist::output_of(u, alu.y[8 + i]));
+
+    n.place();
+
+    return ret;
+}
+
 /** The root of a circuit: one constant per input bit and one counter per
  * output bit, the counter keeps the last value received. The constants are
  * named x0, x1... and the counters y0, y1... to find them in a component read
@@ -623,6 +721,18 @@ public:
         m_cycle = 0;
         m_pj.sim.limits.set_bound(0, (cycles + 1) * clock_period);
         boost::ut::expect(boost::ut::fatal(m_pj.sim.initialize().has_value()));
+    }
+
+    /** Changes the inputs at the current date: a sequential circuit reads
+     * them at the next rising edge. */
+    void set_inputs(const irt::u64 inputs) noexcept
+    {
+        const auto& head = *m_pj.tree_nodes.try_to_get(m_pj.tn_head());
+
+        for (int i = 0, e = m_bench.inputs.ssize(); i != e; ++i)
+            boost::ut::expect(!!m_pj.sim.send_value(
+              head.children[m_bench.inputs[i]].mdl,
+              static_cast<irt::real>((inputs >> i) & 1u)));
     }
 
     /** Runs the simulation to the falling edge after the next rising edge
@@ -989,6 +1099,63 @@ int main()
         for (int k = 1; k <= cycles; ++k)
             expect(eq(sim.cycle(), static_cast<irt::u64>(k % 256)))
               << "cycle " << k;
+    };
+
+    "register-8-bits-loads-only-when-load-is-true"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write(
+          [&](auto& ids) { return make_bench(ids, make_register<8>(ids)); });
+
+        bench_simulation sim(mod, b);
+        std::mt19937     gen(4321u);
+
+        constexpr int cycles = 200;
+        irt::u64      q      = 0;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k) {
+            const irt::u64 d    = gen() & 0xffu;
+            const irt::u64 load = gen() & 1u;
+            sim.set_inputs(d | (load << 8));
+            if (load)
+                q = d;
+
+            expect(eq(sim.cycle(), q)) << "cycle " << k;
+        }
+    };
+
+    "accumulator-loads-the-result-of-the-alu"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write([&](auto& ids) {
+            const auto fa  = make_full_adder(ids);
+            const auto alu = make_alu(ids, make_adder<8>(ids, fa));
+            const auto reg = make_register<8>(ids);
+            return make_bench(ids, make_accumulator(ids, alu, reg));
+        });
+
+        bench_simulation sim(mod, b);
+        std::mt19937     gen(2468u);
+
+        constexpr int cycles = 300;
+        unsigned      a      = 0;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k) {
+            const auto op   = static_cast<alu_op>(gen() % alu_op_count);
+            const auto x    = gen() & 0xffu;
+            const auto cin  = gen() & 1u;
+            const auto load = gen() & 1u;
+
+            sim.set_inputs(x | (cin << 8) | (static_cast<irt::u64>(op) << 9) |
+                           (static_cast<irt::u64>(load) << 12));
+            if (load)
+                a = alu_reference(op, a, x, cin).r;
+
+            // The flags are combinational: the ALU result for the new A.
+            const auto flags = alu_outputs(alu_reference(op, a, x, cin)) >> 8;
+            expect(eq(sim.cycle(), a | (flags << 8)))
+              << "cycle " << k << " op " << static_cast<unsigned>(op);
+        }
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
