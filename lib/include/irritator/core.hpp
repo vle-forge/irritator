@@ -533,6 +533,7 @@ enum class random_source_id : u32;
 enum class factor_id : u32;
 enum class selection_id : u32;
 enum class embedded_simulation_id : u32;
+enum class memory_id : u32;
 
 /*****************************************************************************
  *
@@ -944,6 +945,7 @@ struct simulation_reserve_definition {
     clamped_value<int, 512, INT_MAX>  models{};
     clamped_value<int, 1024, INT_MAX> connections{};
     clamped_value<int, 16, INT_MAX>   hsms{};
+    clamped_value<int, 4, INT_MAX>    memories{};
     clamped_value<int, 256, INT_MAX>  dated_messages{};
 };
 
@@ -1159,11 +1161,12 @@ enum class dynamics_type : u8 {
     logical_xor_2,
     logical_d_flipflop,
     logical_clock,
+    logical_memory,
 };
 
 constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<int>(dynamics_type::logical_clock);
+    return static_cast<int>(dynamics_type::logical_memory);
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
@@ -2158,6 +2161,14 @@ struct watched_event {
     real     value; ///< The first real of the message, or the new value.
 };
 
+/** The bytes of a @c logical_memory, stored in the simulation outside of the
+ * model: a model stays as small as the largest dynamics. */
+struct memory_bank {
+    static constexpr int size = 1 << 16;
+
+    vector<u8> bytes;
+};
+
 class simulation
 {
 public:
@@ -2175,6 +2186,7 @@ public:
     data_array<model, model_id>                             models;
     data_array<hierarchical_state_machine, hsm_id>          hsms;
     data_array<embedded_simulation, embedded_simulation_id> sims;
+    data_array<memory_bank, memory_id>                      memories;
 
     observers_type observers;
 
@@ -7541,6 +7553,118 @@ struct logical_d_flipflop {
     }
 };
 
+/** A memory of 64 KiB addressed bit by bit: q follows the byte at the address
+ * a, and d is written at this address on a rising edge of clk if we (write
+ * enable) is true. As the D flip-flop, the write uses the address, the data
+ * and we before the edge. The bytes are in @c simulation::memories. */
+struct logical_memory {
+    enum : u8 { port_a = 0, port_d = 16, port_we = 24, port_clk = 25 };
+
+    input_port            x[26]   = {};
+    output_port_id        y[8]    = {};
+    static constexpr auto x_types = repeat_port_type<26>(port_type::boolean);
+    static constexpr auto y_types = repeat_port_type<8>(port_type::boolean);
+
+    memory_id id      = undefined<memory_id>();
+    time      sigma   = time_domain<time>::infinity;
+    u16       address = 0;
+    u8        data    = 0;
+    u8        out     = 0;
+    u8        changed = 0;
+    bool      we      = false;
+    bool      clk     = false;
+
+    logical_memory() noexcept = default;
+
+    /** A copy has its own bytes, allocated at its initialization. */
+    logical_memory(const logical_memory& /*other*/) noexcept {}
+
+    status initialize(simulation& sim) noexcept
+    {
+        auto* bank = sim.memories.try_to_get(id);
+        if (not bank) {
+            if (not sim.memories.can_alloc(1) and not sim.memories.grow<2, 1>())
+                return make_error(simulation_errc::memory_error);
+
+            bank = &sim.memories.alloc();
+            id   = sim.memories.get_id(*bank);
+        }
+
+        if (not bank->bytes.resize(memory_bank::size))
+            return make_error(simulation_errc::memory_error);
+
+        std::fill(bank->bytes.begin(), bank->bytes.end(), u8{ 0 });
+
+        sigma   = time_domain<time>::infinity;
+        address = 0;
+        data    = 0;
+        out     = 0;
+        changed = 0;
+        we      = false;
+        clk     = false;
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        for (int i = 0; i < 8; ++i)
+            if (changed & (1u << i))
+                irt_check(
+                  send_message(sim, y[i], (out >> i) & 1u ? one : zero));
+
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        auto* bank = sim.memories.try_to_get(id);
+        if (not bank)
+            return make_error(simulation_errc::memory_error);
+
+        const auto old_address = address;
+        const auto old_data    = data;
+        const auto old_we      = we;
+
+        const auto read_bit = [&](const int port, auto& value, const int bit) {
+            if (const auto lst = get_message(sim, x[port]); not lst.empty()) {
+                using value_type = std::remove_reference_t<decltype(value)>;
+                const auto mask  = static_cast<value_type>(1u << bit);
+                value            = have_true_message(lst)
+                                     ? static_cast<value_type>(value | mask)
+                                     : static_cast<value_type>(value & ~mask);
+            }
+        };
+
+        for (int i = 0; i < 16; ++i)
+            read_bit(port_a + i, address, i);
+        for (int i = 0; i < 8; ++i)
+            read_bit(port_d + i, data, i);
+
+        if (const auto lst = get_message(sim, x[port_we]); not lst.empty())
+            we = have_true_message(lst);
+
+        if (const auto lst = get_message(sim, x[port_clk]); not lst.empty()) {
+            const auto received = have_true_message(lst);
+            if (received and not clk and old_we)
+                bank->bytes[old_address] = old_data;
+            clk = received;
+        }
+
+        const auto value = bank->bytes[address];
+        changed          = static_cast<u8>(value ^ out);
+        out              = value;
+
+        sigma = changed ? time_domain<time>::zero : time_domain<time>::infinity;
+        return success();
+    }
+
+    raw_sample observation(time t, time /*e*/) const noexcept
+    {
+        return { t, static_cast<real>(out) };
+    }
+};
+
 /** A clock: false until @c offset, then a rising edge at @c offset and the
  * output toggles every half @c period. */
 struct logical_clock {
@@ -8987,7 +9111,8 @@ using dynamics_list = type_list<qss1_integrator,
                                 zero_order_hold,
                                 logical_xor_2,
                                 logical_d_flipflop,
-                                logical_clock>;
+                                logical_clock,
+                                logical_memory>;
 
 template<typename T, typename... Ts>
 consteval int type_list_index(type_list<Ts...>) noexcept
@@ -10147,6 +10272,7 @@ inline simulation::simulation(
   , immediate_observers(res.models.value())
   , models(res.models.value())
   , hsms(res.hsms.value())
+  , memories(res.memories.value())
   , observers(res.models.value())
   , nodes(res.connections.value())
   , output_ports(res.connections.value())
@@ -10166,6 +10292,7 @@ inline simulation::simulation(const simulation& other) noexcept
   , models(other.models)
   , hsms(other.hsms)
   , sims(other.sims)
+  , memories(other.memories)
   , observers(other.observers)
   , nodes(other.nodes)
   , output_ports(other.output_ports)
@@ -10191,6 +10318,7 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     models              = other.models;
     hsms                = other.hsms;
     sims                = other.sims;
+    memories               = other.memories;
     observers           = other.observers;
     nodes               = other.nodes;
     output_ports        = other.output_ports;
@@ -10261,6 +10389,7 @@ inline void simulation::destroy() noexcept
 
     models.destroy();
     hsms.destroy();
+    memories.destroy();
     observers.destroy();
     nodes.destroy();
     output_ports.destroy();
@@ -10307,6 +10436,7 @@ inline void simulation::clear() noexcept
 
     models.clear();
     hsms.clear();
+    memories.clear();
     observers.clear();
     nodes.clear();
     output_ports.clear();
@@ -10711,6 +10841,11 @@ void simulation::do_deallocate(Dynamics& dyn) noexcept
         for (auto& elem : dyn.x) {
             elem.reset();
         }
+    }
+
+    if constexpr (std::is_same_v<Dynamics, logical_memory>) {
+        if (auto* bank = memories.try_to_get(dyn.id))
+            memories.free(*bank);
     }
 
     std::destroy_at(&dyn);

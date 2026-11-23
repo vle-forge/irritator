@@ -223,6 +223,16 @@ struct logical_or_3_tag {
     static constexpr std::string_view y_names[] = { "out" };
 };
 
+struct logical_memory_tag {
+    static constexpr std::string_view x_names[] = {
+        "a0", "a1",  "a2",  "a3",  "a4",  "a5",  "a6",  "a7", "a8",
+        "a9", "a10", "a11", "a12", "a13", "a14", "a15", "d0", "d1",
+        "d2", "d3",  "d4",  "d5",  "d6",  "d7",  "we",  "clk"
+    };
+    static constexpr std::string_view y_names[] = { "q0", "q1", "q2", "q3",
+                                                    "q4", "q5", "q6", "q7" };
+};
+
 struct logical_clock_tag {
     static constexpr std::string_view y_names[] = { "out" };
 
@@ -605,6 +615,9 @@ constexpr auto dispatch(const dynamics_type type,
                            std::forward<Args>(args)...);
     case dynamics_type::logical_clock:
         return std::invoke(std::forward<Function>(f), logical_clock_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_memory:
+        return std::invoke(std::forward<Function>(f), logical_memory_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
         return std::invoke(std::forward<Function>(f), logical_invert_tag{},

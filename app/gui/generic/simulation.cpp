@@ -551,6 +551,16 @@ static void show_dynamics_values(application& /*app*/,
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
+                                 const logical_memory& dyn)
+{
+    ImGui::LabelFormat("address", "{}", dyn.address);
+    ImGui::LabelFormat("data", "{}", dyn.data);
+    ImGui::LabelFormat("we", "{}", dyn.we);
+    ImGui::LabelFormat("q", "{}", dyn.out);
+}
+
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_clock& dyn)
 {
     ImGui::LabelFormat("value", "{}", dyn.value);
@@ -1073,6 +1083,8 @@ static int show_menu_edit(project_editor&    pj_ed,
         r += popup_menu(pj_ed, current, dynamics_type::logical_d_flipflop,
                         click_pos);
         r += popup_menu(pj_ed, current, dynamics_type::logical_clock,
+                        click_pos);
+        r += popup_menu(pj_ed, current, dynamics_type::logical_memory,
                         click_pos);
         ImGui::EndMenu();
     }

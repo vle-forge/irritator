@@ -900,6 +900,17 @@ int main()
         static_assert(irt::has_output_port<irt::logical_xor_2>);
         static_assert(irt::has_observation_function<irt::logical_xor_2>);
 
+        static_assert(irt::has_initialize_function<irt::logical_memory>);
+        static_assert(irt::has_lambda_function<irt::logical_memory>);
+        static_assert(irt::has_transition_function<irt::logical_memory>);
+        static_assert(irt::has_input_port<irt::logical_memory>);
+        static_assert(irt::has_output_port<irt::logical_memory>);
+        static_assert(irt::has_observation_function<irt::logical_memory>);
+
+        // The bytes are outside of the model: a memory is not the largest
+        // dynamics and does not grow every model.
+        static_assert(sizeof(irt::logical_memory) < sizeof(irt::hsm_wrapper));
+
         static_assert(irt::has_initialize_function<irt::logical_d_flipflop>);
         static_assert(irt::has_lambda_function<irt::logical_d_flipflop>);
         static_assert(irt::has_transition_function<irt::logical_d_flipflop>);

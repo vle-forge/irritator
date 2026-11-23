@@ -191,6 +191,7 @@ static constexpr inline const char* dynamics_type_names[] = {
     "logical_xor_2",
     "logical_d_flipflop",
     "logical_clock",
+    "logical_memory",
 };
 
 //! Try to get the dymamics type from a string. If the string is unknown,

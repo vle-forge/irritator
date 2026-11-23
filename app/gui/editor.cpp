@@ -1031,6 +1031,15 @@ static bool show_parameter(logical_invert_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(logical_memory_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(logical_clock_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

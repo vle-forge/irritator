@@ -713,6 +713,14 @@ static void model_init(const parameter& /*param*/,
                        logical_d_flipflop& /*dyn*/) noexcept
 {}
 
+static void model_init(const parameter& /*param*/,
+                       logical_memory& /*dyn*/) noexcept
+{}
+
+static void parameter_init(parameter& /*param*/,
+                           const logical_memory& /*dyn*/) noexcept
+{}
+
 static void model_init(const parameter& param, logical_clock& dyn) noexcept
 {
     dyn.period = param.reals[logical_clock_tag::period];

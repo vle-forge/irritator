@@ -793,6 +793,46 @@ circuit make_program_counter(irt::component_access& ids) noexcept
     return ret;
 }
 
+/** A component around a logical_memory. Inputs: a0..a15, d0..d7 then we.
+ * Outputs: q0..q7. */
+circuit make_memory(irt::component_access& ids) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(25, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(8, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    netlist    n(gen);
+    const auto mem = n.gate(dynamics_type::logical_memory, {});
+
+    using irt::logical_memory;
+    const auto input = [&](const std::string_view name, const int port) {
+        const auto x = *ret.x.emplace_back(c.get_or_add_x(name));
+        n.link(netlist::input(x), *mem.child, mdl(port));
+    };
+
+    for (int i = 0; i < 16; ++i)
+        input(irt::format_n<8>("a{}", i).sv(), logical_memory::port_a + i);
+    for (int i = 0; i < 8; ++i)
+        input(irt::format_n<8>("d{}", i).sv(), logical_memory::port_d + i);
+    input("we", logical_memory::port_we);
+
+    ret.clk = c.get_or_add_x("clk");
+    n.link(netlist::input(*ret.clk), *mem.child, mdl(logical_memory::port_clk));
+
+    for (int i = 0; i < 8; ++i)
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("q{}", i).sv())),
+          wire{ .child = mem.child, .port = mdl(i) });
+
+    n.place();
+
+    return ret;
+}
+
 /** The root of a circuit: one constant per input bit and one counter per
  * output bit, the counter keeps the last value received. The constants are
  * named x0, x1... and the counters y0, y1... to find them in a component read
@@ -1402,6 +1442,88 @@ int main()
         }
 
         expect(gt(wraps, 0));
+    };
+
+    "memory-reads-what-was-written"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write(
+          [&](auto& ids) { return make_bench(ids, make_memory(ids)); });
+
+        bench_simulation sim(mod, b);
+        std::mt19937     gen(8642u);
+
+        // Few addresses: most of the reads find a written byte.
+        irt::vector<irt::u8>     bytes(irt::memory_bank::size, irt::u8{ 0 });
+        std::array<irt::u64, 16> addresses{};
+        for (auto& address : addresses)
+            address = gen() & 0xffffu;
+
+        constexpr int cycles = 600;
+        int           writes = 0;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k) {
+            const auto     address = addresses[gen() % addresses.size()];
+            const irt::u64 data    = gen() & 0xffu;
+            const irt::u64 we      = gen() % 3 == 0 ? 1u : 0u;
+
+            sim.set_inputs(address | (data << 16) | (we << 24));
+            if (we) {
+                bytes[static_cast<int>(address)] = static_cast<irt::u8>(data);
+                ++writes;
+            }
+
+            expect(eq(sim.cycle(),
+                      static_cast<irt::u64>(bytes[static_cast<int>(address)])))
+              << "cycle " << k << " address " << address << " we " << we;
+        }
+
+        expect(gt(writes, 0));
+    };
+
+    "memory-writes-with-the-inputs-before-the-rising-edge"_test = [] {
+        irt::simulation sim;
+        auto&           mem = sim.alloc<irt::logical_memory>();
+
+        const auto drive = [&](const int port, const irt::real value,
+                               const irt::real date) {
+            auto& cst = sim.alloc<irt::constant>();
+            sim.parameters[sim.get_id(cst)].set_constant(value, date);
+            expect(!!sim.connect_dynamics(cst, 0, mem, port));
+        };
+
+        // At 1, we rises with the clock: the write uses we before 1, so
+        // nothing is written. At 3, we is true before the edge.
+        using irt::logical_memory;
+        drive(logical_memory::port_d, 1, 0.5);
+        drive(logical_memory::port_we, 1, 1);
+        drive(logical_memory::port_clk, 1, 1);
+        drive(logical_memory::port_clk, 0, 2);
+        drive(logical_memory::port_clk, 1, 3);
+
+        irt::real changed_at = -1;
+        sim.limits.set_bound(0, 10);
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            expect(fatal(sim.run().has_value()));
+            if (mem.out != 0 and changed_at < 0)
+                changed_at = sim.current_time();
+        } while (not sim.current_time_expired());
+
+        expect(eq(changed_at, 3.0));
+        expect(eq(mem.out, irt::u8{ 1 }));
+    };
+
+    "memory-frees-its-bytes-with-its-model"_test = [] {
+        irt::simulation sim;
+        auto&           mem = sim.alloc<irt::logical_memory>();
+
+        sim.limits.set_bound(0, 1);
+        expect(fatal(sim.initialize().has_value()));
+        expect(eq(sim.memories.ssize(), 1));
+
+        sim.deallocate(sim.get_id(mem));
+        expect(eq(sim.memories.ssize(), 0));
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
