@@ -525,6 +525,24 @@ circuit make_counter(irt::component_access& ids) noexcept
     return ret;
 }
 
+/** A D flip-flop which takes d on a rising edge of clk only if load is true:
+ * a multiplexer between d and its own output. @c hold is not load, shared by
+ * the flip-flops loaded together. */
+wire make_loadable_flipflop(netlist&    n,
+                            const wire& d,
+                            const wire& load,
+                            const wire& hold,
+                            const wire& clk)
+{
+    const auto q    = n.gate(dynamics_type::logical_d_flipflop, {});
+    const auto next = n.or_(n.and_(load, d), n.and_(hold, q));
+
+    n.link(next, *q.child, mdl(irt::logical_d_flipflop::port_d));
+    n.link(clk, *q.child, mdl(irt::logical_d_flipflop::port_clk));
+
+    return q;
+}
+
 /** A register of @c Bits bits: on a rising edge of clk, q takes d if load is
  * true and keeps its value otherwise. Inputs: d0.. then load. Outputs: q0..
  */
@@ -551,16 +569,10 @@ circuit make_register(irt::component_access& ids) noexcept
     netlist    n(gen);
     const auto hold = n.not_(load);
 
-    for (int i = 0; i < Bits; ++i) {
-        const auto q    = n.gate(dynamics_type::logical_d_flipflop, {});
-        const auto next = n.or_(n.and_(load, d[i]), n.and_(hold, q));
-
-        n.link(next, *q.child, mdl(irt::logical_d_flipflop::port_d));
-        n.link(clk, *q.child, mdl(irt::logical_d_flipflop::port_clk));
+    for (int i = 0; i < Bits; ++i)
         n.output(
           *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("q{}", i).sv())),
-          q);
-    }
+          make_loadable_flipflop(n, d[i], load, hold, clk));
 
     n.place();
 
@@ -617,6 +629,110 @@ circuit make_accumulator(irt::component_access& ids,
     for (int i = 0; i < 4; ++i)
         n.output(*ret.y.emplace_back(c.get_or_add_y(flags[i])),
                  netlist::output_of(u, alu.y[8 + i]));
+
+    n.place();
+
+    return ret;
+}
+
+/** The C, V, N and Z flags of the status register P: C and V are loaded
+ * apart, N and Z together, as the 6502 instructions do. Inputs: c, v, n, z,
+ * load_c, load_v then load_nz. Outputs: c, v, n then z. */
+circuit make_flags(irt::component_access& ids) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(7, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(4, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    constexpr std::array<const char*, 4> names{ "c", "v", "n", "z" };
+    std::array<wire, 4>                  d;
+    for (int i = 0; i < 4; ++i)
+        d[i] = netlist::input(*ret.x.emplace_back(c.get_or_add_x(names[i])));
+
+    constexpr std::array<const char*, 3> load_names{ "load_c", "load_v",
+                                                     "load_nz" };
+    std::array<wire, 3>                  load;
+    for (int i = 0; i < 3; ++i)
+        load[i] = netlist::input(
+          *ret.x.emplace_back(c.get_or_add_x(load_names[i])));
+
+    ret.clk        = c.get_or_add_x("clk");
+    const auto clk = netlist::input(*ret.clk);
+
+    netlist                   n(gen);
+    const std::array<wire, 3> hold{ n.not_(load[0]), n.not_(load[1]),
+                                    n.not_(load[2]) };
+
+    // The flags c, v, n and z use the loads 0, 1, 2 and 2.
+    constexpr std::array<int, 4> load_of{ 0, 1, 2, 2 };
+    for (int i = 0; i < 4; ++i) {
+        const auto l = load_of[i];
+        n.output(*ret.y.emplace_back(c.get_or_add_y(names[i])),
+                 make_loadable_flipflop(n, d[i], load[l], hold[l], clk));
+    }
+
+    n.place();
+
+    return ret;
+}
+
+/** The execution unit: the accumulator and the flags, the carry of the ALU
+ * is the stored C flag as for ADC, SBC, ROL and ROR. Inputs: b0..b7,
+ * op0..op2, load_a, load_c, load_v then load_nz. Outputs: a0..a7 then the
+ * stored c, v, n and z flags. */
+circuit make_execution_unit(irt::component_access& ids,
+                            const circuit&         acc,
+                            const circuit&         flags) noexcept
+{
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(15, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(12, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    netlist    n(gen);
+    const auto a = n.child(acc.id);
+    const auto p = n.child(flags.id);
+
+    const auto input = [&](const std::string_view name) {
+        return netlist::input(*ret.x.emplace_back(c.get_or_add_x(name)));
+    };
+
+    // The accumulator inputs: b0..b7, cin, op0..op2 then load.
+    for (int i = 0; i < 8; ++i)
+        n.link(input(irt::format_n<8>("b{}", i).sv()), a, compo(acc.x[i]));
+    n.link(netlist::output_of(p, flags.y[0]), a, compo(acc.x[8]));
+    for (int i = 0; i < 3; ++i)
+        n.link(input(irt::format_n<8>("op{}", i).sv()), a, compo(acc.x[9 + i]));
+    n.link(input("load_a"), a, compo(acc.x[12]));
+
+    // The flags inputs: the c, v, n and z of the ALU then the three loads.
+    for (int i = 0; i < 4; ++i)
+        n.link(netlist::output_of(a, acc.y[8 + i]), p, compo(flags.x[i]));
+    n.link(input("load_c"), p, compo(flags.x[4]));
+    n.link(input("load_v"), p, compo(flags.x[5]));
+    n.link(input("load_nz"), p, compo(flags.x[6]));
+
+    ret.clk        = c.get_or_add_x("clk");
+    const auto clk = netlist::input(*ret.clk);
+    n.link(clk, a, compo(*acc.clk));
+    n.link(clk, p, compo(*flags.clk));
+
+    for (int i = 0; i < 8; ++i)
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("a{}", i).sv())),
+          netlist::output_of(a, acc.y[i]));
+
+    constexpr std::array<const char*, 4> names{ "c", "v", "n", "z" };
+    for (int i = 0; i < 4; ++i)
+        n.output(*ret.y.emplace_back(c.get_or_add_y(names[i])),
+                 netlist::output_of(p, flags.y[i]));
 
     n.place();
 
@@ -1155,6 +1271,50 @@ int main()
             const auto flags = alu_outputs(alu_reference(op, a, x, cin)) >> 8;
             expect(eq(sim.cycle(), a | (flags << 8)))
               << "cycle " << k << " op " << static_cast<unsigned>(op);
+        }
+    };
+
+    "execution-unit-keeps-the-flags-of-the-loaded-results"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write([&](auto& ids) {
+            const auto fa  = make_full_adder(ids);
+            const auto alu = make_alu(ids, make_adder<8>(ids, fa));
+            const auto acc = make_accumulator(ids, alu, make_register<8>(ids));
+            return make_bench(ids,
+                              make_execution_unit(ids, acc, make_flags(ids)));
+        });
+
+        bench_simulation sim(mod, b);
+        std::mt19937     gen(1357u);
+
+        constexpr int cycles = 400;
+        unsigned      a = 0, c = 0, v = 0, n = 0, z = 0;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k) {
+            const auto     op    = static_cast<alu_op>(gen() % alu_op_count);
+            const auto     x     = gen() & 0xffu;
+            const irt::u64 loads = gen() & 0xfu;
+
+            sim.set_inputs(x | (static_cast<irt::u64>(op) << 8) |
+                           (loads << 11));
+
+            const auto res = alu_reference(op, a, x, c);
+            if (loads & 1u)
+                a = res.r;
+            if (loads & 2u)
+                c = res.c;
+            if (loads & 4u)
+                v = res.v;
+            if (loads & 8u) {
+                n = res.r >> 7;
+                z = res.r == 0 ? 1u : 0u;
+            }
+
+            expect(
+              eq(sim.cycle(), a | (c << 8) | (v << 9) | (n << 10) | (z << 11)))
+              << "cycle " << k << " op " << static_cast<unsigned>(op)
+              << " loads " << loads;
         }
     };
 
