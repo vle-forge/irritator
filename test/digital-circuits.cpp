@@ -739,6 +739,60 @@ circuit make_execution_unit(irt::component_access& ids,
     return ret;
 }
 
+/** The program counter: on a rising edge, pc takes d if load is true (a jump),
+ * pc + 1 if inc is true (the next byte), and keeps its value otherwise.
+ * Inputs: d0..d15, load then inc. Outputs: pc0..pc15. */
+circuit make_program_counter(irt::component_access& ids) noexcept
+{
+    constexpr int bits = 16;
+
+    circuit ret{ .id  = ids.alloc_generic_component(),
+                 .x   = irt::vector<irt::port_id>(bits + 2, irt::reserve_tag),
+                 .y   = irt::vector<irt::port_id>(bits, irt::reserve_tag),
+                 .clk = std::nullopt };
+
+    auto& c   = ids.components[ret.id];
+    auto& gen = ids.generic_components.get(c.id.generic_id);
+
+    std::array<wire, bits> d;
+    for (int i = 0; i < bits; ++i)
+        d[i] = netlist::input(
+          *ret.x.emplace_back(c.get_or_add_x(irt::format_n<8>("d{}", i).sv())));
+    const auto load = netlist::input(
+      *ret.x.emplace_back(c.get_or_add_x("load")));
+    const auto inc = netlist::input(*ret.x.emplace_back(c.get_or_add_x("inc")));
+    ret.clk        = c.get_or_add_x("clk");
+    const auto clk = netlist::input(*ret.clk);
+
+    netlist n(gen);
+
+    std::array<wire, bits> pc;
+    for (int i = 0; i < bits; ++i)
+        pc[i] = n.gate(dynamics_type::logical_d_flipflop, {});
+
+    const auto next_pc   = make_incrementer<bits>(n, pc);
+    const auto no_load   = n.not_(load);
+    const auto increment = n.and_(no_load, inc);
+    const auto keep      = n.and_(no_load, n.not_(inc));
+
+    for (int i = 0; i < bits; ++i) {
+        const std::array candidates{ n.and_(load, d[i]),
+                                     n.and_(increment, next_pc[i]),
+                                     n.and_(keep, pc[i]) };
+
+        n.link(n.any(candidates), *pc[i].child,
+               mdl(irt::logical_d_flipflop::port_d));
+        n.link(clk, *pc[i].child, mdl(irt::logical_d_flipflop::port_clk));
+        n.output(
+          *ret.y.emplace_back(c.get_or_add_y(irt::format_n<8>("pc{}", i).sv())),
+          pc[i]);
+    }
+
+    n.place();
+
+    return ret;
+}
+
 /** The root of a circuit: one constant per input bit and one counter per
  * output bit, the counter keeps the last value received. The constants are
  * named x0, x1... and the counters y0, y1... to find them in a component read
@@ -1316,6 +1370,38 @@ int main()
               << "cycle " << k << " op " << static_cast<unsigned>(op)
               << " loads " << loads;
         }
+    };
+
+    "program-counter-increments-and-jumps"_test = [] {
+        irt::modeling mod;
+
+        const auto b = mod.ids.write([&](auto& ids) {
+            return make_bench(ids, make_program_counter(ids));
+        });
+
+        bench_simulation sim(mod, b);
+        std::mt19937     gen(9753u);
+
+        // Some jumps go just before 0xffff to check the wrap to 0.
+        constexpr int cycles = 500;
+        irt::u64      pc     = 0;
+        int           wraps  = 0;
+        sim.start(0, cycles);
+        for (int k = 1; k <= cycles; ++k) {
+            const irt::u64 d    = gen() % 4 == 0 ? 0xfffeu : gen() & 0xffffu;
+            const irt::u64 load = gen() % 8 == 0 ? 1u : 0u;
+            const irt::u64 inc  = gen() % 4 != 0 ? 1u : 0u;
+
+            sim.set_inputs(d | (load << 16) | (inc << 17));
+            if (not load and inc and pc == 0xffffu)
+                ++wraps;
+            pc = load ? d : inc ? (pc + 1) & 0xffffu : pc;
+
+            expect(eq(sim.cycle(), pc))
+              << "cycle " << k << " load " << load << " inc " << inc;
+        }
+
+        expect(gt(wraps, 0));
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
