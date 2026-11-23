@@ -1031,6 +1031,15 @@ static bool show_parameter(logical_invert_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(logical_d_flipflop_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(sqrt_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

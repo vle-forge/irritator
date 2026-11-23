@@ -549,6 +549,15 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("value", "{}", dyn.value);
 }
 
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const logical_d_flipflop& dyn)
+{
+    ImGui::LabelFormat("d", "{}", dyn.d);
+    ImGui::LabelFormat("clk", "{}", dyn.clk);
+    ImGui::LabelFormat("q", "{}", dyn.q);
+}
+
 static auto get_state_name(application&       app,
                            project_editor&    pj_ed,
                            const hsm_wrapper& dyn) noexcept -> std::string_view
@@ -1054,6 +1063,8 @@ static int show_menu_edit(project_editor&    pj_ed,
         r += popup_menu(pj_ed, current, dynamics_type::logical_or_3, click_pos);
         r +=
           popup_menu(pj_ed, current, dynamics_type::logical_invert, click_pos);
+        r += popup_menu(pj_ed, current, dynamics_type::logical_d_flipflop,
+                        click_pos);
         ImGui::EndMenu();
     }
 

@@ -689,6 +689,52 @@ int main()
         expect(eq(cnt.last_value, 1.0));
     };
 
+    "d-flipflop-samples-d-before-the-rising-edge"_test = [] {
+        irt::simulation sim;
+        auto&           ff = sim.alloc<irt::logical_d_flipflop>();
+
+        // Each constant sends its value at its date: the d and clk signals.
+        const auto drive = [&](const int port, const irt::real value,
+                               const irt::real date) {
+            auto& cst = sim.alloc<irt::constant>();
+            sim.parameters[sim.get_id(cst)].set_constant(value, date);
+            expect(!!sim.connect_dynamics(cst, 0, ff, port));
+        };
+
+        using irt::logical_d_flipflop;
+        drive(logical_d_flipflop::port_d, 1, 0.5);
+        drive(logical_d_flipflop::port_clk, 1, 1);
+        drive(logical_d_flipflop::port_d, 0, 1.5);
+        drive(logical_d_flipflop::port_clk, 0, 2);
+        drive(logical_d_flipflop::port_clk, 1, 3);
+        drive(logical_d_flipflop::port_d, 1, 3);
+        drive(logical_d_flipflop::port_clk, 0, 4);
+        drive(logical_d_flipflop::port_clk, 1, 5);
+        drive(logical_d_flipflop::port_d, 0, 5.5);
+        drive(logical_d_flipflop::port_clk, 1, 6);
+
+        std::array<std::pair<irt::real, bool>, 8> changes{};
+        int                                       count = 0;
+        bool                                      q     = false;
+
+        sim.limits.set_bound(0, 10);
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            expect(fatal(sim.run().has_value()));
+            if (ff.q != q and count < 8) {
+                q                = ff.q;
+                changes[count++] = { sim.current_time(), q };
+            }
+        } while (not sim.current_time_expired());
+
+        // At 3, d rises with the clock: q keeps the value of d before 3. At
+        // 6, clk stays true: there is no rising edge.
+        expect(fatal(eq(count, 3)));
+        expect(eq(changes[0].first, 1.0) and changes[0].second);
+        expect(eq(changes[1].first, 3.0) and not changes[1].second);
+        expect(eq(changes[2].first, 5.0) and changes[2].second);
+    };
+
     "xor-follows-its-truth-table"_test = [] {
         for (int a = 0; a < 2; ++a) {
             for (int b = 0; b < 2; ++b) {

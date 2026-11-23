@@ -900,6 +900,13 @@ int main()
         static_assert(irt::has_output_port<irt::logical_xor_2>);
         static_assert(irt::has_observation_function<irt::logical_xor_2>);
 
+        static_assert(irt::has_initialize_function<irt::logical_d_flipflop>);
+        static_assert(irt::has_lambda_function<irt::logical_d_flipflop>);
+        static_assert(irt::has_transition_function<irt::logical_d_flipflop>);
+        static_assert(irt::has_input_port<irt::logical_d_flipflop>);
+        static_assert(irt::has_output_port<irt::logical_d_flipflop>);
+        static_assert(irt::has_observation_function<irt::logical_d_flipflop>);
+
         static_assert(irt::has_initialize_function<irt::logical_invert>);
         static_assert(irt::has_lambda_function<irt::logical_invert>);
         static_assert(irt::has_transition_function<irt::logical_invert>);
@@ -1232,6 +1239,10 @@ int main()
                                           dynamics_type::counter, 0));
         static_assert(is_ports_compatible(dynamics_type::logical_xor_2, 0,
                                           dynamics_type::logical_and_2, 0));
+        static_assert(is_ports_compatible(dynamics_type::logical_d_flipflop, 0,
+                                          dynamics_type::logical_xor_2, 1));
+        static_assert(not is_ports_compatible(
+          dynamics_type::qss1_sum_2, 0, dynamics_type::logical_d_flipflop, 1));
         static_assert(is_ports_compatible(dynamics_type::logical_invert, 0,
                                           dynamics_type::qss1_flipflop, 1));
         static_assert(is_ports_compatible(dynamics_type::generator, 0,

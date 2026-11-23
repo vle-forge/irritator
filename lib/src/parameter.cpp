@@ -709,6 +709,14 @@ static void parameter_init(parameter& /*param*/,
                            const logical_invert& /*dyn*/) noexcept
 {}
 
+static void model_init(const parameter& /*param*/,
+                       logical_d_flipflop& /*dyn*/) noexcept
+{}
+
+static void parameter_init(parameter& /*param*/,
+                           const logical_d_flipflop& /*dyn*/) noexcept
+{}
+
 static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 {
     dyn.id      = enum_cast<hsm_id>(param.integers[hsm_wrapper_tag::id]);

@@ -1157,11 +1157,12 @@ enum class dynamics_type : u8 {
     simulation_wrapper,
     zero_order_hold,
     logical_xor_2,
+    logical_d_flipflop,
 };
 
 constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<int>(dynamics_type::logical_xor_2);
+    return static_cast<int>(dynamics_type::logical_d_flipflop);
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
@@ -7471,6 +7472,73 @@ struct logical_invert {
     }
 };
 
+/** A D flip-flop: @c q takes the value of @c d on a rising edge of @c clk.
+ * When @c d and the edge arrive at the same date, @c q takes the value @c d had
+ * before this date, as the hold time of an electronic flip-flop: a register
+ * fed by its own output through zero delay gates does not race the clock. */
+struct logical_d_flipflop {
+    input_port                 x[2]      = {};
+    output_port_id             y[1]      = {};
+    static constexpr port_type x_types[] = { port_type::boolean,
+                                             port_type::boolean };
+    static constexpr port_type y_types[] = { port_type::boolean };
+
+    enum : u8 { port_d, port_clk };
+
+    time sigma     = time_domain<time>::infinity;
+    bool d         = false;
+    bool clk       = false;
+    bool q         = false;
+    bool q_changed = false;
+
+    logical_d_flipflop() noexcept = default;
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        sigma     = time_domain<time>::infinity;
+        d         = false;
+        clk       = false;
+        q         = false;
+        q_changed = false;
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if (q_changed)
+            return send_message(sim, y[0], q ? one : zero);
+
+        return success();
+    }
+
+    status transition(simulation& sim, time, time, time) noexcept
+    {
+        q_changed = false;
+
+        if (const auto lst = get_message(sim, x[port_clk]); not lst.empty()) {
+            const auto received = have_true_message(lst);
+            if (received and not clk) {
+                q_changed = q != d;
+                q         = d;
+            }
+            clk = received;
+        }
+
+        if (const auto lst = get_message(sim, x[port_d]); not lst.empty())
+            d = have_true_message(lst);
+
+        sigma = q_changed ? time_domain<time>::zero
+                          : time_domain<time>::infinity;
+        return success();
+    }
+
+    raw_sample observation(time t, time /*e*/) const noexcept
+    {
+        return { t, q ? one : zero };
+    }
+};
+
 /** Hierarchical state machine.
  *
  * @note This implementation have the standard restriction for
@@ -8869,7 +8937,8 @@ using dynamics_list = type_list<qss1_integrator,
                                 hsm_wrapper,
                                 simulation_wrapper,
                                 zero_order_hold,
-                                logical_xor_2>;
+                                logical_xor_2,
+                                logical_d_flipflop>;
 
 template<typename T, typename... Ts>
 consteval int type_list_index(type_list<Ts...>) noexcept
