@@ -7422,9 +7422,11 @@ struct logical_invert {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        sigma         = time_domain<time>::infinity;
+        // The output starts true: it is sent at once, the models fed by this
+        // inverter start false and would miss it until the input changes.
+        sigma         = time_domain<time>::zero;
         value         = false;
-        value_changed = false;
+        value_changed = true;
 
         return success();
     }
