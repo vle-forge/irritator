@@ -255,6 +255,32 @@ int main()
         expect(eq(cnt.last_value, 1.0));
     };
 
+    "xor-follows-its-truth-table"_test = [] {
+        for (int a = 0; a < 2; ++a) {
+            for (int b = 0; b < 2; ++b) {
+                irt::simulation sim;
+                auto&           ka  = sim.alloc<irt::constant>();
+                auto&           kb  = sim.alloc<irt::constant>();
+                auto&           x   = sim.alloc<irt::logical_xor_2>();
+                auto&           cnt = sim.alloc<irt::counter>();
+                sim.parameters[sim.get_id(ka)].set_constant(a);
+                sim.parameters[sim.get_id(kb)].set_constant(b);
+                expect(!!sim.connect_dynamics(ka, 0, x, 0));
+                expect(!!sim.connect_dynamics(kb, 0, x, 1));
+                expect(!!sim.connect_dynamics(x, 0, cnt, 0));
+
+                sim.limits.set_bound(0, 10);
+                expect(fatal(sim.initialize().has_value()));
+                do {
+                    expect(fatal(sim.run().has_value()));
+                } while (not sim.current_time_expired());
+
+                expect(eq(cnt.last_value, a != b ? 1.0 : 0.0))
+                  << a << " xor " << b;
+            }
+        }
+    };
+
     "adder-4-bits-every-addition"_test = [] {
         irt::modeling mod;
         irt::project  pj;

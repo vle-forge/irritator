@@ -1156,11 +1156,12 @@ enum class dynamics_type : u8 {
     hsm_wrapper,
     simulation_wrapper,
     zero_order_hold,
+    logical_xor_2,
 };
 
 constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<int>(dynamics_type::zero_order_hold);
+    return static_cast<int>(dynamics_type::logical_xor_2);
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
@@ -7340,6 +7341,14 @@ struct abstract_or_check {
     }
 };
 
+struct abstract_xor_check {
+    template<typename Iterator>
+    bool operator()(Iterator begin, Iterator end) const noexcept
+    {
+        return std::count(begin, end, true) % 2 == 1;
+    }
+};
+
 template<typename AbstractLogicalTester, std::size_t PortNumber>
 struct abstract_logical {
     input_port     x[PortNumber];
@@ -7407,6 +7416,7 @@ using logical_and_2 = abstract_logical<abstract_and_check, 2>;
 using logical_and_3 = abstract_logical<abstract_and_check, 3>;
 using logical_or_2  = abstract_logical<abstract_or_check, 2>;
 using logical_or_3  = abstract_logical<abstract_or_check, 3>;
+using logical_xor_2 = abstract_logical<abstract_xor_check, 2>;
 
 struct logical_invert {
     input_port     x[1] = {};
@@ -8858,7 +8868,8 @@ using dynamics_list = type_list<qss1_integrator,
                                 logical_invert,
                                 hsm_wrapper,
                                 simulation_wrapper,
-                                zero_order_hold>;
+                                zero_order_hold,
+                                logical_xor_2>;
 
 template<typename T, typename... Ts>
 consteval int type_list_index(type_list<Ts...>) noexcept

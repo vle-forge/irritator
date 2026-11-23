@@ -5792,6 +5792,18 @@ struct json_writer {
     void write(Writer& writer,
                const file_access& /*files*/,
                const component_access& /*ids*/,
+               const logical_xor_2_tag,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
                const logical_invert_tag,
                const component& /*compo*/,
                const parameter& /*p*/) noexcept

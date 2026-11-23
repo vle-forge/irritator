@@ -223,6 +223,11 @@ struct logical_or_3_tag {
     static constexpr std::string_view y_names[] = { "out" };
 };
 
+struct logical_xor_2_tag {
+    static constexpr std::string_view x_names[] = { "in-1", "in-2" };
+    static constexpr std::string_view y_names[] = { "out" };
+};
+
 struct logical_invert_tag {
     static constexpr std::string_view x_names[] = { "in" };
     static constexpr std::string_view y_names[] = { "out" };
@@ -580,6 +585,9 @@ constexpr auto dispatch(const dynamics_type type,
                            std::forward<Args>(args)...);
     case dynamics_type::logical_or_3:
         return std::invoke(std::forward<Function>(f), logical_or_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_xor_2:
+        return std::invoke(std::forward<Function>(f), logical_xor_2_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
         return std::invoke(std::forward<Function>(f), logical_invert_tag{},

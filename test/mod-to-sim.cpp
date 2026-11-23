@@ -3289,6 +3289,41 @@ int main()
         });
     };
 
+    "json: the logical_xor_2 survives a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+
+            auto& cst = gen.alloc(irt::dynamics_type::constant);
+            auto& lxr = gen.alloc(irt::dynamics_type::logical_xor_2);
+            expect(!!gen.connect(cst, irt::connection::port{ .model = 0 }, lxr,
+                                 irt::connection::port{ .model = 1 }));
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+            expect(eq(gen.connections.size(), 1u));
+
+            int xor_number = 0;
+            for (const auto& child : gen.children)
+                if (child.type == irt::child_type::model and
+                    child.id.mdl_type == irt::dynamics_type::logical_xor_2)
+                    ++xor_number;
+            expect(eq(xor_number, 1));
+        });
+    };
+
     "json: the hsm source and constants survive a round trip"_test = [] {
         irt::modeling mod;
 

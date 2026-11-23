@@ -807,6 +807,15 @@ static bool show_parameter(logical_or_2_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(logical_xor_2_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(logical_and_3_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

@@ -1136,6 +1136,7 @@ static bool show_popup_menuitem(const component_access&        ids,
         if (ImGui::BeginMenu("Logical")) {
             u += show_menu(gen, dynamics_type::logical_and_2, click_pos);
             u += show_menu(gen, dynamics_type::logical_or_2, click_pos);
+            u += show_menu(gen, dynamics_type::logical_xor_2, click_pos);
             u += show_menu(gen, dynamics_type::logical_and_3, click_pos);
             u += show_menu(gen, dynamics_type::logical_or_3, click_pos);
             u += show_menu(gen, dynamics_type::logical_invert, click_pos);
