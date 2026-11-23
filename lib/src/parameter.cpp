@@ -713,6 +713,18 @@ static void model_init(const parameter& /*param*/,
                        logical_d_flipflop& /*dyn*/) noexcept
 {}
 
+static void model_init(const parameter& param, logical_clock& dyn) noexcept
+{
+    dyn.period = param.reals[logical_clock_tag::period];
+    dyn.offset = param.reals[logical_clock_tag::offset];
+}
+
+static void parameter_init(parameter& param, const logical_clock& dyn) noexcept
+{
+    param.reals[logical_clock_tag::period] = dyn.period;
+    param.reals[logical_clock_tag::offset] = dyn.offset;
+}
+
 static void parameter_init(parameter& /*param*/,
                            const logical_d_flipflop& /*dyn*/) noexcept
 {}
@@ -912,6 +924,10 @@ void parameter::init_from(const dynamics_type type) noexcept
               param.set_time_func(zero, 0.01, 0);
           }
 
+          if constexpr (std::is_same_v<Tag, logical_clock_tag>) {
+              param.set_logical_clock(one);
+          }
+
           if constexpr (std::is_same_v<Tag, queue_tag>) {
               param.set_queue(one);
           }
@@ -983,6 +999,13 @@ parameter& parameter::set_integrator(real X, real dQ) noexcept
 {
     reals[qss_integrator_tag::X]  = std::isfinite(X) ? X : 0.0;
     reals[qss_integrator_tag::dQ] = std::isfinite(dQ) ? dQ : 0.01;
+    return *this;
+}
+
+parameter& parameter::set_logical_clock(real period, real offset) noexcept
+{
+    reals[logical_clock_tag::period] = period;
+    reals[logical_clock_tag::offset] = offset;
     return *this;
 }
 

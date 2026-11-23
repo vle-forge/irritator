@@ -1158,11 +1158,12 @@ enum class dynamics_type : u8 {
     zero_order_hold,
     logical_xor_2,
     logical_d_flipflop,
+    logical_clock,
 };
 
 constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<int>(dynamics_type::logical_d_flipflop);
+    return static_cast<int>(dynamics_type::logical_clock);
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
@@ -1276,6 +1277,7 @@ struct parameter {
     parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
+    parameter& set_logical_clock(real period, real offset = zero) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
     parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
     parameter& set_wsum4(real coeff1,
@@ -7539,6 +7541,52 @@ struct logical_d_flipflop {
     }
 };
 
+/** A clock: false until @c offset, then a rising edge at @c offset and the
+ * output toggles every half @c period. */
+struct logical_clock {
+    output_port_id             y[1]      = {};
+    static constexpr port_type y_types[] = { port_type::boolean };
+
+    time period = one;
+    time offset = zero;
+    time sigma  = time_domain<time>::infinity;
+    bool value  = false;
+
+    logical_clock() noexcept = default;
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        if (not std::isfinite(period) or period <= zero)
+            return make_error(simulation_errc::clock_period_error);
+
+        if (not std::isfinite(offset) or offset < zero)
+            return make_error(simulation_errc::clock_offset_error);
+
+        value = false;
+        sigma = offset;
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        return send_message(sim, y[0], value ? zero : one);
+    }
+
+    status transition(simulation& /*sim*/, time, time, time) noexcept
+    {
+        value = not value;
+        sigma = period / two;
+
+        return success();
+    }
+
+    raw_sample observation(time t, time /*e*/) const noexcept
+    {
+        return { t, value ? one : zero };
+    }
+};
+
 /** Hierarchical state machine.
  *
  * @note This implementation have the standard restriction for
@@ -8938,7 +8986,8 @@ using dynamics_list = type_list<qss1_integrator,
                                 simulation_wrapper,
                                 zero_order_hold,
                                 logical_xor_2,
-                                logical_d_flipflop>;
+                                logical_d_flipflop,
+                                logical_clock>;
 
 template<typename T, typename... Ts>
 consteval int type_list_index(type_list<Ts...>) noexcept

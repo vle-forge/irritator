@@ -3326,6 +3326,40 @@ int main()
         });
     };
 
+    "json: the parameters of a logical_clock survive a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id  = ids.alloc_generic_component();
+            auto&      gen = ids.generic_components.get(
+              ids.components[id].id.generic_id);
+
+            auto& clk = gen.alloc(irt::dynamics_type::logical_clock);
+            gen.children_parameters[gen.children.get_id(clk)].set_logical_clock(
+              0.5, 2.0);
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+            expect(fatal(eq(gen.children.ssize(), 1)));
+
+            const auto& child = *gen.children.begin();
+            expect(child.id.mdl_type == irt::dynamics_type::logical_clock);
+
+            const auto& p = gen.children_parameters[gen.children.get_id(child)];
+            expect(eq(p.reals[irt::logical_clock_tag::period], 0.5));
+            expect(eq(p.reals[irt::logical_clock_tag::offset], 2.0));
+        });
+    };
+
     "json: the logical_xor_2 survives a round trip"_test = [] {
         irt::modeling mod;
 

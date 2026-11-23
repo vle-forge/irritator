@@ -1141,6 +1141,7 @@ static bool show_popup_menuitem(const component_access&        ids,
             u += show_menu(gen, dynamics_type::logical_or_3, click_pos);
             u += show_menu(gen, dynamics_type::logical_invert, click_pos);
             u += show_menu(gen, dynamics_type::logical_d_flipflop, click_pos);
+            u += show_menu(gen, dynamics_type::logical_clock, click_pos);
             ImGui::EndMenu();
         }
 

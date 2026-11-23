@@ -1350,6 +1350,24 @@ struct json_reader {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
+                       logical_clock_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics logical clock");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("period"sv == name)
+                  return read_real(value, p.reals[logical_clock_tag::period]);
+
+              if ("offset"sv == name)
+                  return read_real(value, p.reals[logical_clock_tag::offset]);
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
                        time_func_tag,
                        parameter& p) noexcept
     {
@@ -5809,6 +5827,22 @@ struct json_writer {
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const logical_clock_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("period");
+        writer.Double(p.reals[logical_clock_tag::period]);
+        writer.Key("offset");
+        writer.Double(p.reals[logical_clock_tag::offset]);
         writer.EndObject();
     }
 

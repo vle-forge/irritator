@@ -223,6 +223,12 @@ struct logical_or_3_tag {
     static constexpr std::string_view y_names[] = { "out" };
 };
 
+struct logical_clock_tag {
+    static constexpr std::string_view y_names[] = { "out" };
+
+    enum parameter_names : u8 { period = 0, offset };
+};
+
 struct logical_d_flipflop_tag {
     static constexpr std::string_view x_names[] = { "d", "clk" };
     static constexpr std::string_view y_names[] = { "q" };
@@ -596,6 +602,9 @@ constexpr auto dispatch(const dynamics_type type,
                            std::forward<Args>(args)...);
     case dynamics_type::logical_d_flipflop:
         return std::invoke(std::forward<Function>(f), logical_d_flipflop_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_clock:
+        return std::invoke(std::forward<Function>(f), logical_clock_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
         return std::invoke(std::forward<Function>(f), logical_invert_tag{},

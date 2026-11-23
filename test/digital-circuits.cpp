@@ -10,11 +10,13 @@
 #include <irritator/modeling.hpp>
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <initializer_list>
 #include <optional>
 #include <random>
 #include <span>
+#include <utility>
 
 #include <boost/ut.hpp>
 
@@ -733,6 +735,77 @@ int main()
         expect(eq(changes[0].first, 1.0) and changes[0].second);
         expect(eq(changes[1].first, 3.0) and not changes[1].second);
         expect(eq(changes[2].first, 5.0) and changes[2].second);
+    };
+
+    "clock-toggles-every-half-period-after-its-offset"_test = [] {
+        irt::simulation sim;
+        auto&           clk = sim.alloc<irt::logical_clock>();
+        sim.parameters[sim.get_id(clk)].set_logical_clock(2.0, 1.0);
+
+        std::array<std::pair<irt::real, bool>, 6> changes{};
+        int                                       count = 0;
+        bool                                      value = false;
+
+        sim.limits.set_bound(0, 10);
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            expect(fatal(sim.run().has_value()));
+            if (clk.value != value and count < 6) {
+                value            = clk.value;
+                changes[count++] = { sim.current_time(), value };
+            }
+        } while (not sim.current_time_expired());
+
+        expect(fatal(eq(count, 6)));
+        for (int i = 0; i < 6; ++i) {
+            expect(eq(changes[i].first, 1.0 + i));
+            expect(changes[i].second == (i % 2 == 0));
+        }
+    };
+
+    "clock-refuses-a-null-period"_test = [] {
+        irt::simulation sim;
+        auto&           clk = sim.alloc<irt::logical_clock>();
+        sim.parameters[sim.get_id(clk)].set_logical_clock(0.0);
+
+        const auto callback    = std::exchange(irt::on_error_callback, nullptr);
+        const auto ret         = sim.initialize();
+        irt::on_error_callback = callback;
+
+        expect(fatal(not ret.has_value()));
+        expect(ret.error() ==
+               irt::error_code(irt::simulation_errc::clock_period_error));
+    };
+
+    "flipflop-fed-by-its-inverse-divides-the-clock-by-two"_test = [] {
+        irt::simulation sim;
+        auto&           clk = sim.alloc<irt::logical_clock>();
+        auto&           ff  = sim.alloc<irt::logical_d_flipflop>();
+        auto&           inv = sim.alloc<irt::logical_invert>();
+        sim.parameters[sim.get_id(clk)].set_logical_clock(2.0, 1.0);
+
+        using irt::logical_d_flipflop;
+        expect(
+          !!sim.connect_dynamics(clk, 0, ff, logical_d_flipflop::port_clk));
+        expect(!!sim.connect_dynamics(ff, 0, inv, 0));
+        expect(!!sim.connect_dynamics(inv, 0, ff, logical_d_flipflop::port_d));
+
+        // The rising edges are at 1, 3, 5, 7 and 9: q toggles at each one.
+        int  toggles = 0;
+        bool q       = false;
+
+        sim.limits.set_bound(0, 10);
+        expect(fatal(sim.initialize().has_value()));
+        do {
+            expect(fatal(sim.run().has_value()));
+            if (ff.q != q) {
+                q = ff.q;
+                ++toggles;
+                expect(eq(std::fmod(sim.current_time(), 2.0), 1.0));
+            }
+        } while (not sim.current_time_expired());
+
+        expect(eq(toggles, 5));
     };
 
     "xor-follows-its-truth-table"_test = [] {

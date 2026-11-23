@@ -951,6 +951,13 @@ void binary_serialize(Ar& ar, logical_invert& d) noexcept
 }
 
 template<typename Ar>
+void binary_serialize(Ar& ar, logical_clock& d) noexcept
+{
+    auto& [y, period, offset, sigma, value] = d;
+    ar(y, period, offset, sigma, value);
+}
+
+template<typename Ar>
 void binary_serialize(Ar& ar, logical_d_flipflop& d) noexcept
 {
     auto& [x, y, sigma, data, clk, q, q_changed] = d;

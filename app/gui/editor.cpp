@@ -1031,6 +1031,22 @@ static bool show_parameter(logical_invert_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(logical_clock_tag,
+                           application& /*app*/,
+                           ExternalSourceType& /*srcs*/,
+                           parameter& p) noexcept
+{
+    ImGui::PushItemWidth(120.0f);
+    const auto b1 = ImGui::InputReal("period",
+                                     &p.reals[logical_clock_tag::period]);
+    const auto b2 = ImGui::InputReal("offset",
+                                     &p.reals[logical_clock_tag::offset]);
+    ImGui::PopItemWidth();
+
+    return b1 or b2;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(logical_d_flipflop_tag,
                            application& /*app*/,
                            ExternalSourceType& /*srcs*/,

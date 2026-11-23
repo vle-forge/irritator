@@ -438,6 +438,14 @@ static void write_test_simulation_model(std::FILE*           os,
           o_param.reals(param, constant_tag::offset));
         break;
 
+    case dynamics_type::logical_clock:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_logical_clock({}, {});)",
+          idx, o_param.reals(param, logical_clock_tag::period),
+          o_param.reals(param, logical_clock_tag::offset));
+        break;
+
     case dynamics_type::time_func:
         fmt::print(
           os,
