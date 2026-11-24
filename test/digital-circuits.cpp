@@ -995,8 +995,9 @@ circuit make_stack_pointer(irt::component_access& ids,
     return ret;
 }
 
-/** The opcodes of the 6502 run by the CPU. The operations of the ALU and STA
- * exist with other addressing modes, see with_mode(). */
+/** The opcodes of the 6502 run by the CPU. The operations of the ALU, CMP,
+ * STA, LDX, LDY, CPX and CPY exist with other addressing modes, see
+ * with_mode(). */
 enum class opcode : irt::u8 {
     ora_imm = 0x09,
     and_imm = 0x29,
@@ -1004,56 +1005,107 @@ enum class opcode : irt::u8 {
     adc_imm = 0x69,
     lda_imm = 0xa9,
     sbc_imm = 0xe9,
+    cmp_imm = 0xc9,
+    sta_abs = 0x8d,
     ldx_imm = 0xa2,
     ldy_imm = 0xa0,
+    cpx_imm = 0xe0,
+    cpy_imm = 0xc0,
     inx     = 0xe8,
     iny     = 0xc8,
     dex     = 0xca,
     dey     = 0x88,
     beq     = 0xf0,
     bne     = 0xd0,
-    sta_abs = 0x8d,
     jmp_abs = 0x4c,
-    cmp_imm = 0xc9,
-    cpx_imm = 0xe0,
-    cpx_abs = 0xec,
-    cpy_imm = 0xc0,
-    cpy_abs = 0xcc,
     pha     = 0x48,
     pla     = 0x68,
     jsr_abs = 0x20,
     rts     = 0x60,
     txs     = 0x9a,
     tsx     = 0xba,
+    asl_a   = 0x0a,
+    rol_a   = 0x2a,
+    lsr_a   = 0x4a,
+    ror_a   = 0x6a,
 };
 
-/** The addressing modes of the operations of the ALU and of STA: the bits
- * 4..2 of their opcodes, the bits 1..0 are 01. */
+/** The addressing modes: the bits 4..2 of the opcodes of the ALU, CMP and STA,
+ * whose bits 1..0 are 01. LDX, LDY, CPX and CPY use the same bits but 000 for
+ * an immediate value. */
 enum class addressing : irt::u8 {
-    immediate  = 0b010,
-    absolute   = 0b011,
-    absolute_x = 0b111,
+    zero_page   = 0b001,
+    immediate   = 0b010,
+    absolute    = 0b011,
+    zero_page_x = 0b101,
+    absolute_y  = 0b110,
+    absolute_x  = 0b111,
 };
-
-constexpr opcode with_mode(const opcode op, const addressing mode) noexcept
-{
-    return static_cast<opcode>((static_cast<unsigned>(op) & 0xe3u) |
-                               (static_cast<unsigned>(mode) << 2));
-}
-
-static_assert(with_mode(opcode::lda_imm, addressing::absolute_x) ==
-              static_cast<opcode>(0xbd));
-static_assert(with_mode(opcode::sta_abs, addressing::absolute_x) ==
-              static_cast<opcode>(0x9d));
 
 constexpr bool is_alu_or_sta(const opcode op) noexcept
 {
     return (static_cast<unsigned>(op) & 0x03u) == 0x01u;
 }
 
+/** LDX, LDY, CPX and CPY in any addressing mode. */
+constexpr bool is_index_load_or_compare(const opcode op) noexcept
+{
+    const auto code = static_cast<unsigned>(op);
+    const auto mode = (code >> 2) & 0x07u;
+    const auto base = code & 0xe3u;
+
+    return (base == 0xa2u or base == 0xa0u or base == 0xe0u or
+            base == 0xc0u) and
+           (mode == 0b000u or mode == 0b001u or mode == 0b011u);
+}
+
+constexpr bool has_modes(const opcode op) noexcept
+{
+    return is_alu_or_sta(op) or is_index_load_or_compare(op);
+}
+
+constexpr opcode with_mode(const opcode op, const addressing mode) noexcept
+{
+    const auto bits = not is_alu_or_sta(op) and mode == addressing::immediate
+                        ? 0u
+                        : static_cast<unsigned>(mode);
+
+    return static_cast<opcode>((static_cast<unsigned>(op) & 0xe3u) |
+                               (bits << 2));
+}
+
 constexpr addressing mode_of(const opcode op) noexcept
 {
-    return static_cast<addressing>((static_cast<unsigned>(op) >> 2) & 0x07u);
+    const auto bits = (static_cast<unsigned>(op) >> 2) & 0x07u;
+    return not is_alu_or_sta(op) and bits == 0 ? addressing::immediate
+                                               : static_cast<addressing>(bits);
+}
+
+static_assert(with_mode(opcode::lda_imm, addressing::absolute_x) ==
+              static_cast<opcode>(0xbd));
+static_assert(with_mode(opcode::sta_abs, addressing::absolute_y) ==
+              static_cast<opcode>(0x99));
+static_assert(with_mode(opcode::sta_abs, addressing::zero_page_x) ==
+              static_cast<opcode>(0x95));
+static_assert(with_mode(opcode::ldx_imm, addressing::absolute) ==
+              static_cast<opcode>(0xae));
+static_assert(with_mode(opcode::cpy_imm, addressing::zero_page) ==
+              static_cast<opcode>(0xc4));
+static_assert(with_mode(with_mode(opcode::ldy_imm, addressing::absolute),
+                        addressing::immediate) == opcode::ldy_imm);
+static_assert(not has_modes(opcode::inx) and not has_modes(opcode::tsx) and
+              has_modes(with_mode(opcode::cpx_imm, addressing::absolute)));
+
+constexpr bool is_store(const opcode op) noexcept
+{
+    return is_alu_or_sta(op) and (static_cast<unsigned>(op) >> 5) == 0b100u;
+}
+
+constexpr bool is_compare(const opcode op) noexcept
+{
+    const auto base = static_cast<unsigned>(op) & 0xe3u;
+    return (is_alu_or_sta(op) and base == 0xc1u) or
+           (is_index_load_or_compare(op) and (base == 0xe0u or base == 0xc0u));
 }
 
 /** The operations of the ALU and CMP, the bits 7..5 of the opcodes select
@@ -1063,43 +1115,42 @@ constexpr std::array immediate_opcodes{ opcode::ora_imm, opcode::and_imm,
                                         opcode::lda_imm, opcode::cmp_imm,
                                         opcode::sbc_imm };
 
-constexpr std::array index_opcodes{ opcode::ldx_imm, opcode::ldy_imm,
-                                    opcode::inx,     opcode::iny,
-                                    opcode::dex,     opcode::dey,
-                                    opcode::tsx };
+constexpr std::array index_opcodes{ opcode::inx, opcode::iny, opcode::dex,
+                                    opcode::dey, opcode::tsx };
 
-constexpr std::array index_compare_opcodes{ opcode::cpx_imm, opcode::cpx_abs,
-                                            opcode::cpy_imm, opcode::cpy_abs };
+constexpr std::array index_load_and_compare_opcodes{
+    opcode::ldx_imm, opcode::ldy_imm, opcode::cpx_imm, opcode::cpy_imm
+};
+
+constexpr std::array shift_opcodes{ opcode::asl_a, opcode::rol_a, opcode::lsr_a,
+                                    opcode::ror_a };
 
 constexpr bool is_branch(const opcode op) noexcept
 {
     return op == opcode::beq or op == opcode::bne;
 }
 
+constexpr bool has_absolute_address(const addressing mode) noexcept
+{
+    return mode == addressing::absolute or mode == addressing::absolute_x or
+           mode == addressing::absolute_y;
+}
+
 /** The size in bytes of an instruction. */
 constexpr int instruction_size(const opcode op) noexcept
 {
-    if (is_alu_or_sta(op))
-        return mode_of(op) == addressing::immediate ? 2 : 3;
+    if (has_modes(op))
+        return has_absolute_address(mode_of(op)) ? 3 : 2;
 
     switch (op) {
-    case opcode::inx:
-    case opcode::iny:
-    case opcode::dex:
-    case opcode::dey:
-    case opcode::pha:
-    case opcode::pla:
-    case opcode::rts:
-    case opcode::txs:
-    case opcode::tsx:
-        return 1;
     case opcode::jmp_abs:
     case opcode::jsr_abs:
-    case opcode::cpx_abs:
-    case opcode::cpy_abs:
         return 3;
-    default:
+    case opcode::beq:
+    case opcode::bne:
         return 2;
+    default:
+        return 1;
     }
 }
 
@@ -1141,26 +1192,60 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
         return mem[0x100u + s.s];
     };
 
-    if (is_alu_or_sta(op)) {
-        const auto mode    = mode_of(op);
-        const auto indexed = mode == addressing::absolute_x;
-        const auto ea      = (address + (indexed ? s.x : 0u)) & 0xffffu;
+    if (has_modes(op)) {
+        const auto mode = mode_of(op);
+        const auto base = static_cast<unsigned>(op) & 0xe3u;
+        const auto ea   = [&]() -> unsigned {
+            switch (mode) {
+            case addressing::zero_page:
+                return byte(1);
+            case addressing::zero_page_x:
+                return (byte(1) + s.x) & 0xffu;
+            case addressing::absolute_x:
+                return (address + s.x) & 0xffffu;
+            case addressing::absolute_y:
+                return (address + s.y) & 0xffffu;
+            default:
+                return address;
+            }
+        }();
         const auto crossed = ((ea ^ address) & 0xff00u) != 0;
         const auto operand = mode == addressing::immediate
                                ? byte(1)
                                : unsigned{ mem[ea] };
         s.pc               = next;
 
-        const auto cycles = mode == addressing::immediate ? 2 : crossed ? 5 : 4;
+        const auto indexed = mode == addressing::absolute_x or
+                             mode == addressing::absolute_y;
+        const auto cycles = mode == addressing::immediate     ? 2
+                            : mode == addressing::zero_page   ? 3
+                            : mode == addressing::zero_page_x ? 4
+                            : indexed and crossed             ? 5
+                                                              : 4;
 
-        if ((static_cast<unsigned>(op) >> 5) == 0b100u) {
+        if (is_store(op)) {
             mem[ea] = static_cast<irt::u8>(s.a);
-            return indexed ? 5 : 4;
+            return indexed ? 5 : cycles;
         }
 
-        if ((static_cast<unsigned>(op) >> 5) == 0b110u) {
+        switch (base) {
+        case 0xc1u:
             compare(s.a, operand);
             return cycles;
+        case 0xa2u:
+            s.x = set_nz(operand);
+            return cycles;
+        case 0xa0u:
+            s.y = set_nz(operand);
+            return cycles;
+        case 0xe0u:
+            compare(s.x, operand);
+            return cycles;
+        case 0xc0u:
+            compare(s.y, operand);
+            return cycles;
+        default:
+            break;
         }
 
         constexpr std::array<alu_op, 8> ops{ alu_op::ora,    alu_op::and_,
@@ -1205,17 +1290,6 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
         s.pc = next;
         return 4;
 
-    case opcode::cpx_imm:
-    case opcode::cpy_imm:
-    case opcode::cpx_abs:
-    case opcode::cpy_abs: {
-        const auto imm = op == opcode::cpx_imm or op == opcode::cpy_imm;
-        const auto x   = op == opcode::cpx_imm or op == opcode::cpx_abs;
-        compare(x ? s.x : s.y, imm ? byte(1) : unsigned{ mem[address] });
-        s.pc = next;
-        return imm ? 2 : 4;
-    }
-
     case opcode::beq:
     case opcode::bne: {
         const auto offset = static_cast<int>(static_cast<irt::i8>(byte(1)));
@@ -1230,12 +1304,19 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
         return ((target ^ next) & 0xff00u) != 0 ? 4 : 3;
     }
 
-    case opcode::ldx_imm:
-        s.x = set_nz(byte(1));
+    case opcode::asl_a:
+    case opcode::rol_a:
+    case opcode::lsr_a:
+    case opcode::ror_a: {
+        const auto left   = op == opcode::asl_a or op == opcode::rol_a;
+        const auto rotate = op == opcode::rol_a or op == opcode::ror_a;
+        const auto res = alu_reference(left ? alu_op::rol : alu_op::ror, s.a, 0,
+                                       rotate ? s.c : 0u);
+        s.a            = set_nz(res.r);
+        s.c            = res.c;
         break;
-    case opcode::ldy_imm:
-        s.y = set_nz(byte(1));
-        break;
+    }
+
     case opcode::inx:
         s.x = set_nz((s.x + 1) & 0xffu);
         break;
@@ -1288,22 +1369,25 @@ struct cpu_parts {
  * page 0x0100 under S. A one-hot sequencer of flip-flops t1 to t5 follows the
  * fetch cycle t0, when none of them is true:
  * - t0: ir takes the opcode, pc + 1;
- * - t1: the immediate operation on A, X, Y or S executes, or a comparison,
- *   or adl takes the low byte of the address or the offset of a branch; pc +
- *   1 except for the implied operations;
+ * - t1: the immediate or implied operation on A, X, Y or S executes, or a
+ *   comparison, or adl takes the low byte of the address or the offset of a
+ *   branch; pc + 1 except for the implied operations;
  * - t2: a jump or a taken branch loads pc, or adh takes the high byte of the
- *   address and pc + 1, or PHA pushes A, or PLA and RTS increment S;
+ *   address and pc + 1, or the operation reads its operand at the zero page
+ *   address or STA writes A, or PHA pushes A, or PLA and RTS increment S;
  * - t3: the operation reads its operand at the address or STA writes A, or
- *   the address plus X crosses a page, or the taken branch crosses a page, or
- *   PLA pulls A, or JSR pushes the high byte of pc, or RTS pulls adl;
- * - t4: the operation reads its operand at the address plus X or STA writes
- *   A, or JSR pushes the low byte of pc, or RTS pulls the high byte of pc;
+ *   the address plus an index crosses a page, or the taken branch crosses a
+ *   page, or PLA pulls A, or JSR pushes the high byte of pc, or RTS pulls
+ *   adl;
+ * - t4: the operation reads its operand at the address plus an index or STA
+ *   writes A, or JSR pushes the low byte of pc, or RTS pulls the high byte of
+ *   pc;
  * - t5: JSR reads the high byte of the address and jumps, or RTS adds one to
  *   pc.
  *
  * The 16 bits adder computes the target of a branch, pc plus the offset, or
- * the address plus X. The 8 bits adder compares A, X or Y to the operand. The
- * decoder only recognizes the opcodes above. Outputs: pc0..pc15, a0..a7,
+ * the address plus X or Y. The 8 bits adder compares A, X or Y to the operand.
+ * The decoder only recognizes the opcodes above. Outputs: pc0..pc15, a0..a7,
  * x0..x7, y0..y7, s0..s7, c, v, n, z then sync, true in t0. */
 circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 {
@@ -1344,8 +1428,9 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 
     // The decoder. The operations of the ALU, CMP and STA have the bits 1..0
     // = 01 and the addressing mode in the bits 4..2: among the modes run, bit
-    // 2 tells an address from an immediate value and bit 4 adds X. The other
-    // opcodes are recognized on their eight bits.
+    // 2 without bit 3 tells the zero page, bit 3 with bit 2 or 4 an absolute
+    // address, and bit 4 adds X with bit 2 or Y without. The other opcodes
+    // are recognized on their eight bits.
     std::array<wire, 8> ir_bits, ir_inverse;
     for (int i = 0; i < 8; ++i) {
         ir_bits[i]    = bit(ir, reg, i);
@@ -1360,36 +1445,64 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
         return n.all(literals);
     };
 
+    const auto ir2 = ir_bits[2];
+    const auto ir3 = ir_bits[3];
+    const auto ir4 = ir_bits[4];
     const auto ir5 = ir_bits[5];
     const auto ir6 = ir_bits[6];
     const auto ir7 = ir_bits[7];
 
-    const auto group   = n.and_(ir_bits[0], ir_inverse[1]);
-    const auto indexed = n.and_(group, ir_bits[4]);
-    const auto store   = n.all(std::array{ ir7, ir_inverse[6], ir_inverse[5] });
-    const auto cmp_a   = n.and_(group,
-                                n.all(std::array{ ir7, ir6, ir_inverse[5] }));
-    const auto sta     = n.and_(n.and_(group, ir_bits[2]), store);
-    const auto alu     = n.and_(group, n.not_(n.or_(store, cmp_a)));
-    const auto carry   = n.and_(alu, n.and_(ir6, ir5));
+    const auto group = n.and_(ir_bits[0], ir_inverse[1]);
+    const auto store = n.all(std::array{ ir7, ir_inverse[6], ir_inverse[5] });
+    const auto cmp_a = n.and_(group,
+                              n.all(std::array{ ir7, ir6, ir_inverse[5] }));
+    const auto sta   = n.and_(group, store);
+    const auto alu   = n.and_(group, n.not_(n.or_(store, cmp_a)));
+    const auto carry = n.and_(alu, n.and_(ir6, ir5));
 
-    std::array<wire, 4> index_compares;
+    const auto group_zero_page  = n.and_(group, n.and_(ir2, ir_inverse[3]));
+    const auto group_absolute   = n.and_(group, n.and_(ir3, n.or_(ir2, ir4)));
+    const auto zero_page_x      = n.and_(group_zero_page, ir4);
+    const auto index_x          = n.and_(group, n.and_(ir4, ir2));
+    const auto index_y          = n.and_(group, n.and_(ir4, ir_inverse[2]));
+    const auto indexed_absolute = n.and_(group_absolute, ir4);
+
+    // LDX, LDY, CPX and CPY: the immediate, zero page then absolute modes.
+    constexpr std::array               index_modes{ addressing::immediate,
+                                      addressing::zero_page,
+                                      addressing::absolute };
+    std::array<wire, 4>                index_instructions;
+    std::array<std::array<wire, 4>, 3> by_mode;
+    for (int i = 0; i < 4; ++i) {
+        std::array<wire, 3> modes;
+        for (int m = 0; m < 3; ++m)
+            by_mode[m][i] = modes[m] = match(
+              with_mode(index_load_and_compare_opcodes[i], index_modes[m]));
+        index_instructions[i] = n.any(modes);
+    }
+    const auto& [ldx, ldy, cpx, cpy] = index_instructions;
+
+    const auto zero_page = n.or_(group_zero_page, n.any(by_mode[1]));
+    const auto absolute  = n.or_(group_absolute, n.any(by_mode[2]));
+    const auto addressed = n.or_(zero_page, absolute);
+    const auto compare   = n.any(std::array{ cmp_a, cpx, cpy });
+
+    std::array<wire, 5> implied_index_ops;
+    for (int i = 0; i < 5; ++i)
+        implied_index_ops[i] = match(index_opcodes[i]);
+    const auto& [inx, iny, dex, dey, tsx] = implied_index_ops;
+    const auto implied_index              = n.any(implied_index_ops);
+    const auto index_load                 = n.or_(ldx, ldy);
+    const auto index_op                   = n.or_(implied_index, index_load);
+
+    std::array<wire, 4> shifts;
     for (int i = 0; i < 4; ++i)
-        index_compares[i] = match(index_compare_opcodes[i]);
-    const auto& [cpx_imm, cpx_abs, cpy_imm, cpy_abs] = index_compares;
-    const auto cpx                                   = n.or_(cpx_imm, cpx_abs);
-    const auto cpy                                   = n.or_(cpy_imm, cpy_abs);
+        shifts[i] = match(shift_opcodes[i]);
+    const auto& [asl, rol, lsr, ror] = shifts;
+    const auto shift                 = n.any(shifts);
+    const auto shift_left            = n.or_(asl, rol);
+    const auto shift_in_zero         = n.or_(asl, lsr);
 
-    const auto absolute = n.any(
-      std::array{ n.and_(group, ir_bits[2]), cpx_abs, cpy_abs });
-    const auto compare = n.any(std::array{ cmp_a, cpx, cpy });
-
-    std::array<wire, 7> index_ops;
-    for (int i = 0; i < 7; ++i)
-        index_ops[i] = match(index_opcodes[i]);
-    const auto& [ldx, ldy, inx, iny, dex, dey, tsx] = index_ops;
-
-    const auto index_op = n.any(index_ops);
     const auto jmp      = match(opcode::jmp_abs);
     const auto beq      = match(opcode::beq);
     const auto bne      = match(opcode::bne);
@@ -1401,13 +1514,13 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto txs      = match(opcode::txs);
     const auto stack_op = n.any(std::array{ pha, pla, jsr, rts });
     const auto implied  = n.any(
-      std::array{ inx, iny, dex, dey, tsx, txs, pha, pla, rts });
+      std::array{ implied_index, txs, pha, pla, rts, shift });
 
     const auto z     = bit(f, flags, 3);
     const auto taken = n.or_(n.and_(beq, z), n.and_(bne, n.not_(z)));
 
     // The adder: a0..a15, b0..b15 then cin, left false. A branch adds the
-    // offset in adl, extended to 16 bits, to pc. Otherwise X, or zero, is
+    // offset in adl, extended to 16 bits, to pc. Otherwise X, Y or zero is
     // added to the address in adh and adl.
     const auto          no_branch = n.not_(branch);
     std::array<wire, 8> high;
@@ -1415,8 +1528,10 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
         const auto address = i < 8 ? bit(adl, reg, i) : bit(adh, reg, i - 8);
         const auto a       = n.or_(n.and_(branch, bit(p, pc, i)),
                                    n.and_(no_branch, address));
-        const auto b       = i < 8 ? n.or_(n.and_(branch, bit(adl, reg, i)),
-                                           n.and_(indexed, bit(idx, index, i)))
+        const auto b       = i < 8 ? n.any(std::array{
+                                 n.and_(branch, bit(adl, reg, i)),
+                                 n.and_(index_x, bit(idx, index, i)),
+                                 n.and_(index_y, bit(idx, index, 8 + i)) })
                                    : n.and_(branch, bit(adl, reg, 7));
         n.link(a, add, compo(adder.x[i]));
         n.link(b, add, compo(adder.x[16 + i]));
@@ -1429,21 +1544,26 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
         page_changes[i] = n.xor_(bit(add, adder, 8 + i), high[i]);
     const auto page_crossed = n.any(page_changes);
 
-    // The sequencer.
+    // The sequencer. The operand is read in t2 at a zero page address, in t3
+    // at a zero page address plus X or at an absolute address, in t4 at an
+    // absolute address plus an index in the next page.
     std::array<wire, 5> t;
     for (auto& ff : t)
         ff = n.gate(dynamics_type::logical_d_flipflop, {});
     const auto t0 = n.not_(n.any(t));
 
-    const auto one_more = n.and_(indexed, n.or_(sta, page_crossed));
-    const auto last       = n.and_(absolute,
-                                   n.or_(n.and_(t[2], n.not_(one_more)), t[3]));
+    const auto one_more = n.and_(indexed_absolute, n.or_(sta, page_crossed));
+    const auto last     = n.and_(
+      addressed,
+      n.any(std::array{ n.and_(t[1], n.and_(zero_page, n.not_(zero_page_x))),
+                        n.and_(t[2], n.not_(one_more)), t[3] }));
     const auto subroutine = n.or_(jsr, rts);
 
     const std::array<wire, 5> next{
-        t0, n.and_(t[0], n.any(std::array{ absolute, jmp, taken, stack_op })),
-        n.and_(t[1], n.any(std::array{ absolute, n.and_(branch, page_crossed),
-                                       pla, subroutine })),
+        t0, n.and_(t[0], n.any(std::array{ addressed, jmp, taken, stack_op })),
+        n.and_(t[1], n.any(std::array{ absolute, zero_page_x,
+                                       n.and_(branch, page_crossed), pla,
+                                       subroutine })),
         n.and_(t[2], n.or_(one_more, subroutine)), n.and_(t[3], subroutine)
     };
     for (int i = 0; i < 5; ++i) {
@@ -1453,14 +1573,15 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 
     // The operand of an operation is read in t1 without address, at the end
     // of the address otherwise.
-    const auto operand  = n.or_(n.and_(t[0], n.not_(absolute)), last);
+    const auto operand  = n.or_(n.and_(t[0], n.not_(addressed)), last);
     const auto execute  = n.and_(operand, alu);
+    const auto shifted  = n.and_(t[0], shift);
     const auto pull_a   = n.and_(t[2], pla);
     const auto compared = n.and_(operand, compare);
     const auto push_pc  = n.and_(jsr, n.or_(t[2], t[3]));
 
     const auto load_adl = n.or_(
-      n.and_(t[0], n.any(std::array{ absolute, jmp, branch, jsr })),
+      n.and_(t[0], n.any(std::array{ addressed, jmp, branch, jsr })),
       n.and_(t[2], rts));
     const auto load_adh = n.and_(t[1], absolute);
     const auto jump     = n.any(std::array{ n.and_(t[1], n.or_(jmp, branch)),
@@ -1480,7 +1601,8 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 
     // The program counter: d0..d15, load then inc. JMP, JSR and RTS take adl
     // and the byte read, a branch the target. pc + 1 in t0, t1 but for the
-    // implied operations, t2 but for the stack and t5: a load wins.
+    // implied operations, t2 but for the stack and the zero page, and t5: a
+    // load wins.
     const auto from_memory = n.any(std::array{ jmp, jsr, rts });
     const auto from_adder  = n.not_(from_memory);
     for (int i = 0; i < 16; ++i) {
@@ -1490,31 +1612,39 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
                p, compo(pc.x[i]));
     }
     n.link(jump, p, compo(pc.x[16]));
-    n.link(n.not_(n.any(std::array{ t[2], t[3], n.and_(t[0], implied),
-                                    n.and_(t[1], stack_op) })),
-           p, compo(pc.x[17]));
+    n.link(
+      n.not_(n.any(std::array{ t[2], t[3], n.and_(t[0], implied),
+                               n.and_(t[1], n.or_(stack_op, zero_page)) })),
+      p, compo(pc.x[17]));
     link_clk(p, pc);
 
     // The accumulator: b0..b7, cin, op0..op2 then load. The operation is the
     // bits 7..5 of the opcode, except LDA (101) and PLA which become pass_b
-    // (111) and SBC (111) which becomes sbc (100).
+    // (111), SBC (111) which becomes sbc (100), ASL and ROL which become rol
+    // (101) and LSR and ROR which become ror (110). ASL and LSR shift in a
+    // zero.
     for (int i = 0; i < 8; ++i)
         n.link(bit(mem, memory, i), acc, compo(accumulator.x[i]));
-    n.link(bit(f, flags, 0), acc, compo(accumulator.x[8]));
-    n.link(n.and_(ir5, n.not_(n.and_(ir7, ir6))), acc, compo(accumulator.x[9]));
+    n.link(n.and_(bit(f, flags, 0), n.not_(shift_in_zero)), acc,
+           compo(accumulator.x[8]));
+    n.link(n.or_(n.and_(n.not_(shift), n.and_(ir5, n.not_(n.and_(ir7, ir6)))),
+                 shift_left),
+           acc, compo(accumulator.x[9]));
     n.link(n.xor_(ir7, ir6), acc, compo(accumulator.x[10]));
-    n.link(n.or_(ir7, pla), acc, compo(accumulator.x[11]));
-    n.link(n.or_(execute, pull_a), acc, compo(accumulator.x[12]));
+    n.link(n.any(std::array{ ir7, pla, shift }), acc, compo(accumulator.x[11]));
+    n.link(n.any(std::array{ execute, pull_a, shifted }), acc,
+           compo(accumulator.x[12]));
     link_clk(acc, accumulator);
 
     // The index registers: d0..d7, imm, dec, sel_y then write.
-    const auto index_execute = n.and_(t[0], index_op);
+    const auto index_execute = n.or_(n.and_(t[0], implied_index),
+                                     n.and_(operand, index_load));
     const auto from_bus      = n.not_(tsx);
     for (int i = 0; i < 8; ++i)
         n.link(n.or_(n.and_(tsx, bit(sp, stack, i)),
                      n.and_(from_bus, bit(mem, memory, i))),
                idx, compo(index.x[i]));
-    n.link(n.any(std::array{ ldx, ldy, tsx }), idx, compo(index.x[8]));
+    n.link(n.or_(index_load, tsx), idx, compo(index.x[8]));
     n.link(n.or_(dex, dey), idx, compo(index.x[9]));
     n.link(n.any(std::array{ ldy, iny, dey }), idx, compo(index.x[10]));
     n.link(index_execute, idx, compo(index.x[11]));
@@ -1559,22 +1689,28 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
                             n.and_(from_alu, bit(acc, accumulator, 10 + i)) }),
           f, compo(flags.x[2 + i]));
     const auto load_cv = n.and_(execute, carry);
-    n.link(n.or_(load_cv, compared), f, compo(flags.x[4]));
+    n.link(n.any(std::array{ load_cv, compared, shifted }), f,
+           compo(flags.x[4]));
     n.link(load_cv, f, compo(flags.x[5]));
-    n.link(n.any(std::array{ execute, pull_a, index_execute, compared }), f,
-           compo(flags.x[6]));
+    n.link(
+      n.any(std::array{ execute, pull_a, index_execute, compared, shifted }), f,
+      compo(flags.x[6]));
     link_clk(f, flags);
 
     // The memory: a0..a15, d0..d7 then we. The address is pc, the sum of the
-    // adder at the end of an address or 0x0100 plus S in the stack. JSR
-    // pushes the high byte of pc then the low byte, the others A.
+    // adder at the end of an address, without its high byte in the zero page,
+    // or 0x0100 plus S in the stack. JSR pushes the high byte of pc then the
+    // low byte, the others A.
     const auto in_stack  = n.and_(stack_op,
                                   n.any(std::array{ t[1], t[2], t[3] }));
-    const auto effective = n.and_(absolute, n.or_(t[2], t[3]));
-    const auto fetch     = n.not_(n.or_(in_stack, effective));
+    const auto effective = n.and_(
+      addressed, n.any(std::array{ n.and_(t[1], zero_page), t[2], t[3] }));
+    const auto effective_high = n.and_(effective, n.not_(zero_page));
+    const auto fetch          = n.not_(n.or_(in_stack, effective));
     for (int i = 0; i < 16; ++i) {
-        auto address = n.or_(n.and_(effective, bit(add, adder, i)),
-                             n.and_(fetch, bit(p, pc, i)));
+        auto address = n.or_(
+          n.and_(i < 8 ? effective : effective_high, bit(add, adder, i)),
+          n.and_(fetch, bit(p, pc, i)));
         if (i < 8)
             address = n.or_(n.and_(in_stack, bit(sp, stack, i)), address);
         else if (i == 8)
@@ -1927,8 +2063,11 @@ struct cpu_run {
     int taken_branches = 0;
     int crossed_pages  = 0;
 
-    /** The reads at an address plus X in the next page. */
-    int indexed_crossings = 0;
+    /** The reads at an absolute address plus X or Y in the next page. */
+    int indexed_crossings = 0, y_crossings = 0;
+
+    /** The zero page addresses plus X which wrap in the zero page. */
+    int zero_page_wraps = 0;
 
     int calls = 0;
 
@@ -1964,24 +2103,28 @@ cpu_run check_cpu(bench_simulation&        sim,
     for (int i = 0, k = 0; i < instructions; ++i) {
         const auto pc       = ref.pc;
         const auto op       = static_cast<opcode>(bytes[pc]);
+        const auto mode  = has_modes(op) ? mode_of(op) : addressing::immediate;
+        const auto wraps = bytes[(pc + 1) & 0xffffu] + ref.x > 0xffu;
         const auto duration = cpu_reference(ref, bytes);
 
         if (is_branch(op) and duration > 2)
             ++run.taken_branches;
         if (is_branch(op) and duration > 3)
             ++run.crossed_pages;
-        if (is_alu_or_sta(op) and mode_of(op) == addressing::absolute_x and
-            op != with_mode(opcode::sta_abs, addressing::absolute_x) and
-            duration > 4)
+        if ((mode == addressing::absolute_x or
+             mode == addressing::absolute_y) and
+            not is_store(op) and duration > 4) {
             ++run.indexed_crossings;
+            if (mode == addressing::absolute_y)
+                ++run.y_crossings;
+        }
+        if (mode == addressing::zero_page_x and wraps)
+            ++run.zero_page_wraps;
         if (op == opcode::jsr_abs)
             ++run.calls;
         if (op == opcode::pha or op == opcode::jsr_abs)
             run.lowest_push = std::min(run.lowest_push, (ref.s + 1u) & 0xffu);
-        if (std::ranges::find(index_compare_opcodes, op) !=
-              index_compare_opcodes.end() or
-            (is_alu_or_sta(op) and
-             (static_cast<unsigned>(op) >> 5) == 0b110u)) {
+        if (is_compare(op)) {
             if (ref.z)
                 ++run.compares_equal;
             else if (ref.c)
@@ -2762,37 +2905,115 @@ int main()
         expect(gt(run.compares_lower, 0));
     };
 
+    "cpu-addresses-the-zero-page-and-indexes-with-y"_test = [] {
+        irt::vector<irt::u8> program(0x50, irt::u8{ 0 });
+        const auto           put = [&](const int                      address,
+                             std::initializer_list<irt::u8> bytes) {
+            std::copy(bytes.begin(), bytes.end(), program.begin() + address);
+        };
+
+        // $FC,X wraps to $4C with X = $50, $20F8,Y crosses to $2108. The
+        // writes stay above the code.
+        put(0x0000, { 0xa2, 0x50 });       // LDX #$50
+        put(0x0002, { 0xa0, 0x10 });       // LDY #$10
+        put(0x0004, { 0xa9, 0x3c });       // LDA #$3C
+        put(0x0006, { 0x85, 0x48 });       // STA $48, 3 cycles
+        put(0x0008, { 0x95, 0xfc });       // STA $FC,X: $4C, 4 cycles
+        put(0x000a, { 0x99, 0xf8, 0x20 }); // STA $20F8,Y: $2108, 5 cycles
+        put(0x000d, { 0xa9, 0x00 });       // LDA #$00
+        put(0x000f, { 0x65, 0x48 });       // ADC $48: 3 cycles
+        put(0x0011, { 0x75, 0xf8 });       // ADC $F8,X: $48, 4 cycles
+        put(0x0013, { 0x79, 0xf8, 0x20 }); // ADC $20F8,Y: 5 cycles
+        put(0x0016, { 0xd9, 0x38, 0x00 }); // CMP $0038,Y: $48, 4 cycles
+        put(0x0019, { 0xa6, 0x4c });       // LDX $4C: $3C
+        put(0x001b, { 0xae, 0x08, 0x21 }); // LDX $2108: $3C
+        put(0x001e, { 0xa4, 0x48 });       // LDY $48: $3C
+        put(0x0020, { 0xac, 0x4c, 0x00 }); // LDY $004C: $3C
+        put(0x0023, { 0xe4, 0x48 });       // CPX $48: Z
+        put(0x0025, { 0xc4, 0x40 });       // CPY $40: C
+        put(0x0027, { 0x55, 0x04 });       // EOR $04,X: $40
+        put(0x0029, { 0x4c, 0x00, 0x00 }); // JMP $0000
+        put(0x0040, { 0x07 });
+
+        irt::modeling mod;
+        const auto    b = mod.ids.write(
+          [&](auto& ids) { return make_cpu_bench(ids, program); });
+
+        bench_simulation sim(mod, b);
+        const auto       run = check_cpu(sim, program, 40);
+        expect(gt(run.y_crossings, 0));
+        expect(gt(run.zero_page_wraps, 0));
+    };
+
+    "cpu-shifts-and-rotates-the-accumulator"_test = [] {
+        // The carry goes out of a bit 7 or 0 and comes back in a rotation.
+        constexpr std::array<irt::u8, 16> program{
+            0xa9, 0x81,      // LDA #$81
+            0x0a,            // ASL: $02, C
+            0x2a,            // ROL: $05
+            0x4a,            // LSR: $02, C
+            0x6a,            // ROR: $81, N
+            0x6a,            // ROR: $40, C
+            0x4a,            // LSR: $20
+            0x2a,            // ROL: $40
+            0x0a,            // ASL: $80, N
+            0x0a,            // ASL: $00, C, Z
+            0x0a,            // ASL: $00, Z
+            0x4a,            // LSR: $00, Z
+            0x4c, 0x02, 0x00 // JMP $0002
+        };
+
+        irt::modeling mod;
+        const auto    b = mod.ids.write(
+          [&](auto& ids) { return make_cpu_bench(ids, program); });
+
+        bench_simulation sim(mod, b);
+        check_cpu(sim, program, 60);
+    };
+
     "cpu-runs-random-programs"_test = [] {
         cpu_run total;
 
-        for (const auto seed : { 2024u, 6502u, 1975u }) {
+        for (const auto seed : { 2024u, 6502u, 1975u, 6510u, 1977u }) {
             std::mt19937 gen(seed);
 
-            constexpr std::array modes{ addressing::immediate,
-                                        addressing::absolute,
-                                        addressing::absolute_x };
+            constexpr std::array modes{
+                addressing::immediate,   addressing::zero_page,
+                addressing::zero_page_x, addressing::absolute,
+                addressing::absolute_x,  addressing::absolute_y
+            };
+            constexpr std::array index_modes{ addressing::immediate,
+                                              addressing::zero_page,
+                                              addressing::absolute };
+            constexpr std::array store_modes{ addressing::zero_page,
+                                              addressing::absolute,
+                                              addressing::absolute_x,
+                                              addressing::absolute_y };
             const auto           pick = [&](const auto& opcodes) {
                 return opcodes[gen() % opcodes.size()];
             };
 
-            // The instructions without jump, branch nor stack.
+            // The instructions without jump, branch nor stack. STA $zp,X
+            // could write anywhere in the zero page, over the subroutines.
             const auto plain = [&]() {
-                const auto kind = gen() % 13;
-                return kind < 6
+                const auto kind = gen() % 16;
+                return kind < 7
                          ? with_mode(pick(immediate_opcodes), pick(modes))
                        : kind < 9 ? pick(index_opcodes)
                        : kind < 11
-                         ? with_mode(opcode::sta_abs,
-                                     gen() % 2 ? addressing::absolute
-                                               : addressing::absolute_x)
-                         : pick(index_compare_opcodes);
+                         ? with_mode(pick(index_load_and_compare_opcodes),
+                                     pick(index_modes))
+                       : kind < 13
+                         ? with_mode(opcode::sta_abs, pick(store_modes))
+                         : pick(shift_opcodes);
             };
 
             // The subroutines follow a JMP $0080, without jump nor branch,
-            // and leave the stack as they find it. The main code lies around
-            // the page 0x0100, after a LDX #$C0, TXS: some branches cross the
-            // page and the stack, above the code, neither reaches it with the
-            // pushes nor wraps with the pulls.
+            // and leave the stack as they find it. The zero page writes stay
+            // in 0x40..0x7f, above them. The main code lies around the page
+            // 0x0100, after a LDX #$C0, TXS: some branches cross the page and
+            // the stack, above the code, neither reaches it with the pushes
+            // nor wraps with the pulls.
             irt::vector<opcode> ops(200, irt::reserve_tag);
             irt::vector<int>    starts(200, irt::reserve_tag);
             int                 size = 3;
@@ -2814,7 +3035,7 @@ int main()
                     add(opcode::pla);
                 add(opcode::rts);
             }
-            expect(fatal(le(size, 0x80)));
+            expect(fatal(le(size, 0x40)));
 
             constexpr int origin     = 0x83;
             const auto    main_begin = ops.ssize();
@@ -2867,12 +3088,11 @@ int main()
                 const auto op = ops[i];
                 put({ static_cast<int>(op) });
 
-                const auto absolute = (is_alu_or_sta(op) and
-                                       mode_of(op) != addressing::immediate) or
-                                      op == opcode::cpx_abs or
-                                      op == opcode::cpy_abs;
-                const auto store = is_alu_or_sta(op) and
-                                   (static_cast<unsigned>(op) >> 5) == 0b100u;
+                const auto mode     = has_modes(op) ? mode_of(op)
+                                                    : addressing::immediate;
+                const auto absolute = has_modes(op) and
+                                      has_absolute_address(mode);
+                const auto store = is_store(op);
 
                 if (i + 1 == ops.ssize()) {
                     put({ 0x00, 0x00 }); // JMP $0000
@@ -2891,6 +3111,8 @@ int main()
                           static_cast<int>(address >> 8) });
                 } else if (is_branch(op)) {
                     put({ (target(starts[i], true) - (starts[i] + 2)) & 0xff });
+                } else if (store) {
+                    put({ static_cast<int>(0x40u + (gen() & 0x3fu)) });
                 } else if (instruction_size(op) == 2) {
                     put({ static_cast<int>(gen() & 0xffu) });
                 }
@@ -2908,6 +3130,8 @@ int main()
             total.taken_branches += run.taken_branches;
             total.crossed_pages += run.crossed_pages;
             total.indexed_crossings += run.indexed_crossings;
+            total.y_crossings += run.y_crossings;
+            total.zero_page_wraps += run.zero_page_wraps;
             total.calls += run.calls;
             total.compares_greater += run.compares_greater;
             total.compares_equal += run.compares_equal;
@@ -2916,7 +3140,9 @@ int main()
 
         expect(gt(total.taken_branches, total.crossed_pages));
         expect(gt(total.crossed_pages, 0));
-        expect(gt(total.indexed_crossings, 0));
+        expect(gt(total.indexed_crossings, total.y_crossings));
+        expect(gt(total.y_crossings, 0));
+        expect(gt(total.zero_page_wraps, 0));
         expect(gt(total.calls, 0));
         expect(gt(total.compares_greater, 0));
         expect(gt(total.compares_equal, 0));
