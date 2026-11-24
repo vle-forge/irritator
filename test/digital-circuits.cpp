@@ -1040,6 +1040,17 @@ enum class opcode : irt::u8 {
     ror_zp  = 0x66,
     dec_zp  = 0xc6,
     inc_zp  = 0xe6,
+    bpl     = 0x10,
+    bmi     = 0x30,
+    bvc     = 0x50,
+    bvs     = 0x70,
+    bcc     = 0x90,
+    bcs     = 0xb0,
+    clc     = 0x18,
+    sec     = 0x38,
+    clv     = 0xb8,
+    bit_zp  = 0x24,
+    jmp_ind = 0x6c,
 };
 
 /** The addressing modes: the bits 4..2 of the opcodes of the ALU, CMP and STA,
@@ -1094,10 +1105,17 @@ constexpr bool is_read_modify_write(const opcode op) noexcept
            operation != 0b101u;
 }
 
+/** BIT in the zero page and at an absolute address. */
+constexpr bool is_bit(const opcode op) noexcept
+{
+    const auto code = static_cast<unsigned>(op);
+    return code == 0x24u or code == 0x2cu;
+}
+
 constexpr bool has_modes(const opcode op) noexcept
 {
     return is_alu_or_sta(op) or is_index_load_or_compare(op) or
-           is_index_store(op) or is_read_modify_write(op);
+           is_index_store(op) or is_read_modify_write(op) or is_bit(op);
 }
 
 constexpr opcode with_mode(const opcode op, const addressing mode) noexcept
@@ -1188,10 +1206,18 @@ constexpr std::array index_load_and_compare_opcodes{
 constexpr std::array shift_opcodes{ opcode::asl_a, opcode::rol_a, opcode::lsr_a,
                                     opcode::ror_a };
 
+/** The branches: the bits 7..6 select the flag N, V, C or Z, the branch is
+ * taken if it equals the bit 5. */
 constexpr bool is_branch(const opcode op) noexcept
 {
-    return op == opcode::beq or op == opcode::bne;
+    return (static_cast<unsigned>(op) & 0x1fu) == 0x10u;
 }
+
+constexpr std::array branch_opcodes{ opcode::bpl, opcode::bmi, opcode::bvc,
+                                     opcode::bvs, opcode::bcc, opcode::bcs,
+                                     opcode::bne, opcode::beq };
+
+constexpr std::array flag_opcodes{ opcode::clc, opcode::sec, opcode::clv };
 
 constexpr bool has_absolute_address(const addressing mode) noexcept
 {
@@ -1207,13 +1233,11 @@ constexpr int instruction_size(const opcode op) noexcept
 
     switch (op) {
     case opcode::jmp_abs:
+    case opcode::jmp_ind:
     case opcode::jsr_abs:
         return 3;
-    case opcode::beq:
-    case opcode::bne:
-        return 2;
     default:
-        return 1;
+        return is_branch(op) ? 2 : 1;
     }
 }
 
@@ -1293,6 +1317,13 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
             return indexed ? 5 : cycles;
         }
 
+        if (is_bit(op)) {
+            s.n = operand >> 7;
+            s.v = (operand >> 6) & 1u;
+            s.z = (s.a & operand) == 0 ? 1u : 0u;
+            return cycles;
+        }
+
         if (is_read_modify_write(op)) {
             const auto value = operand;
             const auto kind  = static_cast<unsigned>(op) >> 5;
@@ -1345,10 +1376,42 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
         return cycles;
     }
 
+    if (is_branch(op)) {
+        const std::array flags{ s.n, s.v, s.c, s.z };
+        const auto       code = static_cast<unsigned>(op);
+        const auto offset     = static_cast<int>(static_cast<irt::i8>(byte(1)));
+        s.pc                  = next;
+        if (flags[code >> 6] != ((code >> 5) & 1u))
+            return 2;
+
+        const auto target = static_cast<unsigned>(static_cast<int>(next) +
+                                                  offset) &
+                            0xffffu;
+        s.pc = target;
+        return ((target ^ next) & 0xff00u) != 0 ? 4 : 3;
+    }
+
     switch (op) {
     case opcode::jmp_abs:
         s.pc = address;
         return 3;
+
+    case opcode::jmp_ind: {
+        // The 6502 does not carry into the high byte of the pointer.
+        const auto high = (address & 0xff00u) | ((address + 1u) & 0x00ffu);
+        s.pc            = mem[address] | (unsigned{ mem[high] } << 8);
+        return 5;
+    }
+
+    case opcode::clc:
+        s.c = 0;
+        break;
+    case opcode::sec:
+        s.c = 1;
+        break;
+    case opcode::clv:
+        s.v = 0;
+        break;
 
     case opcode::jsr_abs:
         push((s.pc + 2u) >> 8);
@@ -1371,20 +1434,6 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
         s.a  = set_nz(pull());
         s.pc = next;
         return 4;
-
-    case opcode::beq:
-    case opcode::bne: {
-        const auto offset = static_cast<int>(static_cast<irt::i8>(byte(1)));
-        s.pc              = next;
-        if ((op == opcode::beq) != (s.z == 1))
-            return 2;
-
-        const auto target = static_cast<unsigned>(static_cast<int>(next) +
-                                                  offset) &
-                            0xffffu;
-        s.pc = target;
-        return ((target ^ next) & 0xff00u) != 0 ? 4 : 3;
-    }
 
     case opcode::asl_a:
     case opcode::rol_a:
@@ -1597,12 +1646,19 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto stx = n.or_(index_stores[0][0], index_stores[0][1]);
     const auto sty = n.or_(index_stores[1][0], index_stores[1][1]);
 
-    const auto zero_page = n.any(std::array{ group_zero_page, n.any(by_mode[1]),
-                                             index_stores[0][0],
-                                             index_stores[1][0] });
-    const auto absolute  = n.any(std::array{ group_absolute, n.any(by_mode[2]),
-                                            index_stores[0][1],
-                                            index_stores[1][1] });
+    const auto bit_zero_page = match(opcode::bit_zp);
+    const auto bit_absolute  = match(
+      with_mode(opcode::bit_zp, addressing::absolute));
+    const auto bit_op   = n.or_(bit_zero_page, bit_absolute);
+    const auto indirect = match(opcode::jmp_ind);
+
+    // JMP ($addr) reads its pointer as the operand of an absolute address.
+    const auto zero_page = n.any(
+      std::array{ group_zero_page, n.any(by_mode[1]), index_stores[0][0],
+                  index_stores[1][0], bit_zero_page });
+    const auto absolute = n.any(
+      std::array{ group_absolute, n.any(by_mode[2]), index_stores[0][1],
+                  index_stores[1][1], bit_absolute, indirect });
     const auto addressed = n.or_(zero_page, absolute);
     const auto compare   = n.any(std::array{ cmp_a, cpx, cpy });
 
@@ -1625,10 +1681,14 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto shift_left            = n.or_(asl, rol);
     const auto shift_in_zero         = n.or_(asl, lsr);
 
+    // The branches have the bits 4..0 = 10000.
     const auto jmp      = match(opcode::jmp_abs);
-    const auto beq      = match(opcode::beq);
-    const auto bne      = match(opcode::bne);
-    const auto branch   = n.or_(beq, bne);
+    const auto branch   = n.all(std::array{ ir_inverse[0], ir_inverse[1],
+                                          ir_inverse[2], ir_inverse[3], ir4 });
+    const auto clc      = match(opcode::clc);
+    const auto sec      = match(opcode::sec);
+    const auto clv      = match(opcode::clv);
+    const auto set_c    = n.or_(clc, sec);
     const auto pha      = match(opcode::pha);
     const auto pla      = match(opcode::pla);
     const auto jsr      = match(opcode::jsr_abs);
@@ -1636,25 +1696,38 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto txs      = match(opcode::txs);
     const auto stack_op = n.any(std::array{ pha, pla, jsr, rts });
     const auto implied  = n.any(
-      std::array{ implied_index, to_a, txs, pha, pla, rts, shift });
+      std::array{ implied_index, to_a, txs, pha, pla, rts, shift, set_c, clv });
 
-    const auto z     = bit(f, flags, 3);
-    const auto taken = n.or_(n.and_(beq, z), n.and_(bne, n.not_(z)));
+    // The bits 7..6 select N, V, C or Z: the branch is taken if the flag
+    // equals the bit 5.
+    const auto tested = n.any(std::array{
+      n.and_(n.and_(ir_inverse[7], ir_inverse[6]), bit(f, flags, 2)),
+      n.and_(n.and_(ir_inverse[7], ir6), bit(f, flags, 1)),
+      n.and_(n.and_(ir7, ir_inverse[6]), bit(f, flags, 0)),
+      n.and_(n.and_(ir7, ir6), bit(f, flags, 3)) });
+    const auto taken  = n.and_(branch, n.not_(n.xor_(tested, ir5)));
+
+    std::array<wire, 6> t;
+    for (auto& ff : t)
+        ff = n.gate(dynamics_type::logical_d_flipflop, {});
 
     // The adder: a0..a15, b0..b15 then cin, left false. A branch adds the
     // offset in adl, extended to 16 bits, to pc. Otherwise X, Y or zero is
-    // added to the address in adh and adl.
+    // added to the address in adh and adl, one in t4 for the high byte of the
+    // pointer of JMP ($addr).
     const auto          no_branch = n.not_(branch);
     std::array<wire, 8> high;
     for (int i = 0; i < 16; ++i) {
         const auto address = i < 8 ? bit(adl, reg, i) : bit(adh, reg, i - 8);
         const auto a       = n.or_(n.and_(branch, bit(p, pc, i)),
                                    n.and_(no_branch, address));
-        const auto b       = i < 8 ? n.any(std::array{
-                                 n.and_(branch, bit(adl, reg, i)),
-                                 n.and_(index_x, bit(idx, index, i)),
-                                 n.and_(index_y, bit(idx, index, 8 + i)) })
+        auto       b       = i < 8 ? n.any(std::array{
+                           n.and_(branch, bit(adl, reg, i)),
+                           n.and_(index_x, bit(idx, index, i)),
+                           n.and_(index_y, bit(idx, index, 8 + i)) })
                                    : n.and_(branch, bit(adl, reg, 7));
+        if (i == 0)
+            b = n.or_(b, n.and_(indirect, t[3]));
         n.link(a, add, compo(adder.x[i]));
         n.link(b, add, compo(adder.x[16 + i]));
         if (i >= 8)
@@ -1672,9 +1745,6 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     // operation always takes the extra cycle of an index, then modifies the
     // byte read in the next cycle and writes it in the one after: the
     // flip-flops modifying and writing_back follow these two cycles.
-    std::array<wire, 6> t;
-    for (auto& ff : t)
-        ff = n.gate(dynamics_type::logical_d_flipflop, {});
     const auto t0           = n.not_(n.any(t));
     const auto modifying    = n.gate(dynamics_type::logical_d_flipflop, {});
     const auto writing_back = n.gate(dynamics_type::logical_d_flipflop, {});
@@ -1694,7 +1764,8 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
         n.and_(t[1], n.any(std::array{ absolute, zero_page_x,
                                        n.and_(branch, page_crossed), pla,
                                        subroutine, modified })),
-        n.and_(t[2], n.any(std::array{ one_more, subroutine, modified })),
+        n.and_(t[2],
+               n.any(std::array{ one_more, subroutine, modified, indirect })),
         n.and_(t[3], n.or_(subroutine, modified)),
         n.and_(t[4], modified)
     };
@@ -1724,7 +1795,8 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
       n.and_(t[2], rts));
     const auto load_adh = n.and_(t[1], absolute);
     const auto jump     = n.any(std::array{ n.and_(t[1], n.or_(jmp, branch)),
-                                        n.and_(t[4], jsr), n.and_(t[3], rts) });
+                                        n.and_(t[4], jsr),
+                                        n.and_(t[3], n.or_(rts, indirect)) });
     const auto stores   = n.any(std::array{ sta, stx, sty });
     const auto write    = n.any(std::array{
       n.and_(last, stores), n.and_(t[1], pha), push_pc, writing_back });
@@ -1741,16 +1813,18 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     }
 
     // The program counter: d0..d15, load then inc. JMP, JSR and RTS take adl
-    // and the byte read, a branch the target. pc + 1 in t0, t1 but for the
-    // implied operations, t2 but for the stack and the zero page, and t5 of
-    // JSR and RTS: a load wins.
-    const auto from_memory = n.any(std::array{ jmp, jsr, rts });
-    const auto from_adder  = n.not_(from_memory);
+    // and the byte read, JMP ($addr) the byte read before, a branch the
+    // target. pc + 1 in t0, t1 but for the implied operations, t2 but for the
+    // stack and the zero page, and t5 of JSR and RTS: a load wins.
+    const auto from_address = n.any(std::array{ jmp, jsr, rts });
+    const auto from_memory  = n.or_(from_address, indirect);
+    const auto from_adder   = n.not_(from_memory);
     for (int i = 0; i < 16; ++i) {
-        const auto address = i < 8 ? bit(adl, reg, i) : bit(mem, memory, i - 8);
-        n.link(n.or_(n.and_(from_memory, address),
-                     n.and_(from_adder, bit(add, adder, i))),
-               p, compo(pc.x[i]));
+        const auto high = i < 8 ? n.or_(n.and_(from_address, bit(adl, reg, i)),
+                                        n.and_(indirect, bit(dl, reg, i)))
+                                : n.and_(from_memory, bit(mem, memory, i - 8));
+        n.link(n.or_(high, n.and_(from_adder, bit(add, adder, i))), p,
+               compo(pc.x[i]));
     }
     n.link(jump, p, compo(pc.x[16]));
     n.link(n.not_(n.any(std::array{
@@ -1843,28 +1917,43 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     // the index registers, the comparator, the second ALU or the ALU. Only the
     // shifts of the memory change C.
     const auto from_alu = n.not_(
-      n.any(std::array{ index_op, compare, modify_op }));
-    n.link(n.any(std::array{ n.and_(compare, bit(cmp, comparator, 8)),
-                             n.and_(modify_op, bit(rmw, alu_unit, 8)),
-                             n.and_(n.not_(n.or_(compare, modify_op)),
-                                    bit(acc, accumulator, 8)) }),
+      n.any(std::array{ index_op, compare, modify_op, bit_op }));
+    n.link(n.any(std::array{
+             n.and_(compare, bit(cmp, comparator, 8)),
+             n.and_(modify_op, bit(rmw, alu_unit, 8)), sec,
+             n.and_(n.not_(n.any(std::array{ compare, modify_op, set_c })),
+                    bit(acc, accumulator, 8)) }),
            f, compo(flags.x[0]));
-    n.link(bit(acc, accumulator, 9), f, compo(flags.x[1]));
+    n.link(n.or_(n.and_(bit_op, bit(mem, memory, 6)),
+                 n.and_(n.not_(n.or_(bit_op, clv)), bit(acc, accumulator, 9))),
+           f, compo(flags.x[1]));
     const std::array<wire, 2> nz{ difference[7], n.not_(n.any(difference)) };
+
+    // BIT: N and V are the bits 7 and 6 of the byte read, Z tells whether A
+    // and the byte have no bit in common.
+    std::array<wire, 8> common;
+    for (int i = 0; i < 8; ++i)
+        common[i] = n.and_(bit(acc, accumulator, i), bit(mem, memory, i));
+    const std::array<wire, 2> tested_nz{ bit(mem, memory, 7),
+                                         n.not_(n.any(common)) };
     for (int i = 0; i < 2; ++i)
         n.link(
           n.any(std::array{ n.and_(index_op, bit(idx, index, 16 + i)),
                             n.and_(compare, nz[i]),
                             n.and_(modify_op, bit(rmw, alu_unit, 10 + i)),
+                            n.and_(bit_op, tested_nz[i]),
                             n.and_(from_alu, bit(acc, accumulator, 10 + i)) }),
           f, compo(flags.x[2 + i]));
     const auto load_cv = n.and_(execute, carry);
+    const auto tested_bits = n.and_(last, bit_op);
     n.link(n.any(std::array{ load_cv, compared, shifted,
-                             n.and_(writing_back, ir_inverse[7]) }),
+                             n.and_(writing_back, ir_inverse[7]),
+                             n.and_(t[0], set_c) }),
            f, compo(flags.x[4]));
-    n.link(load_cv, f, compo(flags.x[5]));
+    n.link(n.any(std::array{ load_cv, tested_bits, n.and_(t[0], clv) }), f,
+           compo(flags.x[5]));
     n.link(n.any(std::array{ execute, pull_a, index_execute, compared, shifted,
-                             moved, writing_back }),
+                             moved, writing_back, tested_bits }),
            f, compo(flags.x[6]));
     link_clk(f, flags);
 
@@ -1878,11 +1967,16 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto effective = n.and_(
       addressed,
       n.any(std::array{ n.and_(t[1], zero_page), t[2], t[3], t[4], t[5] }));
-    const auto effective_high = n.and_(effective, n.not_(zero_page));
+    // The pointer of JMP ($addr) does not carry into its high byte.
+    const auto effective_high = n.and_(effective,
+                                       n.not_(n.or_(zero_page, indirect)));
+    const auto pointer_high   = n.and_(effective, indirect);
     const auto fetch          = n.not_(n.or_(in_stack, effective));
     for (int i = 0; i < 16; ++i) {
         auto address = n.or_(
-          n.and_(i < 8 ? effective : effective_high, bit(add, adder, i)),
+          i < 8 ? n.and_(effective, bit(add, adder, i))
+                : n.or_(n.and_(effective_high, bit(add, adder, i)),
+                        n.and_(pointer_high, high[i - 8])),
           n.and_(fetch, bit(p, pc, i)));
         if (i < 8)
             address = n.or_(n.and_(in_stack, bit(sp, stack, i)), address);
@@ -2246,7 +2340,7 @@ struct cpu_run {
     /** The zero page addresses plus X which wrap in the zero page. */
     int zero_page_wraps = 0;
 
-    int calls = 0, read_modify_writes = 0;
+    int calls = 0, read_modify_writes = 0, indirect_jumps = 0;
 
     /** The comparisons of a register greater, equal or lower than the
      * operand. */
@@ -2301,6 +2395,8 @@ cpu_run check_cpu(bench_simulation&        sim,
             ++run.calls;
         if (is_read_modify_write(op))
             ++run.read_modify_writes;
+        if (op == opcode::jmp_ind)
+            ++run.indirect_jumps;
         if (op == opcode::pha or op == opcode::jsr_abs)
             run.lowest_push = std::min(run.lowest_push, (ref.s + 1u) & 0xffu);
         if (is_compare(op)) {
@@ -3213,6 +3309,54 @@ int main()
         expect(gt(run.read_modify_writes, 20));
     };
 
+    "cpu-tests-the-flags-and-jumps-through-pointers"_test = [] {
+        irt::vector<irt::u8> program(0x200, irt::u8{ 0 });
+        const auto           put = [&](const int                      address,
+                             std::initializer_list<irt::u8> bytes) {
+            std::copy(bytes.begin(), bytes.end(), program.begin() + address);
+        };
+
+        // Each taken branch skips an INX.
+        put(0x0000, { 0x38 });             // SEC
+        put(0x0001, { 0xb0, 0x01 });       // BCS $0004
+        put(0x0003, { 0xe8 });             // INX
+        put(0x0004, { 0x18 });             // CLC
+        put(0x0005, { 0x90, 0x01 });       // BCC $0008
+        put(0x0007, { 0xe8 });             // INX
+        put(0x0008, { 0xa9, 0x40 });       // LDA #$40
+        put(0x000a, { 0x69, 0x40 });       // ADC #$40: V, N
+        put(0x000c, { 0x70, 0x01 });       // BVS $000F
+        put(0x000e, { 0xe8 });             // INX
+        put(0x000f, { 0x30, 0x01 });       // BMI $0012
+        put(0x0011, { 0xe8 });             // INX
+        put(0x0012, { 0xb8 });             // CLV
+        put(0x0013, { 0x50, 0x01 });       // BVC $0016
+        put(0x0015, { 0xe8 });             // INX
+        put(0x0016, { 0xa9, 0x01 });       // LDA #$01
+        put(0x0018, { 0x10, 0x01 });       // BPL $001B
+        put(0x001a, { 0xe8 });             // INX
+        put(0x001b, { 0x24, 0x40 });       // BIT $40: $C0, N, V, Z
+        put(0x001d, { 0xb0, 0x01 });       // BCS, not taken
+        put(0x001f, { 0x2c, 0x41, 0x00 }); // BIT $0041: $40, V, Z
+        put(0x0022, { 0x30, 0x01 });       // BMI, not taken
+        put(0x0024, { 0x50, 0x01 });       // BVC, not taken
+        put(0x0026, { 0x6c, 0x42, 0x00 }); // JMP ($0042): $0030
+        put(0x0030, { 0x6c, 0xff, 0x01 }); // JMP ($01FF): $0100, $01FF
+        put(0x0040, { 0xc0, 0x40, 0x30, 0x00 });
+        put(0x0100, { 0x01 });
+        put(0x0150, { 0x4c, 0x00, 0x00 }); // JMP $0000
+        put(0x01ff, { 0x50 });
+
+        irt::modeling mod;
+        const auto    b = mod.ids.write(
+          [&](auto& ids) { return make_cpu_bench(ids, program); });
+
+        bench_simulation sim(mod, b);
+        const auto       run = check_cpu(sim, program, 60);
+        expect(gt(run.taken_branches, 10));
+        expect(gt(run.indirect_jumps, 3));
+    };
+
     "cpu-runs-random-programs"_test = [] {
         cpu_run total;
 
@@ -3242,7 +3386,7 @@ int main()
             // $zp,X could go anywhere in the zero page, over the
             // subroutines.
             const auto plain = [&]() {
-                const auto kind = gen() % 20;
+                const auto kind = gen() % 22;
                 return kind < 7
                          ? with_mode(pick(immediate_opcodes), pick(modes))
                        : kind < 9  ? pick(index_opcodes)
@@ -3256,13 +3400,18 @@ int main()
                                                gen() % 2 ? addressing::zero_page
                                                          : addressing::absolute)
                        : kind < 16 ? pick(shift_opcodes)
+                       : kind < 17 ? pick(flag_opcodes)
+                       : kind < 18 ? with_mode(opcode::bit_zp,
+                                               gen() % 2 ? addressing::zero_page
+                                                         : addressing::absolute)
                                    : with_mode(pick(read_modify_write_opcodes),
                                                pick(modify_modes));
             };
 
             // The subroutines follow a JMP $0080, without jump nor branch,
-            // and leave the stack as they find it. The zero page writes stay
-            // in 0x40..0x7f, above them. The main code lies around the page
+            // and leave the stack as they find it. The pointers of JMP
+            // ($addr) follow them in 0x34..0x3f, the zero page writes stay in
+            // 0x40..0x7f. The main code lies around the page
             // 0x0100, after a LDX #$C0, TXS: some branches cross the page and
             // the stack, above the code, neither reaches it with the pushes
             // nor wraps with the pulls.
@@ -3281,22 +3430,24 @@ int main()
                 const auto balance = gen() % 2;
                 if (balance)
                     add(opcode::pha);
-                for (int i = 0, e = 1 + static_cast<int>(gen() % 4); i < e; ++i)
+                for (int i = 0, e = 1 + static_cast<int>(gen() % 3); i < e; ++i)
                     add(plain());
                 if (balance)
                     add(opcode::pla);
                 add(opcode::rts);
             }
-            expect(fatal(le(size, 0x40)));
+            constexpr int pointers_begin = 0x34;
+            expect(fatal(le(size, pointers_begin)));
 
             constexpr int origin     = 0x83;
             const auto    main_begin = ops.ssize();
             size                     = origin;
             while (size < origin + 256) {
                 const auto kind = gen() % 20;
-                add(kind < 13   ? plain()
-                    : kind < 14 ? opcode::jmp_abs
-                    : kind < 16 ? (gen() % 2 ? opcode::beq : opcode::bne)
+                add(kind < 13 ? plain()
+                    : kind < 14
+                      ? (gen() % 2 ? opcode::jmp_abs : opcode::jmp_ind)
+                    : kind < 16 ? pick(branch_opcodes)
                     : kind < 17 ? opcode::pha
                     : kind < 18 ? opcode::pla
                                 : opcode::jsr_abs);
@@ -3329,6 +3480,9 @@ int main()
                     program.emplace_back(static_cast<irt::u8>(byte));
             };
 
+            // A JMP ($addr) beyond the six pointers becomes a JMP $addr.
+            irt::vector<int> pointers(6, irt::reserve_tag);
+
             put({ 0x4c, 0x80, 0x00 }); // JMP $0080
             for (int i = 0; i < ops.ssize(); ++i) {
                 if (i == main_begin) {
@@ -3337,7 +3491,9 @@ int main()
                     put({ 0xa2, 0xc0, 0x9a }); // LDX #$C0, TXS
                 }
 
-                const auto op = ops[i];
+                auto op = ops[i];
+                if (op == opcode::jmp_ind and pointers.ssize() == 6)
+                    op = opcode::jmp_abs;
                 put({ static_cast<int>(op) });
 
                 const auto mode     = has_modes(op) ? mode_of(op)
@@ -3348,6 +3504,11 @@ int main()
 
                 if (i + 1 == ops.ssize()) {
                     put({ 0x00, 0x00 }); // JMP $0000
+                } else if (op == opcode::jmp_ind) {
+                    put(
+                      { static_cast<int>(pointers_begin + 2 * pointers.ssize()),
+                        0x00 });
+                    pointers.emplace_back(target(starts[i], false));
                 } else if (absolute or op == opcode::jmp_abs or
                            op == opcode::jsr_abs) {
                     const auto address = op == opcode::jmp_abs
@@ -3371,6 +3532,13 @@ int main()
             }
             expect(fatal(eq(program.ssize(), size)));
 
+            for (int k = 0; k < pointers.ssize(); ++k) {
+                program[pointers_begin + 2 * k] = static_cast<irt::u8>(
+                  pointers[k] & 0xff);
+                program[pointers_begin + 2 * k + 1] = static_cast<irt::u8>(
+                  pointers[k] >> 8);
+            }
+
             irt::modeling mod;
             const auto    b = mod.ids.write(
               [&](auto& ids) { return make_cpu_bench(ids, program); });
@@ -3386,6 +3554,7 @@ int main()
             total.zero_page_wraps += run.zero_page_wraps;
             total.calls += run.calls;
             total.read_modify_writes += run.read_modify_writes;
+            total.indirect_jumps += run.indirect_jumps;
             total.compares_greater += run.compares_greater;
             total.compares_equal += run.compares_equal;
             total.compares_lower += run.compares_lower;
@@ -3398,6 +3567,7 @@ int main()
         expect(gt(total.zero_page_wraps, 0));
         expect(gt(total.calls, 0));
         expect(gt(total.read_modify_writes, 0));
+        expect(gt(total.indirect_jumps, 0));
         expect(gt(total.compares_greater, 0));
         expect(gt(total.compares_equal, 0));
         expect(gt(total.compares_lower, 0));
