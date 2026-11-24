@@ -13,6 +13,8 @@
 #include <array>
 #include <cmath>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <initializer_list>
 #include <optional>
 #include <random>
@@ -922,10 +924,13 @@ circuit make_program_counter(irt::component_access& ids) noexcept
 }
 
 /** A component around a logical_memory of 64 KiB, the first bytes are the @a
- * content read from a constant source of the component at the initialization.
- * Inputs: a0..a15, d0..d7 then we. Outputs: q0..q7. */
-circuit make_memory(irt::component_access&   ids,
-                    std::span<const irt::u8> content = {}) noexcept
+ * content read at the initialization from a constant source of the component,
+ * or from the binary @a file which holds them. Inputs: a0..a15, d0..d7 then
+ * we. Outputs: q0..q7. */
+circuit make_memory(
+  irt::component_access&   ids,
+  std::span<const irt::u8> content = {},
+  const irt::file_path_id  file = irt::undefined<irt::file_path_id>()) noexcept
 {
     circuit ret{ .id  = ids.alloc_generic_component(),
                  .x   = irt::vector<irt::port_id>(25, irt::reserve_tag),
@@ -942,14 +947,19 @@ circuit make_memory(irt::component_access&   ids,
         boost::ut::expect(
           boost::ut::fatal(c.srcs.data.can_alloc(1) or c.srcs.data.reserve(1)));
         const auto src_id = c.srcs.data.alloc_id();
-        c.srcs.emplace(src_id, irt::source_type::constant, "content");
-
-        auto& cst = c.srcs.data
+        auto&      src    = c.srcs.data
                       .get<irt::external_source_definition::source_element>(
-                        src_id)
-                      .cst;
-        boost::ut::expect(boost::ut::fatal(cst.data.resize(content.size())));
-        std::copy(content.begin(), content.end(), cst.data.begin());
+                        src_id);
+
+        if (irt::is_defined(file)) {
+            c.srcs.emplace(src_id, irt::source_type::binary_file, "program");
+            src.bin.file = file;
+        } else {
+            c.srcs.emplace(src_id, irt::source_type::constant, "content");
+            boost::ut::expect(
+              boost::ut::fatal(src.cst.data.resize(content.size())));
+            std::copy(content.begin(), content.end(), src.cst.data.begin());
+        }
 
         gen.children_parameters[*mem.child].set_logical_memory(
           src_id, static_cast<irt::i32>(content.size()));
@@ -2602,6 +2612,8 @@ public:
 
         m_cycle = 0;
         m_pj.sim.limits.set_bound(0, (cycles + 1) * clock_period);
+        boost::ut::expect(
+          boost::ut::fatal(m_pj.sim.srcs.prepare().has_value()));
         boost::ut::expect(boost::ut::fatal(m_pj.sim.initialize().has_value()));
     }
 
@@ -2659,14 +2671,11 @@ private:
     int          m_cycle = 0;
 };
 
-/** Saves the components in the directory @c dir/digital, in the order of
- * their dependencies: a file references the files of its children. */
-void save_circuits(
-  irt::modeling&                                                   mod,
-  const std::string_view                                           dir,
-  std::initializer_list<std::pair<irt::component_id, const char*>> files)
+/** The directory @c dir/digital of the circuits, created if needed. */
+irt::dir_path_id make_circuits_dir(irt::modeling&         mod,
+                                   const std::string_view dir) noexcept
 {
-    const auto dir_id = mod.files.write([&](auto& fs) {
+    return mod.files.write([&](auto& fs) {
         const auto reg                   = fs.alloc_registred("circuits", 0);
         fs.registred_paths.get(reg).path = dir;
 
@@ -2678,6 +2687,34 @@ void save_circuits(
         (void)fs.create_directories(id);
         return id;
     });
+}
+
+/** Writes the bytes of a program as the reals of a binary file source: one
+ * real per byte, padded with zeros to a chunk of the source. */
+void write_program_file(const std::filesystem::path&   file,
+                        const std::span<const irt::u8> bytes) noexcept
+{
+    std::ofstream ofs(file, std::ios::binary);
+    const auto    count = std::max(
+      std::ssize(bytes), std::ptrdiff_t{ irt::external_source_chunk_size });
+
+    for (std::ptrdiff_t i = 0; i < count; ++i) {
+        const double v = i < std::ssize(bytes)
+                           ? bytes[static_cast<std::size_t>(i)]
+                           : 0.0;
+        ofs.write(reinterpret_cast<const char*>(&v), sizeof(v));
+    }
+
+    boost::ut::expect(boost::ut::fatal(ofs.good()));
+}
+
+/** Saves the components in the directory @c dir_id, in the order of their
+ * dependencies: a file references the files of its children. */
+void save_circuits(
+  irt::modeling&                                                   mod,
+  const irt::dir_path_id                                           dir_id,
+  std::initializer_list<std::pair<irt::component_id, const char*>> files)
+{
 
     for (const auto& [compo_id, name] : files) {
         const auto file_id = mod.files.write([&](auto& fs) {
@@ -2692,6 +2729,14 @@ void save_circuits(
             });
         });
     }
+}
+
+void save_circuits(
+  irt::modeling&                                                   mod,
+  const std::string_view                                           dir,
+  std::initializer_list<std::pair<irt::component_id, const char*>> files)
+{
+    save_circuits(mod, make_circuits_dir(mod, dir), files);
 }
 
 /** Reads every component of the directory @c dir and returns the bench stored
@@ -4430,6 +4475,115 @@ int main()
         const auto       b = load_bench(mod, dir, "cpu-bench.irt", 2, 55);
         bench_simulation sim(mod, b);
         check_cpu(sim, program, 30);
+    };
+
+    "cpu-runs-a-program-from-a-binary-file"_test = [] {
+        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
+        const auto  temp = irt::temp_path_with_unlink{ "cpu-demo" };
+        expect(fatal(temp.success()));
+        const std::string_view dir = keep ? keep : temp.c_str();
+
+        // The Fibonacci numbers in decimal, stored from $0300 until they
+        // pass 99, then again. X counts the numbers.
+        irt::vector<irt::u8> program(0x3e, irt::u8{ 0 });
+        const auto           put = [&](const int                      address,
+                             std::initializer_list<irt::u8> bytes) {
+            std::copy(bytes.begin(), bytes.end(), program.begin() + address);
+        };
+
+        put(0x0000, { 0xa2, 0xff });       // LDX #$FF
+        put(0x0002, { 0x9a });             // TXS
+        put(0x0003, { 0xf8 });             // SED
+        put(0x0004, { 0xa9, 0x00 });       // LDA #$00
+        put(0x0006, { 0x85, 0x10 });       // STA $10
+        put(0x0008, { 0xa9, 0x03 });       // LDA #$03
+        put(0x000a, { 0x85, 0x11 });       // STA $11: ($10) = $0300
+        put(0x000c, { 0xa9, 0x00 });       // LDA #$00
+        put(0x000e, { 0x85, 0x12 });       // STA $12
+        put(0x0010, { 0xa9, 0x01 });       // LDA #$01
+        put(0x0012, { 0x85, 0x13 });       // STA $13
+        put(0x0014, { 0xa0, 0x00 });       // LDY #$00
+        put(0x0016, { 0x20, 0x30, 0x00 }); // JSR $0030
+        put(0x0019, { 0xb0, 0xe9 });       // BCS $0004: beyond 99
+        put(0x001b, { 0x91, 0x10 });       // STA ($10),Y
+        put(0x001d, { 0xc8 });             // INY
+        put(0x001e, { 0xe8 });             // INX
+        put(0x001f, { 0x4c, 0x16, 0x00 }); // JMP $0016
+        put(0x0030, { 0x18 });             // CLC
+        put(0x0031, { 0xa5, 0x12 });       // LDA $12
+        put(0x0033, { 0x65, 0x13 });       // ADC $13: the next number
+        put(0x0035, { 0x48 });             // PHA
+        put(0x0036, { 0xa5, 0x13 });       // LDA $13
+        put(0x0038, { 0x85, 0x12 });       // STA $12
+        put(0x003a, { 0x68 });             // PLA
+        put(0x003b, { 0x85, 0x13 });       // STA $13
+        put(0x003d, { 0x60 });             // RTS
+
+        {
+            irt::modeling mod;
+            const auto    dir_id = make_circuits_dir(mod, dir);
+            write_program_file(std::filesystem::path(dir) / "digital" /
+                                 "6502-demo.bin",
+                               program);
+            const auto file = mod.files.write([&](auto& fs) {
+                return fs.alloc_file(dir_id, "6502-demo.bin",
+                                     irt::file_type::binary_file);
+            });
+
+            const auto compo = mod.ids.write([&](auto& ids) {
+                const auto      fa      = make_full_adder(ids);
+                const auto      adder_8 = make_adder<8>(ids, fa);
+                const auto      alu     = make_alu(ids, adder_8);
+                const auto      reg     = make_register<8>(ids);
+                const cpu_parts parts{
+                    .pc          = make_program_counter(ids),
+                    .memory      = make_memory(ids, program, file),
+                    .accumulator = make_accumulator(ids, alu, reg),
+                    .flags       = make_flags(ids),
+                    .index       = make_index_registers(ids, reg),
+                    .stack       = make_stack_pointer(ids, reg),
+                    .reg         = reg,
+                    .adder       = as_circuit(make_adder<16>(ids, fa)),
+                    .comparator  = as_circuit(adder_8),
+                    .alu         = alu
+                };
+                const auto cpu = make_cpu(ids, parts);
+                const auto b   = make_bench(ids, cpu);
+                return std::array{ fa.id,
+                                   adder_8.id,
+                                   parts.adder.id,
+                                   alu.id,
+                                   reg.id,
+                                   parts.accumulator.id,
+                                   parts.flags.id,
+                                   parts.index.id,
+                                   parts.stack.id,
+                                   parts.pc.id,
+                                   parts.memory.id,
+                                   cpu.id,
+                                   b.id };
+            });
+
+            save_circuits(mod, dir_id,
+                          { { compo[0], "full-adder.irt" },
+                            { compo[1], "adder-8.irt" },
+                            { compo[2], "adder-16.irt" },
+                            { compo[3], "alu-8.irt" },
+                            { compo[4], "register-8.irt" },
+                            { compo[5], "accumulator.irt" },
+                            { compo[6], "flags.irt" },
+                            { compo[7], "index-registers.irt" },
+                            { compo[8], "stack-pointer.irt" },
+                            { compo[9], "program-counter.irt" },
+                            { compo[10], "cpu-demo-memory.irt" },
+                            { compo[11], "cpu-demo.irt" },
+                            { compo[12], "cpu-demo-bench.irt" } });
+        }
+
+        irt::modeling    mod;
+        const auto       b = load_bench(mod, dir, "cpu-demo-bench.irt", 2, 55);
+        bench_simulation sim(mod, b);
+        check_cpu(sim, program, 200);
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
