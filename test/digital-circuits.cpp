@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
+#include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
@@ -60,12 +61,17 @@ struct wire {
 };
 
 /** Allocates the gates of a generic component and connects them. The children
- * are kept by identifier: the children container grows during the build. */
+ * are kept by identifier: the children container grows during the build.
+ *
+ * The children are named to find one's way in the component editor: a gate
+ * by its type, until it is named after the signal it computes or the output
+ * it feeds. */
 class netlist
 {
 public:
-    explicit netlist(irt::generic_component& gen) noexcept
-      : m_gen(gen)
+    netlist(const irt::component& c, irt::generic_component& gen) noexcept
+      : m_compo(c)
+      , m_gen(gen)
     {}
 
     static wire input(const irt::port_id x) noexcept
@@ -73,10 +79,25 @@ public:
         return wire{ .child = std::nullopt, .port = compo(x) };
     }
 
-    irt::child_id child(const irt::component_id id) noexcept
+    irt::child_id child(const irt::component_id id,
+                        const std::string_view  name) noexcept
     {
         boost::ut::expect(boost::ut::fatal(m_gen.grow_children()));
-        return m_gen.children.get_id(m_gen.alloc(id));
+        const auto child            = m_gen.children.get_id(m_gen.alloc(id));
+        m_gen.children_names[child] = unique_name(name);
+        return child;
+    }
+
+    /** Names the gate which computes @a w, if no other name was given to it
+     * before: a signal shared by several names keeps the first one. */
+    const wire& name(const wire& w, const std::string_view name) noexcept
+    {
+        if (w.child and is_unnamed(*w.child)) {
+            m_gen.children_names[*w.child]      = unique_name(name);
+            m_unnamed[irt::get_index(*w.child)] = false;
+        }
+
+        return w;
     }
 
     static wire output_of(const irt::child_id child,
@@ -109,13 +130,22 @@ public:
           boost::ut::fatal(have_room(m_gen.output_connections)));
         boost::ut::expect(
           !!m_gen.connect_output(y, m_gen.children.get(*src.child), src.port));
+        name(src, m_compo.y.get<irt::port_str>(y).sv());
     }
 
     wire gate(const dynamics_type type, std::initializer_list<wire> inputs)
     {
         boost::ut::expect(boost::ut::fatal(m_gen.grow_children()));
-        const auto id   = m_gen.children.get_id(m_gen.alloc(type));
-        int        port = 0;
+        const auto id            = m_gen.children.get_id(m_gen.alloc(type));
+        const auto index         = irt::get_index(id);
+        m_gen.children_names[id] = irt::format_n<31>("{}-{}", type_name(type),
+                                                     index)
+                                     .sv();
+        if (m_unnamed.ssize() <= static_cast<int>(index))
+            m_unnamed.resize(m_gen.children.capacity(), false);
+        m_unnamed[index] = true;
+
+        int port = 0;
         for (const auto& in : inputs)
             link(in, id, mdl(port++));
 
@@ -210,6 +240,42 @@ public:
     }
 
 private:
+    static std::string_view type_name(const dynamics_type type) noexcept
+    {
+        switch (type) {
+        case dynamics_type::logical_invert:
+            return "not";
+        case dynamics_type::logical_and_2:
+        case dynamics_type::logical_and_3:
+            return "and";
+        case dynamics_type::logical_or_2:
+        case dynamics_type::logical_or_3:
+            return "or";
+        case dynamics_type::logical_xor_2:
+            return "xor";
+        case dynamics_type::logical_d_flipflop:
+            return "dff";
+        default:
+            return irt::dynamics_type_names[irt::ordinal(type)];
+        }
+    }
+
+    bool is_unnamed(const irt::child_id id) const noexcept
+    {
+        const auto index = irt::get_index(id);
+        return static_cast<int>(index) < m_unnamed.ssize() and m_unnamed[index];
+    }
+
+    /** The name, followed by a number if a child already has it. */
+    irt::name_str unique_name(const std::string_view name) const noexcept
+    {
+        irt::name_str ret(name);
+        for (int i = 2; m_gen.exists_child(ret.sv()); ++i)
+            ret = irt::format_n<31>("{}-{}", name, i).sv();
+
+        return ret;
+    }
+
     wire tree(const std::span<const wire> inputs,
               const dynamics_type         two,
               const dynamics_type         three)
@@ -238,7 +304,9 @@ private:
         return connections.can_alloc(1) or connections.template grow<2, 1>();
     }
 
+    const irt::component&   m_compo;
     irt::generic_component& m_gen;
+    irt::vector<bool>       m_unnamed;
 };
 
 struct full_adder_component {
@@ -259,7 +327,7 @@ full_adder_component make_full_adder(irt::component_access& ids) noexcept
     ret.s     = c.get_or_add_y("s");
     ret.cout  = c.get_or_add_y("cout");
 
-    netlist    n(gen);
+    netlist    n(c, gen);
     const auto a   = netlist::input(ret.a);
     const auto b   = netlist::input(ret.b);
     const auto cin = netlist::input(ret.cin);
@@ -291,14 +359,14 @@ adder_component<Bits> make_adder(irt::component_access&      ids,
     ret.cin   = c.get_or_add_x("cin");
     ret.cout  = c.get_or_add_y("cout");
 
-    netlist n(gen);
+    netlist n(c, gen);
     wire    carry = netlist::input(ret.cin);
     for (int i = 0; i < Bits; ++i) {
         ret.a[i] = c.get_or_add_x(irt::format_n<32>("a{}", i).sv());
         ret.b[i] = c.get_or_add_x(irt::format_n<32>("b{}", i).sv());
         ret.s[i] = c.get_or_add_y(irt::format_n<32>("s{}", i).sv());
 
-        const auto bit = n.child(fa.id);
+        const auto bit = n.child(fa.id, irt::format_n<8>("fa{}", i).sv());
         n.link(netlist::input(ret.a[i]), bit, compo(fa.a));
         n.link(netlist::input(ret.b[i]), bit, compo(fa.b));
         n.link(carry, bit, compo(fa.cin));
@@ -473,7 +541,7 @@ circuit make_alu(irt::component_access&    ids,
     const auto decimal = netlist::input(
       *ret.x.emplace_back(c.get_or_add_x("d")));
 
-    netlist n(gen);
+    netlist n(c, gen);
 
     const std::array<wire, 3> not_op{ n.not_(op[0]), n.not_(op[1]),
                                       n.not_(op[2]) };
@@ -484,12 +552,18 @@ circuit make_alu(irt::component_access&    ids,
                            k & 2u ? op[1] : not_op[1],
                            k & 4u ? op[2] : not_op[2]);
 
+    constexpr std::array<const char*, alu_op_count> op_names{
+        "ora", "and", "eor", "adc", "sbc", "rol", "ror", "pass_b"
+    };
+    for (unsigned k = 0; k < alu_op_count; ++k)
+        n.name(select[k], op_names[k]);
+
     const auto is = [&](const alu_op o) { return select[static_cast<int>(o)]; };
 
     const auto sub   = is(alu_op::sbc);
     const auto arith = n.or_(is(alu_op::adc), sub);
 
-    const auto          add = n.child(adder.id);
+    const auto          add = n.child(adder.id, "adder");
     std::array<wire, 8> b_add, s;
     for (int i = 0; i < 8; ++i) {
         b_add[i] = n.xor_(b[i], sub);
@@ -625,7 +699,7 @@ circuit make_counter(irt::component_access& ids) noexcept
     auto& gen = ids.generic_components.get(c.id.generic_id);
     ret.clk   = c.get_or_add_x("clk");
 
-    netlist    n(gen);
+    netlist    n(c, gen);
     const auto clk = netlist::input(*ret.clk);
 
     std::array<wire, Bits> q;
@@ -687,8 +761,8 @@ circuit make_register(irt::component_access& ids) noexcept
     ret.clk        = c.get_or_add_x("clk");
     const auto clk = netlist::input(*ret.clk);
 
-    netlist    n(gen);
-    const auto hold = n.not_(load);
+    netlist    n(c, gen);
+    const auto hold = n.name(n.not_(load), "hold");
 
     for (int i = 0; i < Bits; ++i)
         n.output(
@@ -716,9 +790,9 @@ circuit make_accumulator(irt::component_access& ids,
     auto& c   = ids.components[ret.id];
     auto& gen = ids.generic_components.get(c.id.generic_id);
 
-    netlist    n(gen);
-    const auto u = n.child(alu.id);
-    const auto a = n.child(reg.id);
+    netlist    n(c, gen);
+    const auto u = n.child(alu.id, "alu");
+    const auto a = n.child(reg.id, "a");
 
     // The ALU inputs: a0..a7, b0..b7, cin then op0..op2.
     for (int i = 0; i < 8; ++i)
@@ -792,7 +866,7 @@ circuit make_flags(irt::component_access& ids) noexcept
     ret.clk        = c.get_or_add_x("clk");
     const auto clk = netlist::input(*ret.clk);
 
-    netlist             n(gen);
+    netlist             n(c, gen);
     std::array<wire, 5> hold;
     for (int i = 0; i < 5; ++i)
         hold[i] = n.not_(load[i]);
@@ -826,9 +900,9 @@ circuit make_execution_unit(irt::component_access& ids,
     auto& c   = ids.components[ret.id];
     auto& gen = ids.generic_components.get(c.id.generic_id);
 
-    netlist    n(gen);
-    const auto a = n.child(acc.id);
-    const auto p = n.child(flags.id);
+    netlist    n(c, gen);
+    const auto a = n.child(acc.id, "accumulator");
+    const auto p = n.child(flags.id, "p");
 
     const auto input = [&](const std::string_view name) {
         return netlist::input(*ret.x.emplace_back(c.get_or_add_x(name)));
@@ -894,7 +968,7 @@ circuit make_program_counter(irt::component_access& ids) noexcept
     ret.clk        = c.get_or_add_x("clk");
     const auto clk = netlist::input(*ret.clk);
 
-    netlist n(gen);
+    netlist n(c, gen);
 
     std::array<wire, bits> pc;
     for (int i = 0; i < bits; ++i)
@@ -940,8 +1014,8 @@ circuit make_memory(
     auto& c   = ids.components[ret.id];
     auto& gen = ids.generic_components.get(c.id.generic_id);
 
-    netlist    n(gen);
-    const auto mem = n.gate(dynamics_type::logical_memory, {});
+    netlist    n(c, gen);
+    const auto mem = n.name(n.gate(dynamics_type::logical_memory, {}), "ram");
 
     if (not content.empty()) {
         boost::ut::expect(
@@ -1019,9 +1093,9 @@ circuit make_index_registers(irt::component_access& ids,
     ret.clk          = c.get_or_add_x("clk");
     const auto clk   = netlist::input(*ret.clk);
 
-    netlist    n(gen);
-    const auto x     = n.child(reg.id);
-    const auto y     = n.child(reg.id);
+    netlist    n(c, gen);
+    const auto x     = n.child(reg.id, "x");
+    const auto y     = n.child(reg.id, "y");
     const auto sel_x = n.not_(sel_y);
     const auto step  = n.not_(imm);
 
@@ -1088,8 +1162,8 @@ circuit make_stack_pointer(irt::component_access& ids,
     const auto dec  = input("dec");
     ret.clk         = c.get_or_add_x("clk");
 
-    netlist    n(gen);
-    const auto s    = n.child(reg.id);
+    netlist    n(c, gen);
+    const auto s    = n.child(reg.id, "s");
     const auto step = n.not_(load);
 
     // s - 1 = not(not(s) + 1), as for the index registers.
@@ -1900,23 +1974,23 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     auto& gen = ids.generic_components.get(c.id.generic_id);
     ret.clk   = c.get_or_add_x("clk");
 
-    netlist    n(gen);
+    netlist    n(c, gen);
     const auto clk = netlist::input(*ret.clk);
     const auto irq = netlist::input(*ret.x.emplace_back(c.get_or_add_x("irq")));
     const auto nmi = netlist::input(*ret.x.emplace_back(c.get_or_add_x("nmi")));
-    const auto p   = n.child(pc.id);
-    const auto mem = n.child(memory.id);
-    const auto acc = n.child(accumulator.id);
-    const auto f   = n.child(flags.id);
-    const auto idx = n.child(index.id);
-    const auto sp  = n.child(stack.id);
-    const auto ir  = n.child(reg.id);
-    const auto adl = n.child(reg.id);
-    const auto adh = n.child(reg.id);
-    const auto add = n.child(adder.id);
-    const auto cmp = n.child(comparator.id);
-    const auto dl  = n.child(reg.id);
-    const auto rmw = n.child(alu_unit.id);
+    const auto p   = n.child(pc.id, "pc");
+    const auto mem = n.child(memory.id, "memory");
+    const auto acc = n.child(accumulator.id, "accumulator");
+    const auto f   = n.child(flags.id, "p");
+    const auto idx = n.child(index.id, "xy");
+    const auto sp  = n.child(stack.id, "s");
+    const auto ir  = n.child(reg.id, "ir");
+    const auto adl = n.child(reg.id, "adl");
+    const auto adh = n.child(reg.id, "adh");
+    const auto add = n.child(adder.id, "adder");
+    const auto cmp = n.child(comparator.id, "comparator");
+    const auto dl  = n.child(reg.id, "dl");
+    const auto rmw = n.child(alu_unit.id, "rmw");
 
     const auto bit = [](const irt::child_id child, const circuit& of,
                         const int i) {
@@ -2105,8 +2179,9 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto taken  = n.and_(branch, n.not_(n.xor_(tested, ir5)));
 
     std::array<wire, 6> t;
-    for (auto& ff : t)
-        ff = n.gate(dynamics_type::logical_d_flipflop, {});
+    for (int i = 0; i < 6; ++i)
+        t[i] = n.name(n.gate(dynamics_type::logical_d_flipflop, {}),
+                      irt::format_n<8>("t{}", i + 1).sv());
 
     // The pointer of ($zp,X) is read in t3 and t4, of ($zp),Y in t2 and t3,
     // then dl and adh hold the address of the operand.
@@ -2491,6 +2566,145 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     n.link(write, mem, compo(memory.x[24]));
     link_clk(mem, memory);
 
+    for (const auto& [name, w] :
+         { std::pair{ "group", group },
+           std::pair{ "modify_op", modify_op },
+           std::pair{ "moded", moded },
+           std::pair{ "store", store },
+           std::pair{ "cmp_a", cmp_a },
+           std::pair{ "sta", sta },
+           std::pair{ "alu", alu },
+           std::pair{ "carry", carry },
+           std::pair{ "pointer", pointer },
+           std::pair{ "pointer_x", pointer_x },
+           std::pair{ "pointer_y", pointer_y },
+           std::pair{ "group_zero_page", group_zero_page },
+           std::pair{ "group_absolute", group_absolute },
+           std::pair{ "group_index_x", group_index_x },
+           std::pair{ "group_index_y", group_index_y },
+           std::pair{ "ldx", ldx },
+           std::pair{ "ldy", ldy },
+           std::pair{ "cpx", cpx },
+           std::pair{ "cpy", cpy },
+           std::pair{ "stx", stx },
+           std::pair{ "sty", sty },
+           std::pair{ "bit_op", bit_op },
+           std::pair{ "indirect", indirect },
+           std::pair{ "zero_page_indexed", zero_page_indexed },
+           std::pair{ "indexed_absolute", indexed_absolute },
+           std::pair{ "zero_page", zero_page },
+           std::pair{ "absolute", absolute },
+           std::pair{ "direct", direct },
+           std::pair{ "addressed", addressed },
+           std::pair{ "compare", compare },
+           std::pair{ "inx", inx },
+           std::pair{ "iny", iny },
+           std::pair{ "dex", dex },
+           std::pair{ "dey", dey },
+           std::pair{ "tsx", tsx },
+           std::pair{ "tax", tax },
+           std::pair{ "tay", tay },
+           std::pair{ "txa", txa },
+           std::pair{ "tya", tya },
+           std::pair{ "to_a", to_a },
+           std::pair{ "implied_index", implied_index },
+           std::pair{ "index_load", index_load },
+           std::pair{ "index_op", index_op },
+           std::pair{ "asl", asl },
+           std::pair{ "rol", rol },
+           std::pair{ "lsr", lsr },
+           std::pair{ "ror", ror },
+           std::pair{ "shift", shift },
+           std::pair{ "shift_left", shift_left },
+           std::pair{ "shift_in_zero", shift_in_zero },
+           std::pair{ "jmp", jmp },
+           std::pair{ "branch", branch },
+           std::pair{ "clc", clc },
+           std::pair{ "sec", sec },
+           std::pair{ "clv", clv },
+           std::pair{ "cli", cli },
+           std::pair{ "sei", sei },
+           std::pair{ "cld", cld },
+           std::pair{ "sed", sed },
+           std::pair{ "set_c", set_c },
+           std::pair{ "set_i", set_i },
+           std::pair{ "set_d", set_d },
+           std::pair{ "pha", pha },
+           std::pair{ "pla", pla },
+           std::pair{ "php", php },
+           std::pair{ "plp", plp },
+           std::pair{ "jsr", jsr },
+           std::pair{ "rts", rts },
+           std::pair{ "brk", brk },
+           std::pair{ "rti", rti },
+           std::pair{ "txs", txs },
+           std::pair{ "nop", nop },
+           std::pair{ "push_op", push_op },
+           std::pair{ "pull_op", pull_op },
+           std::pair{ "pulls_p", pulls_p },
+           std::pair{ "subroutine", subroutine },
+           std::pair{ "stack_op", stack_op },
+           std::pair{ "implied", implied },
+           std::pair{ "tested", tested },
+           std::pair{ "taken", taken },
+           std::pair{ "through_pointer", through_pointer },
+           std::pair{ "reading_pointer", reading_pointer },
+           std::pair{ "index_x", index_x },
+           std::pair{ "index_y", index_y },
+           std::pair{ "page_crossed", page_crossed },
+           std::pair{ "t0", t0 },
+           std::pair{ "modifying", modifying },
+           std::pair{ "writing_back", writing_back },
+           std::pair{ "one_more", one_more },
+           std::pair{ "last", last },
+           std::pair{ "modified", modified },
+           std::pair{ "nmi_before", nmi_before },
+           std::pair{ "nmi_waiting", nmi_waiting },
+           std::pair{ "nmi_request", nmi_request },
+           std::pair{ "request", request },
+           std::pair{ "interrupting", interrupting },
+           std::pair{ "hardware", hardware },
+           std::pair{ "to_nmi", to_nmi },
+           std::pair{ "operand", operand },
+           std::pair{ "execute", execute },
+           std::pair{ "shifted", shifted },
+           std::pair{ "moved", moved },
+           std::pair{ "pull_a", pull_a },
+           std::pair{ "pulled_p", pulled_p },
+           std::pair{ "compared", compared },
+           std::pair{ "push_high", push_high },
+           std::pair{ "push_low", push_low },
+           std::pair{ "push_p", push_p },
+           std::pair{ "pushed", pushed },
+           std::pair{ "vector", vector },
+           std::pair{ "load_adl", load_adl },
+           std::pair{ "load_adh", load_adh },
+           std::pair{ "load_dl", load_dl },
+           std::pair{ "jump", jump },
+           std::pair{ "stores", stores },
+           std::pair{ "write", write },
+           std::pair{ "fetched", fetched },
+           std::pair{ "from_address", from_address },
+           std::pair{ "from_dl", from_dl },
+           std::pair{ "from_memory", from_memory },
+           std::pair{ "from_adder", from_adder },
+           std::pair{ "from_data", from_data },
+           std::pair{ "index_execute", index_execute },
+           std::pair{ "from_a", from_a },
+           std::pair{ "from_bus", from_bus },
+           std::pair{ "increment", increment },
+           std::pair{ "rotate", rotate },
+           std::pair{ "from_alu", from_alu },
+           std::pair{ "load_cv", load_cv },
+           std::pair{ "tested_bits", tested_bits },
+           std::pair{ "in_stack", in_stack },
+           std::pair{ "effective", effective },
+           std::pair{ "effective_high", effective_high },
+           std::pair{ "pointer_high", pointer_high },
+           std::pair{ "fetch", fetch },
+           std::pair{ "push_a", push_a } })
+        n.name(w, name);
+
     const auto output = [&](const std::string_view name, const wire& w) {
         n.output(*ret.y.emplace_back(c.get_or_add_y(name)), w);
     };
@@ -2537,18 +2751,19 @@ bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
                .outputs = irt::vector<irt::child_id>(tested.y.ssize(),
                                                      irt::reserve_tag) };
 
-    auto& gen = ids.generic_components.get(
-      ids.components[ret.id].id.generic_id);
-    netlist n(gen);
+    const auto& c     = ids.components[ret.id];
+    auto&       gen   = ids.generic_components.get(c.id.generic_id);
+    const auto& ports = ids.components[tested.id];
+    netlist     n(c, gen);
 
-    const auto dut = n.child(tested.id);
+    const auto dut = n.child(tested.id, "circuit");
 
     for (const auto x : tested.x) {
         const auto cst = n.gate(dynamics_type::constant, {});
         n.link(cst, dut, compo(x));
-        gen.children_names[*cst.child] = irt::format_n<8>("x{}",
-                                                          ret.inputs.ssize())
-                                           .sv();
+        n.name(cst, irt::format_n<31>("x{}-{}", ret.inputs.ssize(),
+                                      ports.x.get<irt::port_str>(x).sv())
+                      .sv());
         ret.inputs.emplace_back(*cst.child);
     }
 
@@ -2556,16 +2771,16 @@ bench make_bench(irt::component_access& ids, const circuit& tested) noexcept
         const auto clk = n.gate(dynamics_type::logical_clock, {});
         gen.children_parameters[*clk.child].set_logical_clock(clock_period,
                                                               clock_period / 2);
-        gen.children_names[*clk.child] = "clk";
+        n.name(clk, "clk");
         n.link(clk, dut, compo(*tested.clk));
     }
 
     for (const auto y : tested.y) {
         const auto cnt = n.gate(dynamics_type::counter,
                                 { netlist::output_of(dut, y) });
-        gen.children_names[*cnt.child] = irt::format_n<8>("y{}",
-                                                          ret.outputs.ssize())
-                                           .sv();
+        n.name(cnt, irt::format_n<31>("y{}-{}", ret.outputs.ssize(),
+                                      ports.y.get<irt::port_str>(y).sv())
+                      .sv());
         ret.outputs.emplace_back(*cnt.child);
     }
 
@@ -2722,6 +2937,8 @@ void save_circuits(
         });
 
         mod.ids.write([&](auto& ids) {
+            const std::string_view file   = name;
+            ids.components[compo_id].name = file.substr(0, file.rfind('.'));
             ids.component_file_paths[compo_id].file = file_id;
             mod.files.read([&](const auto& fs, auto) {
                 boost::ut::expect(
@@ -2777,11 +2994,13 @@ bench load_bench(irt::modeling&         mod,
         const auto& gen = ids.generic_components.get(
           ids.components[ret.id].id.generic_id);
 
+        // The children are named x0-a0, x1-a1... y0-q0... after the ports
+        // they feed or read.
         const auto find = [&](const char prefix, const int i) {
-            const auto name = irt::format_n<8>("{}{}", prefix, i);
+            const auto name = irt::format_n<8>("{}{}-", prefix, i);
             for (const auto& child : gen.children) {
                 const auto id = gen.children.get_id(child);
-                if (gen.children_names[id].sv() == name.sv())
+                if (gen.children_names[id].sv().starts_with(name.sv()))
                     return id;
             }
 
