@@ -52,7 +52,8 @@ inline file_path_id get_file_from_component(const component_access& ids,
         if (const auto* f = fs.file_paths.try_to_get(filepath.file))
             if (const auto* d = fs.dir_paths.try_to_get(f->parent)) {
                 for (const auto f_id : d->children) {
-                    if (f->path.sv() == str)
+                    const auto* child = fs.file_paths.try_to_get(f_id);
+                    if (child and child->path.sv() == str)
                         return f_id;
                 }
             }
