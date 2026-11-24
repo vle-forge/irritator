@@ -412,10 +412,12 @@ enum class file_type : u8 {
     project_file,      // .pirt
     irb_file,          // .irb
     irt_manifest_file, // .manifest.jsonl
+    binary_file,       // .bin, the reals of a binary file source
 };
 
 constexpr static inline std::string_view file_type_names[] = {
-    "", ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.jsonl"
+    "",    ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.jsonl",
+    ".bin"
 };
 
 /// Capacity: 1024 is generous on Linux/macOS/Android (typical PATH_MAX).

@@ -6,6 +6,7 @@
 #include <irritator/ext.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/random.hpp>
 
@@ -980,6 +981,12 @@ int main()
 
         p.replace_extension(file_type::data_file);
         expect(eq(p.sv(), std::string_view{ "dir/run-0-0001.csv" }));
+
+        p.replace_extension(file_type::binary_file);
+        expect(eq(p.sv(), std::string_view{ "dir/run-0-0001.bin" }));
+        expect(p.has_extension() == file_type::binary_file);
+        expect(irt::get_extension("program.bin") == file_type::binary_file);
+        expect(irt::has_extension("program.bin", file_type::binary_file));
     };
 
     "message"_test = [] {
