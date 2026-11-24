@@ -1419,8 +1419,36 @@ constexpr unsigned status_of(const cpu_state& s) noexcept
            (s.n << 7);
 }
 
-/** The vector of BRK. */
-constexpr unsigned break_vector = 0xfffe;
+/** The vectors of NMI then of IRQ and BRK. */
+constexpr unsigned nmi_vector = 0xfffa, break_vector = 0xfffe;
+
+/** Pushes the return address and P, sets I and jumps through the vector, as
+ * BRK and the interrupts do. */
+constexpr void enter_interrupt(cpu_state&         s,
+                               std::span<irt::u8> mem,
+                               const unsigned     address,
+                               const unsigned     status,
+                               const unsigned     vector) noexcept
+{
+    for (const auto value : { address >> 8, address & 0xffu, status }) {
+        mem[0x100u + s.s] = static_cast<irt::u8>(value);
+        s.s               = (s.s - 1u) & 0xffu;
+    }
+
+    s.i  = 1;
+    s.pc = mem[vector] | (unsigned{ mem[vector + 1] } << 8);
+}
+
+/** Answers an interrupt request instead of the instruction at pc, in 7
+ * cycles: P is pushed without B, pc is the return address. */
+constexpr int cpu_interrupt(cpu_state&         s,
+                            std::span<irt::u8> mem,
+                            const bool         nmi) noexcept
+{
+    enter_interrupt(s, mem, s.pc, status_of(s) & ~0x10u,
+                    nmi ? nmi_vector : break_vector);
+    return 7;
+}
 
 /** Executes the instruction at pc, as the 6502 does, and returns its number
  * of cycles. */
@@ -1644,11 +1672,7 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
     }
 
     case opcode::brk:
-        push(next >> 8);
-        push(next & 0xffu);
-        push(status_of(s));
-        s.i  = 1;
-        s.pc = mem[break_vector] | (unsigned{ mem[break_vector + 1] } << 8);
+        enter_interrupt(s, mem, next, status_of(s), break_vector);
         return 7;
 
     case opcode::rti: {
@@ -1729,6 +1753,67 @@ constexpr int cpu_reference(cpu_state& s, std::span<irt::u8> mem) noexcept
     return 2;
 }
 
+enum class interrupt { none, irq, nmi };
+
+/** The inputs irq and nmi of the CPU cycle by cycle, in the bits 0 and 1,
+ * false beyond the end. The CPU polls them on the rising edge of the fetch
+ * cycle of each opcode: nmi when it rose since the previous fetch, irq when
+ * it is true and I is not set. */
+class interrupt_lines
+{
+public:
+    explicit interrupt_lines(std::span<const irt::u8> lines) noexcept
+      : m_lines(lines)
+    {}
+
+    unsigned at(const int cycle) const noexcept
+    {
+        return cycle <= std::ssize(m_lines)
+                 ? m_lines[static_cast<std::size_t>(cycle - 1)]
+                 : 0u;
+    }
+
+    struct step_result {
+        int       cycles;
+        interrupt kind;
+    };
+
+    /** Runs the interrupt or the instruction whose fetch is the cycle @a
+     * cycle, the first one is 1. */
+    step_result step(cpu_state&         s,
+                     std::span<irt::u8> mem,
+                     const int          cycle) noexcept
+    {
+        const auto nmi = nmi_edge(cycle) or m_nmi_waiting;
+        const auto irq = (at(cycle) & 1u) != 0 and s.i == 0;
+        m_nmi_waiting  = false;
+
+        const auto kind     = nmi   ? interrupt::nmi
+                              : irq ? interrupt::irq
+                                    : interrupt::none;
+        const auto duration = kind == interrupt::none
+                                ? cpu_reference(s, mem)
+                                : cpu_interrupt(s, mem, nmi);
+        for (int k = cycle + 1; k < cycle + duration; ++k)
+            m_nmi_waiting = nmi_edge(k) or m_nmi_waiting;
+
+        return { duration, kind };
+    }
+
+private:
+    bool nmi_edge(const int cycle) noexcept
+    {
+        const auto nmi  = (at(cycle) >> 1) & 1u;
+        const auto edge = nmi == 1u and m_nmi_before == 0u;
+        m_nmi_before    = nmi;
+        return edge;
+    }
+
+    std::span<const irt::u8> m_lines;
+    unsigned                 m_nmi_before  = 0;
+    bool                     m_nmi_waiting = false;
+};
+
 /** The position of sync in the outputs of the CPU. */
 constexpr int cpu_sync = 54;
 
@@ -1785,15 +1870,19 @@ struct cpu_parts {
  *
  * The 16 bits adder computes the target of a branch, pc plus the offset, or
  * the address plus X or Y. The 8 bits adder compares A, X or Y to the operand.
- * Outputs: pc0..pc15, a0..a7, x0..x7, y0..y7, s0..s7, c, v, n, z, i, d then
- * sync, true in t0. */
+ *
+ * The interrupts are polled on the rising edge which ends t0, see
+ * interrupt_lines: a request replaces the opcode by BRK, which then keeps pc,
+ * pushes P without B and reads the vector of NMI or of IRQ. Inputs: irq then
+ * nmi. Outputs: pc0..pc15, a0..a7, x0..x7, y0..y7, s0..s7, c, v, n, z, i, d
+ * then sync, true in t0. */
 circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 {
     const auto& [pc, memory, accumulator, flags, index, stack, reg, adder,
                  comparator, alu_unit] = parts;
 
     circuit ret{ .id  = ids.alloc_generic_component(),
-                 .x   = irt::vector<irt::port_id>(0, irt::reserve_tag),
+                 .x   = irt::vector<irt::port_id>(2, irt::reserve_tag),
                  .y   = irt::vector<irt::port_id>(55, irt::reserve_tag),
                  .clk = std::nullopt };
 
@@ -1803,6 +1892,8 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 
     netlist    n(gen);
     const auto clk = netlist::input(*ret.clk);
+    const auto irq = netlist::input(*ret.x.emplace_back(c.get_or_add_x("irq")));
+    const auto nmi = netlist::input(*ret.x.emplace_back(c.get_or_add_x("nmi")));
     const auto p   = n.child(pc.id);
     const auto mem = n.child(memory.id);
     const auto acc = n.child(accumulator.id);
@@ -2078,6 +2169,26 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
                               t[4]))));
     const auto modified = n.and_(modify_op, n.or_(last, modifying));
 
+    // An edge of nmi waits for the next fetch. The flip-flops hardware and
+    // to_nmi keep, until the next fetch, whether the BRK replaces an opcode
+    // and which vector it reads.
+    const auto nmi_before   = n.gate(dynamics_type::logical_d_flipflop, {});
+    const auto nmi_waiting  = n.gate(dynamics_type::logical_d_flipflop, {});
+    const auto nmi_request  = n.or_(n.and_(nmi, n.not_(nmi_before)),
+                                    nmi_waiting);
+    const auto request      = n.or_(nmi_request,
+                                    n.and_(irq, n.not_(bit(f, flags, 4))));
+    const auto interrupting = n.and_(t0, request);
+    const auto not_t0       = n.not_(t0);
+    const auto hardware = make_loadable_flipflop(n, request, t0, not_t0, clk);
+    const auto to_nmi = make_loadable_flipflop(n, nmi_request, t0, not_t0, clk);
+    for (const auto& [ff, d] :
+         { std::pair{ nmi_before, nmi },
+           std::pair{ nmi_waiting, n.and_(nmi_request, not_t0) } }) {
+        n.link(d, *ff.child, mdl(irt::logical_d_flipflop::port_d));
+        n.link(clk, *ff.child, mdl(irt::logical_d_flipflop::port_clk));
+    }
+
     const std::array<wire, 6> next{
         t0,
         n.and_(t[0], n.any(std::array{ addressed, jmp, taken, stack_op })),
@@ -2133,8 +2244,14 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     const auto write    = n.any(
       std::array{ n.and_(last, stores), pushed, writing_back });
 
-    // The registers: d0..d7 then load.
-    const std::array registers{ std::pair{ ir, t0 }, std::pair{ adl, load_adl },
+    // The registers: d0..d7 then load. An interrupt loads BRK, 0x00, in ir.
+    const auto fetched = n.not_(interrupting);
+    for (int i = 0; i < 8; ++i)
+        n.link(n.and_(fetched, bit(mem, memory, i)), ir, compo(reg.x[i]));
+    n.link(t0, ir, compo(reg.x[8]));
+    link_clk(ir, reg);
+
+    const std::array registers{ std::pair{ adl, load_adl },
                                 std::pair{ adh, load_adh },
                                 std::pair{ dl, load_dl } };
     for (const auto& [r, load] : registers) {
@@ -2146,9 +2263,9 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
 
     // The program counter: d0..d15, load then inc. JMP, JSR, RTS and RTI take
     // adl and the byte read, JMP ($addr) and BRK the byte read before, a
-    // branch the target. pc + 1 in t0, t1 but for the implied operations, t2
-    // but for the stack, the zero page and the pointers, and t5 of RTS: a
-    // load wins.
+    // branch the target. pc + 1 in t0 but for an interrupt, t1 but for the
+    // implied operations and the BRK of an interrupt, t2 but for the stack,
+    // the zero page and the pointers, and t5 of RTS: a load wins.
     const auto from_address = n.any(std::array{ jmp, jsr, rts, rti });
     const auto from_dl      = n.or_(indirect, brk);
     const auto from_memory  = n.or_(from_address, from_dl);
@@ -2163,7 +2280,8 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
     n.link(jump, p, compo(pc.x[16]));
     n.link(
       n.not_(n.any(std::array{
-        t[2], t[3], t[5], n.and_(t[4], n.not_(rts)), n.and_(t[0], implied),
+        interrupting, t[2], t[3], t[5], n.and_(t[4], n.not_(rts)),
+        n.and_(t[0], n.or_(implied, hardware)),
         n.and_(t[1], n.any(std::array{ stack_op, zero_page, pointer })) })),
       p, compo(pc.x[17]));
     link_clk(p, pc);
@@ -2338,15 +2456,17 @@ circuit make_cpu(irt::component_access& ids, const cpu_parts& parts) noexcept
         else if (i == 8)
             address = n.or_(in_stack, address);
 
-        // The vector of BRK: 0xfffe then 0xffff.
-        address = n.or_(address, i == 0 ? n.and_(brk, t[5]) : vector);
+        // The vector: 0xfffe or 0xfffa for NMI, then the next address.
+        address = n.or_(address, i == 0   ? n.and_(brk, t[5])
+                                 : i == 2 ? n.and_(vector, n.not_(to_nmi))
+                                          : vector);
 
         n.link(address, mem, compo(memory.x[i]));
     }
 
     const std::array<wire, 8> status{ bit(f, flags, 0), bit(f, flags, 3),
                                       bit(f, flags, 4), bit(f, flags, 5),
-                                      push_p,           push_p,
+                                      n.not_(hardware), push_p,
                                       bit(f, flags, 1), bit(f, flags, 2) };
     const auto                push_a = n.or_(sta, pha);
     for (int i = 0; i < 8; ++i)
@@ -2709,6 +2829,10 @@ struct cpu_run {
 
     int decimal_operations = 0, breaks = 0;
 
+    /** The interrupts answered, those which push P with I set: an NMI in
+     * the handler of an interrupt or of BRK. */
+    int irqs = 0, nmis = 0, nested_interrupts = 0;
+
     /** The comparisons of a register greater, equal or lower than the
      * operand. */
     int compares_greater = 0, compares_equal = 0, compares_lower = 0;
@@ -2719,24 +2843,33 @@ struct cpu_run {
 
 /** Runs @a instructions instructions of the @a program on the CPU and on the
  * reference, cycle by cycle: sync is true only on the first cycle of an
- * instruction, when the registers show the results of the previous ones. */
+ * instruction, when the registers show the results of the previous ones. The
+ * inputs irq and nmi follow the @a lines, see interrupt_lines, an answered
+ * interrupt counts as an instruction. */
 cpu_run check_cpu(bench_simulation&        sim,
                   std::span<const irt::u8> program,
-                  const int                instructions) noexcept
+                  const int                instructions,
+                  std::span<const irt::u8> lines = {}) noexcept
 {
     cpu_run              run;
     irt::vector<irt::u8> mem(irt::memory_bank::size, irt::u8{ 0 });
     std::copy(program.begin(), program.end(), mem.begin());
     const auto bytes = std::span(mem.data(), mem.size());
 
-    auto dry_run = mem;
-    int  cycles  = 0;
+    auto            dry_run = mem;
+    int             cycles  = 0;
+    interrupt_lines dry_lines(lines);
     for (cpu_state s; const auto i : std::views::iota(0, instructions)) {
         (void)i;
-        cycles += cpu_reference(s, std::span(dry_run.data(), dry_run.size()));
+        cycles += dry_lines
+                    .step(s, std::span(dry_run.data(), dry_run.size()),
+                          cycles + 1)
+                    .cycles;
     }
 
-    cpu_state ref;
+    cpu_state       ref;
+    interrupt_lines reference(lines);
+    unsigned        inputs = 0;
     sim.start(0, cycles);
     for (int i = 0, k = 0; i < instructions; ++i) {
         const auto pc       = ref.pc;
@@ -2746,50 +2879,64 @@ cpu_run check_cpu(bench_simulation&        sim,
                              (indexes_with_y(op) ? ref.y : ref.x) >
                            0xffu;
         const auto decimal  = is_decimal_operation(op) and ref.d;
-        const auto duration = cpu_reference(ref, bytes);
+        const auto masked           = ref.i;
+        const auto [duration, kind] = reference.step(ref, bytes, k + 1);
 
-        if (is_branch(op) and duration > 2)
-            ++run.taken_branches;
-        if (is_branch(op) and duration > 3)
-            ++run.crossed_pages;
-        if ((mode == addressing::absolute_x or
-             mode == addressing::absolute_y) and
-            not writes_at_address(op) and duration > 4) {
-            ++run.indexed_crossings;
-            if (mode == addressing::absolute_y)
-                ++run.y_crossings;
-        }
-        if (mode == addressing::zero_page_x and wraps)
-            ++run.zero_page_wraps;
-        if (op == opcode::jsr_abs)
-            ++run.calls;
-        if (is_read_modify_write(op))
-            ++run.read_modify_writes;
-        if (op == opcode::jmp_ind)
-            ++run.indirect_jumps;
-        if (has_modes(op) and
-            (mode == addressing::indirect_x or mode == addressing::indirect_y))
-            ++run.pointer_operands;
-        if (has_modes(op) and mode == addressing::indirect_y and
-            not is_store(op) and duration > 5)
-            ++run.pointer_crossings;
-        if (decimal)
-            ++run.decimal_operations;
-        if (op == opcode::brk)
-            ++run.breaks;
-        if (op == opcode::pha or op == opcode::php or op == opcode::jsr_abs or
-            op == opcode::brk)
+        if (kind != interrupt::none) {
+            ++(kind == interrupt::irq ? run.irqs : run.nmis);
+            if (masked)
+                ++run.nested_interrupts;
             run.lowest_push = std::min(run.lowest_push, (ref.s + 1u) & 0xffu);
-        if (is_compare(op)) {
-            if (ref.z)
-                ++run.compares_equal;
-            else if (ref.c)
-                ++run.compares_greater;
-            else
-                ++run.compares_lower;
+        } else {
+            if (is_branch(op) and duration > 2)
+                ++run.taken_branches;
+            if (is_branch(op) and duration > 3)
+                ++run.crossed_pages;
+            if ((mode == addressing::absolute_x or
+                 mode == addressing::absolute_y) and
+                not writes_at_address(op) and duration > 4) {
+                ++run.indexed_crossings;
+                if (mode == addressing::absolute_y)
+                    ++run.y_crossings;
+            }
+            if (mode == addressing::zero_page_x and wraps)
+                ++run.zero_page_wraps;
+            if (op == opcode::jsr_abs)
+                ++run.calls;
+            if (is_read_modify_write(op))
+                ++run.read_modify_writes;
+            if (op == opcode::jmp_ind)
+                ++run.indirect_jumps;
+            if (has_modes(op) and (mode == addressing::indirect_x or
+                                   mode == addressing::indirect_y))
+                ++run.pointer_operands;
+            if (has_modes(op) and mode == addressing::indirect_y and
+                not is_store(op) and duration > 5)
+                ++run.pointer_crossings;
+            if (decimal)
+                ++run.decimal_operations;
+            if (op == opcode::brk)
+                ++run.breaks;
+            if (op == opcode::pha or op == opcode::php or
+                op == opcode::jsr_abs or op == opcode::brk)
+                run.lowest_push = std::min(run.lowest_push,
+                                           (ref.s + 1u) & 0xffu);
+            if (is_compare(op)) {
+                if (ref.z)
+                    ++run.compares_equal;
+                else if (ref.c)
+                    ++run.compares_greater;
+                else
+                    ++run.compares_lower;
+            }
         }
 
         for (int j = 1; j <= duration; ++j) {
+            if (reference.at(k + 1) != inputs) {
+                inputs = reference.at(k + 1);
+                sim.set_inputs(inputs);
+            }
+
             const auto out = sim.cycle();
             ++k;
 
@@ -3892,6 +4039,68 @@ int main()
         expect(gt(run.breaks, 3));
     };
 
+    "cpu-answers-the-interrupt-requests"_test = [] {
+        irt::vector<irt::u8> program(0x80, irt::u8{ 0 });
+        const auto           put = [&](const int                      address,
+                             std::initializer_list<irt::u8> bytes) {
+            std::copy(bytes.begin(), bytes.end(), program.begin() + address);
+        };
+
+        // The vectors: NMI at $0050, IRQ and BRK at $0060. The handler of
+        // IRQ and BRK stores the P pushed, with B for BRK only. The main loop
+        // masks IRQ for a while.
+        put(0x0000, { 0xa2, 0xff });       // LDX #$FF
+        put(0x0002, { 0x9a });             // TXS
+        put(0x0003, { 0xa9, 0x50 });       // LDA #$50
+        put(0x0005, { 0x8d, 0xfa, 0xff }); // STA $FFFA
+        put(0x0008, { 0xa9, 0x60 });       // LDA #$60
+        put(0x000a, { 0x8d, 0xfe, 0xff }); // STA $FFFE
+        put(0x000d, { 0xa9, 0x00 });       // LDA #$00
+        put(0x000f, { 0x8d, 0xfb, 0xff }); // STA $FFFB
+        put(0x0012, { 0x8d, 0xff, 0xff }); // STA $FFFF
+        put(0x0015, { 0x58 });             // CLI
+        put(0x0016, { 0xe8 });             // INX
+        put(0x0017, { 0x6d, 0x00, 0x20 }); // ADC $2000
+        put(0x001a, { 0x8d, 0x00, 0x20 }); // STA $2000
+        put(0x001d, { 0x00, 0x00 });       // BRK
+        put(0x001f, { 0x78 });             // SEI
+        put(0x0020, { 0xe8, 0xe8, 0xe8 }); // INX, INX, INX
+        put(0x0023, { 0x58 });             // CLI
+        put(0x0024, { 0x4c, 0x16, 0x00 }); // JMP $0016
+        put(0x0050, { 0xc8 });             // INY
+        put(0x0051, { 0x40 });             // RTI
+        put(0x0060, { 0x48 });             // PHA
+        put(0x0061, { 0xba });             // TSX
+        put(0x0062, { 0xbd, 0x02, 0x01 }); // LDA $0102,X: P
+        put(0x0065, { 0x8d, 0x01, 0x20 }); // STA $2001
+        put(0x0068, { 0x68 });             // PLA
+        put(0x0069, { 0x40 });             // RTI
+
+        // irq and nmi change at random cycles, inside the instructions too:
+        // irq stays true a while, nmi rises then falls.
+        irt::vector<irt::u8> lines(1200, irt::reserve_tag);
+        std::mt19937         gen(6502u);
+        unsigned             value = 0;
+        for (int k = 0; k < 1200; ++k) {
+            if (gen() % 40 == 0)
+                value ^= 1u;
+            if (gen() % 15 == 0)
+                value ^= 2u;
+            lines.emplace_back(static_cast<irt::u8>(value));
+        }
+
+        irt::modeling mod;
+        const auto    b = mod.ids.write(
+          [&](auto& ids) { return make_cpu_bench(ids, program); });
+
+        bench_simulation sim(mod, b);
+        const auto       run = check_cpu(sim, program, 250, lines);
+        expect(gt(run.irqs, 5));
+        expect(gt(run.nmis, 5));
+        expect(gt(run.nested_interrupts, 0));
+        expect(gt(run.breaks, 1));
+    };
+
     "cpu-runs-random-programs"_test = [] {
         cpu_run total;
 
@@ -4218,7 +4427,7 @@ int main()
         }
 
         irt::modeling    mod;
-        const auto       b = load_bench(mod, dir, "cpu-bench.irt", 0, 55);
+        const auto       b = load_bench(mod, dir, "cpu-bench.irt", 2, 55);
         bench_simulation sim(mod, b);
         check_cpu(sim, program, 30);
     };
