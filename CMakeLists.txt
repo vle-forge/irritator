@@ -8,6 +8,8 @@ include(GNUInstallDirs)
 
 option(WITH_GUI "Build the graphical user interface [default: ON]" ON)
 option(WITH_NATIVE_ARCH "Enable the -march=native flags on GCC/Cang [default: ON]" ON)
+option(WITH_MEMORY_LOG
+  "Log each allocation in irt-mem.txt with the debug code [default: OFF]" OFF)
 
 set(WITH_DEBUG "AUTO" CACHE STRING
     "Enable maximum debug code: ON, OFF or AUTO (ON only for the Debug configuration)")
@@ -19,6 +21,10 @@ elseif (WITH_DEBUG)
   set(IRRITATOR_DEBUG_COND "1")
 else ()
   set(IRRITATOR_DEBUG_COND "0")
+endif ()
+
+if (WITH_MEMORY_LOG)
+  add_compile_definitions(IRRITATOR_ENABLE_MEMORY_LOG)
 endif ()
 
 find_package(Threads REQUIRED)

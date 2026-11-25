@@ -67,10 +67,16 @@ inline constexpr void ensure(T&& assertion) noexcept
 namespace debug {
 
 #ifdef IRRITATOR_ENABLE_DEBUG
-static constexpr bool enable_ensure     = true;
+static constexpr bool enable_ensure = true;
+#else
+static constexpr bool enable_ensure = false;
+#endif
+
+// The log of each allocation in irt-mem.txt slows the debug builds down by an
+// order of magnitude: it is enabled apart.
+#ifdef IRRITATOR_ENABLE_MEMORY_LOG
 static constexpr bool enable_memory_log = true;
 #else
-static constexpr bool enable_ensure     = false;
 static constexpr bool enable_memory_log = false;
 #endif
 
