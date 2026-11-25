@@ -92,7 +92,7 @@ public:
     {
         std::scoped_lock lock(m_mutex);
 
-        return m_slots.ssize();
+        return static_cast<int>(m_slots.ssize());
     }
 
 private:
