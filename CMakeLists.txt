@@ -75,12 +75,11 @@ install(DIRECTORY examples/
   DESTINATION
   ${CMAKE_INSTALL_FULL_DATAROOTDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components)
 
-# The digital circuits written by test-digital-circuits, once the tests ran.
+# The digital circuits written at build time by tools/digital.
 install(DIRECTORY
   ${CMAKE_BINARY_DIR}/app/gui/share/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components/digital
   DESTINATION
-  ${CMAKE_INSTALL_FULL_DATAROOTDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components
-  OPTIONAL)
+  ${CMAKE_INSTALL_FULL_DATAROOTDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components)
 
 enable_testing()
 add_subdirectory(lib)

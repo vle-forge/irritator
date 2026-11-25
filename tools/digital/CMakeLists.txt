@@ -31,3 +31,18 @@ target_compile_definitions(libirritator-digital PRIVATE
 add_executable(irritator-digital main.cpp)
 target_link_libraries(irritator-digital PRIVATE libirritator-digital)
 set_target_properties(irritator-digital PROPERTIES CXX_STANDARD 20)
+
+# The system components of the graphical interface, written again when the
+# generator changes. The bench of the CPU is the last file written.
+set(irritator_digital_components
+  ${CMAKE_BINARY_DIR}/app/gui/share/irritator-${irritator_VERSION_MAJOR}.${irritator_VERSION_MINOR}/components)
+
+add_custom_command(
+  OUTPUT ${irritator_digital_components}/digital/cpu-demo-bench.irt
+  COMMAND irritator-digital ${irritator_digital_components}
+  DEPENDS irritator-digital
+  COMMENT "Writing the 6502 components in ${irritator_digital_components}/digital"
+  VERBATIM)
+
+add_custom_target(digital-components ALL
+  DEPENDS ${irritator_digital_components}/digital/cpu-demo-bench.irt)

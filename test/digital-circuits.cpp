@@ -1483,10 +1483,9 @@ int main()
     };
 
     "memory-content-survives-a-round-trip-through-irt-files"_test = [] {
-        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
         const auto  temp = irt::temp_path_with_unlink{ "memory-content" };
         expect(fatal(temp.success()));
-        const std::string_view dir = keep ? keep : temp.c_str();
+        const std::string_view dir = temp.c_str();
 
         const auto content = random_bytes(200, 2468u);
         {
@@ -2302,10 +2301,9 @@ int main()
     };
 
     "cpu-survives-a-round-trip-through-irt-files"_test = [] {
-        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
         const auto  temp = irt::temp_path_with_unlink{ "cpu" };
         expect(fatal(temp.success()));
-        const std::string_view dir = keep ? keep : temp.c_str();
+        const std::string_view dir = temp.c_str();
 
         // X counts down from 5 and the subroutine adds 3 to A each time: A =
         // 15.
@@ -2405,11 +2403,9 @@ int main()
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {
-        // IRRITATOR_CIRCUITS_DIR keeps the files to open them in the editor.
-        const auto* keep = std::getenv("IRRITATOR_CIRCUITS_DIR");
         const auto  temp = irt::temp_path_with_unlink{ "digital-circuits" };
         expect(fatal(temp.success()));
-        const std::string_view dir = keep ? keep : temp.c_str();
+        const std::string_view dir = temp.c_str();
 
         {
             irt::modeling mod;
