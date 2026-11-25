@@ -330,87 +330,73 @@ status simulation::run() noexcept
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_lambda(*mdl));
 
-    // First, we compute the input_port::capacity.
+    // First, we compute the input_port::capacity and record the input port of
+    // each message. A receiver still in the scheduler is not imminent: it
+    // leaves the scheduler to make its transition in this step.
+    deliveries.clear();
+    bool full = false;
 
-    u32 global_messages_number = 0;
+    for (u32 i = 0, e = static_cast<u32>(active_output_ports.size()); i != e;
+         ++i) {
+        auto* y = output_ports.try_to_get(active_output_ports[i]);
+        if (not y)
+            continue;
 
-    for (const auto y_id : active_output_ports) {
-        if (auto* y = output_ports.try_to_get(y_id)) {
-            y->for_each(
-              models, nodes,
-              [](model& mdl, const auto port_index,
-                 auto& global_messages_number) noexcept {
-                  dispatch(
-                    mdl,
-                    []<typename Dynamics>(
-                      Dynamics& dyn, const auto port_index,
-                      auto& global_messages_number) noexcept {
-                        if constexpr (has_input_port<Dynamics>) {
-                            dyn.x[port_index].capacity += 1u;
-                            dyn.x[port_index].position = 0u;
-                            dyn.x[port_index].size     = 0u;
+        y->for_each(models, nodes, [&](model& mdl, const auto port_index) {
+            dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (has_input_port<Dynamics>) {
+                    auto& x = dyn.x[port_index];
 
-                            global_messages_number += 1;
-                        }
-                    },
-                    port_index, global_messages_number);
-              },
-              global_messages_number);
-        }
+                    // The ports of a model are reset by its transition: the
+                    // first message of the step for a model not imminent. An
+                    // imminent model has tn equal to t, a passive model is
+                    // out of the scheduler.
+                    if (x.capacity == 0 and mdl.tn != t and
+                        std::ranges::all_of(dyn.x, [](const auto& p) {
+                            return p.capacity == 0;
+                        })) {
+                        debug::ensure(mdl.handle != invalid_heap_handle);
+                        if (sched.is_in_tree(mdl.handle))
+                            sched.remove(mdl);
+
+                        immediate_models.emplace_back(models.get_id(mdl));
+                    }
+
+                    x.capacity += 1u;
+                    x.position = 0u;
+                    x.size     = 0u;
+
+                    if (not deliveries.emplace_back(
+                          delivery{ .port = &x, .message = i }))
+                        full = true;
+                }
+            });
+        });
     }
 
-    // Then, we copy the @c active_output_messages on the @c message_buffer
-    // vector according to the @c input_port::capacity, index and position.
-    // A receiver still in the scheduler is not imminent: it leaves the
-    // scheduler to make its transition in this step.
+    if (full)
+        return make_error(simulation_errc::emitting_output_ports_full);
 
-    message_buffer.resize(global_messages_number);
+    // Then, we copy the @c active_output_messages on the @c message_buffer
+    // according to the @c input_port::capacity: the messages of a port follow
+    // each other.
+    message_buffer.resize(deliveries.size());
     u32 global_position = 0;
 
-    for (auto i = 0; i < active_output_ports.ssize(); ++i) {
-        if (auto* y = output_ports.try_to_get(active_output_ports[i])) {
-            y->for_each(
-              models, nodes,
-              [this, &global_position](auto& mdl, const auto port_index,
-                                       const auto& msg) {
-                  dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-                      if constexpr (has_input_port<Dynamics>) {
-                          auto& x = dyn.x[port_index];
+    for (const auto& d : deliveries) {
+        auto& x = *d.port;
 
-                          if (x.size == 0) {
-                              x.position = global_position;
-                              global_position += x.capacity;
-
-                              // The first message of the step for a model
-                              // not imminent: an imminent model has tn equal
-                              // to t, a passive model is out of the scheduler.
-                              debug::ensure(mdl.handle != invalid_heap_handle);
-                              const auto first = std::ranges::all_of(
-                                dyn.x,
-                                [](const auto& p) { return p.size == 0; });
-
-                              if (first and mdl.tn != t) {
-                                  if (sched.is_in_tree(mdl.handle))
-                                      sched.remove(mdl);
-
-                                  immediate_models.emplace_back(
-                                    models.get_id(mdl));
-                              }
-                          }
-
-                          const auto start_at = x.position + x.size;
-                          ++x.size;
-
-                          message_buffer[start_at] = msg;
-
-                          if (x.size == x.capacity)
-                              detail::sort_bag(std::span(
-                                message_buffer.data() + x.position, x.size));
-                      }
-                  });
-              },
-              active_output_messages[i]);
+        if (x.size == 0) {
+            x.position = global_position;
+            global_position += x.capacity;
         }
+
+        message_buffer[x.position + x.size] = active_output_messages[d.message];
+        ++x.size;
+
+        if (x.size == x.capacity)
+            detail::sort_bag(
+              std::span(message_buffer.data() + x.position, x.size));
     }
 
     for (const auto id : immediate_models)

@@ -2198,6 +2198,16 @@ public:
     vector<output_port_id> active_output_ports;
     vector<message>        active_output_messages;
     vector<message>        message_buffer;
+
+    /** The input port and the message of each connection of the active output
+     * ports, recorded by the first pass of run(): the second pass fills the
+     * message buffer without looking for the models again. */
+    struct delivery {
+        input_port* port;
+        u32         message;
+    };
+    vector<delivery> deliveries;
+
     vector<parameter>      parameters;
     vector<observer_id>    immediate_observers;
 
@@ -10324,6 +10334,7 @@ inline simulation::simulation(
   , active_output_ports(res.models.value())
   , active_output_messages(res.models.value())
   , message_buffer(res.connections.value())
+  , deliveries(res.connections.value(), reserve_tag)
   , parameters(res.models.value())
   , immediate_observers(res.models.value())
   , models(res.models.value())
@@ -10343,6 +10354,7 @@ inline simulation::simulation(const simulation& other) noexcept
   , active_output_ports(other.active_output_ports)
   , active_output_messages(other.active_output_messages)
   , message_buffer(other.message_buffer)
+  , deliveries(other.deliveries.capacity(), reserve_tag)
   , parameters(other.parameters)
   , immediate_observers(other.immediate_observers)
   , models(other.models)
@@ -10369,6 +10381,7 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     active_output_ports = other.active_output_ports;
     active_output_messages = other.active_output_messages;
     message_buffer      = other.message_buffer;
+    deliveries.clear();
     parameters          = other.parameters;
     immediate_observers = other.immediate_observers;
     models              = other.models;
@@ -10440,6 +10453,7 @@ inline void simulation::destroy() noexcept
     active_output_ports.destroy();
     active_output_messages.destroy();
     message_buffer.destroy();
+    deliveries.destroy();
     parameters.destroy();
     immediate_observers.destroy();
 
@@ -10477,6 +10491,7 @@ inline void simulation::clean() noexcept
     active_output_ports.clear();
     active_output_messages.clear();
     message_buffer.clear();
+    deliveries.clear();
     immediate_observers.clear();
 
     dated_messages.clear();
