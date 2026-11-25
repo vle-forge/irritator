@@ -291,6 +291,63 @@ static bool show_local_simulation_plot_observers_table(
     return is_modified > 0;
 }
 
+static memory_observer* find_memory_observer(project&           pj,
+                                             const tree_node_id tn_id,
+                                             const model_id     mdl_id) noexcept
+{
+    for (auto& mem : pj.memory_observers)
+        if (mem.tn_id == tn_id and mem.mdl_id == mdl_id)
+            return &mem;
+
+    return nullptr;
+}
+
+/** The logical memories of the tree node drawn as a screen. */
+static bool show_local_simulation_memory_observers(project_editor& ed,
+                                                   tree_node&      tn) noexcept
+{
+    const auto tn_id       = ed.pj.tree_nodes.get_id(tn);
+    auto       is_modified = false;
+    auto       header      = false;
+
+    for (sz i = 0, e = tn.unique_id_to_model_id.data.size(); i < e; ++i) {
+        const auto  mdl_id = tn.unique_id_to_model_id.data[i].value.mdl_id;
+        const auto* mdl    = ed.pj.sim.models.try_to_get(mdl_id);
+        if (not mdl or mdl->type != dynamics_type::logical_memory)
+            continue;
+
+        if (not header) {
+            header = true;
+            if (not ImGui::CollapsingHeader("Screen observers",
+                                            ImGuiTreeNodeFlags_DefaultOpen))
+                return false;
+        }
+
+        ImGui::PushID(static_cast<int>(i));
+        auto* mem    = find_memory_observer(ed.pj, tn_id, mdl_id);
+        auto  enable = mem != nullptr;
+
+        ImGui::BeginDisabled(ed.pj.is_task_running());
+        if (ImGui::Checkbox(tn.unique_id_to_model_id.data[i].id.c_str(),
+                            &enable)) {
+            if (enable and (ed.pj.memory_observers.can_alloc() or
+                            ed.pj.memory_observers.grow<2, 1>())) {
+                auto& obs  = ed.pj.alloc_memory_observer();
+                obs.tn_id  = tn_id;
+                obs.mdl_id = mdl_id;
+                obs.name   = tn.unique_id_to_model_id.data[i].id.sv();
+            } else if (not enable and mem) {
+                ed.pj.memory_observers.free(*mem);
+            }
+            is_modified = true;
+        }
+        ImGui::EndDisabled();
+        ImGui::PopID();
+    }
+
+    return is_modified;
+}
+
 static bool show_local_simulation_settings(application&    app,
                                            project_editor& ed,
                                            tree_node&      tn) noexcept
@@ -365,8 +422,13 @@ static bool show_local_simulation_specific_observers(application&    app,
                     return show_local_observers(app, ed, ids, tn, compo, *g);
                 break;
 
-            case component_type::generic:
-                return show_local_simulation_plot_observers_table(ed, ids, tn);
+            case component_type::generic: {
+                const auto plot = show_local_simulation_plot_observers_table(
+                  ed, ids, tn);
+                const auto screen = show_local_simulation_memory_observers(ed,
+                                                                           tn);
+                return plot or screen;
+            }
 
             default:
                 ImGui::TextFormat(
@@ -409,6 +471,86 @@ static void show_local_variables_plot(application&       app,
 // static bool
 // show_simulation_main_observations(application& app, DataArray& d)
 // noexcept {...}
+
+static bool show_simulation_table_memory_observers(project_editor& ed) noexcept
+{
+    auto to_delete   = undefined<memory_observer_id>();
+    bool is_modified = false;
+
+    if (ImGui::BeginTable("Memory observers", 6)) {
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("address");
+        ImGui::TableSetupColumn("rows x columns");
+        ImGui::TableSetupColumn("scale");
+        ImGui::TableSetupColumn("color");
+        ImGui::TableSetupColumn("delete");
+        ImGui::TableHeadersRow();
+
+        for (auto& mem : ed.pj.memory_observers) {
+            ImGui::PushID(get_index(ed.pj.memory_observers.get_id(mem)));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.0f);
+            if (ImGui::InputFilteredString("##name", mem.name))
+                is_modified = true;
+            ImGui::PopItemWidth();
+
+            // The size of the area is checked when the simulation starts.
+            ImGui::BeginDisabled(ed.pj.is_task_running());
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.0f);
+            if (ImGui::InputScalar("##address", ImGuiDataType_U16, &mem.address,
+                                   nullptr, nullptr, "%04X",
+                                   ImGuiInputTextFlags_CharsHexadecimal))
+                is_modified = true;
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.0f);
+            std::array<int, 2> size{ mem.rows, mem.cols };
+            if (ImGui::InputInt2("##size", size.data())) {
+                mem.rows    = std::clamp(size[0], 1, 256);
+                mem.cols    = std::clamp(size[1], 1, 256);
+                is_modified = true;
+            }
+            ImGui::PopItemWidth();
+            ImGui::EndDisabled();
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            if (ImGui::DragFloatRange2("##scale", &mem.scale_min,
+                                       &mem.scale_max, 1.f, 0.f, 255.f))
+                is_modified = true;
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            if (ImPlot::ColormapButton(ImPlot::GetColormapName(mem.color_map),
+                                       ImVec2(225, 0), mem.color_map)) {
+                mem.color_map = (mem.color_map + 1) %
+                                ImPlot::GetColormapCount();
+                is_modified = true;
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::BeginDisabled(ed.pj.is_task_running());
+            if (ImGui::Button("del"))
+                to_delete = ed.pj.memory_observers.get_id(mem);
+            ImGui::EndDisabled();
+
+            ImGui::PopID();
+        }
+
+        ImGui::EndTable();
+    }
+
+    if (is_defined(to_delete)) {
+        ed.pj.memory_observers.free(to_delete);
+        is_modified = true;
+    }
+
+    return is_modified;
+}
 
 static bool show_simulation_table_grid_observers(application& /*app*/,
                                                  project_editor& ed) noexcept
@@ -824,6 +966,9 @@ static bool show_project_observations(application&    app,
             if (not ed.pj.graph_observers.empty())
                 updated += show_simulation_table_graph_observers(app, ed);
 
+            if (not ed.pj.memory_observers.empty())
+                updated += show_simulation_table_memory_observers(ed);
+
             ImGui::TreePop();
         }
 
@@ -846,6 +991,18 @@ static bool show_project_observations(application&    app,
                     }
                     ImGui::TableNextColumn();
                 });
+
+                for (auto& mem : ed.pj.memory_observers) {
+                    app.memory_obs.show(mem, ed.pj, sub_obs_size);
+
+                    ++pos;
+
+                    if (pos >= *ed.tree_node_observation) {
+                        pos = 0;
+                        ImGui::TableNextRow();
+                    }
+                    ImGui::TableNextColumn();
+                }
 
                 pos = show_all_visualisation_editor(app, ed, pos,
                                                     *ed.tree_node_observation);
@@ -905,6 +1062,21 @@ static void show_component_observations(application&    app,
                                }
                                ImGui::TableNextColumn();
                            });
+
+        const auto selected_id = sim_ed.pj.tree_nodes.get_id(selected);
+        for (auto& mem : sim_ed.pj.memory_observers) {
+            if (mem.tn_id != selected_id)
+                continue;
+
+            app.memory_obs.show(mem, sim_ed.pj, sub_obs_size);
+            ++pos;
+
+            if (pos >= *sim_ed.tree_node_observation) {
+                pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        }
 
         pos = show_part_visualisation_editor(app, sim_ed, selected, pos,
                                              *sim_ed.tree_node_observation);

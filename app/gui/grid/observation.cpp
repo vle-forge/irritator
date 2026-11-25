@@ -9,6 +9,41 @@
 
 namespace irt {
 
+void memory_observation_widget::show(memory_observer& mem,
+                                     const project&   pj,
+                                     const ImVec2&    size) noexcept
+{
+    ImGui::PushID(reinterpret_cast<void*>(&mem));
+
+    if (ImGui::BeginChild("memory", size)) {
+        mem.update(pj);
+
+        const auto span = mem.get_values();
+
+        if (span.size() == static_cast<sz>(mem.rows * mem.cols)) {
+            ImPlot::PushColormap(mem.color_map);
+            if (ImPlot::BeginPlot(mem.name.c_str(), ImVec2(-1, -1),
+                                  ImPlotFlags_NoLegend |
+                                    ImPlotFlags_NoMouseText |
+                                    ImPlotFlags_Equal)) {
+                ImPlot::SetupAxes(nullptr, nullptr,
+                                  ImPlotAxisFlags_NoDecorations,
+                                  ImPlotAxisFlags_NoDecorations);
+                ImPlot::PlotHeatmap(mem.name.c_str(), span.data(), mem.rows,
+                                    mem.cols, mem.scale_min, mem.scale_max,
+                                    nullptr);
+                ImPlot::EndPlot();
+            }
+            ImPlot::PopColormap();
+        } else {
+            ImGui::TextUnformatted("Starts the simulation to draw the memory.");
+        }
+    }
+
+    ImGui::EndChild();
+    ImGui::PopID();
+}
+
 void grid_observation_widget::show(grid_observer& grid,
                                    const project& pj,
                                    const ImVec2&  size) noexcept

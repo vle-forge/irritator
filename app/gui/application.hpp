@@ -230,6 +230,15 @@ struct grid_observation_widget {
               const ImVec2&  size) noexcept;
 };
 
+/// Display a @c memory_observer, the screen of a CPU, into an
+/// ImPlot::PlotHeatmap plot. An instance of this class is available in @c
+/// application::memory_obs.
+struct memory_observation_widget {
+    void show(memory_observer& mem,
+              const project&   pj,
+              const ImVec2&    size) noexcept;
+};
+
 /**
  * @brief The file_selector class display triple-combobox to select a file,
  * create new files or directories.
@@ -1669,7 +1678,8 @@ public:
     vector<global_simulation_window> sim_wnds;
 
     plot_observation_widget plot_obs;
-    grid_observation_widget grid_obs;
+    grid_observation_widget   grid_obs;
+    memory_observation_widget memory_obs;
 
     plot_copy_widget plot_copy_wgt;
 
