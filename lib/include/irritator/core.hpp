@@ -481,15 +481,18 @@ struct time_domain<time> {
       negative_infinity              = -std::numeric_limits<real>::infinity();
     static constexpr const real zero = 0;
 
-    static bool is_infinity(time t) noexcept
+    // std::isinf is not constexpr before C++23.
+    static constexpr bool is_infinity(const time t) noexcept
     {
-        return std::fpclassify(t) == FP_INFINITE;
+        return t == infinity or t == negative_infinity;
     }
 };
 
-inline bool is_zero(const std::floating_point auto x) noexcept
+/** True for +0 and -0, as std::fpclassify(x) == FP_ZERO but in one
+ * comparison: it is called for each message of the logical models. */
+constexpr bool is_zero(const std::floating_point auto x) noexcept
 {
-    return std::fpclassify(x) == FP_ZERO;
+    return x == decltype(x){ 0 };
 }
 
 /*****************************************************************************

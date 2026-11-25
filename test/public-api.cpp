@@ -967,6 +967,19 @@ int main()
                irt::time_domain<irt::time>::zero);
         expect(irt::time_domain<irt::time>::zero >
                irt::time_domain<irt::time>::negative_infinity);
+
+        using td = irt::time_domain<irt::time>;
+        static_assert(td::is_infinity(td::infinity));
+        static_assert(td::is_infinity(td::negative_infinity));
+        static_assert(not td::is_infinity(td::zero));
+        static_assert(not td::is_infinity(1e308));
+        static_assert(
+          not td::is_infinity(std::numeric_limits<irt::time>::quiet_NaN()));
+
+        static_assert(irt::is_zero(0.0) and irt::is_zero(-0.0));
+        static_assert(not irt::is_zero(1.0) and not irt::is_zero(-1e-310));
+        static_assert(
+          not irt::is_zero(std::numeric_limits<double>::quiet_NaN()));
     };
 
     "path: extensions of the observation files"_test = [] {
