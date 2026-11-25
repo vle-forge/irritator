@@ -49,7 +49,9 @@ set(private_irritator_sources
     src/project-simulation.cpp
     src/simulation-player.cpp
     src/thread.cpp
-    src/variable-observer.cpp)
+    src/variable-observer.cpp
+    # fmt is built once here instead of in each source with FMT_HEADER_ONLY.
+    ${CMAKE_SOURCE_DIR}/external/fmt/src/format.cc)
 
 add_library(libirritator STATIC ${public_irritator_header} ${private_irritator_sources})
 add_library(libirritator::libirritator ALIAS libirritator)

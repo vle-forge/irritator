@@ -56,7 +56,6 @@ if (MSVC AND CMAKE_GENERATOR MATCHES "Ninja")
   set(CMAKE_JOB_POOL_LINK irritator_link)
 endif ()
 
-add_definitions(-DFMT_HEADER_ONLY)
 include_directories(${CMAKE_SOURCE_DIR}/external/leaf/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/ut/include)
