@@ -794,28 +794,19 @@ constexpr auto get_output_port_names(const dynamics_type type)
       });
 }
 
+// The dispatch of the non-template functions is instantiated once for all
+// the dynamics: a dispatch per dynamics costs seconds of compilation in each
+// source.
 template<typename Dynamics>
 constexpr auto get_input_port_names() -> std::span<const std::string_view>
 {
-    return dispatch_from_dyn<Dynamics>(
-      []<typename Tag>(Tag) noexcept -> std::span<const std::string_view> {
-          if constexpr (have_input_port_type<Tag>)
-              return { Tag::x_names };
-
-          return {};
-      });
+    return get_input_port_names(dynamics_typeof<std::decay_t<Dynamics>>());
 }
 
 template<typename Dynamics>
 constexpr auto get_output_port_names() -> std::span<const std::string_view>
 {
-    return dispatch_from_dyn<Dynamics>(
-      []<typename Tag>(Tag) noexcept -> std::span<const std::string_view> {
-          if constexpr (have_output_port_type<Tag>)
-              return { Tag::y_names };
-
-          return {};
-      });
+    return get_output_port_names(dynamics_typeof<std::decay_t<Dynamics>>());
 }
 
 namespace detail {
