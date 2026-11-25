@@ -2390,10 +2390,9 @@ int main()
                "cpu-demo-bench.irt" })
             expect(std::filesystem::exists(dir / file)) << file;
 
-        // One real per byte, padded to a chunk of the binary file source.
         std::error_code ec;
         expect(eq(std::filesystem::file_size(dir / demo_program_file, ec),
-                  irt::external_source_chunk_size * sizeof(double)));
+                  demo_program().size()));
 
         irt::modeling mod;
         const auto    b = load_bench(mod, temp.c_str(), "cpu-demo-bench.irt", 2,

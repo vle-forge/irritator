@@ -1821,15 +1821,8 @@ irt::status write_program_file(const std::filesystem::path&   file,
                                const std::span<const irt::u8> bytes) noexcept
 {
     std::ofstream ofs(file, std::ios::binary);
-    const auto    count = std::max(
-      std::ssize(bytes), std::ptrdiff_t{ irt::external_source_chunk_size });
-
-    for (std::ptrdiff_t i = 0; i < count; ++i) {
-        const double v = i < std::ssize(bytes)
-                           ? bytes[static_cast<std::size_t>(i)]
-                           : 0.0;
-        ofs.write(reinterpret_cast<const char*>(&v), sizeof(v));
-    }
+    ofs.write(reinterpret_cast<const char*>(bytes.data()),
+              static_cast<std::streamsize>(bytes.size()));
 
     return irt::fail_if(not ofs.good(), std::errc::io_error);
 }

@@ -987,6 +987,8 @@ int main()
         expect(p.has_extension() == file_type::binary_file);
         expect(irt::get_extension("program.bin") == file_type::binary_file);
         expect(irt::has_extension("program.bin", file_type::binary_file));
+        expect(irt::get_extension("program.f64") == file_type::real_file);
+        expect(irt::has_extension("program.f64", file_type::real_file));
     };
 
     "message"_test = [] {

@@ -412,12 +412,13 @@ enum class file_type : u8 {
     project_file,      // .pirt
     irb_file,          // .irb
     irt_manifest_file, // .manifest.jsonl
-    binary_file,       // .bin, the reals of a binary file source
+    binary_file,       // .bin, the bytes of a binary file source
+    real_file,         // .f64, the reals of a binary file source
 };
 
 constexpr static inline std::string_view file_type_names[] = {
-    "",    ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.jsonl",
-    ".bin"
+    "",     ".irt", ".dot", ".desc", ".csv", ".pirt", ".irb", ".manifest.jsonl",
+    ".bin", ".f64"
 };
 
 /// Capacity: 1024 is generous on Linux/macOS/Android (typical PATH_MAX).
@@ -731,6 +732,9 @@ public:
 //! external_source_chunk_size reals: the client @c i reads the chunks @c i, @c
 //! i + max_clients, @c i + 2 * max_clients etc.
 //!
+//! A @c .bin file holds one byte per value instead, as the output of an
+//! assembler: its size is free and its last chunk can be incomplete.
+//!
 //! source::chunk_id[0] is used to store the client identifier.
 //! source::chunk_id[1] is used to store the position (in real) of the chunk
 //! currently in the buffer of the client.
@@ -744,8 +748,9 @@ public:
     //! Number of clients. If zero, @c init() computes the number of clients
     //! from the size of the file (one client by chunk with a maximum of @c
     //! default_max_client_number).
-    u32 max_clients = 1;
-    u64 max_reals   = 0; // number of real in the file.
+    u32  max_clients = 1;
+    u64  max_reals   = 0;     // number of real in the file.
+    bool bytes       = false; // a .bin file: one byte per real.
 
     path          file_path;
     std::ifstream ifs;

@@ -8,6 +8,8 @@
 #include <irritator/format.hpp>
 #include <irritator/random.hpp>
 
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <random>
@@ -147,6 +149,7 @@ binary_file_source::binary_file_source(const binary_file_source& other) noexcept
   , offsets(other.offsets)
   , max_clients(other.max_clients)
   , max_reals(other.max_reals)
+  , bytes(other.bytes)
   , file_path(other.file_path)
   , next_client(other.next_client)
   , next_offset(other.next_offset)
@@ -170,6 +173,7 @@ void binary_file_source::swap(binary_file_source& other) noexcept
     std::swap(offsets, other.offsets);
     std::swap(max_clients, other.max_clients);
     std::swap(max_reals, other.max_reals);
+    std::swap(bytes, other.bytes);
     std::swap(file_path, other.file_path);
     std::swap(next_client, other.next_client);
     std::swap(next_offset, other.next_offset);
@@ -193,8 +197,13 @@ status binary_file_source::init() noexcept
             return make_error(
               simulation_errc::external_source_binary_file_access_error);
 
-        const auto number = static_cast<u64>(size / sizeof(double));
-        const auto chunks = number / external_source_chunk_size;
+        bytes = file_path.has_extension() == file_type::binary_file;
+
+        const auto number = static_cast<u64>(bytes ? size
+                                                   : size / sizeof(double));
+        const auto chunks = bytes ? (number + external_source_chunk_size - 1) /
+                                      external_source_chunk_size
+                                  : number / external_source_chunk_size;
 
         // A client reads at least one complete chunk.
         if (chunks == 0u)
@@ -234,6 +243,15 @@ bool binary_file_source::seekg(const long to_seek) noexcept
 
 bool binary_file_source::read(source& src, const int length) noexcept
 {
+    if (bytes) {
+        std::array<u8, external_source_chunk_size> raw;
+        if (not ifs.read(reinterpret_cast<char*>(raw.data()), length).good())
+            return false;
+
+        std::copy_n(raw.data(), length, src.buffer.data());
+        return true;
+    }
+
     return ifs
       .read(reinterpret_cast<char*>(src.buffer.data()),
             static_cast<std::streamsize>(length) *
@@ -246,6 +264,28 @@ int binary_file_source::tellg() noexcept
     return static_cast<int>(ifs.tellg());
 }
 
+/// A chunk starts at the position @c pos (in real) of the file: a file of
+/// reals only holds complete chunks.
+static bool binary_file_source_has_chunk(const binary_file_source& ext,
+                                         const u64                 pos) noexcept
+{
+    return ext.bytes ? pos < ext.max_reals
+                     : pos + external_source_chunk_size <= ext.max_reals;
+}
+
+/// The buffer of the chunk of the client at the position @c pos: the last
+/// chunk of a file of bytes is shorter.
+static std::span<double> binary_file_source_chunk(binary_file_source& ext,
+                                                  const u64           client,
+                                                  const u64 pos) noexcept
+{
+    const auto length = std::min<u64>(external_source_chunk_size,
+                                      ext.max_reals - pos);
+
+    return std::span(ext.buffers[static_cast<int>(client)])
+      .first(static_cast<std::size_t>(length));
+}
+
 /// Reads the chunk at the position @c data.chunk_id[1] (in real) into the
 /// buffer of the client @c data.chunk_id[0].
 static status binary_file_source_fill_buffer(binary_file_source& ext,
@@ -255,19 +295,19 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
     const auto client = data.chunk_id[0];
     const auto pos    = data.chunk_id[1];
 
-    if (client >= ext.max_clients or
-        pos + external_source_chunk_size > ext.max_reals)
+    if (client >= ext.max_clients or not binary_file_source_has_chunk(ext, pos))
         return make_error(
           simulation_errc::external_source_binary_file_eof_error);
 
-    src.buffer = std::span(ext.buffers[static_cast<int>(client)]);
+    src.buffer = binary_file_source_chunk(ext, client, pos);
 
-    if (not is_numeric_castable<long>(pos * sizeof(double)) or
-        not ext.seekg(static_cast<long>(pos * sizeof(double))))
+    const auto offset = pos * (ext.bytes ? 1u : sizeof(double));
+    if (not is_numeric_castable<long>(offset) or
+        not ext.seekg(static_cast<long>(offset)))
         return make_error(
           simulation_errc::external_source_binary_file_eof_error);
 
-    if (not ext.read(src, external_source_chunk_size))
+    if (not ext.read(src, static_cast<int>(src.buffer.size())))
         return make_error(
           simulation_errc::external_source_binary_file_eof_error);
 
@@ -298,7 +338,7 @@ status binary_file_source::update(source& src, source_data& data) noexcept
                           max_clients;
     const auto next = data.chunk_id[1] + distance;
 
-    if (next + external_source_chunk_size > max_reals)
+    if (not binary_file_source_has_chunk(*this, next))
         return make_error(
           simulation_errc::external_source_binary_file_eof_error);
 
@@ -317,7 +357,8 @@ status binary_file_source::restore(source& src, source_data& data) noexcept
     if (offsets[static_cast<int>(data.chunk_id[0])] != data.chunk_id[1])
         return binary_file_source_fill_buffer(*this, src, data);
 
-    src.buffer = std::span(buffers[static_cast<int>(data.chunk_id[0])]);
+    src.buffer = binary_file_source_chunk(*this, data.chunk_id[0],
+                                          data.chunk_id[1]);
 
     return success();
 }

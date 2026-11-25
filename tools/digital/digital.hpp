@@ -521,8 +521,8 @@ bench make_bench(irt::component_access& ids, const circuit& tested) noexcept;
 irt::dir_path_id make_circuits_dir(irt::modeling&         mod,
                                    const std::string_view dir) noexcept;
 
-/** Writes the bytes of a program as the reals of a binary file source: one
- * real per byte, padded with zeros to a chunk of the source. */
+/** Writes the bytes of a program in a .bin file, as an assembler does: a
+ * binary file source reads one byte per value from a .bin file. */
 irt::status write_program_file(const std::filesystem::path&   file,
                                const std::span<const irt::u8> bytes) noexcept;
 

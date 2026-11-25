@@ -230,7 +230,7 @@ int main()
     };
 
     "binary: each client reads its own chunks"_test = [] {
-        temp_file f("binary-clients.bin");
+        temp_file f("binary-clients.f64");
         const int total = 4 * external_source_chunk_size + 100;
         write_binary_file(f, total);
 
@@ -268,7 +268,7 @@ int main()
     };
 
     "binary: the number of clients from the size of the file"_test = [] {
-        temp_file f("binary-auto.bin");
+        temp_file f("binary-auto.f64");
         write_binary_file(f, 3 * external_source_chunk_size);
 
         external_source srcs(
@@ -281,7 +281,7 @@ int main()
     };
 
     "binary: a client reads at least one chunk"_test = [] {
-        temp_file f("binary-small.bin");
+        temp_file f("binary-small.f64");
         write_binary_file(f, external_source_chunk_size - 1);
 
         external_source srcs(
@@ -290,7 +290,7 @@ int main()
         bin.max_clients = 1;
         expect(srcs.prepare().has_error());
 
-        temp_file f2("binary-small-clients.bin");
+        temp_file f2("binary-small-clients.f64");
         write_binary_file(f2, 2 * external_source_chunk_size);
         bin.file_path   = f2.get();
         bin.max_clients = 3;
@@ -298,6 +298,81 @@ int main()
 
         bin.max_clients = 2;
         expect(srcs.prepare().has_value());
+    };
+
+    "binary: a .bin file holds one byte per value"_test = [] {
+        temp_file f("binary-bytes.bin");
+        const int total = 2 * external_source_chunk_size + 7;
+        {
+            std::ofstream ofs(f.std_path, std::ios::binary);
+            for (int i = 0; i < total; ++i)
+                ofs.put(static_cast<char>(i % 251));
+        }
+
+        external_source srcs(
+          external_source_reserve_definition{ .binary_file_nb = 1 });
+        auto& bin       = srcs.binary_file_sources.alloc(f.get());
+        bin.max_clients = 0;
+        expect(srcs.prepare().has_value() >> boost::ut::fatal);
+        expect(bin.bytes);
+        expect(eq(bin.max_reals, static_cast<u64>(total)));
+        expect(eq(bin.max_clients, 3u)); // the last chunk is incomplete
+
+        const auto  id = srcs.binary_file_sources.get_id(bin);
+        source      src(id);
+        source_data data;
+        bin.max_clients = 1;
+        expect(srcs.prepare().has_value() >> boost::ut::fatal);
+        expect(bin.init(src, data).has_value() >> boost::ut::fatal);
+
+        bool ok = true;
+        for (int i = 0; i < total; ++i)
+            ok = ok and next(srcs, src, data) == static_cast<double>(i % 251);
+        expect(ok);
+
+        // The last chunk ends with the file.
+        expect(src.is_empty());
+        expect(srcs.update_source(src, data).has_error());
+    };
+
+    "binary: a short .bin file restores its last chunk"_test = [] {
+        temp_file f("binary-short.bin");
+        {
+            std::ofstream ofs(f.std_path, std::ios::binary);
+            ofs.write("\x01\x02\x03", 3);
+        }
+
+        external_source srcs(
+          external_source_reserve_definition{ .binary_file_nb = 1 });
+        auto& bin = srcs.binary_file_sources.alloc(f.get());
+        expect(srcs.prepare().has_value() >> boost::ut::fatal);
+
+        const auto  id = srcs.binary_file_sources.get_id(bin);
+        source      src(id);
+        source_data data;
+        expect(bin.init(src, data).has_value() >> boost::ut::fatal);
+        expect(eq(src.buffer.size(), 3u));
+        expect(eq(src.next(), 1.0));
+
+        // The buffer of a source is not saved with the state of a simulation.
+        src.buffer = {};
+        expect(srcs.restore_source(src, data).has_value() >> boost::ut::fatal);
+        expect(eq(src.buffer.size(), 3u));
+        expect(eq(src.next(), 2.0));
+        expect(eq(src.next(), 3.0));
+        expect(src.is_empty());
+    };
+
+    "binary: an empty .bin file"_test = [] {
+        temp_file f("binary-empty.bin");
+        {
+            std::ofstream ofs(f.std_path, std::ios::binary);
+        }
+
+        external_source srcs(
+          external_source_reserve_definition{ .binary_file_nb = 1 });
+        srcs.binary_file_sources.alloc(f.get());
+        expect(srcs.prepare().has_error());
     };
 
     "binary: missing file"_test = [] {
@@ -308,7 +383,7 @@ int main()
     };
 
     "binary: restore the chunk of a previous state"_test = [] {
-        temp_file f("binary-restore.bin");
+        temp_file f("binary-restore.f64");
         write_binary_file(f, 8 * external_source_chunk_size);
 
         external_source srcs(
@@ -488,7 +563,7 @@ int main()
     };
 
     "simulation: generators share a binary file"_test = [] {
-        temp_file f("binary-sim.bin");
+        temp_file f("binary-sim.f64");
         write_binary_file(f, 8 * external_source_chunk_size);
 
         simulation sim(
@@ -572,7 +647,7 @@ int main()
     "simulation: dump and load with file sources"_test = [] {
         temp_file ftxt("text-dump.txt");
         write_text_file(ftxt, 2000);
-        temp_file fbin("binary-dump.bin");
+        temp_file fbin("binary-dump.f64");
         write_binary_file(fbin, 8 * external_source_chunk_size);
 
         const auto build = [&](simulation& sim) {
