@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -795,10 +796,34 @@ struct cpu_run {
  * instruction, when the registers show the results of the previous ones. The
  * inputs irq and nmi follow the @a lines, see interrupt_lines, an answered
  * interrupt counts as an instruction. */
+/** Prints the progress of a long run every @a progress cycles. */
+void report_progress(const irt::i64                              cycle,
+                     const irt::i64                              cycles,
+                     const unsigned                              pc,
+                     const std::chrono::steady_clock::time_point start) noexcept
+{
+    const auto seconds = std::chrono::duration<double>(
+                           std::chrono::steady_clock::now() - start)
+                           .count();
+    const auto speed = seconds > 0.0 ? static_cast<double>(cycle) / seconds
+                                     : 0.0;
+    const auto left  = speed > 0.0 ? static_cast<double>(cycles - cycle) / speed
+                                   : 0.0;
+
+    std::printf("%lld / %lld cycles (%.1f%%), pc $%04X, %.0f cycles/s, "
+                "%.0f s left\n",
+                static_cast<long long>(cycle), static_cast<long long>(cycles),
+                100.0 * static_cast<double>(cycle) /
+                  static_cast<double>(cycles),
+                pc, speed, left);
+    std::fflush(stdout);
+}
+
 cpu_run check_cpu(bench_simulation&        sim,
                   std::span<const irt::u8> program,
                   const int                instructions,
-                  std::span<const irt::u8> lines = {}) noexcept
+                  std::span<const irt::u8> lines    = {},
+                  const irt::i64           progress = 0) noexcept
 {
     cpu_run              run;
     irt::vector<irt::u8> mem(irt::memory_bank::size, irt::u8{ 0 });
@@ -819,6 +844,7 @@ cpu_run check_cpu(bench_simulation&        sim,
     cpu_state       ref;
     interrupt_lines reference(lines);
     unsigned        inputs = 0;
+    const auto      start  = std::chrono::steady_clock::now();
     sim.start(0, cycles);
     for (int i = 0, k = 0; i < instructions; ++i) {
         const auto pc    = ref.pc;
@@ -888,6 +914,9 @@ cpu_run check_cpu(bench_simulation&        sim,
 
             const auto out = sim.cycle();
             ++k;
+
+            if (progress > 0 and k % progress == 0)
+                report_progress(k, cycles, ref.pc, start);
 
             if (j < duration)
                 boost::ut::expect(boost::ut::eq((out >> cpu_sync) & 1u, 0u))
@@ -1026,7 +1055,7 @@ int main(int argc, const char* argv[])
         });
 
         bench_simulation sim(mod, b);
-        check_cpu(sim, image, instructions);
+        check_cpu(sim, image, instructions, {}, 5'000'000);
     };
 
     "inverter-sends-its-initial-value"_test = [] {
