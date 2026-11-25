@@ -1894,4 +1894,112 @@ bench make_cpu_bench(irt::component_access&   ids,
     return make_bench(ids, make_cpu(ids, make_cpu_parts(ids, program)));
 }
 
+namespace {
+
+constexpr std::array<irt::u8, 0x3e> fibonacci_program = [] {
+    std::array<irt::u8, 0x3e> bytes{};
+    const auto put = [&](const int address, std::initializer_list<irt::u8> b) {
+        std::copy(b.begin(), b.end(), bytes.begin() + address);
+    };
+
+    put(0x0000, { 0xa2, 0xff });       // LDX #$FF
+    put(0x0002, { 0x9a });             // TXS
+    put(0x0003, { 0xf8 });             // SED
+    put(0x0004, { 0xa9, 0x00 });       // LDA #$00
+    put(0x0006, { 0x85, 0x10 });       // STA $10
+    put(0x0008, { 0xa9, 0x03 });       // LDA #$03
+    put(0x000a, { 0x85, 0x11 });       // STA $11: ($10) = $0300
+    put(0x000c, { 0xa9, 0x00 });       // LDA #$00
+    put(0x000e, { 0x85, 0x12 });       // STA $12
+    put(0x0010, { 0xa9, 0x01 });       // LDA #$01
+    put(0x0012, { 0x85, 0x13 });       // STA $13
+    put(0x0014, { 0xa0, 0x00 });       // LDY #$00
+    put(0x0016, { 0x20, 0x30, 0x00 }); // JSR $0030
+    put(0x0019, { 0xb0, 0xe9 });       // BCS $0004: beyond 99
+    put(0x001b, { 0x91, 0x10 });       // STA ($10),Y
+    put(0x001d, { 0xc8 });             // INY
+    put(0x001e, { 0xe8 });             // INX
+    put(0x001f, { 0x4c, 0x16, 0x00 }); // JMP $0016
+    put(0x0030, { 0x18 });             // CLC
+    put(0x0031, { 0xa5, 0x12 });       // LDA $12
+    put(0x0033, { 0x65, 0x13 });       // ADC $13: the next number
+    put(0x0035, { 0x48 });             // PHA
+    put(0x0036, { 0xa5, 0x13 });       // LDA $13
+    put(0x0038, { 0x85, 0x12 });       // STA $12
+    put(0x003a, { 0x68 });             // PLA
+    put(0x003b, { 0x85, 0x13 });       // STA $13
+    put(0x003d, { 0x60 });             // RTS
+
+    return bytes;
+}();
+
+} // namespace
+
+std::span<const irt::u8> demo_program() noexcept { return fibonacci_program; }
+
+irt::status generate(const std::string_view dir) noexcept
+{
+    irt::modeling mod;
+    const auto    dir_id = make_circuits_dir(mod, dir);
+
+    irt_check(write_program_file(std::filesystem::path(dir) / "digital" /
+                                   demo_program_file,
+                                 demo_program()));
+    const auto file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, demo_program_file,
+                             irt::file_type::binary_file);
+    });
+
+    const auto compo = mod.ids.write([&](auto& ids) {
+        const auto      fa      = make_full_adder(ids);
+        const auto      adder_8 = make_adder<8>(ids, fa);
+        const auto      alu     = make_alu(ids, adder_8);
+        const auto      alu_b   = make_bench(ids, alu);
+        const auto      reg     = make_register<8>(ids);
+        const cpu_parts parts{ .pc     = make_program_counter(ids),
+                               .memory = make_memory(ids, demo_program(), file),
+                               .accumulator = make_accumulator(ids, alu, reg),
+                               .flags       = make_flags(ids),
+                               .index       = make_index_registers(ids, reg),
+                               .stack       = make_stack_pointer(ids, reg),
+                               .reg         = reg,
+                               .adder = as_circuit(make_adder<16>(ids, fa)),
+                               .comparator = as_circuit(adder_8),
+                               .alu        = alu };
+        const auto      cpu   = make_cpu(ids, parts);
+        const auto      cpu_b = make_bench(ids, cpu);
+
+        return std::array{ fa.id,
+                           adder_8.id,
+                           parts.adder.id,
+                           alu.id,
+                           alu_b.id,
+                           reg.id,
+                           parts.accumulator.id,
+                           parts.flags.id,
+                           parts.index.id,
+                           parts.stack.id,
+                           parts.pc.id,
+                           parts.memory.id,
+                           cpu.id,
+                           cpu_b.id };
+    });
+
+    return save_circuits(mod, dir_id,
+                         { { compo[0], "full-adder.irt" },
+                           { compo[1], "adder-8.irt" },
+                           { compo[2], "adder-16.irt" },
+                           { compo[3], "alu-8.irt" },
+                           { compo[4], "alu-bench.irt" },
+                           { compo[5], "register-8.irt" },
+                           { compo[6], "accumulator.irt" },
+                           { compo[7], "flags.irt" },
+                           { compo[8], "index-registers.irt" },
+                           { compo[9], "stack-pointer.irt" },
+                           { compo[10], "program-counter.irt" },
+                           { compo[11], "cpu-demo-memory.irt" },
+                           { compo[12], "cpu-demo.irt" },
+                           { compo[13], "cpu-demo-bench.irt" } });
+}
+
 } // namespace irt::digital

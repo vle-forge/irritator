@@ -547,6 +547,20 @@ cpu_parts make_cpu_parts(irt::component_access&   ids,
 bench make_cpu_bench(irt::component_access&   ids,
                      std::span<const irt::u8> program) noexcept;
 
+/** The name of the file of the demonstration program, next to its memory. */
+constexpr std::string_view demo_program_file = "6502-demo.bin";
+
+/** The demonstration program, from the address 0: the Fibonacci numbers in
+ * decimal, stored from $0300 until they pass 99, then again. X counts the
+ * numbers. */
+std::span<const irt::u8> demo_program() noexcept;
+
+/** Writes the components of the 6502 in @c dir/digital, to open them as the
+ * system components of the graphical interface: the parts of the CPU, a
+ * bench of the ALU, and a bench of a CPU whose memory reads the demonstration
+ * program from @c demo_program_file. */
+irt::status generate(std::string_view dir) noexcept;
+
 } // namespace irt::digital
 
 #endif

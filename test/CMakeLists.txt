@@ -51,7 +51,7 @@ irritator_add_test(test-binary binary-tests.cpp)
 irritator_add_test(test-container containers.cpp)
 irritator_add_test(test-dama dama.cpp)
 irritator_add_test(test-digital-circuits digital-circuits.cpp)
-target_link_libraries(test-digital-circuits irritator-digital)
+target_link_libraries(test-digital-circuits libirritator-digital)
 # The circuits saved by the tests go to the system components of the GUI.
 set_tests_properties(test-digital-circuits PROPERTIES ENVIRONMENT
   "IRRITATOR_CIRCUITS_DIR=${CMAKE_BINARY_DIR}/app/gui/share/irritator-${irritator_VERSION_MAJOR}.${irritator_VERSION_MINOR}/components")
