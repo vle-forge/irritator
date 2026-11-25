@@ -1500,6 +1500,9 @@ private:
     static T* allocate_raw(size_type n) noexcept;
     void      deallocate_raw() noexcept;
 
+    template<typename... Args>
+    irt_noinline_attribute T* emplace_back_grow(Args&&... args) noexcept;
+
 public:
     constexpr vector() noexcept = default;
     ~vector() noexcept;
@@ -1540,9 +1543,9 @@ public:
     iterator emplace(const_iterator pos, Args&&... args) noexcept;
 
     template<typename... Args>
-    T*   emplace_back(Args&&... args) noexcept;
-    T*   push_back(const T& value) noexcept;
-    T*   push_back(T&& value) noexcept;
+    irt_force_inline_attribute T* emplace_back(Args&&... args) noexcept;
+    T*                            push_back(const T& value) noexcept;
+    T*                            push_back(T&& value) noexcept;
     void pop_back() noexcept;
     void push_back_unsafe(const T& value) noexcept;
     void swap_pop_back(std::integral auto i) noexcept;
@@ -5440,13 +5443,30 @@ void vector<T, A>::swap(vector& other) noexcept
 
 template<typename T, typename A>
 template<typename... Args>
-T* vector<T, A>::emplace_back(Args&&... args) noexcept
+irt_force_inline_attribute T* vector<T, A>::emplace_back(
+  Args&&... args) noexcept
 {
-    if (m_size >= m_capacity && !grow<2, 1>(1))
+    if (m_size < m_capacity) [[likely]] {
+        T* ptr = m_data + m_size;
+        std::construct_at(ptr, std::forward<Args>(args)...);
+        ++m_size;
+        return ptr;
+    }
+
+    return emplace_back_grow(std::forward<Args>(args)...);
+}
+
+template<typename T, typename A>
+template<typename... Args>
+irt_noinline_attribute T* vector<T, A>::emplace_back_grow(
+  Args&&... args) noexcept
+{
+    if (not grow<2, 1>(1))
         return nullptr;
+
     T* ptr = m_data + m_size;
     std::construct_at(ptr, std::forward<Args>(args)...);
-    m_size++;
+    ++m_size;
     return ptr;
 }
 

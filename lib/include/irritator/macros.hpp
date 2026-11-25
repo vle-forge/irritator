@@ -26,6 +26,15 @@
 #define irt_force_inline_attribute inline
 #endif
 
+// Keeps a rare path, as a reallocation, out of the inlined common path.
+#if defined(__GNUC__) || defined(__clang__)
+#define irt_noinline_attribute [[gnu::noinline]]
+#elif defined(_MSC_VER)
+#define irt_noinline_attribute __declspec(noinline)
+#else
+#define irt_noinline_attribute
+#endif
+
 namespace irt {
 
 using i8  = int8_t;
