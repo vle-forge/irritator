@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
-project(irritator-cli VERSION 0.1.0.0 LANGUAGES CXX)
+project(irritator-test VERSION 0.1.0.0 LANGUAGES CXX)
 
 function(irritator_add_test test_name)
   add_executable(${test_name} utils.hpp;${ARGN})
@@ -11,7 +11,7 @@ function(irritator_add_test test_name)
   target_compile_options(${test_name} BEFORE
     PRIVATE
     $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:GNU>>:
-        -pipe -march=native
+        $<IF:$<BOOL:${WITH_NATIVE_ARCH}>,-pipe -march=native,-pipe>
         $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
         /utf-8 /EHsc /bigobj /Zc:__cplusplus /wd4251 /wd5030 /std:c++latest
