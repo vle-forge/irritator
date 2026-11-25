@@ -28,6 +28,34 @@ set_property(TARGET threads PROPERTY
 
 find_package(Fontconfig)
 
+# Each MSVC compiler takes several gigabytes on the largest sources: Ninja
+# runs one per logical core and exhausts the memory. The pools limit the
+# compilers to half the cores and to one per 4 GiB of memory.
+if (MSVC AND CMAKE_GENERATOR MATCHES "Ninja")
+  cmake_host_system_information(RESULT irritator_cores
+    QUERY NUMBER_OF_LOGICAL_CORES)
+  cmake_host_system_information(RESULT irritator_memory
+    QUERY TOTAL_PHYSICAL_MEMORY)
+  math(EXPR irritator_jobs "${irritator_cores} / 2")
+  math(EXPR irritator_jobs_memory "${irritator_memory} / 4096")
+  if (irritator_jobs_memory LESS irritator_jobs)
+    set(irritator_jobs ${irritator_jobs_memory})
+  endif ()
+  if (irritator_jobs LESS 1)
+    set(irritator_jobs 1)
+  endif ()
+
+  set(IRRITATOR_COMPILE_JOBS ${irritator_jobs} CACHE STRING
+    "Maximum number of parallel MSVC compilations with Ninja")
+  set(IRRITATOR_LINK_JOBS 2 CACHE STRING
+    "Maximum number of parallel MSVC links with Ninja")
+  set_property(GLOBAL APPEND PROPERTY JOB_POOLS
+    irritator_compile=${IRRITATOR_COMPILE_JOBS}
+    irritator_link=${IRRITATOR_LINK_JOBS})
+  set(CMAKE_JOB_POOL_COMPILE irritator_compile)
+  set(CMAKE_JOB_POOL_LINK irritator_link)
+endif ()
+
 add_definitions(-DFMT_HEADER_ONLY)
 include_directories(${CMAKE_SOURCE_DIR}/external/leaf/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/fmt/include)
