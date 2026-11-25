@@ -457,8 +457,9 @@ static bool display_binary_source(
                 if (const auto* f = fs.file_paths.try_to_get(tab.file.file)) {
                     if (fs.dir_paths.try_to_get(f->parent)) {
                         const auto old = bin.file;
-                        bin.file = show_data_file_input(fs, f->parent, bin.file,
-                                                        file_type::binary_file);
+                        bin.file       = show_data_file_input(
+                          fs, f->parent, bin.file,
+                          { file_type::binary_file, file_type::real_file });
 
                         return old != bin.file;
                     }

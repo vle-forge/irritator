@@ -6,6 +6,8 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling-helpers.hpp>
 
+#include <algorithm>
+
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
@@ -92,10 +94,11 @@ static void display_allocate_external_source(application&    app,
     }
 }
 
-auto show_data_file_input(const file_access& fs,
-                          const dir_path_id  dir_id,
-                          const file_path_id file_id,
-                          const file_type    type) noexcept -> file_path_id
+auto show_data_file_input(const file_access&               fs,
+                          const dir_path_id                dir_id,
+                          const file_path_id               file_id,
+                          std::initializer_list<file_type> types) noexcept
+  -> file_path_id
 {
     auto ret = undefined<file_path_id>();
 
@@ -110,7 +113,9 @@ auto show_data_file_input(const file_access& fs,
                 if (const auto* file = fs.file_paths.try_to_get(f_id)) {
                     const auto sv = file->path.sv();
 
-                    if (has_extension(sv, type)) {
+                    if (std::ranges::any_of(types, [&](const auto type) {
+                            return has_extension(sv, type);
+                        })) {
                         if (ImGui::Selectable(file->path.c_str(),
                                               file_id == f_id)) {
                             ret = f_id;

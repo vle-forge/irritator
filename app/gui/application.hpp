@@ -14,6 +14,7 @@
 #include <irritator/thread.hpp>
 
 #include <filesystem>
+#include <initializer_list>
 
 #include "dialog.hpp"
 
@@ -58,16 +59,16 @@ enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
  * @c fs To perform access to the file system.
  * @c dir_id The directory path to search a file.
  * @c file_id The current file selected.
- * @c type The extension of the files proposed.
+ * @c types The extensions of the files proposed.
  *
  * @return @a undefined<file_id>() if the @a dir_id is undefined or if the user
  * select nothing otherwise return a valid @a file_path_id.
  */
-auto show_data_file_input(const file_access& fs,
-                          const dir_path_id  dir_id,
-                          const file_path_id file_id,
-                          const file_type type = file_type::data_file) noexcept
-  -> file_path_id;
+auto show_data_file_input(const file_access&               fs,
+                          const dir_path_id                dir_id,
+                          const file_path_id               file_id,
+                          std::initializer_list<file_type> types = {
+                            file_type::data_file }) noexcept -> file_path_id;
 
 /** Display combobox and input real, input integer for each type of random
  * distribution. The @c random_source @c src is updated according to user
