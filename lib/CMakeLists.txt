@@ -47,6 +47,7 @@ set(private_irritator_sources
     src/parameter.cpp
     src/project.cpp
     src/project-simulation.cpp
+    src/simulation.cpp
     src/simulation-player.cpp
     src/thread.cpp
     src/variable-observer.cpp
