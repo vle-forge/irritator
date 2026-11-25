@@ -657,6 +657,10 @@ private:
         return outputs;
     }
 
+public:
+    irt::project& project() noexcept { return m_pj; }
+
+private:
     irt::project m_pj;
     const bench& m_bench;
     int          m_cycle = 0;
@@ -2479,18 +2483,80 @@ int main()
                "alu-bench.irt", "register-8.irt", "accumulator.irt",
                "flags.irt", "index-registers.irt", "stack-pointer.irt",
                "program-counter.irt", "cpu-demo-memory.irt", "cpu-demo.irt",
-               "cpu-demo-bench.irt" })
+               "cpu-demo-bench.irt", "cpu-screen-memory.irt", "cpu-screen.irt",
+               "cpu-screen-bench.irt" })
             expect(std::filesystem::exists(dir / file)) << file;
 
         std::error_code ec;
         expect(eq(std::filesystem::file_size(dir / demo_program_file, ec),
                   demo_program().size()));
+        expect(eq(std::filesystem::file_size(dir / screen_program_file, ec),
+                  screen_program().size()));
 
         irt::modeling mod;
         const auto    b = load_bench(mod, temp.c_str(), "cpu-demo-bench.irt", 2,
                                      55);
         bench_simulation sim(mod, b);
         check_cpu(sim, demo_program(), 200);
+
+        // The project of the screen draws the memory of its CPU.
+        auto pj = mod.ids.read([&](const auto& ids, auto) {
+            return mod.files.read([&](const auto& fs, auto) {
+                irt::file_path_id file = irt::undefined<irt::file_path_id>();
+                for (const auto& f : fs.file_paths)
+                    if (f.path.sv() == screen_project_file)
+                        file = fs.file_paths.get_id(f);
+
+                return irt::project::load(fs, ids, file);
+            });
+        });
+        expect(fatal(pj.has_value()));
+        expect(fatal(eq(pj->memory_observers.size(), 1u)));
+        const auto& screen = *pj->memory_observers.begin();
+        expect(eq(screen.address, screen_address));
+        expect(eq(screen.rows, screen_size));
+        expect(eq(screen.cols, screen_size));
+    };
+
+    "cpu-draws-on-the-screen"_test = [] {
+        const auto temp = irt::temp_path_with_unlink{ "screen" };
+        expect(fatal(temp.success()));
+        expect(fatal(generate(temp.c_str()).has_value()));
+
+        irt::modeling mod;
+        const auto b = load_bench(mod, temp.c_str(), "cpu-screen-bench.irt", 2,
+                                  55);
+        bench_simulation sim(mod, b);
+
+        // The 9 first instructions prepare the frame, a pixel takes 17.
+        constexpr int pixels = 40;
+        check_cpu(sim, screen_program(), 9 + 17 * pixels);
+
+        auto&               pj = sim.project();
+        irt::unique_id_path path;
+        path.emplace_back("circuit");
+        path.emplace_back("memory");
+        path.emplace_back("ram");
+        const auto ram = pj.get_model_path(path);
+        expect(fatal(ram.has_value()));
+        expect(fatal(pj.memory_observers.reserve(1)));
+
+        auto& screen  = pj.alloc_memory_observer();
+        screen.tn_id  = ram->first;
+        screen.mdl_id = ram->second;
+        expect(fatal(screen.init(pj).has_value()));
+        screen.update(pj);
+
+        const auto values = screen.get_values();
+        expect(fatal(eq(values.size(),
+                        static_cast<std::size_t>(screen_size * screen_size))));
+        bool drawn = true;
+        for (int i = 0; i < 2 * screen_size; ++i) {
+            const auto x = i % screen_size, y = i / screen_size;
+            const auto color = i < pixels ? (x + y) & 15 : 0;
+            drawn = drawn and values[static_cast<std::size_t>(i)] == color;
+        }
+        expect(drawn);
     };
 
     "alu-8-bits-survives-a-round-trip-through-irt-files"_test = [] {

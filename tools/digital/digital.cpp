@@ -1807,7 +1807,7 @@ irt::dir_path_id make_circuits_dir(irt::modeling&         mod,
                                    const std::string_view dir) noexcept
 {
     return mod.files.write([&](auto& fs) {
-        const auto reg                   = fs.alloc_registred("circuits", 0);
+        const auto reg                   = fs.alloc_registred("system", 0);
         fs.registred_paths.get(reg).path = dir;
 
         const auto id               = fs.alloc_dir(reg);
@@ -1929,41 +1929,141 @@ constexpr std::array<irt::u8, 0x3e> fibonacci_program = [] {
     return bytes;
 }();
 
+// Each pixel of the screen takes the color (x + y + frame) & 15: the
+// diagonals scroll at each frame. ($00) points the page of the screen, $02
+// counts the frames, $03 is y of the first row of the page, $04 is x.
+constexpr std::array<irt::u8, 0x40> pattern_program = [] {
+    std::array<irt::u8, 0x40> bytes{};
+    const auto put = [&](const int address, std::initializer_list<irt::u8> b) {
+        std::copy(b.begin(), b.end(), bytes.begin() + address);
+    };
+
+    put(0x0000, { 0xd8 });             // CLD
+    put(0x0001, { 0xa9, 0x00 });       // LDA #$00
+    put(0x0003, { 0x85, 0x02 });       // STA $02: frame 0
+    put(0x0005, { 0xa9, 0x00 });       // LDA #$00
+    put(0x0007, { 0x85, 0x00 });       // STA $00
+    put(0x0009, { 0xa9, 0x02 });       // LDA #$02
+    put(0x000b, { 0x85, 0x01 });       // STA $01: ($00) = $0200
+    put(0x000d, { 0xa9, 0x00 });       // LDA #$00
+    put(0x000f, { 0x85, 0x03 });       // STA $03: y = 0
+    put(0x0011, { 0xa0, 0x00 });       // LDY #$00
+    put(0x0013, { 0x98 });             // TYA
+    put(0x0014, { 0x29, 0x1f });       // AND #$1F
+    put(0x0016, { 0x85, 0x04 });       // STA $04: x
+    put(0x0018, { 0x98 });             // TYA
+    put(0x0019, { 0x4a, 0x4a, 0x4a }); // LSR, LSR, LSR
+    put(0x001c, { 0x4a, 0x4a });       // LSR, LSR: the row in the page
+    put(0x001e, { 0x18 });             // CLC
+    put(0x001f, { 0x65, 0x03 });       // ADC $03
+    put(0x0021, { 0x65, 0x04 });       // ADC $04
+    put(0x0023, { 0x65, 0x02 });       // ADC $02
+    put(0x0025, { 0x29, 0x0f });       // AND #$0F
+    put(0x0027, { 0x91, 0x00 });       // STA ($00),Y
+    put(0x0029, { 0xc8 });             // INY
+    put(0x002a, { 0xd0, 0xe7 });       // BNE $0013
+    put(0x002c, { 0xa5, 0x03 });       // LDA $03
+    put(0x002e, { 0x18 });             // CLC
+    put(0x002f, { 0x69, 0x08 });       // ADC #$08: 8 rows per page
+    put(0x0031, { 0x85, 0x03 });       // STA $03
+    put(0x0033, { 0xe6, 0x01 });       // INC $01
+    put(0x0035, { 0xa5, 0x01 });       // LDA $01
+    put(0x0037, { 0xc9, 0x06 });       // CMP #$06
+    put(0x0039, { 0xd0, 0xd6 });       // BNE $0011: until $0600
+    put(0x003b, { 0xe6, 0x02 });       // INC $02: next frame
+    put(0x003d, { 0x4c, 0x05, 0x00 }); // JMP $0005
+
+    return bytes;
+}();
+
 } // namespace
 
 std::span<const irt::u8> demo_program() noexcept { return fibonacci_program; }
+
+std::span<const irt::u8> screen_program() noexcept { return pattern_program; }
+
+/** The project of the bench @a bench_id whose memory observer draws the
+ * screen of the CPU. */
+static irt::status save_screen_project(
+  irt::modeling&          mod,
+  const irt::dir_path_id  dir_id,
+  const irt::component_id bench_id) noexcept
+{
+    const auto file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, screen_project_file,
+                             irt::file_type::project_file);
+    });
+
+    return mod.ids.read([&](const auto& ids, auto) {
+        return mod.files.read([&](const auto& fs, auto) -> irt::status {
+            irt::project pj;
+            pj.project_file = file;
+            pj.sim.limits.set_bound(0, 1e6);
+            irt_check(pj.set(ids, fs, bench_id));
+
+            irt::unique_id_path path;
+            path.emplace_back("circuit");
+            path.emplace_back("memory");
+            path.emplace_back("ram");
+            const auto ram = pj.get_model_path(path);
+            if (not ram)
+                return irt::make_error(
+                  irt::project_errc::memory_observer_error);
+
+            if (not pj.memory_observers.reserve(1))
+                return irt::make_error(irt::project_errc::memory_error);
+
+            auto& screen   = pj.alloc_memory_observer();
+            screen.name    = "screen";
+            screen.tn_id   = ram->first;
+            screen.mdl_id  = ram->second;
+            screen.address = screen_address;
+            screen.rows    = screen_size;
+            screen.cols    = screen_size;
+
+            return pj.save(fs, ids);
+        });
+    });
+}
 
 irt::status generate(const std::string_view dir) noexcept
 {
     irt::modeling mod;
     const auto    dir_id = make_circuits_dir(mod, dir);
+    const auto    path   = std::filesystem::path(dir) / "digital";
 
-    irt_check(write_program_file(std::filesystem::path(dir) / "digital" /
-                                   demo_program_file,
-                                 demo_program()));
-    const auto file = mod.files.write([&](auto& fs) {
-        return fs.alloc_file(dir_id, demo_program_file,
-                             irt::file_type::binary_file);
+    irt_check(write_program_file(path / demo_program_file, demo_program()));
+    irt_check(write_program_file(path / screen_program_file, screen_program()));
+    const auto files = mod.files.write([&](auto& fs) {
+        return std::array{ fs.alloc_file(dir_id, demo_program_file,
+                                         irt::file_type::binary_file),
+                           fs.alloc_file(dir_id, screen_program_file,
+                                         irt::file_type::binary_file) };
     });
 
     const auto compo = mod.ids.write([&](auto& ids) {
-        const auto      fa      = make_full_adder(ids);
-        const auto      adder_8 = make_adder<8>(ids, fa);
-        const auto      alu     = make_alu(ids, adder_8);
-        const auto      alu_b   = make_bench(ids, alu);
-        const auto      reg     = make_register<8>(ids);
-        const cpu_parts parts{ .pc     = make_program_counter(ids),
-                               .memory = make_memory(ids, demo_program(), file),
-                               .accumulator = make_accumulator(ids, alu, reg),
-                               .flags       = make_flags(ids),
-                               .index       = make_index_registers(ids, reg),
-                               .stack       = make_stack_pointer(ids, reg),
-                               .reg         = reg,
-                               .adder = as_circuit(make_adder<16>(ids, fa)),
-                               .comparator = as_circuit(adder_8),
-                               .alu        = alu };
-        const auto      cpu   = make_cpu(ids, parts);
-        const auto      cpu_b = make_bench(ids, cpu);
+        const auto fa      = make_full_adder(ids);
+        const auto adder_8 = make_adder<8>(ids, fa);
+        const auto alu     = make_alu(ids, adder_8);
+        const auto alu_b   = make_bench(ids, alu);
+        const auto reg     = make_register<8>(ids);
+        cpu_parts  parts{ .pc     = make_program_counter(ids),
+                          .memory = make_memory(ids, demo_program(), files[0]),
+                          .accumulator = make_accumulator(ids, alu, reg),
+                          .flags       = make_flags(ids),
+                          .index       = make_index_registers(ids, reg),
+                          .stack       = make_stack_pointer(ids, reg),
+                          .reg         = reg,
+                          .adder       = as_circuit(make_adder<16>(ids, fa)),
+                          .comparator  = as_circuit(adder_8),
+                          .alu         = alu };
+        const auto cpu   = make_cpu(ids, parts);
+        const auto cpu_b = make_bench(ids, cpu);
+
+        const auto demo_memory = parts.memory.id;
+        parts.memory           = make_memory(ids, screen_program(), files[1]);
+        const auto screen      = make_cpu(ids, parts);
+        const auto screen_b    = make_bench(ids, screen);
 
         return std::array{ fa.id,
                            adder_8.id,
@@ -1976,26 +2076,34 @@ irt::status generate(const std::string_view dir) noexcept
                            parts.index.id,
                            parts.stack.id,
                            parts.pc.id,
-                           parts.memory.id,
+                           demo_memory,
                            cpu.id,
-                           cpu_b.id };
+                           cpu_b.id,
+                           parts.memory.id,
+                           screen.id,
+                           screen_b.id };
     });
 
-    return save_circuits(mod, dir_id,
-                         { { compo[0], "full-adder.irt" },
-                           { compo[1], "adder-8.irt" },
-                           { compo[2], "adder-16.irt" },
-                           { compo[3], "alu-8.irt" },
-                           { compo[4], "alu-bench.irt" },
-                           { compo[5], "register-8.irt" },
-                           { compo[6], "accumulator.irt" },
-                           { compo[7], "flags.irt" },
-                           { compo[8], "index-registers.irt" },
-                           { compo[9], "stack-pointer.irt" },
-                           { compo[10], "program-counter.irt" },
-                           { compo[11], "cpu-demo-memory.irt" },
-                           { compo[12], "cpu-demo.irt" },
-                           { compo[13], "cpu-demo-bench.irt" } });
+    irt_check(save_circuits(mod, dir_id,
+                            { { compo[0], "full-adder.irt" },
+                              { compo[1], "adder-8.irt" },
+                              { compo[2], "adder-16.irt" },
+                              { compo[3], "alu-8.irt" },
+                              { compo[4], "alu-bench.irt" },
+                              { compo[5], "register-8.irt" },
+                              { compo[6], "accumulator.irt" },
+                              { compo[7], "flags.irt" },
+                              { compo[8], "index-registers.irt" },
+                              { compo[9], "stack-pointer.irt" },
+                              { compo[10], "program-counter.irt" },
+                              { compo[11], "cpu-demo-memory.irt" },
+                              { compo[12], "cpu-demo.irt" },
+                              { compo[13], "cpu-demo-bench.irt" },
+                              { compo[14], "cpu-screen-memory.irt" },
+                              { compo[15], "cpu-screen.irt" },
+                              { compo[16], "cpu-screen-bench.irt" } }));
+
+    return save_screen_project(mod, dir_id, compo[16]);
 }
 
 } // namespace irt::digital

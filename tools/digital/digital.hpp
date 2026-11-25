@@ -555,10 +555,26 @@ constexpr std::string_view demo_program_file = "6502-demo.bin";
  * numbers. */
 std::span<const irt::u8> demo_program() noexcept;
 
+/** The screen of the CPU: @c screen_size lines of @c screen_size bytes from
+ * @c screen_address, one byte per pixel. */
+constexpr irt::u16 screen_address = 0x0200;
+constexpr int      screen_size    = 32;
+
+/** The name of the file of the screen program, next to its memory. */
+constexpr std::string_view screen_program_file = "6502-screen.bin";
+
+/** The name of the project whose memory observer draws the screen. */
+constexpr std::string_view screen_project_file = "cpu-screen.pirt";
+
+/** The screen program, from the address 0: each pixel takes the color (x + y
+ * + frame) & 15 and the frames follow each other. */
+std::span<const irt::u8> screen_program() noexcept;
+
 /** Writes the components of the 6502 in @c dir/digital, to open them as the
  * system components of the graphical interface: the parts of the CPU, a
- * bench of the ALU, and a bench of a CPU whose memory reads the demonstration
- * program from @c demo_program_file. */
+ * bench of the ALU, a bench of a CPU whose memory reads the demonstration
+ * program from @c demo_program_file, and a bench of a CPU which draws with
+ * the screen program, opened by the project @c screen_project_file. */
 irt::status generate(std::string_view dir) noexcept;
 
 } // namespace irt::digital
