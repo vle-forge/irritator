@@ -821,6 +821,9 @@ circuit make_memory(irt::component_access&   ids,
     netlist    n(c, gen);
     const auto mem = n.name(n.gate(dynamics_type::logical_memory, {}), "ram");
 
+    // A memory observer of a project reaches the memory by its name.
+    gen.children.get(*mem.child).flags.set(irt::child_flags::observable);
+
     if (not content.empty()) {
         irt::fatal::ensure(
           (c.srcs.data.can_alloc(1) or c.srcs.data.reserve(1)));

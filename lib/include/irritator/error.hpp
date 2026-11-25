@@ -163,6 +163,9 @@ enum class project_errc : std::int16_t {
     journal_model_error,  /**< A journal names a model or a tree node that
                              the project does not have, or a model of
                              another type. */
+
+    memory_observer_error, /**< A memory observer does not observe a
+                              logical_memory or its area leaves the memory. */
 };
 
 enum class modeling_errc : std::int16_t {

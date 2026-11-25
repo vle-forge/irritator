@@ -238,6 +238,10 @@ status project::simulation_init_observation(const modeling& mod) noexcept
         if (auto r = v_obs.init(*this); r.has_error())
             return r.error();
 
+    for (auto& mem_obs : memory_observers)
+        if (auto r = mem_obs.init(*this); r.has_error())
+            return r.error();
+
     return success();
 }
 

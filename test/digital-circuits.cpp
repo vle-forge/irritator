@@ -2376,6 +2376,98 @@ int main()
         check_cpu(sim, program, 30);
     };
 
+    "memory-observer-draws-an-area-of-a-logical-memory"_test = [] {
+        const auto temp = irt::temp_path_with_unlink{ "memory-observer" };
+        expect(fatal(temp.success()));
+
+        // A constant source holds one chunk of values.
+        const auto    content = random_bytes(irt::external_source_chunk_size,
+                                             1357u);
+        irt::modeling mod;
+        const auto    dir_id = make_circuits_dir(mod, temp.c_str());
+        const auto    compo  = mod.ids.write([&](auto& ids) {
+            const auto mem = make_memory(ids, content);
+            return std::array{ mem.id, make_bench(ids, mem).id };
+        });
+        expect(fatal(save_circuits(mod, dir_id,
+                                   { { compo[0], "screen-memory.irt" },
+                                     { compo[1], "screen-bench.irt" } })
+                       .has_value()));
+        const auto project_file = mod.files.write([&](auto& fs) {
+            return fs.alloc_file(dir_id, "screen.pirt",
+                                 irt::file_type::project_file);
+        });
+
+        irt::project pj;
+        pj.project_file = project_file;
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, compo[1]).has_value()));
+            });
+        });
+
+        irt::unique_id_path path;
+        path.emplace_back("circuit");
+        path.emplace_back("ram");
+        const auto ram = pj.get_model_path(path);
+        expect(fatal(ram.has_value()));
+
+        // The paths of a project start with the unique id of its head.
+        const auto full_path = pj.build_unique_id_path(ram->first, ram->second);
+        expect(eq(full_path.size(), 3u));
+        expect(pj.get_model_path(full_path) == ram);
+        irt::unique_id_path tn_path;
+        pj.build_unique_id_path(ram->first, tn_path);
+        expect(pj.get_tn_id(tn_path) == ram->first);
+
+        expect(fatal(pj.memory_observers.reserve(1)));
+        auto& screen   = pj.alloc_memory_observer();
+        screen.tn_id   = ram->first;
+        screen.mdl_id  = ram->second;
+        screen.address = 0x0100;
+        screen.rows    = 4;
+        screen.cols    = 8;
+
+        expect(fatal(pj.sim.srcs.prepare().has_value()));
+        expect(fatal(pj.sim.initialize().has_value()));
+        expect(fatal(screen.init(pj).has_value()));
+        screen.update(pj);
+
+        const auto values = screen.get_values();
+        expect(fatal(eq(values.size(), 32u)));
+        bool same = true;
+        for (int i = 0; i < 32; ++i)
+            same = same and values[i] == content[0x0100 + i];
+        expect(same);
+
+        // The area must stay in the 64 KiB of the memory.
+        screen.address = 0xfff0;
+        expect(screen.init(pj).has_error());
+        screen.address = 0x0100;
+
+        screen.scale_max = 255.f;
+        const auto saved = mod.ids.read([&](const auto& ids, auto) {
+            return mod.files.read(
+              [&](const auto& fs, auto) { return pj.save(fs, ids); });
+        });
+        expect(fatal(saved.has_value()));
+
+        auto loaded = mod.ids.read([&](const auto& ids, auto) {
+            return mod.files.read([&](const auto& fs, auto) {
+                return irt::project::load(fs, ids, project_file);
+            });
+        });
+        expect(fatal(loaded.has_value()));
+        expect(fatal(eq(loaded->memory_observers.size(), 1u)));
+
+        const auto& mem = *loaded->memory_observers.begin();
+        expect(eq(mem.address, irt::u16{ 0x0100 }));
+        expect(eq(mem.rows, 4));
+        expect(eq(mem.cols, 8));
+        expect(eq(mem.scale_max, 255.f));
+        expect(mem.mdl_id == ram->second);
+    };
+
     "generate-writes-the-system-components"_test = [] {
         const auto temp = irt::temp_path_with_unlink{ "generate" };
         expect(fatal(temp.success()));

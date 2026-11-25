@@ -2318,6 +2318,7 @@ void project::clear() noexcept
     variable_observers.clear();
     grid_observers.clear();
     graph_observers.clear();
+    memory_observers.clear();
     parameters.clear();
 }
 
@@ -2482,15 +2483,29 @@ void project::build_unique_id_path(const tree_node& model_unique_id_parent,
                                             model_unique_id, out);
 }
 
-auto project::get_model_path(const unique_id_path& path) const noexcept
-  -> std::optional<std::pair<tree_node_id, model_id>>
+/// The paths built by @c build_unique_id_path() start with the unique id of
+/// the head when the model or the tree node is not the head.
+static auto project_path_from_head(const tree_node&      head,
+                                   const unique_id_path& path) noexcept
+  -> std::span<const name_str>
 {
     std::span<const name_str> stack{ path.begin(), path.end() };
 
+    if (stack.size() > 1 and stack.front().sv() == head.unique_id.sv())
+        stack = stack.subspan(1);
+
+    return stack;
+}
+
+auto project::get_model_path(const unique_id_path& path) const noexcept
+  -> std::optional<std::pair<tree_node_id, model_id>>
+{
     if (const auto* head = tree_nodes.try_to_get(m_tn_head)) {
+        auto stack = project_path_from_head(*head, path);
+
         while (not stack.empty()) {
             if (stack.size() == 1) {
-                const auto mdl = head->get_model_id(path[0].sv());
+                const auto mdl = head->get_model_id(stack.front().sv());
                 if (mdl.has_value()) {
                     const auto tn_id  = tree_nodes.get_id(*head);
                     const auto mdl_id = *mdl;
@@ -2517,30 +2532,24 @@ auto project::get_model_path(const unique_id_path& path) const noexcept
 auto project::get_tn_id(const unique_id_path& path) const noexcept
   -> tree_node_id
 {
-    std::span<const name_str> stack{ path.begin(), path.end() };
+    const auto* head = tree_nodes.try_to_get(m_tn_head);
+    if (not head or path.empty())
+        return undefined<tree_node_id>();
 
-    if (const auto* head = tree_nodes.try_to_get(m_tn_head)) {
-        switch (path.size()) {
-        case 0:
+    if (path.size() == 1)
+        return m_tn_head;
+
+    for (const auto& uid : project_path_from_head(*head, path)) {
+        const auto sub = head->get_tree_node_id(uid.sv());
+        if (not sub.has_value())
             return undefined<tree_node_id>();
 
-        case 1:
-            return m_tn_head;
-
-        default:
-            while (stack.size() > 1) {
-                const auto sub = head->get_tree_node_id(stack.front().sv());
-                if (sub.has_value()) {
-                    head  = tree_nodes.try_to_get(*sub);
-                    stack = stack.subspan(1);
-                } else {
-                    return undefined<tree_node_id>();
-                }
-            }
-        }
+        head = tree_nodes.try_to_get(*sub);
+        if (not head)
+            return undefined<tree_node_id>();
     }
 
-    return undefined<tree_node_id>();
+    return tree_nodes.get_id(*head);
 }
 
 auto project::get_parameter(const tree_node_id tn_id,
@@ -2619,6 +2628,47 @@ graph_observer& project::alloc_graph_observer() noexcept
     auto& obs = graph_observers.alloc();
     assign_name(graph_observers, obs.name);
     return obs;
+}
+
+memory_observer& project::alloc_memory_observer() noexcept
+{
+    debug::ensure(memory_observers.can_alloc());
+
+    auto& obs = memory_observers.alloc();
+    assign_name(memory_observers, obs.name);
+    return obs;
+}
+
+status memory_observer::init(const project& pj) noexcept
+{
+    const auto* mdl = pj.sim.models.try_to_get(mdl_id);
+    const auto  len = static_cast<i64>(rows) * cols;
+
+    if (not mdl or mdl->type != dynamics_type::logical_memory or rows <= 0 or
+        cols <= 0 or address + len > memory_bank::size)
+        return make_error(project_errc::memory_observer_error);
+
+    if (not values.resize(static_cast<sz>(len)))
+        return make_error(project_errc::memory_error);
+
+    std::ranges::fill(values, zero);
+
+    return success();
+}
+
+void memory_observer::update(const project& pj) noexcept
+{
+    const auto* mdl = pj.sim.models.try_to_get(mdl_id);
+    if (not mdl or mdl->type != dynamics_type::logical_memory)
+        return;
+
+    const auto* bank = pj.sim.memories.try_to_get(
+      get_dyn<logical_memory>(*mdl).id);
+    if (not bank or bank->bytes.ssize() < memory_bank::size)
+        return;
+
+    for (sz i = 0; i < values.size(); ++i)
+        values[i] = bank->bytes[address + static_cast<int>(i)];
 }
 
 } // namespace irt

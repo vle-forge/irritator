@@ -39,6 +39,7 @@ enum class connection_id : u64;
 enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
+enum class memory_observer_id : u64;
 enum class global_parameter_id : u64;
 enum class global_observable_id : u64;
 
@@ -145,6 +146,7 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
+class memory_observer;
 class project;
 
 enum class child_flags : u8 {
@@ -1385,6 +1387,7 @@ public:
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
+    data_array<memory_observer, memory_observer_id>     memory_observers;
 
     /// Linear search a @c global_parameter_id where @c tree_node_id and @c
     /// model_id equals parameters.
@@ -1435,6 +1438,13 @@ public:
        running this function to ensure allocation is possible.
      */
     graph_observer& alloc_graph_observer() noexcept;
+
+    /**
+       @brief Alloc a new memory observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
+     */
+    memory_observer& alloc_memory_observer() noexcept;
 
     registred_path_id observation_dir; /**< The output directory used by all
                                           text observation file. If undefined,
@@ -1547,6 +1557,40 @@ public:
     i32   color_map = 0;
     i32   rows      = 0;
     i32   cols      = 0;
+};
+
+/** Draws the bytes of a @c logical_memory as an image, the screen of a CPU
+ * mapped in its memory: @c rows lines of @c cols bytes from @c address. */
+class memory_observer
+{
+public:
+    name_str name;
+
+    tree_node_id tn_id;  /**< @c tree_node identifier parent of the model. */
+    model_id     mdl_id; /**< The @c logical_memory to observe. */
+
+    u16   address   = 0x0200;
+    i32   rows      = 32;
+    i32   cols      = 32;
+    float scale_min = 0.f;
+    float scale_max = 15.f;
+    i32   color_map = 0;
+
+    /** Checks that the model is a @c logical_memory and that the area fits
+     * in its memory. */
+    status init(const project& pj) noexcept;
+
+    /** Copies the bytes of the area, row by row, from the memory of the
+     * simulation. */
+    void update(const project& pj) noexcept;
+
+    std::span<const real> get_values() const noexcept
+    {
+        return { values.data(), values.size() };
+    }
+
+private:
+    vector<real> values;
 };
 
 class graph_observer

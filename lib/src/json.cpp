@@ -486,6 +486,16 @@ struct json_reader {
         return true;
     }
 
+    bool copy_u64_to(u16& dst) noexcept
+    {
+        if (!(temp_u64 <= UINT16_MAX))
+            return error("not a 16 bits unsigned integer: {}", temp_u64);
+
+        dst = static_cast<u16>(temp_u64);
+
+        return true;
+    }
+
     bool copy_u64_to(u8& dst) noexcept
     {
         if (!(temp_u64 <= UINT8_MAX))
@@ -597,6 +607,16 @@ struct json_reader {
             not pj().graph_observers.grow<2, 1>())
             return error("can not allocate more graph observers (max: {})",
                          pj().graph_observers.capacity());
+
+        return true;
+    }
+
+    bool project_memory_observers_can_alloc(std::integral auto i) noexcept
+    {
+        if (not pj().memory_observers.can_alloc(i) and
+            not pj().memory_observers.grow<2, 1>())
+            return error("can not allocate more memory observers (max: {})",
+                         pj().memory_observers.capacity());
 
         return true;
     }
@@ -4477,6 +4497,9 @@ struct json_reader {
               if ("graph"sv == name)
                   return read_project_graph_observations(value);
 
+              if ("memory"sv == name)
+                  return read_project_memory_observations(value);
+
               return error("unknown element: {}", name);
           });
     }
@@ -4807,6 +4830,77 @@ struct json_reader {
                require(parent_id, "grid") and require(grid_tn_id, "access") and
                require(mdl_id, "access") and
                grid_observation_init(grid, *parent_id, *grid_tn_id, *mdl_id);
+    }
+
+    bool read_project_memory_observation(const rapidjson::Value& val,
+                                         memory_observer&        mem) noexcept
+    {
+        auto_stack s(this, "project memory observation");
+
+        std::optional<tree_node_id> tn_id;
+        std::optional<model_id>     mdl_id;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     unique_id_path path;
+
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(mem.name);
+
+                     if ("access"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_model_ids(path, tn_id, mdl_id);
+
+                     if ("address"sv == name)
+                         return read_temp_u64(value) &&
+                                copy_u64_to(mem.address);
+
+                     if ("rows"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(mem.rows);
+
+                     if ("columns"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(mem.cols);
+
+                     if ("scale-min"sv == name)
+                         return read_temp_real(value) &&
+                                copy_real_to(mem.scale_min);
+
+                     if ("scale-max"sv == name)
+                         return read_temp_real(value) &&
+                                copy_real_to(mem.scale_max);
+
+                     if ("color-map"sv == name)
+                         return read_temp_i64(value) &&
+                                copy_i64_to(mem.color_map);
+
+                     return true;
+                 }) and
+               require(tn_id, "access") and
+               require(mdl_id, "access") and [&]() noexcept
+        {
+            mem.tn_id  = *tn_id;
+            mem.mdl_id = *mdl_id;
+            return true;
+        }
+        ();
+    }
+
+    bool read_project_memory_observations(const rapidjson::Value& val) noexcept
+    {
+        auto_stack s(this, "project memory observations");
+
+        i64 size = 0;
+
+        return is_value_array(val) && copy_array_size(val, size) &&
+               project_memory_observers_can_alloc(size) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& mem = pj().memory_observers.alloc();
+                     return read_project_memory_observation(value, mem);
+                 });
     }
 
     bool read_project_grid_observations(const rapidjson::Value& val) noexcept
@@ -7477,6 +7571,46 @@ struct json_writer {
     }
 
     template<typename Writer>
+    void do_project_save_memory_observations(Writer&        w,
+                                             const project& pj) noexcept
+    {
+        if (pj.memory_observers.empty())
+            return;
+
+        w.Key("memory");
+        w.StartArray();
+
+        for (const auto& mem : pj.memory_observers) {
+            w.StartObject();
+            w.Key("name");
+            w.String(mem.name.begin(),
+                     static_cast<rapidjson::SizeType>(mem.name.size()));
+
+            unique_id_path path;
+            w.Key("access");
+            pj.build_unique_id_path(mem.tn_id, mem.mdl_id, path);
+            write_project_unique_id_path(w, path);
+
+            w.Key("address");
+            w.Uint(mem.address);
+            w.Key("rows");
+            w.Int(mem.rows);
+            w.Key("columns");
+            w.Int(mem.cols);
+            w.Key("scale-min");
+            w.Double(mem.scale_min);
+            w.Key("scale-max");
+            w.Double(mem.scale_max);
+            w.Key("color-map");
+            w.Int(mem.color_map);
+
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
     void do_project_save_graph_observations(Writer&        w,
                                             const project& pj) noexcept
     {
@@ -7517,6 +7651,7 @@ struct json_writer {
         do_project_save_variable_observation(w, pj);
         do_project_save_grid_observations(w, pj);
         do_project_save_graph_observations(w, pj);
+        do_project_save_memory_observations(w, pj);
         w.EndObject();
     }
 
