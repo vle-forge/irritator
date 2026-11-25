@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -960,9 +961,73 @@ void check_alu(bench_simulation& sim)
 
 } // namespace
 
-int main()
+int main(int argc, const char* argv[])
 {
     using namespace boost::ut;
+
+    // A name runs only this test, as ctest does for the long ones.
+    if (argc > 1)
+        cfg<override> = { .filter = argv[1] };
+
+    "cpu-passes-the-functional-test-of-klaus-dormann"_test = [] {
+        // The test of Klaus Dormann, GPL-3.0, is not distributed: ctest gives
+        // its 64 KiB image, assembled with the default configuration.
+        const auto* file = std::getenv("IRRITATOR_6502_FUNCTIONAL_TEST");
+        if (not file or *file == '\0') {
+            std::puts("functional test skipped: "
+                      "IRRITATOR_6502_FUNCTIONAL_TEST is not defined");
+            return;
+        }
+
+        irt::vector<irt::u8> image(irt::memory_bank::size, irt::u8{ 0 });
+        {
+            std::ifstream ifs(file, std::ios::binary);
+            ifs.read(reinterpret_cast<char*>(image.data()), image.ssize());
+            expect(fatal(ifs.gcount() == image.ssize())) << file;
+        }
+
+        // The CPU starts at 0 and the test at $0400: the zero page of the
+        // test starts at $0A.
+        image[0] = 0x4c;
+        image[1] = 0x00;
+        image[2] = 0x04;
+
+        // The test ends in a trap, a jump to itself, at $3469 on success.
+        constexpr unsigned success = 0x3469;
+        auto               ref_mem = image;
+        cpu_state          ref;
+        int                instructions = 0;
+        for (unsigned pc = ~0u; pc != ref.pc and instructions < 100'000'000;
+             ++instructions) {
+            pc = ref.pc;
+            (void)cpu_reference(ref, std::span(ref_mem.data(), ref_mem.size()));
+        }
+        expect(fatal(eq(ref.pc, success)))
+          << "the reference traps at " << ref.pc;
+
+        const auto temp = irt::temp_path_with_unlink{ "functional" };
+        expect(fatal(temp.success()));
+
+        irt::modeling mod;
+        const auto    dir_id = make_circuits_dir(mod, temp.c_str());
+        expect(fatal(write_program_file(std::filesystem::path(temp.c_str()) /
+                                          "digital" / "functional.bin",
+                                        image)
+                       .has_value()));
+        const auto bin = mod.files.write([&](auto& fs) {
+            return fs.alloc_file(dir_id, "functional.bin",
+                                 irt::file_type::binary_file);
+        });
+
+        const auto b = mod.ids.write([&](auto& ids) {
+            auto parts   = make_cpu_parts(ids, {});
+            parts.memory = make_memory(ids, image, bin);
+            return make_bench(ids, make_cpu(ids, parts));
+        });
+
+        bench_simulation sim(mod, b);
+        check_cpu(sim, image, instructions);
+    };
 
     "inverter-sends-its-initial-value"_test = [] {
         irt::simulation sim;

@@ -52,6 +52,20 @@ irritator_add_test(test-container containers.cpp)
 irritator_add_test(test-dama dama.cpp)
 irritator_add_test(test-digital-circuits digital-circuits.cpp)
 target_link_libraries(test-digital-circuits libirritator-digital)
+
+# The functional test of Klaus Dormann, GPL-3.0, is not distributed: its image
+# assembled with the default configuration enables a long test of the 6502.
+set(IRRITATOR_6502_FUNCTIONAL_TEST "" CACHE FILEPATH
+  "The 6502_functional_test.bin of Klaus Dormann to test the 6502")
+if (IRRITATOR_6502_FUNCTIONAL_TEST)
+  add_test(NAME test-6502-functional
+    COMMAND test-digital-circuits
+      "cpu-passes-the-functional-test-of-klaus-dormann")
+  set_tests_properties(test-6502-functional PROPERTIES
+    ENVIRONMENT "IRRITATOR_6502_FUNCTIONAL_TEST=${IRRITATOR_6502_FUNCTIONAL_TEST}"
+    LABELS long
+    TIMEOUT 14400)
+endif ()
 irritator_add_test(test-dot-parser dot-parser-test.cpp)
 irritator_add_test(test-expected expected-tests.cpp)
 irritator_add_test(test-external-sources external-sources.cpp)
