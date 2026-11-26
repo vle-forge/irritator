@@ -342,42 +342,44 @@ status simulation::run() noexcept
         if (not y)
             continue;
 
-        y->for_each(models, nodes, [&](model& mdl, const auto port_index) {
-            dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-                if constexpr (has_input_port<Dynamics>) {
-                    auto& x = dyn.x[port_index];
+        y->for_each(
+          models, nodes,
+          [&](model& mdl, const model_id mdl_id, const auto port_index) {
+              dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                  if constexpr (has_input_port<Dynamics>) {
+                      auto& x = dyn.x[port_index];
 
-                    // The ports of a model are reset by its transition: the
-                    // first message of the step for a model not imminent. An
-                    // imminent model has tn equal to t, a passive model is
-                    // out of the scheduler.
-                    if (x.capacity == 0 and mdl.tn != t and
-                        std::ranges::all_of(dyn.x, [](const auto& p) {
-                            return p.capacity == 0;
-                        })) {
-                        debug::ensure(mdl.handle != invalid_heap_handle);
-                        if (sched.is_in_tree(mdl.handle))
-                            sched.remove(mdl);
+                      // The ports of a model are reset by its transition: the
+                      // first message of the step for a model not imminent. An
+                      // imminent model has tn equal to t, a passive model is
+                      // out of the scheduler.
+                      if (x.capacity == 0 and mdl.tn != t and
+                          std::ranges::all_of(dyn.x, [](const auto& p) {
+                              return p.capacity == 0;
+                          })) {
+                          debug::ensure(mdl.handle != invalid_heap_handle);
+                          if (sched.is_in_tree(mdl.handle))
+                              sched.remove(mdl);
 
-                        immediate_models.emplace_back(models.get_id(mdl));
-                    }
+                          immediate_models.emplace_back(mdl_id);
+                      }
 
-                    x.capacity += 1u;
-                    x.position = 0u;
-                    x.size     = 0u;
+                      x.capacity += 1u;
+                      x.position = 0u;
+                      x.size     = 0u;
 
-                    // Written field by field: a temporary delivery written in
-                    // two stores then copied by one 16 bytes load defeats the
-                    // store forwarding of the processor.
-                    if (auto* d = deliveries.emplace_back(); d) {
-                        d->port    = &x;
-                        d->message = i;
-                    } else {
-                        full = true;
-                    }
-                }
-            });
-        });
+                      // Written field by field: a temporary delivery written in
+                      // two stores then copied by one 16 bytes load defeats the
+                      // store forwarding of the processor.
+                      if (auto* d = deliveries.emplace_back(); d) {
+                          d->port    = &x;
+                          d->message = i;
+                      } else {
+                          full = true;
+                      }
+                  }
+              });
+          });
     }
 
     if (full)

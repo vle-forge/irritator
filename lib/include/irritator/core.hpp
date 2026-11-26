@@ -1960,7 +1960,8 @@ struct output_port {
      * and/or from the @c output_port::next linked list. All nodes without valid
      * model are remove, all @c block_node empty are remove and if @c
      * output_port::connection have free space, we merge nodes from @c
-     * output_port::next linked list. */
+     * output_port::next linked list. The @c Function is called with
+     * `(model&, model_id, port_index, args...)`. */
     template<typename Function, typename... Args>
     void for_each(data_array<model, model_id>&           models,
                   data_array<block_node, block_node_id>& nodes,
@@ -11719,7 +11720,7 @@ void output_port::for_each(data_array<model, model_id>&           models,
 {
     for (auto it = connections.begin(); it != connections.end();) {
         if (model* mdl = models.try_to_get(it->model)) {
-            std::invoke(fn, *mdl, it->port_index, args...);
+            std::invoke(fn, *mdl, it->model, it->port_index, args...);
             ++it;
         } else {
             connections.swap_pop_back(it);
@@ -11733,7 +11734,7 @@ void output_port::for_each(data_array<model, model_id>&           models,
 
         for (auto it = block->nodes.begin(); it != block->nodes.end();) {
             if (model* mdl = models.try_to_get(it->model)) {
-                std::invoke(fn, *mdl, it->port_index, args...);
+                std::invoke(fn, *mdl, it->model, it->port_index, args...);
                 ++it;
             } else {
                 block->nodes.swap_pop_back(it);
