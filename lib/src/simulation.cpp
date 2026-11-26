@@ -356,15 +356,14 @@ status simulation::run() noexcept
 
                       // The ports of a model are reset by its transition: the
                       // first message of the step for a model not imminent. An
-                      // imminent model has tn equal to t, a passive model is
-                      // out of the scheduler.
+                      // imminent model has tn equal to t. The receiver stays
+                      // in the scheduler: the pop of this step is done and
+                      // make_transition moves its node only once.
                       if (x.capacity == 0 and mdl.tn != t and
                           std::ranges::all_of(dyn.x, [](const auto& p) {
                               return p.capacity == 0;
                           })) {
                           debug::ensure(mdl.handle != invalid_heap_handle);
-                          if (sched.is_in_tree(mdl.handle))
-                              sched.remove(mdl);
 
                           if (not transitions.push(mdl.type, mdl_id))
                               full = true;

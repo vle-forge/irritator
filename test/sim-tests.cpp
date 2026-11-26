@@ -1219,6 +1219,51 @@ ut::suite<"irt::simulation scheduler"> scheduler_suite = [] {
         expect(sim.sched.empty());
     };
 
+    "a receiver in the scheduler moves to its new date"_test = [] {
+        simulation sim;
+        expect(sim.grow_models_to(5) >> ut::fatal);
+        auto& integ = sim.alloc<irt::qss1_integrator>();
+        auto& a     = sim.alloc<irt::constant>();
+        auto& b     = sim.alloc<irt::constant>();
+        auto& c     = sim.alloc<irt::constant>();
+        auto& r     = sim.alloc<irt::constant>();
+        sim.parameters[get_index(sim.get_id(integ))].set_integrator(0.0, 1.0);
+        sim.parameters[get_index(sim.get_id(a))].set_constant(1.0, 0.5);
+        sim.parameters[get_index(sim.get_id(b))].set_constant(4.0, 1.0);
+        sim.parameters[get_index(sim.get_id(c))].set_constant(0.25, 1.05);
+        sim.parameters[get_index(sim.get_id(r))].set_constant(10.0, 1.5);
+        expect(sim.connect_dynamics(a, 0, integ, 0).has_value() >> ut::fatal);
+        expect(sim.connect_dynamics(b, 0, integ, 0).has_value() >> ut::fatal);
+        expect(sim.connect_dynamics(c, 0, integ, 0).has_value() >> ut::fatal);
+        expect(sim.connect_dynamics(r, 0, integ, 1).has_value() >> ut::fatal);
+
+        const auto& mdl       = get_model(integ);
+        const auto  scheduled = [&](const double tn) {
+            return sim.sched.is_in_tree(mdl.handle) and mdl.tn == tn and
+                   sim.sched.tn(mdl.handle) == tn;
+        };
+
+        expect(start(sim) >> ut::fatal);
+        expect(run_steps(sim, 1) >> ut::fatal); // t=0, no derivative yet
+        expect(not sim.sched.is_in_tree(mdl.handle));
+
+        expect(run_steps(sim, 1) >> ut::fatal); // t=0.5, x_dot = 1
+        expect(scheduled(1.5));
+
+        expect(run_steps(sim, 1) >> ut::fatal); // t=1, x_dot = 4: earlier
+        expect(scheduled(1.125));
+
+        expect(run_steps(sim, 1) >> ut::fatal); // t=1.05, x_dot = 0.25: later
+        expect(sim.current_time() == 1.05_d);
+        expect(sim.sched.is_in_tree(mdl.handle));
+        expect(mdl.tn > 2.0 and sim.sched.tn(mdl.handle) == mdl.tn);
+
+        expect(run_steps(sim, 1) >> ut::fatal); // t=1.5, reset: null ta
+        expect(sim.current_time() == 1.5_d);
+        expect(not sim.sched.is_in_tree(mdl.handle));
+        expect(sim.zero_ta_models.size() == 1u);
+    };
+
     "a null time advance runs at the same date without the scheduler"_test =
       [] {
           simulation sim;

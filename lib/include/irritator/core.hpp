@@ -1691,10 +1691,12 @@ private:
 static inline constexpr u32 invalid_heap_handle = 0xffffffff;
 
 /**
-   A pairing heap is a type of heap data structure with relatively simple
-   implementation and excellent practical amortized performance, introduced
-   by Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan
-   in 1986.
+   An indexed 4-ary implicit heap of the @c time-next dates of the models.
+
+   A handle is stable from @c alloc() to @c destroy() and leaves the heap with
+   @c pop() or @c remove() (detached) until @c reintegrate(). The four
+   children of an entry share a cache line and the top levels stay in the
+   cache: the scheduler moves one entry per date change.
  */
 template<typename A = allocator<new_delete_memory_resource>>
 class heap
@@ -1703,31 +1705,51 @@ public:
     using this_container = heap<A>;
     using allocator_type = A;
     using index_type     = u32;
+    using handle         = u32;
 
+    /// The date of a handle in the heap (infinity for a detached handle) and
+    /// its model.
     struct node {
         time     tn;
         model_id id;
-
-        u32 prev;
-        u32 next;
-        u32 child;
     };
 
 private:
     friend struct binary_access;
 
-    node* nodes{ nullptr };
-    u32   m_size{ 0 };
-    u32   max_size{ 0 };
-    u32   capacity{ 0 };
-    u32   free_list{ invalid_heap_handle };
-    u32   root{ invalid_heap_handle };
+    // The index of the model breaks the ties of dates: the order of the
+    // simultaneous models does not depend on the history of the heap. It uses
+    // the padding of the entry.
+    struct entry {
+        time tn;
+        u32  handle;
+        u32  key;
+    };
+
+    static constexpr bool less(const entry& a, const entry& b) noexcept
+    {
+        return a.tn < b.tn or (a.tn == b.tn and a.key < b.key);
+    }
+
+    static constexpr u32 arity = 4;
+
+    /// A free handle stores @c free_tag with the next free handle in @c m_pos,
+    /// @c free_end ends the list: free_tag | free_end differs from
+    /// invalid_heap_handle, the position of a detached handle.
+    static constexpr u32 free_tag = 0x80000000u;
+    static constexpr u32 free_end = 0x7ffffffeu;
+
+    entry*    m_entries{ nullptr }; // the implicit heap, m_size entries.
+    model_id* m_ids{ nullptr };     // the model of each handle.
+    u32*      m_pos{ nullptr };     // the entry of each handle.
+    u32       m_size{ 0 };
+    u32       max_size{ 0 };
+    u32       capacity{ 0 };
+    u32       free_list{ invalid_heap_handle };
 
     [[no_unique_address]] allocator_type m_alloc;
 
 public:
-    using handle = u32;
-
     heap() noexcept = default;
 
     explicit constexpr heap(
@@ -1743,7 +1765,7 @@ public:
     /** Clear and free the allocated buffer. */
     constexpr void destroy() noexcept;
 
-    /** Clear the buffer. Root equals null. */
+    /** Clear the buffer: no handle remains. */
     constexpr void clear() noexcept;
 
     /**
@@ -1756,14 +1778,11 @@ public:
      */
     constexpr bool reserve(std::integral auto new_capacity) noexcept;
 
-    /**
-       Allocate a new node into the heap and insert the @c model_id and the
-       @c time into the tree.
-     */
+    /** Allocate a new handle for the model @c id and insert it at @c tn. */
     constexpr handle alloc(time tn, model_id id) noexcept;
 
+    /** Free a detached handle. */
     constexpr void   destroy(handle elem) noexcept;
-    constexpr void   insert(handle elem) noexcept;
     constexpr void   reintegrate(time tn, handle elem) noexcept;
     constexpr void   remove(handle elem) noexcept;
     constexpr handle pop() noexcept;
@@ -1778,15 +1797,18 @@ public:
 
     constexpr handle top() const noexcept;
 
-    constexpr const node& operator[](handle h) const noexcept;
-    constexpr node&       operator[](handle h) noexcept;
+    /// The smallest date of the heap, which must not be empty.
+    constexpr time top_tn() const noexcept;
+
+    constexpr node operator[](handle h) const noexcept;
 
 private:
-    constexpr handle merge(handle a, handle b) noexcept;
-    constexpr handle merge_right(handle a) noexcept;
-    constexpr handle merge_left(handle a) noexcept;
-    constexpr handle merge_subheaps(handle a) noexcept;
-    constexpr void   detach_subheap(handle elem) noexcept;
+    static constexpr std::size_t buffer_bytes(u32 cap) noexcept;
+
+    constexpr void place(u32 pos, const entry e) noexcept;
+    constexpr void sift_up(u32 pos, const entry e) noexcept;
+    constexpr void sift_down(u32 pos, const entry e) noexcept;
+    constexpr void erase_at(u32 pos) noexcept;
 };
 
 /*****************************************************************************
@@ -1804,10 +1826,8 @@ private:
    model is allocate, you must allocate a node before using the scheduler.
    If a model is delete, you must free the node to free memory.
 
-   A node is detached from the heap if the handle `node::child`,
-   `node::next` and `node::prev` are null (`irt::invalid_heap_handle`). To
-   detach a node, you can use the `heap::pop()` or `heap::remove()`
-   functions.
+   A node is detached from the heap (`heap::is_in_tree()` is false) after
+   `heap::pop()` or `heap::remove()` and until `heap::reintegrate()`.
  */
 template<typename A = allocator<new_delete_memory_resource>>
 class scheduller
@@ -1868,6 +1888,14 @@ public:
        the node is in the tree.
      */
     void update(model& mdl, time tn) noexcept;
+
+    /**
+       Move the node of @c mdl, in the tree, to the date @c tn earlier or
+       later than its current date in the heap. Unlike @c update, @c mdl.tn
+       can already hold the new date.
+     */
+    void reschedule(model& mdl, time tn) noexcept;
+
     void increase(model& mdl, time tn) noexcept;
     void decrease(model& mdl, time tn) noexcept;
 
@@ -9831,6 +9859,13 @@ inline auto get_hierarchical_state_machine(simulation&  sim,
 //
 
 template<typename A>
+constexpr std::size_t heap<A>::buffer_bytes(const u32 cap) noexcept
+{
+    return static_cast<std::size_t>(cap) *
+           (sizeof(entry) + sizeof(model_id) + sizeof(u32));
+}
+
+template<typename A>
 constexpr heap<A>::heap(clamped_value<int, 512, INT_MAX> pcapacity) noexcept
 {
     reserve(pcapacity.value());
@@ -9839,27 +9874,26 @@ constexpr heap<A>::heap(clamped_value<int, 512, INT_MAX> pcapacity) noexcept
 template<typename A>
 constexpr heap<A>::heap(const heap<A>& other) noexcept
 {
-    if (other.capacity > 0) {
-        if (reserve(other.capacity)) {
-            std::uninitialized_copy_n(other.nodes, other.max_size, nodes);
+    if (other.capacity > 0 and reserve(other.capacity)) {
+        std::copy_n(other.m_entries, other.m_size, m_entries);
+        std::copy_n(other.m_ids, other.max_size, m_ids);
+        std::copy_n(other.m_pos, other.max_size, m_pos);
 
-            m_size    = other.m_size;
-            max_size  = other.max_size;
-            capacity  = other.capacity;
-            free_list = other.free_list;
-            root      = other.root;
-        }
+        m_size    = other.m_size;
+        max_size  = other.max_size;
+        free_list = other.free_list;
     }
 }
 
 template<typename A>
 constexpr heap<A>::heap(heap<A>&& other) noexcept
-  : nodes(std::exchange(other.nodes, nullptr))
+  : m_entries(std::exchange(other.m_entries, nullptr))
+  , m_ids(std::exchange(other.m_ids, nullptr))
+  , m_pos(std::exchange(other.m_pos, nullptr))
   , m_size(std::exchange(other.m_size, 0))
   , max_size(std::exchange(other.max_size, 0))
   , capacity(std::exchange(other.capacity, 0))
   , free_list(std::exchange(other.free_list, invalid_heap_handle))
-  , root(std::exchange(other.root, invalid_heap_handle))
 {}
 
 template<typename A>
@@ -9877,14 +9911,15 @@ template<typename A>
 constexpr heap<A>& heap<A>::operator=(heap<A>&& other) noexcept
 {
     if (&other != this) {
-        clear();
+        destroy();
 
-        nodes     = std::exchange(other.nodes, nullptr);
+        m_entries = std::exchange(other.m_entries, nullptr);
+        m_ids     = std::exchange(other.m_ids, nullptr);
+        m_pos     = std::exchange(other.m_pos, nullptr);
         m_size    = std::exchange(other.m_size, 0);
         max_size  = std::exchange(other.max_size, 0);
         capacity  = std::exchange(other.capacity, 0);
         free_list = std::exchange(other.free_list, invalid_heap_handle);
-        root      = std::exchange(other.root, invalid_heap_handle);
     }
 
     return *this;
@@ -9899,55 +9934,60 @@ constexpr heap<A>::~heap() noexcept
 template<typename A>
 constexpr void heap<A>::destroy() noexcept
 {
-    if (nodes)
-        A::deallocate(nodes, sizeof(node) * capacity);
+    if (m_entries)
+        A::deallocate(m_entries, buffer_bytes(capacity));
 
-    nodes     = nullptr;
+    m_entries = nullptr;
+    m_ids     = nullptr;
+    m_pos     = nullptr;
     m_size    = 0;
     max_size  = 0;
     capacity  = 0;
     free_list = invalid_heap_handle;
-    root      = invalid_heap_handle;
 }
 
 template<typename A>
 constexpr void heap<A>::clear() noexcept
 {
-    if (nodes) {
-        constexpr node node_empty{};
-        std::fill_n(nodes, capacity, node_empty);
-    }
-
     m_size    = 0;
     max_size  = 0;
     free_list = invalid_heap_handle;
-    root      = invalid_heap_handle;
 }
 
 template<typename A>
 constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
 {
-    debug::ensure(
-      std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
-
     if (std::cmp_less_equal(new_capacity, capacity))
         return true;
 
-    if (std::cmp_less_equal(new_capacity, max_size))
+    if (std::cmp_less_equal(new_capacity, max_size) or
+        std::cmp_greater_equal(new_capacity, free_end))
         return false;
 
-    auto* new_data = reinterpret_cast<node*>(
-      A::allocate(sizeof(node) * new_capacity));
-    if (not new_data)
+    const auto cap = static_cast<u32>(new_capacity);
+
+    // One buffer for the three arrays: the entries first for their alignment.
+    auto* buffer = reinterpret_cast<std::byte*>(A::allocate(buffer_bytes(cap)));
+    if (not buffer)
         return false;
 
-    if (nodes) {
-        std::uninitialized_copy_n(nodes, max_size, new_data);
-        A::deallocate(nodes, sizeof(node) * capacity);
+    auto* entries = reinterpret_cast<entry*>(buffer);
+    auto* ids     = reinterpret_cast<model_id*>(buffer +
+                                                sizeof(entry) * std::size_t{ cap });
+    auto* pos     = reinterpret_cast<u32*>(
+      buffer + (sizeof(entry) + sizeof(model_id)) * std::size_t{ cap });
+
+    if (m_entries) {
+        std::copy_n(m_entries, m_size, entries);
+        std::copy_n(m_ids, max_size, ids);
+        std::copy_n(m_pos, max_size, pos);
+        A::deallocate(m_entries, buffer_bytes(capacity));
     }
 
-    nodes    = reinterpret_cast<node*>(new_data);
-    capacity = static_cast<index_type>(new_capacity);
+    m_entries = entries;
+    m_ids     = ids;
+    m_pos     = pos;
+    capacity  = cap;
 
     return true;
 }
@@ -9958,19 +9998,18 @@ constexpr typename heap<A>::handle heap<A>::alloc(time tn, model_id id) noexcept
     u32 new_node;
 
     if (free_list != invalid_heap_handle) {
-        new_node  = free_list;
-        free_list = nodes[free_list].next;
+        new_node        = free_list;
+        const auto next = m_pos[new_node] & ~free_tag;
+        free_list       = next == free_end ? invalid_heap_handle : next;
     } else {
+        debug::ensure(max_size < capacity);
         new_node = max_size++;
     }
 
-    nodes[new_node].tn    = tn;
-    nodes[new_node].id    = id;
-    nodes[new_node].prev  = invalid_heap_handle;
-    nodes[new_node].next  = invalid_heap_handle;
-    nodes[new_node].child = invalid_heap_handle;
+    m_ids[new_node] = id;
+    m_pos[new_node] = invalid_heap_handle;
 
-    insert(new_node);
+    reintegrate(tn, new_node);
 
     return new_node;
 }
@@ -9978,38 +10017,83 @@ constexpr typename heap<A>::handle heap<A>::alloc(time tn, model_id id) noexcept
 template<typename A>
 constexpr void heap<A>::destroy(handle elem) noexcept
 {
-    debug::ensure(elem != invalid_heap_handle);
-    debug::ensure(not is_in_tree(elem));
+    debug::ensure(elem < max_size);
+    debug::ensure(m_pos[elem] == invalid_heap_handle);
 
-    nodes[elem].prev  = invalid_heap_handle;
-    nodes[elem].child = invalid_heap_handle;
-    nodes[elem].id    = static_cast<model_id>(0);
-    nodes[elem].next  = free_list;
-
+    m_ids[elem] = static_cast<model_id>(0);
+    m_pos[elem] = free_tag |
+                  (free_list == invalid_heap_handle ? free_end : free_list);
     free_list = elem;
+}
+
+template<typename A>
+constexpr void heap<A>::place(const u32 pos, const entry e) noexcept
+{
+    m_entries[pos]  = e;
+    m_pos[e.handle] = pos;
+}
+
+template<typename A>
+constexpr void heap<A>::sift_up(u32 pos, const entry e) noexcept
+{
+    while (pos > 0) {
+        const auto parent = (pos - 1u) / arity;
+        if (not less(e, m_entries[parent]))
+            break;
+
+        place(pos, m_entries[parent]);
+        pos = parent;
+    }
+
+    place(pos, e);
+}
+
+template<typename A>
+constexpr void heap<A>::sift_down(u32 pos, const entry e) noexcept
+{
+    for (;;) {
+        const auto first = pos * arity + 1u;
+        if (first >= m_size)
+            break;
+
+        const auto last = std::min(first + arity, m_size);
+        auto       best = first;
+        for (auto c = first + 1u; c < last; ++c)
+            if (less(m_entries[c], m_entries[best]))
+                best = c;
+
+        if (not less(m_entries[best], e))
+            break;
+
+        place(pos, m_entries[best]);
+        pos = best;
+    }
+
+    place(pos, e);
+}
+
+template<typename A>
+constexpr void heap<A>::erase_at(const u32 pos) noexcept
+{
+    m_pos[m_entries[pos].handle] = invalid_heap_handle;
+
+    if (--m_size == pos)
+        return;
+
+    const auto last = m_entries[m_size];
+    if (pos > 0 and less(last, m_entries[(pos - 1u) / arity]))
+        sift_up(pos, last);
+    else
+        sift_down(pos, last);
 }
 
 template<typename A>
 constexpr void heap<A>::reintegrate(time tn, handle elem) noexcept
 {
-    debug::ensure(elem != invalid_heap_handle);
+    debug::ensure(elem < max_size);
+    debug::ensure(m_pos[elem] == invalid_heap_handle);
 
-    nodes[elem].tn = tn;
-
-    insert(elem);
-}
-
-template<typename A>
-constexpr void heap<A>::insert(handle elem) noexcept
-{
-    debug::ensure(not is_in_tree(elem));
-
-    ++m_size;
-
-    if (root == invalid_heap_handle)
-        root = elem;
-    else
-        root = merge(elem, root);
+    sift_up(m_size++, entry{ tn, elem, g_get_index(m_ids[elem]) });
 }
 
 template<typename A>
@@ -10017,27 +10101,8 @@ constexpr void heap<A>::remove(handle elem) noexcept
 {
     debug::ensure(elem != invalid_heap_handle);
 
-    if (elem == root) {
-        pop();
-        return;
-    }
-
-    /* If the node `elem` is not already `pop()`, we detach the
-     * node and merge children. */
-    if (is_in_tree(elem)) {
-        m_size--;
-        const auto old_elem = elem;
-        detach_subheap(elem);
-
-        if (nodes[elem].child != invalid_heap_handle) {
-            elem = merge_subheaps(elem);
-            root = merge(root, elem);
-        }
-
-        nodes[old_elem].child = invalid_heap_handle;
-        nodes[old_elem].prev  = invalid_heap_handle;
-        nodes[old_elem].next  = invalid_heap_handle;
-    }
+    if (is_in_tree(elem))
+        erase_at(m_pos[elem]);
 }
 
 template<typename A>
@@ -10045,18 +10110,8 @@ constexpr typename heap<A>::handle heap<A>::pop() noexcept
 {
     debug::ensure(m_size > 0);
 
-    m_size--;
-
-    const auto old_root = root;
-
-    if (nodes[root].child == invalid_heap_handle) {
-        root = invalid_heap_handle;
-    } else {
-        root                  = merge_subheaps(old_root);
-        nodes[old_root].child = invalid_heap_handle;
-        nodes[old_root].next  = invalid_heap_handle;
-        nodes[old_root].prev  = invalid_heap_handle;
-    }
+    const auto old_root = m_entries[0].handle;
+    erase_at(0);
 
     return old_root;
 }
@@ -10064,22 +10119,19 @@ constexpr typename heap<A>::handle heap<A>::pop() noexcept
 template<typename A>
 constexpr void heap<A>::decrease(time tn, handle elem) noexcept
 {
-    nodes[elem].tn = tn;
+    debug::ensure(is_in_tree(elem));
 
-    if (nodes[elem].prev == invalid_heap_handle)
-        return;
-
-    detach_subheap(elem);
-    root = merge(root, elem);
+    const auto pos = m_pos[elem];
+    sift_up(pos, entry{ tn, elem, m_entries[pos].key });
 }
 
 template<typename A>
 constexpr void heap<A>::increase(time tn, handle elem) noexcept
 {
-    nodes[elem].tn = tn;
+    debug::ensure(is_in_tree(elem));
 
-    remove(elem);
-    insert(elem);
+    const auto pos = m_pos[elem];
+    sift_down(pos, entry{ tn, elem, m_entries[pos].key });
 }
 
 template<typename A>
@@ -10097,123 +10149,37 @@ constexpr bool heap<A>::full() const noexcept
 template<typename A>
 constexpr bool heap<A>::empty() const noexcept
 {
-    return root == invalid_heap_handle;
+    return m_size == 0;
 }
 
 template<typename A>
 constexpr bool heap<A>::is_in_tree(handle h) const noexcept
 {
-    if (h == invalid_heap_handle)
-        return false;
-
-    if (h == root)
-        return true;
-
-    return nodes[h].child != invalid_heap_handle or
-           nodes[h].prev != invalid_heap_handle or
-           nodes[h].next != invalid_heap_handle;
+    return h < max_size and m_pos[h] < free_tag;
 }
 
 template<typename A>
 constexpr typename heap<A>::handle heap<A>::top() const noexcept
 {
-    return root;
+    return m_size == 0 ? invalid_heap_handle : m_entries[0].handle;
 }
 
 template<typename A>
-constexpr const typename heap<A>::node& heap<A>::operator[](
-  handle h) const noexcept
+constexpr time heap<A>::top_tn() const noexcept
 {
-    return nodes[h];
+    debug::ensure(m_size > 0);
+
+    return m_entries[0].tn;
 }
 
 template<typename A>
-constexpr typename heap<A>::node& heap<A>::operator[](handle h) noexcept
+constexpr typename heap<A>::node heap<A>::operator[](handle h) const noexcept
 {
-    return nodes[h];
-}
+    debug::ensure(h < max_size);
 
-template<typename A>
-constexpr typename heap<A>::handle heap<A>::merge(handle a, handle b) noexcept
-{
-    if (nodes[a].tn < nodes[b].tn) {
-        if (nodes[a].child != invalid_heap_handle)
-            nodes[nodes[a].child].prev = b;
-
-        if (nodes[b].next != invalid_heap_handle)
-            nodes[nodes[b].next].prev = a;
-
-        nodes[a].next  = nodes[b].next;
-        nodes[b].next  = nodes[a].child;
-        nodes[a].child = b;
-        nodes[b].prev  = a;
-
-        return a;
-    }
-
-    if (nodes[b].child != invalid_heap_handle)
-        nodes[nodes[b].child].prev = a;
-
-    if (nodes[a].prev != invalid_heap_handle && nodes[nodes[a].prev].child != a)
-        nodes[nodes[a].prev].next = b;
-
-    nodes[b].prev  = nodes[a].prev;
-    nodes[a].prev  = b;
-    nodes[a].next  = nodes[b].child;
-    nodes[b].child = a;
-
-    return b;
-}
-
-template<typename A>
-constexpr typename heap<A>::handle heap<A>::merge_right(handle a) noexcept
-{
-    u32 b = invalid_heap_handle;
-
-    for (; a != invalid_heap_handle; a = nodes[b].next) {
-        if ((b = nodes[a].next) == invalid_heap_handle)
-            return a;
-
-        b = merge(a, b);
-    }
-
-    return b;
-}
-
-template<typename A>
-constexpr typename heap<A>::handle heap<A>::merge_left(handle a) noexcept
-{
-    u32 b = nodes[a].prev;
-
-    for (; b != invalid_heap_handle; b = nodes[a].prev)
-        a = merge(b, a);
-
-    return a;
-}
-
-template<typename A>
-constexpr typename heap<A>::handle heap<A>::merge_subheaps(handle a) noexcept
-{
-    nodes[nodes[a].child].prev = invalid_heap_handle;
-
-    const u32 e = merge_right(nodes[a].child);
-
-    return merge_left(e);
-}
-
-template<typename A>
-constexpr void heap<A>::detach_subheap(handle elem) noexcept
-{
-    if (nodes[nodes[elem].prev].child == elem)
-        nodes[nodes[elem].prev].child = nodes[elem].next;
-    else
-        nodes[nodes[elem].prev].next = nodes[elem].next;
-
-    if (nodes[elem].next != invalid_heap_handle)
-        nodes[nodes[elem].next].prev = nodes[elem].prev;
-
-    nodes[elem].prev = invalid_heap_handle;
-    nodes[elem].next = invalid_heap_handle;
+    return node{ is_in_tree(h) ? m_entries[m_pos[h]].tn
+                               : time_domain<time>::infinity,
+                 m_ids[h] };
 }
 
 //
@@ -10296,6 +10262,18 @@ inline void scheduller<A>::update(model& mdl, time tn) noexcept
 }
 
 template<typename A>
+inline void scheduller<A>::reschedule(model& mdl, time tn) noexcept
+{
+    debug::ensure(m_heap.is_in_tree(mdl.handle));
+
+    const auto old = m_heap[mdl.handle].tn;
+    if (tn < old)
+        m_heap.decrease(tn, mdl.handle);
+    else if (old < tn)
+        m_heap.increase(tn, mdl.handle);
+}
+
+template<typename A>
 inline void scheduller<A>::decrease(model& mdl, time tn) noexcept
 {
     debug::ensure(mdl.handle != invalid_heap_handle);
@@ -10327,7 +10305,7 @@ inline void scheduller<A>::pop(vector<model_id>& out) noexcept
 template<typename A>
 inline time scheduller<A>::tn() const noexcept
 {
-    return m_heap[m_heap.top()].tn;
+    return m_heap.top_tn();
 }
 
 template<typename A>
@@ -11094,11 +11072,21 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
     if (dyn.sigma != 0 && mdl.tn == t)
         mdl.tn = std::nextafter(t, t + irt::one);
 
-    debug::ensure(not sched.is_in_tree(mdl.handle));
-    if (dyn.sigma == zero)
+    // The imminent models are out of the scheduler, the receivers are still
+    // in it with their previous date.
+    const bool in_tree = sched.is_in_tree(mdl.handle);
+    if (dyn.sigma == zero) {
+        if (in_tree)
+            sched.remove(mdl);
         zero_ta_models.emplace_back(models.get_id(mdl));
-    else if (not time_domain<time>::is_infinity(mdl.tn))
+    } else if (time_domain<time>::is_infinity(mdl.tn)) {
+        if (in_tree)
+            sched.remove(mdl);
+    } else if (in_tree) {
+        sched.reschedule(mdl, mdl.tn);
+    } else {
         sched.reintegrate(mdl, mdl.tn);
+    }
 
     return success();
 }

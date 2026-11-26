@@ -1239,7 +1239,6 @@ void binary_serialize(Ar& ar, resampler& r) noexcept;
 /// resampler, the heap, the scheduler and the simulation).
 struct binary_access {
     using heap_type = heap<allocator<new_delete_memory_resource>>;
-    using heap_node = heap_type::node;
 
     /* observer */
 
@@ -1305,155 +1304,123 @@ struct binary_access {
 
     /* scheduler */
 
-    /// Checks the structure of the pairing heap: the free list, the tree and
-    /// the detached nodes are disjoint and acyclic, every node is in exactly
-    /// one of them, the links are consistent (the previous node of the first
-    /// child is its parent, the previous node of the other children is the
-    /// previous sibling) and the heap order is respected.
-    static bool heap_structure_ok(const heap_node* nodes,
-                                  const u32        max_size,
-                                  const u32        size,
-                                  const u32        free_list,
-                                  const u32        root) noexcept
+    /// Checks the structure of the 4-ary heap: every handle is in the heap,
+    /// detached or free, the positions and the entries agree, the free list
+    /// is acyclic and holds every free handle, and the heap order is
+    /// respected.
+    static bool heap_structure_ok(const heap_type& h) noexcept
     {
         constexpr u32 none = invalid_heap_handle;
 
-        if (max_size == 0)
-            return size == 0 and free_list == none and root == none;
+        if (h.max_size == 0)
+            return h.m_size == 0 and h.free_list == none;
 
-        if (nodes == nullptr)
+        if (h.m_size > h.max_size or h.max_size > h.capacity or
+            h.m_entries == nullptr)
             return false;
 
-        vector<u8> state; // 0 detached, 1 free, 2 in the tree
-        vector<u32> stack;
-        if (not state.resize(max_size) or not stack.resize(max_size))
-            return false;
-
-        std::fill_n(state.data(), max_size, u8{ 0 });
-
-        for (u32 f = free_list; f != none; f = nodes[f].next) {
-            if (f >= max_size or state[f] != 0)
+        for (u32 i = 0; i != h.m_size; ++i) {
+            const auto& e = h.m_entries[i];
+            if (e.handle >= h.max_size or h.m_pos[e.handle] != i)
                 return false;
 
-            state[f] = 1;
-
-            if (ordinal(nodes[f].id) != 0 or nodes[f].prev != none or
-                nodes[f].child != none)
+            if (e.key != g_get_index(h.m_ids[e.handle]) or
+                (i > 0 and (std::isnan(e.tn) or
+                            heap_type::less(
+                              e, h.m_entries[(i - 1u) / heap_type::arity]))))
                 return false;
         }
 
-        u32 tree_count = 0;
-
-        if (root == none) {
-            if (size != 0)
+        u32 in_tree = 0, free = 0;
+        for (u32 i = 0; i != h.max_size; ++i) {
+            if (h.m_pos[i] != none and h.m_pos[i] >= heap_type::free_tag)
+                ++free;
+            else if (ordinal(h.m_ids[i]) == 0)
                 return false;
-        } else {
-            if (root >= max_size or nodes[root].prev != none or
-                nodes[root].next != none)
-                return false;
-
-            u32 top    = 0;
-            state[root] = 2;
-            tree_count = 1;
-            stack[top++] = root;
-
-            while (top != 0) {
-                const u32 parent = stack[--top];
-                u32       prev   = parent;
-
-                for (u32 c = nodes[parent].child; c != none; c = nodes[c].next) {
-                    if (c >= max_size or state[c] != 0 or
-                        nodes[c].prev != prev or
-                        not(nodes[c].tn >= nodes[parent].tn))
-                        return false;
-
-                    state[c]     = 2;
-                    stack[top++] = c;
-                    ++tree_count;
-                    prev = c;
-                }
-            }
+            else if (h.m_pos[i] != none)
+                ++in_tree;
         }
 
-        if (tree_count != size)
+        if (in_tree != h.m_size)
             return false;
 
-        for (u32 i = 0; i != max_size; ++i) {
-            if (state[i] == 1)
-                continue;
-
-            if (ordinal(nodes[i].id) == 0)
+        u32 walked = 0;
+        for (u32 f = h.free_list; f != none; ++walked) {
+            if (walked == free or f >= h.max_size or
+                h.m_pos[f] < heap_type::free_tag or h.m_pos[f] == none or
+                ordinal(h.m_ids[f]) != 0)
                 return false;
 
-            if (state[i] == 0 and (nodes[i].prev != none or
-                                   nodes[i].next != none or
-                                   nodes[i].child != none))
-                return false;
+            const auto next = h.m_pos[f] & ~heap_type::free_tag;
+            f               = next == heap_type::free_end ? none : next;
         }
 
-        return true;
+        return walked == free;
     }
 
     static bool heap_ok(const heap_type& h) noexcept
     {
-        return heap_structure_ok(h.nodes, h.max_size, h.m_size, h.free_list,
-                                 h.root);
+        return heap_structure_ok(h);
     }
 
-    /// The capacity, the sizes, the head of the free list, the root and the
-    /// nodes in the order of the array: the handles of the models stay valid.
+    /// The capacity, the sizes, the head of the free list, the model and the
+    /// position of each handle, then the entries: the handles of the models
+    /// stay valid.
     template<typename Ar>
     static void io(Ar& ar, heap_type& h) noexcept
     {
         if constexpr (Ar::is_writer) {
-            ar(h.capacity, h.max_size, h.m_size, h.free_list, h.root);
+            ar(h.capacity, h.max_size, h.m_size, h.free_list);
 
-            for (u32 i = 0; i != h.max_size; ++i) {
-                const auto& n = h.nodes[i];
-                ar(n.tn, n.id, n.prev, n.next, n.child);
-            }
+            for (u32 i = 0; i != h.max_size; ++i)
+                ar(h.m_ids[i], h.m_pos[i]);
+
+            for (u32 i = 0; i != h.m_size; ++i)
+                ar(h.m_entries[i].tn, h.m_entries[i].handle);
         } else {
-            u32 capacity = 0, max_size = 0, size = 0, free_list = 0, root = 0;
+            u32 capacity = 0, max_size = 0, size = 0, free_list = 0;
 
-            ar(capacity, max_size, size, free_list, root);
+            ar(capacity, max_size, size, free_list);
             h.clear();
 
-            constexpr std::size_t node_bytes = sizeof(time) + sizeof(model_id) +
-                                               3 * sizeof(u32);
+            constexpr std::size_t handle_bytes = sizeof(model_id) + sizeof(u32);
+            constexpr std::size_t entry_bytes  = sizeof(time) + sizeof(u32);
 
-            if (not ar.ok() or capacity >= invalid_heap_handle or
+            if (not ar.ok() or capacity >= heap_type::free_end or
                 max_size > capacity or size > max_size or
-                max_size > ar.remaining() / node_bytes) {
+                max_size > ar.remaining() / handle_bytes or
+                size >
+                  (ar.remaining() - max_size * handle_bytes) / entry_bytes) {
                 ar.fail();
                 return;
             }
 
             if (capacity > h.capacity) {
-                if (not ar.can_allocate(static_cast<std::size_t>(capacity) *
-                                        sizeof(heap_node)) or
+                if (not ar.can_allocate(heap_type::buffer_bytes(capacity)) or
                     not h.reserve(capacity)) {
                     ar.fail();
                     return;
                 }
             }
 
-            for (u32 i = 0; i != max_size and ar.ok(); ++i) {
-                auto& n = h.nodes[i];
-                ar(n.tn, n.id, n.prev, n.next, n.child);
-            }
+            for (u32 i = 0; i != max_size and ar.ok(); ++i)
+                ar(h.m_ids[i], h.m_pos[i]);
 
-            if (not ar.ok() or
-                not heap_structure_ok(h.nodes, max_size, size, free_list,
-                                      root)) {
-                ar.fail();
-                h.clear();
-                return;
+            for (u32 i = 0; i != size and ar.ok(); ++i) {
+                auto& e = h.m_entries[i];
+                ar(e.tn, e.handle);
+                e.key = e.handle < max_size ? g_get_index(h.m_ids[e.handle])
+                                            : u32{ 0 };
             }
 
             h.max_size  = max_size;
             h.m_size    = size;
             h.free_list = free_list;
-            h.root      = root;
+
+            if (not ar.ok() or not heap_structure_ok(h)) {
+                ar.fail();
+                h.clear();
+            }
         }
     }
 
@@ -1536,7 +1503,7 @@ struct binary_access {
             }
 
             if (mdl.handle != invalid_heap_handle and
-                (mdl.handle >= h.max_size or h.nodes[mdl.handle].id != id))
+                (mdl.handle >= h.max_size or h.m_ids[mdl.handle] != id))
                 return false;
 
             const bool refs = dispatch(
@@ -1574,10 +1541,10 @@ struct binary_access {
         }
 
         for (u32 i = 0; i != h.max_size; ++i) {
-            if (ordinal(h.nodes[i].id) == 0)
+            if (ordinal(h.m_ids[i]) == 0)
                 continue;
 
-            const auto* mdl = sim.models.try_to_get(h.nodes[i].id);
+            const auto* mdl = sim.models.try_to_get(h.m_ids[i]);
             if (mdl == nullptr or mdl->handle != i)
                 return false;
         }

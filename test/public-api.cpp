@@ -12,8 +12,10 @@
 
 #include <fmt/format.h>
 
+#include <map>
 #include <numbers>
 #include <random>
+#include <vector>
 
 #include <cstdio>
 
@@ -1124,16 +1126,8 @@ int main()
 
         expect(h.top() == i2);
 
-        h[i3].tn = -10;
-        h.insert(i3);
-        h[i1].tn = -1;
-        h.insert(i1);
-
-        // h[i3].tn = -10;
-        // h.insert(i3);
-
-        // h[i1].tn = -1;
-        // h.insert(i1);
+        h.reintegrate(-10, i3);
+        h.reintegrate(-1, i1);
 
         expect(h.top() == i3);
         h.pop();
@@ -1210,6 +1204,119 @@ int main()
             expect(h[h.top()].tn == static_cast<irt::real>(t));
             h.pop();
         }
+    };
+
+    "heap-random-operations-match-a-naive-reference"_test = [] {
+        irt::heap      h(256u);
+        std::mt19937   rng(7);
+        constexpr auto detached = std::numeric_limits<double>::quiet_NaN();
+
+        // The date of each handle, NaN for a detached handle, absent if free.
+        std::map<irt::u32, double> ref;
+
+        const auto check = [&]() {
+            auto in_tree = 0u;
+            auto min_tn  = std::numeric_limits<double>::infinity();
+            for (const auto& [handle, tn] : ref) {
+                expect(eq(h.is_in_tree(handle), not std::isnan(tn)));
+                if (not std::isnan(tn)) {
+                    ++in_tree;
+                    min_tn = std::min(min_tn, tn);
+                    expect(eq(h[handle].tn, tn));
+                }
+            }
+
+            expect(eq(h.size(), in_tree));
+            if (in_tree > 0)
+                expect(eq(h[h.top()].tn, min_tn));
+            else
+                expect(h.empty());
+        };
+
+        const auto pick = [&](const bool want_in_tree) -> irt::u32 {
+            std::vector<irt::u32> candidates;
+            for (const auto& [handle, tn] : ref)
+                if (std::isnan(tn) != want_in_tree)
+                    candidates.push_back(handle);
+
+            return candidates.empty() ? irt::invalid_heap_handle
+                                      : candidates[rng() % candidates.size()];
+        };
+
+        for (int step = 0; step != 10000; ++step) {
+            const auto tn = static_cast<double>(rng() % 64);
+
+            switch (rng() % 7) {
+            case 0:
+                if (not h.full() and ref.size() < 200u)
+                    ref[h.alloc(tn, irt::model_id{ 1 })] = tn;
+                break;
+            case 1:
+                if (const auto e = pick(true); e != irt::invalid_heap_handle) {
+                    h.remove(e);
+                    ref[e] = detached;
+                }
+                break;
+            case 2:
+                if (const auto e = pick(false); e != irt::invalid_heap_handle) {
+                    h.reintegrate(tn, e);
+                    ref[e] = tn;
+                }
+                break;
+            case 3:
+                if (const auto e = pick(true);
+                    e != irt::invalid_heap_handle and tn <= ref[e]) {
+                    h.decrease(tn, e);
+                    ref[e] = tn;
+                }
+                break;
+            case 4:
+                if (const auto e = pick(true);
+                    e != irt::invalid_heap_handle and tn >= ref[e]) {
+                    h.increase(tn, e);
+                    ref[e] = tn;
+                }
+                break;
+            case 5:
+                if (not h.empty()) {
+                    const auto min_tn = h[h.top()].tn;
+                    const auto e      = h.pop();
+                    expect(eq(ref[e], min_tn));
+                    ref[e] = detached;
+                }
+                break;
+            default:
+                if (const auto e = pick(false); e != irt::invalid_heap_handle) {
+                    h.destroy(e);
+                    ref.erase(e);
+                }
+                break;
+            }
+
+            check();
+        }
+    };
+
+    "heap-equal-dates-leave-in-the-order-of-the-model-index"_test = [] {
+        irt::heap h(16u);
+
+        const auto c = h.alloc(1.0, irt::model_id{ 3 });
+        const auto a = h.alloc(1.0, irt::model_id{ 1 });
+        const auto b = h.alloc(1.0, irt::model_id{ 2 });
+        h.alloc(0.5, irt::model_id{ 9 });
+        h.pop();
+
+        expect(eq(h.pop(), a));
+        expect(eq(h.pop(), b));
+        expect(eq(h.pop(), c));
+
+        h.reintegrate(2.0, c);
+        h.reintegrate(2.0, a);
+        h.reintegrate(3.0, b);
+        h.decrease(2.0, b);
+        expect(eq(h.pop(), a));
+        expect(eq(h.pop(), b));
+        expect(eq(h.pop(), c));
     };
 
     "heap-middle-decrease"_test = [] {
