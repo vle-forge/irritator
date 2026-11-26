@@ -2455,13 +2455,17 @@ private:
         T          item;
     };
 
-    static constexpr std::size_t item_offset =
-      (sizeof(Identifier) + alignof(T) - 1u) / alignof(T) * alignof(T);
+    // A function rather than a static data member: MSVC evaluates the latter
+    // when data_array<T> is instantiated, while T can still be incomplete.
+    static constexpr std::size_t item_offset() noexcept
+    {
+        return (sizeof(Identifier) + alignof(T) - 1u) / alignof(T) * alignof(T);
+    }
 
     static const item* item_of(const T& t) noexcept
     {
         return reinterpret_cast<const item*>(
-          reinterpret_cast<const std::byte*>(&t) - item_offset);
+          reinterpret_cast<const std::byte*>(&t) - item_offset());
     }
 
 public:
@@ -4903,7 +4907,7 @@ template<typename T, typename Identifier, typename A>
 Identifier data_array<T, Identifier, A>::get_id(const T& t) const noexcept
 {
     if constexpr (std::is_standard_layout_v<item>)
-        static_assert(offsetof(item, item) == item_offset);
+        static_assert(offsetof(item, item) == item_offset());
 
     const auto* ptr = item_of(t);
 
