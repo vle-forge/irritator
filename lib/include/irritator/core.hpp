@@ -2188,10 +2188,72 @@ struct memory_bank {
     vector<u8> bytes;
 };
 
+/// The models of a simulation step grouped by dynamics type, in insertion
+/// order inside a type. Running the transitions of a type one after the other
+/// makes the indirect call of the dispatch predictable.
+class model_buckets
+{
+public:
+    /// @return false if the bucket of @c type cannot grow.
+    bool push(dynamics_type type, model_id id) noexcept
+    {
+        auto& bucket = m_buckets[ordinal(type)];
+        if (bucket.empty() and not m_used.emplace_back(type))
+            return false;
+
+        return bucket.emplace_back(id) != nullptr;
+    }
+
+    /// Empties the used buckets only and keeps their capacity.
+    void clear() noexcept
+    {
+        for (const auto type : m_used)
+            m_buckets[ordinal(type)].clear();
+        m_used.clear();
+    }
+
+    /// Releases the memory of all the buckets.
+    void destroy() noexcept
+    {
+        for (auto& bucket : m_buckets)
+            bucket.destroy();
+        m_used.destroy();
+    }
+
+    /// The types of the non-empty buckets, in the order of their first use.
+    std::span<const dynamics_type> types() const noexcept
+    {
+        return std::span(m_used.data(), m_used.size());
+    }
+
+    /// The models of @c type, in insertion order.
+    std::span<const model_id> models(dynamics_type type) const noexcept
+    {
+        const auto& bucket = m_buckets[ordinal(type)];
+        return std::span(bucket.data(), bucket.size());
+    }
+
+    std::size_t size() const noexcept
+    {
+        std::size_t n = 0;
+        for (const auto type : m_used)
+            n += m_buckets[ordinal(type)].size();
+        return n;
+    }
+
+private:
+    std::array<vector<model_id>, dynamics_type_size()> m_buckets;
+    vector<dynamics_type>                              m_used;
+};
+
 class simulation
 {
 public:
-    vector<model_id>       immediate_models;
+    vector<model_id> immediate_models;
+
+    /// The imminent and the receiving models of the step, grouped by type
+    /// for the transitions.
+    model_buckets transitions;
 
     /** The models with a null time advance: they run at the next step
      * without going through the scheduler. */
@@ -10351,6 +10413,7 @@ inline simulation::simulation(
 
 inline simulation::simulation(const simulation& other) noexcept
   : immediate_models(other.immediate_models)
+  , transitions(other.transitions)
   , zero_ta_models(other.zero_ta_models)
   , active_output_ports(other.active_output_ports)
   , active_output_messages(other.active_output_messages)
@@ -10383,6 +10446,7 @@ inline simulation& simulation::operator=(const simulation& other) noexcept
     active_output_messages = other.active_output_messages;
     message_buffer      = other.message_buffer;
     deliveries.clear();
+    transitions         = other.transitions;
     parameters          = other.parameters;
     immediate_observers = other.immediate_observers;
     models              = other.models;
@@ -10455,6 +10519,7 @@ inline void simulation::destroy() noexcept
     active_output_messages.destroy();
     message_buffer.destroy();
     deliveries.destroy();
+    transitions.destroy();
     parameters.destroy();
     immediate_observers.destroy();
 
@@ -10493,6 +10558,7 @@ inline void simulation::clean() noexcept
     active_output_messages.clear();
     message_buffer.clear();
     deliveries.clear();
+    transitions.clear();
     immediate_observers.clear();
 
     dated_messages.clear();

@@ -301,6 +301,7 @@ status simulation::run() noexcept
     debug::ensure(std::isfinite(t.load()));
 
     immediate_models.clear();
+    transitions.clear();
     immediate_observers.clear();
 
     last_valid_t = t;
@@ -326,9 +327,13 @@ status simulation::run() noexcept
     // receiving model with its bag.
     active_output_ports.clear();
     active_output_messages.clear();
-    for (const auto id : immediate_models)
-        if (auto* mdl = models.try_to_get(id); mdl)
+    for (const auto id : immediate_models) {
+        if (auto* mdl = models.try_to_get(id); mdl) {
+            if (not transitions.push(mdl->type, id))
+                return make_error(simulation_errc::emitting_output_ports_full);
             irt_check(make_lambda(*mdl));
+        }
+    }
 
     // First, we compute the input_port::capacity and record the input port of
     // each message. A receiver still in the scheduler is not imminent: it
@@ -361,7 +366,8 @@ status simulation::run() noexcept
                           if (sched.is_in_tree(mdl.handle))
                               sched.remove(mdl);
 
-                          immediate_models.emplace_back(mdl_id);
+                          if (not transitions.push(mdl.type, mdl_id))
+                              full = true;
                       }
 
                       x.capacity += 1u;
@@ -407,9 +413,9 @@ status simulation::run() noexcept
               std::span(message_buffer.data() + x.position, x.size));
     }
 
-    for (const auto id : immediate_models)
-        if (auto* mdl = models.try_to_get(id); mdl)
-            irt_check(make_transition(*mdl, t));
+    for (const auto type : transitions.types())
+        for (const auto id : transitions.models(type))
+            irt_check(make_transition(models.get(id), t));
 
     return success();
 }

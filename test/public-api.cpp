@@ -275,6 +275,47 @@ int main()
         expect(nk4.second == 7u);
     };
 
+    "model-buckets-group-the-models-by-type"_test = [] {
+        using irt::dynamics_type;
+        using irt::model_id;
+
+        irt::model_buckets b;
+        expect(b.types().empty());
+
+        expect(b.push(dynamics_type::logical_and_2, model_id{ 1 }));
+        expect(b.push(dynamics_type::logical_or_2, model_id{ 2 }));
+        expect(b.push(dynamics_type::logical_and_2, model_id{ 3 }));
+        expect(b.push(dynamics_type::logical_or_2, model_id{ 4 }));
+        expect(b.push(dynamics_type::logical_and_2, model_id{ 5 }));
+        expect(b.size() == 5u);
+
+        expect(fatal(b.types().size() == 2u));
+        expect(b.types()[0] == dynamics_type::logical_and_2);
+        expect(b.types()[1] == dynamics_type::logical_or_2);
+
+        const auto ands = b.models(dynamics_type::logical_and_2);
+        expect(fatal(ands.size() == 3u));
+        expect(ands[0] == model_id{ 1 });
+        expect(ands[1] == model_id{ 3 });
+        expect(ands[2] == model_id{ 5 });
+        expect(b.models(dynamics_type::logical_or_2).size() == 2u);
+        expect(b.models(dynamics_type::counter).empty());
+
+        const auto copy = b;
+        expect(copy.size() == 5u);
+        expect(copy.types().size() == 2u);
+
+        b.clear();
+        expect(b.size() == 0u);
+        expect(b.types().empty());
+        expect(b.models(dynamics_type::logical_and_2).empty());
+
+        expect(b.push(dynamics_type::counter, model_id{ 6 }));
+        expect(fatal(b.types().size() == 1u));
+        expect(b.types()[0] == dynamics_type::counter);
+        expect(copy.size() == 5u);
+    };
+
     "better_sizeof_dynamics"_test = [] {
         irt::model mdl;
 
