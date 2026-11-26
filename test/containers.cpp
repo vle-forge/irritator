@@ -2007,6 +2007,50 @@ int main()
         expect(eq(sum, 6));
     };
 
+    "data_array-get-id-finds-the-identifier-of-an-element"_test = [] {
+        struct alignas(16) big {
+            big() = default;
+            explicit big(int v_)
+              : v(v_)
+            {}
+
+            int       v = 0;
+            std::byte payload[380]{};
+        };
+
+        enum class small_id : irt::u32;
+        enum class big_id : irt::u64;
+
+        const auto check = []<typename Array>(Array& a, const int n) {
+            for (int i = 0; i < n; ++i)
+                a.alloc(i);
+
+            for (const auto& elem : a) {
+                const auto id = a.get_id(elem);
+                expect(a.try_to_get(id) == &elem);
+                expect(a.get_id(&elem) == id);
+            }
+        };
+
+        irt::data_array<int, small_id> ints;
+        expect(fatal(ints.reserve(4)));
+        check(ints, 4);
+
+        irt::data_array<big, big_id> bigs;
+        expect(fatal(bigs.reserve(4)));
+        check(bigs, 4);
+
+        auto* second = bigs.try_to_get(bigs.get_id(*(++bigs.begin())));
+        expect(fatal(second != nullptr));
+        bigs.free(*second);
+        expect(fatal(bigs.reserve(64)));
+
+        const auto& reused = bigs.alloc(42);
+        expect(bigs.get(bigs.get_id(reused)).v == 42);
+        check(bigs, 16);
+        expect(bigs.size() == 20u);
+    };
+
     "data_array_api"_test = [] {
         struct position {
             position() = default;

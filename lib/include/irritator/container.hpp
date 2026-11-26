@@ -11,6 +11,7 @@
 #include <atomic>
 #include <bitset>
 #include <concepts>
+#include <cstddef>
 #include <cstring>
 #include <functional>
 #include <initializer_list>
@@ -2447,10 +2448,21 @@ public:
     using allocator_type  = A;
 
 private:
+    // The identifier first: try_to_get() reads it then the caller reads the
+    // beginning of the element, both in the same cache line.
     struct item {
-        T          item;
         Identifier id;
+        T          item;
     };
+
+    static constexpr std::size_t item_offset =
+      (sizeof(Identifier) + alignof(T) - 1u) / alignof(T) * alignof(T);
+
+    static const item* item_of(const T& t) noexcept
+    {
+        return reinterpret_cast<const item*>(
+          reinterpret_cast<const std::byte*>(&t) - item_offset);
+    }
 
 public:
     using internal_value_type = item;
@@ -4884,17 +4896,16 @@ Identifier data_array<T, Identifier, A>::get_id(const T* t) const noexcept
 {
     debug::ensure(t != nullptr);
 
-    auto* ptr = reinterpret_cast<const item*>(t);
-
-    fatal::ensure(m_items <= ptr and ptr < m_items + m_max_used);
-
-    return ptr->id;
+    return get_id(*t);
 }
 
 template<typename T, typename Identifier, typename A>
 Identifier data_array<T, Identifier, A>::get_id(const T& t) const noexcept
 {
-    auto* ptr = reinterpret_cast<const item*>(&t);
+    if constexpr (std::is_standard_layout_v<item>)
+        static_assert(offsetof(item, item) == item_offset);
+
+    const auto* ptr = item_of(t);
 
     fatal::ensure(m_items <= ptr and ptr < m_items + m_max_used);
 
