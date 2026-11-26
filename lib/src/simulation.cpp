@@ -366,9 +366,15 @@ status simulation::run() noexcept
                     x.position = 0u;
                     x.size     = 0u;
 
-                    if (not deliveries.emplace_back(
-                          delivery{ .port = &x, .message = i }))
+                    // Written field by field: a temporary delivery written in
+                    // two stores then copied by one 16 bytes load defeats the
+                    // store forwarding of the processor.
+                    if (auto* d = deliveries.emplace_back(); d) {
+                        d->port    = &x;
+                        d->message = i;
+                    } else {
                         full = true;
+                    }
                 }
             });
         });
