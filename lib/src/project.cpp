@@ -222,6 +222,14 @@ public:
         return tn == tn_ and id == p_id_;
     }
 
+    /// The order of @c operator< against the key of a connection.
+    constexpr bool is_less(const tree_node* tn_,
+                           const port_id    p_id_) const noexcept
+    {
+        return tn == tn_ ? ordinal(id) < ordinal(p_id_)
+                         : std::less<const tree_node*>{}(tn, tn_);
+    }
+
     status add_destination(simulation&    sim,
                            const model_id dst,
                            const int      port_dst) noexcept
@@ -282,7 +290,7 @@ public:
 
     constexpr bool operator<(const sum_connection& other) const noexcept
     {
-        return tn == other.tn ? ordinal(id) < ordinal(other.id) : tn < other.tn;
+        return is_less(other.tn, other.id);
     }
 };
 
@@ -1660,14 +1668,6 @@ static auto prepare_sum_connections(
     sc.sum_input_connections.clear();
     sc.sum_output_connections.clear();
 
-    auto contains = [](const auto& vec, const auto* tn,
-                       const auto p_id) noexcept -> bool {
-        return std::ranges::any_of(vec,
-                                   [tn, p_id](const auto& e) noexcept -> bool {
-                                       return e.is_equal(tn, p_id);
-                                   });
-    };
-
     for (const auto& cnx : connections) {
         if (tree.is_tree_node(cnx.dst)) {
             const auto  dst_idx  = get_index(cnx.dst);
@@ -1682,8 +1682,7 @@ static auto prepare_sum_connections(
                         not sc.sum_input_connections.grow<2, 1>())
                         return make_error(project_errc::memory_error);
 
-                    if (not contains(sc.sum_input_connections, tn, port_id))
-                        sc.sum_input_connections.emplace_back(tn, port_id);
+                    sc.sum_input_connections.emplace_back(tn, port_id);
                 }
             }
         }
@@ -1701,11 +1700,18 @@ static auto prepare_sum_connections(
                         not sc.sum_output_connections.grow<2, 1>())
                         return make_error(project_errc::memory_error);
 
-                    if (not contains(sc.sum_output_connections, tn, port_id))
-                        sc.sum_output_connections.emplace_back(tn, port_id);
+                    sc.sum_output_connections.emplace_back(tn, port_id);
                 }
             }
         }
+    }
+
+    // Sorted and unique: a graph of a hundred thousand nodes has millions of
+    // connections, a linear search for each one is quadratic.
+    for (auto* vec :
+         { &sc.sum_input_connections, &sc.sum_output_connections }) {
+        std::sort(vec->begin(), vec->end());
+        vec->erase(std::unique(vec->begin(), vec->end()), vec->end());
     }
 
     return success();
@@ -1785,12 +1791,12 @@ static status simulation_copy_sum_connections(
   vector<sum_connection>&   connections,
   simulation&               sim) noexcept
 {
-    auto it = std::ranges::find_if(connections, [&](auto& elem) noexcept {
-        return elem.is_equal(&tn, p_id);
-    });
+    auto it = std::ranges::partition_point(
+      connections,
+      [&](const auto& elem) noexcept { return elem.is_less(&tn, p_id); });
 
-    debug::ensure(it != connections.end());
-    if (it == connections.end())
+    debug::ensure(it != connections.end() and it->is_equal(&tn, p_id));
+    if (it == connections.end() or not it->is_equal(&tn, p_id))
         return success();
 
     return is_input_port ? it->add_connection(sim, true, inputs, outputs)
