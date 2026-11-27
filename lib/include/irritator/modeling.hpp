@@ -1767,6 +1767,15 @@ public:
     selection_t        selections;
     objective_function objective;
 
+    static constexpr u64 default_seed = 0x1357209348203948u;
+
+    /// The number of sub-simulations of each scenario, at least 1.
+    u32 replications = 1u;
+
+    /// The seed of the replications: the replication r of each scenario uses
+    /// a seed derived from this one and r.
+    u64 seed = default_seed;
+
     /** pointer to the project file (.pirt) to load the project. */
     file_path_id file_id = undefined<file_path_id>();
 

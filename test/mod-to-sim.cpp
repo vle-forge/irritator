@@ -397,6 +397,41 @@ static void simulation_component_tester(
 
         expect(same_buffers(first, json_save_component(mod, *read)));
 
+        // The replications and the seed survive a round trip and reach the
+        // embedded simulation.
+        mod.ids.write([&](auto& ids) {
+            auto& sim = ids.sim_components.get(
+              ids.components[sim_compo].id.sim_id);
+            sim.replications = 4u;
+            sim.seed         = 42u;
+        });
+
+        const auto with_r = json_save_component(mod, sim_compo);
+        const auto read_r = json_load_component(
+          mod, std::string_view(with_r.data(), with_r.size()));
+        expect(fatal(read_r.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& sim = ids.sim_components.get(
+              ids.components[*read_r].id.sim_id);
+            expect(eq(sim.replications, 4u));
+            expect(eq(sim.seed, irt::u64{ 42u }));
+
+            irt::embedded_simulation embed;
+            expect(fatal(sim.copy_to(embed).has_value()));
+            expect(eq(embed.replications, 4u));
+            expect(eq(embed.seed[0], irt::u64{ 42u }));
+        });
+
+        expect(same_buffers(with_r, json_save_component(mod, *read_r)));
+
+        mod.ids.write([&](auto& ids) {
+            auto& sim = ids.sim_components.get(
+              ids.components[sim_compo].id.sim_id);
+            sim.replications = 1u;
+            sim.seed         = irt::simulation_component::default_seed;
+        });
+
         // The next runs need the cartesian product.
         mod.ids.write([&](auto& ids) {
             auto& sim = ids.sim_components.get(

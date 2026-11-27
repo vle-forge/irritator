@@ -10,6 +10,7 @@
 
 #include <boost/ut.hpp>
 
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <span>
@@ -41,20 +42,32 @@ struct supervisor_config {
     irt::norm_type             norm      = irt::norm_type::min_max;
     irt::real                  w_queue   = 0.6;
     irt::real                  w_cost    = 0.4;
+    irt::u32                   replications = 1u;
+    irt::u64                   seed = irt::simulation_component::default_seed;
 };
 
+/// A sub-simulation: its scenario, its replication and what it observed.
 struct supervisor_scenario {
     irt::real mu;
     irt::real cost;
     irt::real queue_criteria;
     irt::real cost_criteria;
+    irt::u64  seed;
+    irt::i64  arrivals;
+    irt::i64  departures;
 };
 
 struct supervisor_result {
     irt::error_code                  error;
     irt::real                        selected_mu = 0;
     irt::i64                         messages    = 0;
-    std::vector<supervisor_scenario> scenarios;
+    std::vector<supervisor_scenario> scenarios; //!< One by sub-simulation.
+
+    /// The results of the wrapper by scenario: the means and standard
+    /// deviations of the selections (queue, cost) and of the objective.
+    std::vector<irt::embedded_simulation::scenario_result> results;
+    std::size_t                                            best_scenario = 0;
+    double                                                 decision_ms   = 0;
 };
 
 static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
@@ -132,7 +145,16 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
           .set_single_server_queue_rate(1.0);
         gen.children_parameters[cost_id].set_constant(0.0, 0.0);
 
+        // The outputs of the generator and of the queue are the internal
+        // transitions of a sub-simulation.
+        auto& arrival_count   = gen.alloc(irt::dynamics_type::counter);
+        auto& departure_count = gen.alloc(irt::dynamics_type::counter);
+
         (void)gen.connect(arrivals, { .model = 0 }, queue, { .model = 0 });
+        (void)gen.connect(arrivals, { .model = 0 }, arrival_count,
+                          { .model = 0 });
+        (void)gen.connect(queue, { .model = 0 }, departure_count,
+                          { .model = 0 });
 
         ids.component_file_paths[compo_id].file = gen_file;
         mod.files.read([&](const auto& fs, auto) {
@@ -226,6 +248,8 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
                                                      : cfg.w_cost;
         }
 
+        sim.replications                        = cfg.replications;
+        sim.seed                                = cfg.seed;
         sim.file_id                             = project_file;
         ids.component_file_paths[compo_id].file = sim_file;
 
@@ -296,6 +320,8 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
         });
     });
 
+    const auto begin = std::chrono::steady_clock::now();
+
     pj.sim.limits.set_bound(0, 2);
     if (auto ret = pj.simulation_init(mod); not ret) {
         result.error = ret.error();
@@ -308,6 +334,10 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
             return result;
         }
     } while (not pj.sim.current_time_expired());
+
+    result.decision_ms = std::chrono::duration<double, std::milli>(
+                           std::chrono::steady_clock::now() - begin)
+                           .count();
 
     expect(pj.sim.finalize().has_value());
 
@@ -345,22 +375,41 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
 
         for (const auto sub : embed.embedded_sims) {
             const auto idx = get_index(sub);
+
+            // The arrivals are never fewer than the departures.
+            irt::i64 counts[2] = { 0, 0 };
+            int      n         = 0;
+            for (const auto& mdl : sims[idx].models)
+                if (mdl.type == irt::dynamics_type::counter and n < 2)
+                    counts[n++] = irt::get_dyn<irt::counter>(mdl).event_number;
+
             result.scenarios.push_back(supervisor_scenario{
               .mu   = sims[idx].parameters[get_index(mu_mdl)].reals[0],
               .cost = sims[idx].parameters[get_index(cost_mdl)].reals[0],
               .queue_criteria = criteria(obs[idx], mu_mdl),
-              .cost_criteria  = criteria(obs[idx], cost_mdl) });
+              .cost_criteria  = criteria(obs[idx], cost_mdl),
+              .seed           = sims[idx].srcs.seed,
+              .arrivals       = std::max(counts[0], counts[1]),
+              .departures     = std::min(counts[0], counts[1]) });
         }
+
+        for (const auto& r : embed.results)
+            result.results.push_back(r);
+        result.best_scenario = embed.best_scenario;
     }
 
     return result;
 }
 
-int main()
+int main(int argc, const char* argv[])
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
     irt::on_error_callback = irt::debug::breakpoint;
 #endif
+
+    // A name runs only this test.
+    if (argc > 1)
+        cfg<override> = { .filter = argv[1] };
 
     "simulation_wrapper_lambda_injection"_test = [] {
         const auto temp_path = irt::temp_path_with_unlink{
@@ -1470,5 +1519,105 @@ int main()
         // weights decide alone and mu2 wins with lambda = 0.4.
         const auto min_max = run(0.4, irt::norm_type::min_max);
         expect(eq(min_max.selected_mu, 1.2));
+    };
+    "simulation_wrapper: the replications use common random numbers"_test = [] {
+        const irt::real mu[]   = { 0.6, 1.2 };
+        const irt::real cost[] = { 0.0, 3.0 };
+        constexpr auto  R      = 3u;
+
+        const auto r = run_supervisor(
+          { .mu           = mu,
+            .cost         = cost,
+            .lambda       = 0.4,
+            .horizon      = 200,
+            .criteria     = irt::criteria_type::time_mean,
+            .norm         = irt::norm_type::none,
+            .replications = R,
+            .seed         = 42u });
+
+        expect(r.error == irt::error_code{});
+        expect(fatal(eq(r.scenarios.size(), 2u * R)));
+        expect(fatal(eq(r.results.size(), 2u)));
+
+        // The sub-simulation k is the replication k % R of the scenario
+        // k / R: same seed and same arrivals for the same replication.
+        for (std::size_t k = 0; k < r.scenarios.size(); ++k) {
+            const auto& s     = r.scenarios[k];
+            const auto& first = r.scenarios[k % R];
+
+            expect(eq(s.mu, mu[k / R]));
+            expect(eq(s.cost, cost[k / R]));
+            expect(eq(s.seed, first.seed));
+            expect(eq(s.arrivals, first.arrivals));
+        }
+
+        expect(neq(r.scenarios[0].seed, r.scenarios[1].seed));
+        expect(neq(r.scenarios[1].seed, r.scenarios[2].seed));
+        expect(neq(r.scenarios[0].arrivals, r.scenarios[1].arrivals));
+
+        // The means and standard deviations of the wrapper are those of the
+        // replications. The objective of a weighted sum is the score to
+        // maximize: -U for two criteria to minimize.
+        for (std::size_t sc = 0; sc < 2; ++sc) {
+            double q = 0, c = 0, u = 0;
+            for (std::size_t i = 0; i < R; ++i) {
+                const auto& s = r.scenarios[sc * R + i];
+                q += s.queue_criteria / R;
+                c += s.cost_criteria / R;
+                u += (0.6 * s.queue_criteria + 0.4 * s.cost_criteria) / R;
+            }
+
+            double sq_q = 0, sq_u = 0;
+            for (std::size_t i = 0; i < R; ++i) {
+                const auto& s  = r.scenarios[sc * R + i];
+                const auto  ui = 0.6 * s.queue_criteria + 0.4 * s.cost_criteria;
+                sq_q += (s.queue_criteria - q) * (s.queue_criteria - q);
+                sq_u += (ui - u) * (ui - u);
+            }
+
+            const auto& res = r.results[sc];
+            expect(fatal(eq(res.means.size(), 2u)));
+
+            // The selections are in the order of the observables: the
+            // queue then the cost.
+            const auto queue_j = res.means[0] == c ? 1u : 0u;
+            const auto cost_j  = 1u - queue_j;
+
+            expect(approx(res.means[queue_j], q, 1e-9));
+            expect(approx(res.means[cost_j], c, 1e-9));
+            expect(
+              approx(res.stddevs[queue_j], std::sqrt(sq_q / (R - 1)), 1e-9));
+            expect(approx(res.stddevs[cost_j], 0.0, 1e-12));
+            expect(approx(res.objective_mean, -u, 1e-9));
+            expect(
+              approx(res.objective_stddev, std::sqrt(sq_u / (R - 1)), 1e-9));
+        }
+
+        expect(eq(r.selected_mu, mu[r.best_scenario]));
+    };
+
+    "simulation_wrapper: the supervisor with 30 replications"_test = [] {
+        const irt::real mu[]   = { 0.6, 1.2 };
+        const irt::real cost[] = { 0.0, 3.0 };
+
+        const auto r = run_supervisor(
+          { .mu           = mu,
+            .cost         = cost,
+            .lambda       = 0.4,
+            .horizon      = 2e4,
+            .criteria     = irt::criteria_type::time_mean,
+            .norm         = irt::norm_type::none,
+            .replications = 30u });
+
+        expect(r.error == irt::error_code{});
+        expect(fatal(eq(r.results.size(), 2u)));
+        expect(eq(r.selected_mu, 0.6));
+
+        fmt::print("supervisor lambda=0.4 T=2e4 R=30 ({:.0f} ms):\n",
+                   r.decision_ms);
+        for (std::size_t sc = 0; sc < 2; ++sc)
+            fmt::print("  mu={} U={:.4f} sd={:.4f}\n", mu[sc],
+                       -r.results[sc].objective_mean,
+                       r.results[sc].objective_stddev);
     };
 }

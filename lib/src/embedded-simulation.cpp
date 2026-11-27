@@ -35,7 +35,9 @@ static status copy_history(
               simulation_errc::simulation_wrapper_not_enough_memory);
 
         vec->integrate(b.raws);
-        vec->values.insert(vec->values.end(), b.points.begin(), b.points.end());
+        if (vec->keep_values)
+            vec->values.insert(vec->values.end(), b.points.begin(),
+                               b.points.end());
         return success();
     });
 }
@@ -81,11 +83,18 @@ static status run_each(embedded_simulation& embed_sims,
         if (is_over(sim))
             continue;
 
+        // The resamplers are drained from time to time: they keep their
+        // outputs until a drain.
+        constexpr int drain_period = 1024;
+
         const auto start = sim.current_time();
         for (int steps = 0;
              not is_over(sim) and keep_running(sim, start, steps); ++steps) {
             irt_check(sim.run());
             update_observations(sim);
+
+            if (steps % drain_period == drain_period - 1)
+                irt_check(copy_history(sim, sim_o));
         }
 
         irt_check(is_over(sim) ? finish(sim, sim_o) : copy_history(sim, sim_o));
@@ -164,8 +173,18 @@ static status embedded_sims_alloc(embedded_simulation& embed_sims,
         for (const auto sel_id : embed_sims.selections) {
             const auto mdl_id = embed_sims.selections.get<model_id>(sel_id);
 
-            sim_obs[idx].data.emplace_back(
-              mdl_id, embedded_simulation::embedded_model_observation{});
+            // A model can be selected twice: the trajectory is needed if one
+            // of its criteria is not the time mean.
+            auto keep = false;
+            for (const auto other : embed_sims.selections)
+                if (embed_sims.selections.get<model_id>(other) == mdl_id and
+                    embed_sims.selections.get<criteria_type>(other) !=
+                      criteria_type::time_mean)
+                    keep = true;
+
+            embedded_simulation::embedded_model_observation obs;
+            obs.keep_values = keep;
+            sim_obs[idx].data.emplace_back(mdl_id, std::move(obs));
         }
 
         sim_obs[idx].sort();
@@ -196,6 +215,16 @@ static sz factor_value_count(const embedded_simulation& embed_sims,
     }
 
     unreachable();
+}
+
+/// The seed of the replication @a r: a splitmix64 step of the seed of the
+/// wrapper mixed with @a r.
+static u64 replication_seed(const u64 seed, const u32 r) noexcept
+{
+    auto z = seed + (static_cast<u64>(r) + 1u) * 0x9E3779B97F4A7C15ull;
+    z      = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ull;
+    z      = (z ^ (z >> 27)) * 0x94D049BB133111EBull;
+    return z ^ (z >> 31);
 }
 
 /// A term of the cartesian product of the scenarios: a factor without group
@@ -318,8 +347,15 @@ static status embedded_sims_copy_parameters(
     }
     dlog(0, "\n");
 
+    const auto replications = std::max(embed_sims.replications, 1u);
+    u32        replication  = 0u;
+
     for (const auto id : embed_sims.embedded_sims) {
         dlog(0, "{:^12}", get_index(id));
+
+        // Common random numbers: the replication r of every scenario uses
+        // the same seed.
+        sims[id].srcs.seed = replication_seed(embed_sims.seed[0], replication);
 
         // First, copy the multiple parameters values into embedded simulation
         // parameters.
@@ -383,6 +419,12 @@ static status embedded_sims_copy_parameters(
         // 24    -> [0 2 2]
         // 25    -> [1 2 2]
         // 26    -> [2 2 2]
+
+        // The replications of a scenario share its factor values.
+        if (++replication < replications)
+            continue;
+
+        replication = 0u;
 
         for (auto& unit : units) {
             ++unit.position;
@@ -449,7 +491,7 @@ static auto compute_simulation_number(
     vector<u32>         unit_of;
     irt_check(build_factor_units(embed_sims, units, unit_of));
 
-    auto nb = sz{ 1 };
+    auto nb = sz{ std::max(embed_sims.replications, 1u) };
     for (const auto& unit : units)
         nb *= unit.count;
 
@@ -849,25 +891,46 @@ static auto compute_embedded_simulation_results(
  *
  * * * * * */
 
-/// Normalizes in place the values of each selection, so that a greater value
-/// is always better and the selections share the same scale. The NaN values
-/// (selections without observation) are ignored and stay NaN.
-static void normalize_weighted_sum(const embedded_simulation& embed_sims,
-                                   std::span<real> objective_fn) noexcept
+/// The scale of a selection in a weighted sum: a greater scaled value is
+/// always better and the selections share the same scale.
+struct selection_scale {
+    real center = zero;
+    real div    = one;
+    bool is_max = true;
+    bool raw    = true; //!< norm_type::none: only the direction.
+
+    real operator()(const real v) const noexcept
+    {
+        if (raw)
+            return is_max ? v : -v;
+
+        return is_max ? (v - center) / div : (center - v) / div;
+    }
+};
+
+/// The scales of the selections computed from the values of all the
+/// sub-simulations. The NaN values (selections without observation) are
+/// ignored and stay NaN.
+static auto weighted_sum_scales(const embedded_simulation&  embed_sims,
+                                const std::span<const real> objective_fn,
+                                vector<selection_scale>&    scales) noexcept
+  -> status
 {
     const pos_in_objective_function pos(embed_sims.selections.size());
     const auto& params = embed_sims.objective.weighted_sum_params;
 
-    for (const auto obj_fn_id : embed_sims.selections) {
-        const auto is_max = params.types[get_index(obj_fn_id)] ==
-                            optimization_type::maximize;
+    if (not scales.resize(embed_sims.selections.size()))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
 
-        if (params.norm == norm_type::none) {
-            if (not is_max)
-                for (const auto sub_id : embed_sims.embedded_sims)
-                    objective_fn[pos(sub_id, obj_fn_id)] *= -1.0;
+    for (const auto obj_fn_id : embed_sims.selections) {
+        auto& scale  = scales[get_index(obj_fn_id)];
+        scale.is_max = params.types[get_index(obj_fn_id)] ==
+                       optimization_type::maximize;
+        scale.raw = params.norm == norm_type::none;
+
+        if (scale.raw)
             continue;
-        }
 
         auto n       = 0;
         auto sum     = 0.0;
@@ -892,52 +955,57 @@ static void normalize_weighted_sum(const embedded_simulation& embed_sims,
 
         const auto mean    = sum / n;
         const auto [center,
-                    scale] = params.norm == norm_type::min_max
-                               ? std::pair{ is_max ? min_val : max_val,
+                    width] = params.norm == norm_type::min_max
+                               ? std::pair{ scale.is_max ? min_val : max_val,
                                             max_val - min_val }
                                : std::pair{ mean,
                                             std::sqrt(std::max(
                                               0.0, sq_sum / n - mean * mean)) };
-        const auto div     = scale < 1e-10 ? 1e-10 : scale;
 
-        for (const auto sub_id : embed_sims.embedded_sims) {
-            auto& val = objective_fn[pos(sub_id, obj_fn_id)];
-            val       = is_max ? (val - center) / div : (center - val) / div;
-        }
+        scale.center = center;
+        scale.div    = width < 1e-10 ? 1e-10 : width;
     }
+
+    return success();
 }
 
-/// Selects the sub-simulation with the best weighted sum of the normalized
-/// values. The values sent on the ports stay the observed ones: the
-/// normalization works on a copy.
-static auto compute_weighted_sum_objective(
-  const embedded_simulation&  embed_sims,
-  const std::span<const real> objective_fn) noexcept
-  -> expected<embedded_simulation::sub_id>
+/// The weighted sum of the scaled values of a sub-simulation: the score to
+/// maximize.
+static real weighted_sum_score(
+  const embedded_simulation&        embed_sims,
+  std::span<const selection_scale>  scales,
+  const std::span<const real>       objective_fn,
+  const embedded_simulation::sub_id sub_id) noexcept
 {
     const pos_in_objective_function pos(embed_sims.selections.size());
 
-    auto normalized = vector<real>();
-    if (not normalized.resize(objective_fn.size()))
-        return make_error(
-          simulation_errc::simulation_wrapper_not_enough_memory);
+    auto value = 0.0;
+    for (const auto obj_fn_id : embed_sims.selections) {
+        const auto i = get_index(obj_fn_id);
+        const auto w = embed_sims.objective.weighted_sum_params.weights[i];
 
-    std::copy_n(objective_fn.data(), objective_fn.size(), normalized.data());
-    normalize_weighted_sum(embed_sims, normalized);
+        value += w * scales[i](objective_fn[pos(sub_id, obj_fn_id)]);
+    }
 
-    // The normalization already turned each selection into a greater is
-    // better value: the global optimization type does not apply here.
+    return value;
+}
+
+/// Selects the sub-simulation with the best weighted sum of the scaled
+/// values. The values sent on the ports stay the observed ones.
+static auto compute_weighted_sum_objective(
+  const embedded_simulation&       embed_sims,
+  std::span<const selection_scale> scales,
+  const std::span<const real>      objective_fn) noexcept
+  -> embedded_simulation::sub_id
+{
+    // The scales already turned each selection into a greater is better
+    // value: the global optimization type does not apply here.
     auto best_sub_id = undefined<embedded_simulation::sub_id>();
     auto best_value  = std::numeric_limits<real>::lowest();
 
     for (const auto sub_id : embed_sims.embedded_sims) {
-        auto value = 0.0;
-        for (const auto obj_fn_id : embed_sims.selections) {
-            const auto w = embed_sims.objective.weighted_sum_params
-                             .weights[get_index(obj_fn_id)];
-
-            value += w * normalized[pos(sub_id, obj_fn_id)];
-        }
+        const auto value = weighted_sum_score(embed_sims, scales, objective_fn,
+                                              sub_id);
 
         if (value > best_value) {
             best_value  = value;
@@ -948,8 +1016,126 @@ static auto compute_weighted_sum_objective(
     return best_sub_id;
 }
 
-static auto do_weighted_sum_optimization(const embedded_simulation& embed_sims,
-                                         const simulation_wrapper&  wrapper,
+/* * * * * *
+ *
+ * replications
+ *
+ * * * * * */
+
+/// Replaces the values of each sub-simulation by the means of the
+/// replications of its scenario: the optimizations compare the scenarios and
+/// the first replication of the best one wins. Fills the means and the
+/// standard deviations of @c embedded_simulation::results.
+/// @return The values of each replication.
+static auto aggregate_replications(embedded_simulation&  embed_sims,
+                                   const std::span<real> objective_fn) noexcept
+  -> expected<vector<real>>
+{
+    const pos_in_objective_function pos(embed_sims.selections.size());
+
+    const auto replications = std::max(embed_sims.replications, 1u);
+    const auto selections   = embed_sims.selections.size();
+    const auto scenarios    = embed_sims.embedded_sims.size() / replications;
+
+    auto raw = vector<real>();
+    if (not raw.resize(objective_fn.size()))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
+    std::copy_n(objective_fn.data(), objective_fn.size(), raw.data());
+
+    embed_sims.results.clear();
+    if (not embed_sims.results.resize(scenarios))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
+
+    for (auto& result : embed_sims.results)
+        if (not result.means.resize(selections, zero) or
+            not result.stddevs.resize(selections, zero))
+            return make_error(
+              simulation_errc::simulation_wrapper_not_enough_memory);
+
+    // The sub-simulation k belongs to the scenario k / replications.
+    const auto for_each_sub = [&](auto&& fn) noexcept {
+        sz k = 0;
+        for (const auto sub_id : embed_sims.embedded_sims) {
+            fn(embed_sims.results[k / replications], k % replications, sub_id);
+            ++k;
+        }
+    };
+
+    for_each_sub([&](auto& result, const sz r, const auto sub_id) noexcept {
+        if (r == 0)
+            result.first = sub_id;
+
+        for (const auto sel : embed_sims.selections)
+            result.means[get_index(sel)] += raw[pos(sub_id, sel)];
+    });
+
+    for (auto& result : embed_sims.results)
+        for (auto& mean : result.means)
+            mean /= static_cast<real>(replications);
+
+    for_each_sub([&](auto& result, const sz, const auto sub_id) noexcept {
+        for (const auto sel : embed_sims.selections) {
+            const auto j = get_index(sel);
+            const auto d = raw[pos(sub_id, sel)] - result.means[j];
+
+            result.stddevs[j] += d * d;
+            objective_fn[pos(sub_id, sel)] = result.means[j];
+        }
+    });
+
+    for (auto& result : embed_sims.results)
+        for (auto& sd : result.stddevs)
+            sd = replications > 1 ? std::sqrt(sd / (replications - 1)) : zero;
+
+    return raw;
+}
+
+/// Fills the objective of @c embedded_simulation::results with the @a score
+/// of each replication, and the scenario of @a best_sub_id.
+template<typename Score>
+static void record_objective(embedded_simulation&              embed_sims,
+                             const std::span<const real>       raw,
+                             const embedded_simulation::sub_id best_sub_id,
+                             Score&&                           score) noexcept
+{
+    const auto replications = std::max(embed_sims.replications, 1u);
+
+    for (auto& result : embed_sims.results) {
+        result.objective_mean   = zero;
+        result.objective_stddev = zero;
+    }
+
+    // Two passes: the mean, then the squared deviations.
+    sz k = 0;
+    for (const auto sub_id : embed_sims.embedded_sims) {
+        if (sub_id == best_sub_id)
+            embed_sims.best_scenario = k / replications;
+
+        embed_sims.results[k / replications]
+          .objective_mean += score(raw, sub_id) /
+                             static_cast<real>(replications);
+        ++k;
+    }
+
+    k = 0;
+    for (const auto sub_id : embed_sims.embedded_sims) {
+        auto&      result = embed_sims.results[k / replications];
+        const auto d      = score(raw, sub_id) - result.objective_mean;
+        result.objective_stddev += d * d;
+        ++k;
+    }
+
+    for (auto& result : embed_sims.results)
+        result.objective_stddev = replications > 1
+                                    ? std::sqrt(result.objective_stddev /
+                                                (replications - 1))
+                                    : zero;
+}
+
+static auto do_weighted_sum_optimization(embedded_simulation&      embed_sims,
+                                         const simulation_wrapper& wrapper,
                                          simulation& sim) noexcept -> status
 {
     debug::ensure(embed_sims.objective.method ==
@@ -960,15 +1146,35 @@ static auto do_weighted_sum_optimization(const embedded_simulation& embed_sims,
     if (objective_fn_ret.has_error())
         return objective_fn_ret.error();
 
-    const auto best_sub_id = compute_weighted_sum_objective(embed_sims,
+    const auto raw = aggregate_replications(embed_sims, *objective_fn_ret);
+    if (not raw)
+        return raw.error();
+
+    auto scales = vector<selection_scale>();
+    irt_check(weighted_sum_scales(embed_sims, *objective_fn_ret, scales));
+
+    const auto best_sub_id = compute_weighted_sum_objective(embed_sims, scales,
                                                             *objective_fn_ret);
 
-    if (best_sub_id.has_error())
-        return best_sub_id.error();
+    record_objective(
+      embed_sims, *raw, best_sub_id, [&](const auto values, const auto sub) {
+          return weighted_sum_score(embed_sims, scales, values, sub);
+      });
 
-    return embed_sims.embedded_sims.exists(*best_sub_id)
-             ? send(embed_sims, wrapper, *best_sub_id, *objective_fn_ret, sim)
+    return embed_sims.embedded_sims.exists(best_sub_id)
+             ? send(embed_sims, wrapper, best_sub_id, *objective_fn_ret, sim)
              : success();
+}
+
+/// The value of the primary selection of a sub-simulation.
+static auto primary_score(const embedded_simulation& embed_sims,
+                          const selection_id         primary) noexcept
+{
+    return [&embed_sims, primary](const std::span<const real>       values,
+                                  const embedded_simulation::sub_id sub) {
+        const pos_in_objective_function pos(embed_sims.selections.size());
+        return values[pos(sub, primary)];
+    };
 }
 
 /* * * * * *
@@ -1047,9 +1253,9 @@ static auto select(
 }
 
 static auto do_epsilon_constrained_optimization(
-  const embedded_simulation& embed_sims,
-  const simulation_wrapper&  wrapper,
-  simulation&                sim) noexcept -> status
+  embedded_simulation&      embed_sims,
+  const simulation_wrapper& wrapper,
+  simulation&               sim) noexcept -> status
 {
     debug::ensure(embed_sims.objective.method ==
                   optimization_method::epsilon_constrained);
@@ -1067,8 +1273,17 @@ static auto do_epsilon_constrained_optimization(
     if (objective_fn_ret.has_error())
         return objective_fn_ret.error();
 
+    const auto raw = aggregate_replications(embed_sims, *objective_fn_ret);
+    if (not raw)
+        return raw.error();
+
     auto filtered    = filter(embed_sims, *objective_fn_ret);
     auto best_sub_id = select(embed_sims, *objective_fn_ret, filtered);
+
+    record_objective(
+      embed_sims, *raw, best_sub_id,
+      primary_score(embed_sims,
+                    embed_sims.objective.epsilon_constrained_params.primary));
 
     dlogln(0, "select sub-id {}", get_index(best_sub_id));
 
@@ -1083,8 +1298,8 @@ static auto do_epsilon_constrained_optimization(
  *
  * * * * * */
 
-static auto do_simple_optimization(const embedded_simulation& embed_sims,
-                                   const simulation_wrapper&  wrapper,
+static auto do_simple_optimization(embedded_simulation&      embed_sims,
+                                   const simulation_wrapper& wrapper,
                                    simulation& sim) noexcept -> status
 {
     debug::ensure(embed_sims.objective.method == optimization_method::simple);
@@ -1097,6 +1312,10 @@ static auto do_simple_optimization(const embedded_simulation& embed_sims,
 
     if (objective_fn_ret.has_error())
         return objective_fn_ret.error();
+
+    const auto raw = aggregate_replications(embed_sims, *objective_fn_ret);
+    if (not raw)
+        return raw.error();
 
     auto&      objective_fn = *objective_fn_ret;
     const auto sel_id       = embed_sims.objective.simple_params.primary;
@@ -1125,6 +1344,9 @@ static auto do_simple_optimization(const embedded_simulation& embed_sims,
 
     dlogln(0, "select sub-id {}", get_index(best_sub_id));
 
+    record_objective(embed_sims, *raw, best_sub_id,
+                     primary_score(embed_sims, sel_id));
+
     return embed_sims.embedded_sims.exists(best_sub_id)
              ? send(embed_sims, wrapper, best_sub_id, objective_fn, sim)
              : success();
@@ -1132,7 +1354,7 @@ static auto do_simple_optimization(const embedded_simulation& embed_sims,
 
 status simulation_wrapper::lambda(simulation& sim) noexcept
 {
-    const auto* embed_sims = sim.sims.try_to_get(sim_id);
+    auto* embed_sims = sim.sims.try_to_get(sim_id);
 
     if (not embed_sims)
         return make_error(

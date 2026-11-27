@@ -196,6 +196,19 @@ bool simulation_component_editor_data::display_objective(
         ImGui::EndCombo();
     }
 
+    if (auto r = static_cast<int>(m_sim.replications);
+        ImGui::InputInt("replications", &r) and r >= 1) {
+        m_sim.replications = static_cast<u32>(r);
+        ++u;
+    }
+    ImGui::SetItemTooltip("The number of sub-simulations of each scenario: "
+                          "the criteria are their means.");
+
+    if (ImGui::InputScalar("seed", ImGuiDataType_U64, &m_sim.seed))
+        ++u;
+    ImGui::SetItemTooltip("The replication r of every scenario uses a seed "
+                          "derived from this one and r.");
+
     if (ImGui::TreeNodeEx("observations", ImGuiTreeNodeFlags_DefaultOpen)) {
         u += display_observation_table(m_sim.pj);
         ImGui::TreePop();

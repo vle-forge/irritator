@@ -2708,6 +2708,10 @@ struct embedded_simulation {
         real start    = zero;
         real last_t   = zero;
 
+        /// False when all the criteria of the model are @c time_mean: the
+        /// resampled @c values are not kept, the integral is enough.
+        bool keep_values = true;
+
         /// Forgets the observations of a sub-simulation which starts at @a t.
         void reset(const real t) noexcept;
 
@@ -2743,6 +2747,29 @@ struct embedded_simulation {
     /** Number of @c input_parameters correspond to the number of
      * factors in the simulation-component. */
     vector<input_parameter> input_parameters;
+
+    /// The sub-simulations of a scenario: the sub-simulation k is the
+    /// replication k % replications of the scenario k / replications. The
+    /// replication r of all the scenarios uses the same seed, derived from
+    /// @c seed[0] and r: the scenarios are compared on common random numbers.
+    u32 replications = 1u;
+
+    /// The results of a scenario in the last decision, the mean and the
+    /// empirical standard deviation over its replications of each selection
+    /// (in the order of the selections) and of the objective. The objective
+    /// of a weighted sum is the score to maximize (a criteria to minimize
+    /// counts negatively), otherwise it is the primary selection.
+    struct scenario_result {
+        sub_id       first; //!< The first replication of the scenario.
+        vector<real> means;
+        vector<real> stddevs;
+        real         objective_mean   = zero;
+        real         objective_stddev = zero;
+    };
+
+    /// Derived data of the last decision, not saved in the snapshots.
+    vector<scenario_result> results;
+    sz                      best_scenario = 0u;
 
     std::array<u64, 6> seed = {
         0x1357209348203948u, ///! user defined value

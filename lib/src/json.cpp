@@ -4156,6 +4156,20 @@ struct json_reader {
               if ("objective"sv == name)
                   return read_simulation_component_objective(value, sim);
 
+              if ("replications"sv == name) {
+                  if (not value.IsUint() or value.GetUint() < 1u)
+                      return error("bad number of replications");
+                  sim.replications = value.GetUint();
+                  return true;
+              }
+
+              if ("seed"sv == name) {
+                  if (not value.IsUint64())
+                      return error("bad seed");
+                  sim.seed = value.GetUint64();
+                  return true;
+              }
+
               return true;
           });
 
@@ -7197,6 +7211,17 @@ struct json_writer {
                              static_cast<rapidjson::SizeType>(view.size()));
                 }
             }
+        }
+
+        // Written only when set: the files without replication stay the same.
+        if (sim.replications > 1u) {
+            w.Key("replications");
+            w.Uint(sim.replications);
+        }
+
+        if (sim.seed != simulation_component::default_seed) {
+            w.Key("seed");
+            w.Uint64(sim.seed);
         }
 
         w.Key("factors");

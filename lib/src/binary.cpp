@@ -1037,7 +1037,7 @@ void binary_serialize(
   Ar&                                              ar,
   embedded_simulation::embedded_model_observation& o) noexcept
 {
-    ar(o.values, o.integral, o.start, o.last_t);
+    ar(o.values, o.integral, o.start, o.last_t, o.keep_values);
 }
 
 /// A table: its vector of (identifier, value). The binary_access::check
@@ -1717,6 +1717,11 @@ struct binary_access {
             e.input_parameters.size() != e.factors.size())
             return false;
 
+        // The replications of a scenario are consecutive sub-simulations.
+        if (e.replications < 1u or
+            e.embedded_sims.size() % e.replications != 0u)
+            return false;
+
         if (not factors_ok(e, e.sim))
             return false;
 
@@ -1857,6 +1862,7 @@ struct binary_access {
         ar(o.epsilon_constrained_params.epsilons,
            o.epsilon_constrained_params.operations,
            o.epsilon_constrained_params.primary, o.simple_params.primary);
+        ar(e.replications);
     }
 
     /// A whole simulation, without header: the limits, the sources, the state

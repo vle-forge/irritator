@@ -112,7 +112,9 @@ status simulation_component::assign(project&& pj_to_move) noexcept
 status simulation_component::copy_to(
   embedded_simulation& embed_sims) const noexcept
 {
-    embed_sims.sim = pj.sim;
+    embed_sims.sim          = pj.sim;
+    embed_sims.replications = std::max(replications, 1u);
+    embed_sims.seed[0]      = seed;
 
     embed_sims.factors.clear();
     embed_sims.selections.clear();
