@@ -16,3 +16,5 @@
   (IRRITATOR_DAMA_RELIABILITY_CSV).
 * core: the `rate` port of `single_server_queue` changes the rate of the
   services not started.
+* test: the DEVS-DAMA closed loop, an agent of HSM and wrappers driving a
+  M/M/1 queue (doc/dama-closed-loop.md, IRRITATOR_DAMA_CLOSED_LOOP_CSV).

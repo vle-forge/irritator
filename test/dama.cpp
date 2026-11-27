@@ -16,6 +16,8 @@
 #include <cstdlib>
 #include <limits>
 #include <span>
+#include <string>
+#include <tuple>
 #include <vector>
 
 using namespace std::literals;
@@ -72,31 +74,25 @@ struct supervisor_result {
     double                                                 decision_ms   = 0;
 };
 
-static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
+/// The simulation component of the supervisor and the positions of the
+/// factors lambda and mu in the ports of its wrapper.
+struct supervisor_model {
+    irt::component_id sim_compo  = irt::undefined<irt::component_id>();
+    int               lambda_pos = -1;
+    int               mu_pos     = -1;
+};
+
+/// Builds the M/M/1 model projected by the wrapper and its simulation
+/// component in the directory @a dir_id.
+static supervisor_model build_supervisor(irt::modeling&           mod,
+                                         const irt::dir_path_id   dir_id,
+                                         const supervisor_config& cfg) noexcept
 {
-    supervisor_result result;
-
-    const auto temp_path = irt::temp_path_with_unlink{ "supervisor"sv };
-    expect(fatal(temp_path.success()));
-
-    irt::modeling     mod;
-    irt::dir_path_id  dir_id{ 0 };
     irt::file_path_id gen_file{ 0 };
     irt::file_path_id project_file{ 0 };
     irt::file_path_id sim_file{ 0 };
-    irt::file_path_id wrapper_file{ 0 };
 
     mod.files.write([&](auto& fs) {
-        const auto reg_id                   = fs.alloc_registred("temp", 0);
-        fs.registred_paths.get(reg_id).path = temp_path.c_str();
-
-        dir_id                          = fs.alloc_dir(reg_id);
-        fs.dir_paths.get(dir_id).parent = reg_id;
-        fs.dir_paths.get(dir_id).path   = "test-supervisor";
-
-        fs.create_directories(reg_id);
-        fs.create_directories(dir_id);
-
         gen_file     = fs.alloc_file(dir_id, "gen-compo.irt",
                                      irt::file_type::component_file);
         project_file = fs.alloc_file(dir_id, "project.pirt",
@@ -264,6 +260,35 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
 
     expect(fatal(mod.fill_components().has_value()));
 
+    return { sim_compo, lambda_pos, mu_pos };
+}
+
+static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
+{
+    supervisor_result result;
+
+    const auto temp_path = irt::temp_path_with_unlink{ "supervisor"sv };
+    expect(fatal(temp_path.success()));
+
+    irt::modeling     mod;
+    irt::dir_path_id  dir_id{ 0 };
+    irt::file_path_id wrapper_file{ 0 };
+
+    mod.files.write([&](auto& fs) {
+        const auto reg_id                   = fs.alloc_registred("temp", 0);
+        fs.registred_paths.get(reg_id).path = temp_path.c_str();
+
+        dir_id                          = fs.alloc_dir(reg_id);
+        fs.dir_paths.get(dir_id).parent = reg_id;
+        fs.dir_paths.get(dir_id).path   = "test-supervisor";
+
+        fs.create_directories(reg_id);
+        fs.create_directories(dir_id);
+    });
+
+    const auto [sim_compo, lambda_pos, mu_pos] = build_supervisor(mod, dir_id,
+                                                                  cfg);
+
     // ---- LEVEL 3: the wrapper, lambda injected as the mean period.
     wrapper_file = mod.files.write([&](auto& fs) {
         return fs.alloc_file(dir_id, "sim-wrapper.irt",
@@ -401,6 +426,591 @@ static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
     }
 
     return result;
+}
+
+/* * * * * * * * *
+ *
+ * The closed loop: an environment (a M/M/1 queue with a burst of arrivals)
+ * coupled to a DEVS-DAMA agent built with components only. The C++ code
+ * builds the model, runs the replications and measures the environment.
+ *
+ * * * * * * * * */
+
+enum class closed_loop_variant {
+    dama,           //!< The agent: Omega_B, Omega_theta, C, Psi + Delta.
+    mu1,            //!< Always mu1.
+    mu2,            //!< Always mu2.
+    hysteresis,     //!< mu2 if n > 5, back to mu1 if n < 2.
+    no_omega_b,     //!< The belief stays at the prior period 2.5.
+    no_omega_theta, //!< The slow estimate stays at the prior period 2.5.
+    no_bounds,      //!< C does not bound the period.
+};
+
+static constexpr std::string_view closed_loop_variant_names[] = {
+    "dama",           "mu1",      "mu2", "hysteresis", "no_omega_b",
+    "no_omega_theta", "no_bounds"
+};
+
+static bool has_agent(const closed_loop_variant v) noexcept
+{
+    return v != closed_loop_variant::mu1 and v != closed_loop_variant::mu2 and
+           v != closed_loop_variant::hysteresis;
+}
+
+/// The parameters of the agent, see doc/dama-closed-loop.md.
+struct closed_loop_parameters {
+    static constexpr irt::real prior_period = 2.5;  //!< 1 / 0.4.
+    static constexpr irt::real window       = 25.0; //!< Omega_B window W.
+    static constexpr irt::real epsilon      = 0.25; //!< Revision threshold.
+    static constexpr irt::real eta_window   = 0.40; //!< 1 - 0.95^10.
+    static constexpr irt::real w_belief     = 0.8;
+    static constexpr irt::real w_slow       = 0.2;
+    static constexpr irt::real period_min   = 0.2;  //!< 1 / 5.
+    static constexpr irt::real period_max   = 20.0; //!< 1 / 0.05.
+    static constexpr irt::real decision     = 4.0;  //!< T_d.
+    static constexpr irt::real latency      = 0.1;  //!< d_r.
+    static constexpr irt::real mu1          = 0.6;
+    static constexpr irt::real mu2          = 1.2;
+};
+
+using hsm_var = irt::hierarchical_state_machine::variable;
+
+template<typename Fill>
+static irt::component_id make_hsm_component(irt::modeling&         mod,
+                                            const irt::dir_path_id dir_id,
+                                            const char*            file,
+                                            Fill&& fill) noexcept
+{
+    const auto file_id = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, file, irt::file_type::component_file);
+    });
+
+    return mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_hsm_component();
+        auto& compo    = ids.components[compo_id];
+        auto& machine  = ids.hsm_components.get(compo.id.hsm_id).machine;
+
+        fill(machine);
+
+        ids.component_file_paths[compo_id].file = file_id;
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+        });
+        return compo_id;
+    });
+}
+
+/// Omega_B: counts the arrivals (port 0) during a window W, then the
+/// empirical period p_w = W / count goes out on port 1 and the belief r1 is
+/// replaced by p_w if |p_w - r1| > epsilon. The belief goes out on port 0
+/// after each window. A window without arrival gives no information.
+static void fill_omega_b(irt::hierarchical_state_machine& m,
+                         const irt::real                  epsilon) noexcept
+{
+    constexpr auto none = irt::hierarchical_state_machine::invalid_state_id;
+
+    m.constants[0] = closed_loop_parameters::window;
+    m.constants[1] = epsilon;
+    m.constants[2] = -epsilon;
+
+    auto& st = m.states;
+
+    expect(!!m.set_state(0u, none, 1u));
+
+    expect(!!m.set_state(1u, 0u)); // arm the window
+    st[1].enter_action.set_affect(hsm_var::var_timer, hsm_var::hsm_constant_0);
+    st[1].if_transition = 2u;
+
+    expect(!!m.set_state(2u, 0u)); // wait: the timer or an arrival
+    st[2].condition.set_timer();
+    st[2].if_transition   = 3u;
+    st[2].else_transition = 6u;
+
+    expect(!!m.set_state(6u, 0u)); // count, the timer keeps running
+    st[6].enter_action.set_plus(hsm_var::var_i1, 1);
+    st[6].if_transition = 2u;
+
+    expect(!!m.set_state(3u, 0u)); // no arrival
+    st[3].condition.set_equal_to(hsm_var::var_i1, 0);
+    st[3].if_transition   = 1u;
+    st[3].else_transition = 4u;
+
+    expect(!!m.set_state(4u, 0u)); // p_w = W / count
+    st[4].enter_action.set_affect(hsm_var::var_r2, hsm_var::hsm_constant_0);
+    st[4].exit_action.set_divides(hsm_var::var_r2, hsm_var::var_i1);
+    st[4].if_transition = 5u;
+
+    expect(!!m.set_state(5u, 0u)); // send p_w, error = p_w - belief
+    st[5].enter_action.set_output(hsm_var::port_1, hsm_var::var_r2);
+    st[5].exit_action.set_minus(hsm_var::var_r2, hsm_var::var_r1);
+    st[5].if_transition = 7u;
+
+    expect(!!m.set_state(7u, 0u));
+    st[7].condition.set_greater(hsm_var::var_r2, hsm_var::hsm_constant_1);
+    st[7].if_transition   = 9u;
+    st[7].else_transition = 8u;
+
+    expect(!!m.set_state(8u, 0u));
+    st[8].condition.set_less(hsm_var::var_r2, hsm_var::hsm_constant_2);
+    st[8].if_transition   = 9u;
+    st[8].else_transition = 10u;
+
+    expect(!!m.set_state(9u, 0u)); // revision: belief = p_w
+    st[9].enter_action.set_plus(hsm_var::var_r1, hsm_var::var_r2);
+    st[9].if_transition = 10u;
+
+    expect(!!m.set_state(10u, 0u)); // send the belief, new window
+    st[10].enter_action.set_output(hsm_var::port_0, hsm_var::var_r1);
+    st[10].exit_action.set_affect(hsm_var::var_i1, 0);
+    st[10].if_transition = 1u;
+}
+
+/// C with Omega_theta: receives the belief (port 0) and p_w (port 1) in the
+/// same bag. The slow estimate r1 moves toward p_w (r1 += eta (p_w - r1)),
+/// the fusion 0.8 belief + 0.2 r1 is bounded and goes out on port 0.
+static void fill_fusion(irt::hierarchical_state_machine& m,
+                        const irt::real                  eta,
+                        const irt::real                  lower,
+                        const irt::real                  upper) noexcept
+{
+    constexpr auto none = irt::hierarchical_state_machine::invalid_state_id;
+
+    m.constants[0] = eta;
+    m.constants[1] = closed_loop_parameters::w_belief;
+    m.constants[2] = closed_loop_parameters::w_slow;
+    m.constants[3] = lower;
+    m.constants[4] = upper;
+
+    auto& st = m.states;
+
+    expect(!!m.set_state(0u, none, 1u));
+
+    expect(!!m.set_state(1u, 0u)); // wait the belief and p_w
+    st[1].condition.set(0b1100u, 0b1100u);
+    st[1].if_transition = 2u;
+
+    expect(!!m.set_state(2u, 0u)); // r2 = p_w - r1
+    st[2].enter_action.set_affect(hsm_var::var_r2, hsm_var::port_1);
+    st[2].exit_action.set_minus(hsm_var::var_r2, hsm_var::var_r1);
+    st[2].if_transition = 3u;
+
+    expect(!!m.set_state(3u, 0u)); // r1 += eta r2
+    st[3].enter_action.set_multiplies(hsm_var::var_r2, hsm_var::hsm_constant_0);
+    st[3].exit_action.set_plus(hsm_var::var_r1, hsm_var::var_r2);
+    st[3].if_transition = 4u;
+
+    expect(!!m.set_state(4u, 0u)); // r2 = 0.8 belief
+    st[4].enter_action.set_affect(hsm_var::var_r2, hsm_var::port_0);
+    st[4].exit_action.set_multiplies(hsm_var::var_r2, hsm_var::hsm_constant_1);
+    st[4].if_transition = 5u;
+
+    // Two registers only: r1 is scaled by 0.2, added, then restored.
+    expect(!!m.set_state(5u, 0u));
+    st[5].enter_action.set_multiplies(hsm_var::var_r1, hsm_var::hsm_constant_2);
+    st[5].exit_action.set_plus(hsm_var::var_r2, hsm_var::var_r1);
+    st[5].if_transition = 6u;
+
+    expect(!!m.set_state(6u, 0u));
+    st[6].enter_action.set_divides(hsm_var::var_r1, hsm_var::hsm_constant_2);
+    st[6].if_transition = 7u;
+
+    expect(!!m.set_state(7u, 0u)); // lower bound
+    st[7].condition.set_less(hsm_var::var_r2, hsm_var::hsm_constant_3);
+    st[7].if_transition   = 8u;
+    st[7].else_transition = 9u;
+
+    expect(!!m.set_state(8u, 0u));
+    st[8].enter_action.set_affect(hsm_var::var_r2, hsm_var::hsm_constant_3);
+    st[8].if_transition = 9u;
+
+    expect(!!m.set_state(9u, 0u)); // upper bound
+    st[9].condition.set_greater(hsm_var::var_r2, hsm_var::hsm_constant_4);
+    st[9].if_transition   = 10u;
+    st[9].else_transition = 11u;
+
+    expect(!!m.set_state(10u, 0u));
+    st[10].enter_action.set_affect(hsm_var::var_r2, hsm_var::hsm_constant_4);
+    st[10].if_transition = 11u;
+
+    expect(!!m.set_state(11u, 0u)); // the period for the factor lambda
+    st[11].enter_action.set_output(hsm_var::port_0, hsm_var::var_r2);
+    st[11].if_transition = 1u;
+}
+
+/// The reactive baseline: i1 counts the clients (arrivals on port 0,
+/// departures on port 1), i2 is the mode. mu2 goes out if n > 5 in mu1, mu1
+/// if n < 2 in mu2.
+static void fill_hysteresis(irt::hierarchical_state_machine& m) noexcept
+{
+    constexpr auto none = irt::hierarchical_state_machine::invalid_state_id;
+
+    m.constants[0] = closed_loop_parameters::mu1;
+    m.constants[1] = closed_loop_parameters::mu2;
+
+    auto& st = m.states;
+
+    expect(!!m.set_state(0u, none, 1u));
+
+    expect(!!m.set_state(1u, 0u)); // an arrival, else a departure
+    st[1].condition.set(0b1000u, 0b1000u);
+    st[1].if_transition   = 2u;
+    st[1].else_transition = 3u;
+
+    expect(!!m.set_state(2u, 0u));
+    st[2].enter_action.set_plus(hsm_var::var_i1, 1);
+    st[2].if_transition = 4u;
+
+    expect(!!m.set_state(3u, 0u));
+    st[3].enter_action.set_minus(hsm_var::var_i1, 1);
+    st[3].if_transition = 5u;
+
+    expect(!!m.set_state(4u, 0u));
+    st[4].condition.set_greater(hsm_var::var_i1, 5);
+    st[4].if_transition   = 6u;
+    st[4].else_transition = 1u;
+
+    expect(!!m.set_state(6u, 0u));
+    st[6].condition.set_equal_to(hsm_var::var_i2, 0);
+    st[6].if_transition   = 7u;
+    st[6].else_transition = 1u;
+
+    expect(!!m.set_state(7u, 0u));
+    st[7].enter_action.set_affect(hsm_var::var_i2, 1);
+    st[7].exit_action.set_output(hsm_var::port_0, hsm_var::hsm_constant_1);
+    st[7].if_transition = 1u;
+
+    expect(!!m.set_state(5u, 0u));
+    st[5].condition.set_less(hsm_var::var_i1, 2);
+    st[5].if_transition   = 8u;
+    st[5].else_transition = 1u;
+
+    expect(!!m.set_state(8u, 0u));
+    st[8].condition.set_equal_to(hsm_var::var_i2, 1);
+    st[8].if_transition   = 9u;
+    st[8].else_transition = 1u;
+
+    expect(!!m.set_state(9u, 0u));
+    st[9].enter_action.set_affect(hsm_var::var_i2, 0);
+    st[9].exit_action.set_output(hsm_var::port_0, hsm_var::hsm_constant_0);
+    st[9].if_transition = 1u;
+}
+
+/// The modeling of a variant: its top component and the temporary
+/// directory of its files.
+struct closed_loop_model {
+    irt::temp_path_with_unlink temp_path{ "closed-loop"sv };
+    irt::modeling              mod;
+    irt::component_id          top = irt::undefined<irt::component_id>();
+};
+
+static void build_closed_loop(closed_loop_model&        m,
+                              const closed_loop_variant variant) noexcept
+{
+    using P = closed_loop_parameters;
+
+    expect(fatal(m.temp_path.success()));
+
+    auto& mod    = m.mod;
+    auto  dir_id = irt::dir_path_id{ 0 };
+
+    mod.files.write([&](auto& fs) {
+        const auto reg_id                   = fs.alloc_registred("temp", 0);
+        fs.registred_paths.get(reg_id).path = m.temp_path.c_str();
+
+        dir_id                          = fs.alloc_dir(reg_id);
+        fs.dir_paths.get(dir_id).parent = reg_id;
+        fs.dir_paths.get(dir_id).path   = "closed-loop";
+
+        fs.create_directories(reg_id);
+        fs.create_directories(dir_id);
+    });
+
+    // Psi + Delta: the supervisor, R = 10, h = 50.
+    const irt::real mu[]   = { P::mu1, P::mu2 };
+    const irt::real cost[] = { 0.0, 3.0 };
+
+    const auto supervisor = has_agent(variant)
+                              ? build_supervisor(
+                                  mod, dir_id,
+                                  { .mu       = mu,
+                                    .cost     = cost,
+                                    .horizon  = 50,
+                                    .criteria = irt::criteria_type::time_mean,
+                                    .norm     = irt::norm_type::none,
+                                    .replications = 10u })
+                              : supervisor_model{};
+
+    const auto omega_b = make_hsm_component(
+      mod, dir_id, "omega-b.irt", [&](auto& machine) {
+          fill_omega_b(machine, variant == closed_loop_variant::no_omega_b
+                                  ? 1e9
+                                  : P::epsilon);
+      });
+
+    const auto fusion = make_hsm_component(
+      mod, dir_id, "fusion.irt", [&](auto& machine) {
+          const auto bounded = variant != closed_loop_variant::no_bounds;
+          fill_fusion(
+            machine,
+            variant == closed_loop_variant::no_omega_theta ? 0.0
+                                                           : P::eta_window,
+            bounded ? P::period_min : 0.0, bounded ? P::period_max : 1e30);
+      });
+
+    const auto hysteresis = make_hsm_component(
+      mod, dir_id, "hysteresis.irt",
+      [](auto& machine) { fill_hysteresis(machine); });
+
+    const auto top_file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, "closed-loop.irt",
+                             irt::file_type::component_file);
+    });
+
+    m.top = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        // ---- The environment.
+        compo.srcs.data.reserve(5);
+        const auto random_source = [&](const char* name, irt::real rate) {
+            auto& rnd    = compo.srcs.alloc_random_source(name);
+            rnd.type     = irt::distribution_type::exponential;
+            rnd.reals[0] = rate;
+        };
+        random_source("arrivals-a", 1.0);
+        random_source("arrivals-b", 1.0);
+        random_source("restart-b", 1.0 / P::prior_period);
+        random_source("services", 1.0);
+        {
+            auto& dates = compo.srcs.alloc_constant_source("restart-dates");
+            dates.data.emplace_back(500.0);
+            dates.data.emplace_back(1e9);
+        }
+
+        irt::external_source_definition::id src[5];
+        {
+            int i = 0;
+            for (const auto id : compo.srcs.data)
+                src[i++] = id;
+        }
+
+        const auto param = [&](auto& child) -> irt::parameter& {
+            return gen.children_parameters[gen.children.get_id(child)];
+        };
+
+        // Two Poisson processes of rate 0.4: B runs only on [500, 1000).
+        auto& gen_a = gen.alloc(irt::dynamics_type::generator);
+        auto& gen_b = gen.alloc(irt::dynamics_type::generator);
+        param(gen_a).set_generator_ta(src[0]).set_generator_ta_scale(
+          P::prior_period);
+        param(gen_b).set_generator_ta(src[1]).set_generator_ta_scale(
+          P::prior_period);
+
+        // An exponential first delay at t = 500 keeps a Poisson process.
+        auto& restart_b = gen.alloc(irt::dynamics_type::generator);
+        param(restart_b).set_generator_ta(src[4]).set_generator_value(src[2]);
+
+        auto& stop_b0 = gen.alloc(irt::dynamics_type::constant);
+        auto& stop_b1 = gen.alloc(irt::dynamics_type::constant);
+        param(stop_b0).set_constant(1e9, 0.0);
+        param(stop_b1).set_constant(1e9, 1000.0);
+
+        auto& queue = gen.alloc(irt::dynamics_type::single_server_queue);
+        param(queue)
+          .set_single_server_queue_ta(src[3])
+          .set_single_server_queue_rate(
+            variant == closed_loop_variant::mu2 ? P::mu2 : P::mu1);
+
+        const auto connect = [&](auto& from, int out, auto& to,
+                                 int in) noexcept {
+            expect(gen.connect(from, { .model = out }, to, { .model = in })
+                     .has_value());
+        };
+
+        connect(gen_a, 0, queue, irt::single_server_queue::x_in);
+        connect(gen_b, 0, queue, irt::single_server_queue::x_in);
+        connect(restart_b, 0, gen_b, irt::generator::x_t);
+        connect(stop_b0, 0, gen_b, irt::generator::x_t);
+        connect(stop_b1, 0, gen_b, irt::generator::x_t);
+
+        // ---- The reactive baseline.
+        if (variant == closed_loop_variant::hysteresis) {
+            auto& hsmw = gen.alloc(irt::dynamics_type::hsm_wrapper);
+            param(hsmw).set_hsm_wrapper(ordinal(hysteresis));
+            param(hsmw).set_hsm_wrapper(0, 0, 0.0, 0.0,
+                                        irt::time_domain<irt::time>::infinity);
+            connect(gen_a, 0, hsmw, 0);
+            connect(gen_b, 0, hsmw, 0);
+            connect(queue, 0, hsmw, 1);
+            connect(hsmw, 0, queue, irt::single_server_queue::x_rate);
+        }
+
+        // ---- The agent.
+        if (has_agent(variant)) {
+            auto& clock = gen.alloc(irt::dynamics_type::generator);
+            param(clock)
+              .set_generator_ta(P::decision)
+              .reals[irt::generator_tag::value] = P::latency;
+
+            auto& omega = gen.alloc(irt::dynamics_type::hsm_wrapper);
+            param(omega).set_hsm_wrapper(ordinal(omega_b));
+            param(omega).set_hsm_wrapper(0, 0, P::prior_period, 0.0,
+                                         irt::time_domain<irt::time>::infinity);
+
+            auto& c = gen.alloc(irt::dynamics_type::hsm_wrapper);
+            param(c).set_hsm_wrapper(ordinal(fusion));
+            param(c).set_hsm_wrapper(0, 0, P::prior_period, 0.0,
+                                     irt::time_domain<irt::time>::infinity);
+
+            auto& sim_w = gen.alloc(irt::dynamics_type::simulation_wrapper);
+            param(sim_w).integers[irt::simulation_wrapper_tag::run] = ordinal(
+              irt::simulation_wrapper::run_type::complete);
+            param(sim_w).integers[irt::simulation_wrapper_tag::id] = ordinal(
+              supervisor.sim_compo);
+
+            auto& decisions = gen.alloc(irt::dynamics_type::counter);
+
+            connect(gen_a, 0, omega, 0);
+            connect(gen_b, 0, omega, 0);
+            connect(omega, 0, c, 0);
+            connect(omega, 1, c, 1);
+            connect(c, 0, sim_w, 2 + supervisor.lambda_pos);
+            connect(clock, 0, sim_w, 0);
+            connect(clock, 0, sim_w, 1);
+            connect(sim_w, supervisor.mu_pos, queue,
+                    irt::single_server_queue::x_rate);
+            connect(sim_w, supervisor.mu_pos, decisions, 0);
+        }
+
+        ids.component_file_paths[compo_id].file = top_file;
+        mod.files.read([&](const auto& fs, auto) {
+            expect(mod.save(ids, fs, compo_id).has_value());
+        });
+        return compo_id;
+    });
+}
+
+/// The measures of a replication on the environment.
+struct closed_loop_result {
+    irt::error_code error;
+    double          L           = 0; //!< Time mean of the number of clients.
+    double          L_phase[3]  = { 0, 0, 0 }; //!< Before, during, after.
+    double          frac_mu2    = 0;
+    double          cost        = 0;
+    double          U           = 0;
+    int             switches    = 0;
+    double          detect_up   = std::numeric_limits<double>::quiet_NaN();
+    double          detect_down = std::numeric_limits<double>::quiet_NaN();
+    irt::i64        decisions   = 0;
+    double          total_ms    = 0;
+};
+
+static closed_loop_result run_closed_loop(closed_loop_model& m,
+                                          const irt::u64     seed,
+                                          const double       horizon) noexcept
+{
+    using P = closed_loop_parameters;
+
+    closed_loop_result r;
+
+    irt::project pj;
+    m.mod.ids.read([&](const auto& ids, auto) {
+        m.mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(pj.set(ids, fs, m.top).has_value()));
+        });
+    });
+
+    // The replication: the seed of the environment and of the projections.
+    pj.sim.srcs.seed = 0x9E3779B97F4A7C15ull * (seed + 1u);
+    pj.sim.limits.set_bound(0, horizon);
+
+    const auto begin = std::chrono::steady_clock::now();
+
+    if (auto ret = pj.simulation_init(m.mod); not ret) {
+        r.error = ret.error();
+        return r;
+    }
+
+    for (auto& embed : pj.sim.sims)
+        embed.seed[0] = 0xBF58476D1CE4E5B9ull * (seed + 1u);
+
+    const irt::single_server_queue* queue = nullptr;
+    for (const auto& mdl : pj.sim.models)
+        if (mdl.type == irt::dynamics_type::single_server_queue)
+            queue = &irt::get_dyn<irt::single_server_queue>(mdl);
+    expect(fatal(queue != nullptr));
+
+    constexpr double phase_end[3] = { 500.0, 1000.0, 2000.0 };
+
+    double t_prev        = 0;
+    int    n_prev        = 0;
+    double rate_prev     = queue->rate;
+    double area          = 0;
+    double area_phase[3] = { 0, 0, 0 };
+    double time_mu2      = 0;
+
+    const auto integrate = [&](const double t) noexcept {
+        area += n_prev * (t - t_prev);
+        if (rate_prev == P::mu2)
+            time_mu2 += t - t_prev;
+
+        auto a = t_prev;
+        for (int p = 0; p < 3; ++p) {
+            const auto lo = p == 0 ? 0.0 : phase_end[p - 1];
+            const auto hi = std::min(phase_end[p], t);
+            if (hi > a and a >= lo) {
+                area_phase[p] += n_prev * (hi - a);
+                a = hi;
+            }
+        }
+    };
+
+    do {
+        if (auto ret = pj.sim.run(); not ret) {
+            r.error = ret.error();
+            break;
+        }
+
+        const auto t = std::min<double>(pj.sim.current_time(), horizon);
+        integrate(t);
+        t_prev = t;
+        n_prev = queue->size;
+
+        if (queue->rate != rate_prev) {
+            ++r.switches;
+            rate_prev = queue->rate;
+        }
+
+        if (std::isnan(r.detect_up) and t >= 500.0 and rate_prev == P::mu2)
+            r.detect_up = t - 500.0;
+        if (std::isnan(r.detect_down) and t >= 1000.0 and rate_prev == P::mu1)
+            r.detect_down = t - 1000.0;
+    } while (not pj.sim.current_time_expired());
+
+    r.total_ms = std::chrono::duration<double, std::milli>(
+                   std::chrono::steady_clock::now() - begin)
+                   .count();
+
+    const auto duration = t_prev;
+    r.L                 = duration > 0 ? area / duration : 0;
+    for (int p = 0; p < 3; ++p) {
+        const auto lo = p == 0 ? 0.0 : phase_end[p - 1];
+        const auto hi = std::min(phase_end[p], duration);
+        r.L_phase[p]  = hi > lo ? area_phase[p] / (hi - lo)
+                                : std::numeric_limits<double>::quiet_NaN();
+    }
+    r.frac_mu2 = duration > 0 ? time_mu2 / duration : 0;
+    r.cost     = 3.0 * r.frac_mu2;
+    r.U        = 0.6 * r.L + 0.4 * r.cost;
+
+    for (const auto& mdl : pj.sim.models) {
+        if (mdl.type == irt::dynamics_type::counter)
+            r.decisions = irt::get_dyn<irt::counter>(mdl).event_number;
+    }
+
+    (void)pj.sim.finalize();
+    return r;
 }
 
 int main(int argc, const char* argv[])
@@ -1739,4 +2349,137 @@ int main(int argc, const char* argv[])
 
           std::fclose(csv);
       };
+    "closed_loop: the agent switches to mu2 during the burst"_test = [] {
+        closed_loop_model m;
+        build_closed_loop(m, closed_loop_variant::dama);
+
+        const auto r = run_closed_loop(m, 1u, 1000.0);
+        expect(r.error == irt::error_code{});
+
+        fmt::print("closed loop (dama, seed 1, T=1000): L={:.3f} "
+                   "L=[{:.3f} {:.3f}] mu2={:.3f} switches={} up={} "
+                   "decisions={} ({:.0f} ms)\n",
+                   r.L, r.L_phase[0], r.L_phase[1], r.frac_mu2, r.switches,
+                   r.detect_up, r.decisions, r.total_ms);
+
+        // One decision every 4 units of time.
+        expect(eq(r.decisions, 249));
+        expect(not std::isnan(r.detect_up));
+        expect(r.frac_mu2 > 0.0);
+    };
+
+    "closed_loop: the experiment of the article"_test = [] {
+        // Minutes of computation: the campaign runs only with a CSV path.
+        const auto* path = std::getenv("IRRITATOR_DAMA_CLOSED_LOOP_CSV");
+        if (not path or *path == '\0') {
+            std::puts("closed loop campaign skipped: "
+                      "IRRITATOR_DAMA_CLOSED_LOOP_CSV is not defined");
+            return;
+        }
+
+        auto* csv = std::fopen(path, "w");
+        expect(fatal(csv != nullptr));
+
+        fmt::print(csv,
+                   "configuration,replication,error,L,L_before,L_burst,"
+                   "L_after,frac_mu2,cost,U,switches,detect_up,detect_down,"
+                   "decisions,total_ms,ms_per_decision\n");
+
+        constexpr int    runs = 30;
+        constexpr double t_29 = 2.0452; // Student, 0.975, 29 freedoms.
+
+        const auto ci = [](std::vector<double> v) {
+            std::erase_if(v, [](double x) { return std::isnan(x); });
+            if (v.size() < 2)
+                return std::tuple{ v.empty() ? std::nan("") : v[0],
+                                   std::nan(""), v.size() };
+            double m = 0;
+            for (const auto x : v)
+                m += x / static_cast<double>(v.size());
+            double sq = 0;
+            for (const auto x : v)
+                sq += (x - m) * (x - m);
+            const auto sd = std::sqrt(sq / static_cast<double>(v.size() - 1));
+            return std::tuple{ m,
+                               t_29 * sd /
+                                 std::sqrt(static_cast<double>(v.size())),
+                               v.size() };
+        };
+
+        const auto cell = [&](const std::vector<double>& v) {
+            const auto [m, h, n] = ci(v);
+            return std::isnan(h) ? fmt::format("{:.3f}", m)
+                                 : fmt::format("{:.3f} ± {:.3f}", m, h);
+        };
+
+        fmt::print("| configuration | L | L burst | L after | frac mu2 | U | "
+                   "switches | detect up | detect down | ms/decision | "
+                   "errors |\n");
+
+        for (int v = 0; v < 7; ++v) {
+            const auto variant = static_cast<closed_loop_variant>(v);
+
+            closed_loop_model m;
+            build_closed_loop(m, variant);
+
+            std::vector<double> L, Lb, La, mu2, U, sw, up, down, ms;
+            int                 errors    = 0;
+            int                 missed_up = 0, missed_down = 0;
+
+            for (int rep = 1; rep <= runs; ++rep) {
+                // An error of no_bounds is a result, not a failure.
+                const auto callback    = irt::on_error_callback;
+                irt::on_error_callback = nullptr;
+                const auto r = run_closed_loop(m, static_cast<irt::u64>(rep),
+                                               2000.0);
+                irt::on_error_callback = callback;
+
+                const auto ok = r.error == irt::error_code{};
+                if (not ok)
+                    ++errors;
+
+                const auto per_decision = r.decisions > 0
+                                            ? r.total_ms /
+                                                static_cast<double>(r.decisions)
+                                            : std::nan("");
+
+                fmt::print(
+                  csv,
+                  "{},{},{},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},"
+                  "{:.6f},{},{},{},{},{:.3f},{:.4f}\n",
+                  closed_loop_variant_names[v], rep, ok ? "" : "kernel-error",
+                  r.L, r.L_phase[0], r.L_phase[1], r.L_phase[2], r.frac_mu2,
+                  r.cost, r.U, r.switches,
+                  std::isnan(r.detect_up) ? std::string()
+                                          : fmt::format("{:.3f}", r.detect_up),
+                  std::isnan(r.detect_down)
+                    ? std::string()
+                    : fmt::format("{:.3f}", r.detect_down),
+                  r.decisions, r.total_ms, per_decision);
+
+                if (not ok)
+                    continue;
+
+                L.push_back(r.L);
+                Lb.push_back(r.L_phase[1]);
+                La.push_back(r.L_phase[2]);
+                mu2.push_back(r.frac_mu2);
+                U.push_back(r.U);
+                sw.push_back(r.switches);
+                up.push_back(r.detect_up);
+                down.push_back(r.detect_down);
+                ms.push_back(per_decision);
+                missed_up += std::isnan(r.detect_up);
+                missed_down += std::isnan(r.detect_down);
+            }
+
+            fmt::print("| {} | {} | {} | {} | {} | {} | {} | {} ({} none) | "
+                       "{} ({} none) | {} | {} |\n",
+                       closed_loop_variant_names[v], cell(L), cell(Lb),
+                       cell(La), cell(mu2), cell(U), cell(sw), cell(up),
+                       missed_up, cell(down), missed_down, cell(ms), errors);
+        }
+
+        std::fclose(csv);
+    };
 }
