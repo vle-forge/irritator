@@ -12,6 +12,8 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <span>
 #include <vector>
@@ -1620,4 +1622,121 @@ int main(int argc, const char* argv[])
                        -r.results[sc].objective_mean,
                        r.results[sc].objective_stddev);
     };
+    "simulation_wrapper: reliability of the decisions of the supervisor"_test =
+      [] {
+          // Minutes of computation: the campaign runs only with a CSV path.
+          const auto* path = std::getenv("IRRITATOR_DAMA_RELIABILITY_CSV");
+          if (not path or *path == '\0') {
+              std::puts("reliability campaign skipped: "
+                        "IRRITATOR_DAMA_RELIABILITY_CSV is not defined");
+              return;
+          }
+
+          auto* csv = std::fopen(path, "w");
+          expect(fatal(csv != nullptr));
+
+          fmt::print(csv, "lambda,h,R,mu,cost,runs,correct_rate,U_mean,U_sd,"
+                          "U_sd_within_mean,diff_mean,diff_ci95_low,"
+                          "diff_ci95_high,decision_ms_mean,"
+                          "internal_transitions_mean\n");
+
+          const irt::real mu[]   = { 0.6, 1.2 };
+          const irt::real cost[] = { 0.0, 3.0 };
+
+          constexpr int    runs = 50;
+          constexpr double t_49 = 2.0096; // Student, 0.975, 49 freedoms.
+
+          const auto mean_sd = [](const std::vector<double>& v) {
+              double m = 0;
+              for (const auto x : v)
+                  m += x / static_cast<double>(v.size());
+              double sq = 0;
+              for (const auto x : v)
+                  sq += (x - m) * (x - m);
+              return std::pair{ m, std::sqrt(
+                                     sq / static_cast<double>(v.size() - 1)) };
+          };
+
+          fmt::print("{:>6} {:>6} {:>4} {:>8} {:>9} {:>9} {:>9} {:>21} "
+                     "{:>9}\n",
+                     "lambda", "h", "R", "correct", "U1", "U2", "U1-U2",
+                     "95% CI", "ms");
+
+          for (const auto lambda : { 0.4, 0.8 }) {
+              const auto good_mu = lambda == 0.4 ? 0.6 : 1.2;
+
+              for (const auto h : { 20.0, 50.0, 200.0, 2000.0 }) {
+                  for (const auto R : { 1u, 10u, 30u, 100u }) {
+                      std::vector<double> u[2], within[2], transitions[2];
+                      std::vector<double> diff, ms;
+                      int                 correct = 0;
+
+                      for (int seed = 1; seed <= runs; ++seed) {
+                          const auto r = run_supervisor(
+                            { .mu           = mu,
+                              .cost         = cost,
+                              .lambda       = lambda,
+                              .horizon      = h,
+                              .criteria     = irt::criteria_type::time_mean,
+                              .norm         = irt::norm_type::none,
+                              .replications = R,
+                              .seed         = static_cast<irt::u64>(seed) });
+
+                          expect(fatal(r.error == irt::error_code{}));
+                          expect(fatal(eq(r.results.size(), 2u)));
+
+                          if (r.selected_mu == good_mu)
+                              ++correct;
+
+                          // The objective is the score to maximize: -U.
+                          for (int sc = 0; sc < 2; ++sc) {
+                              u[sc].push_back(-r.results[sc].objective_mean);
+                              within[sc].push_back(
+                                r.results[sc].objective_stddev);
+
+                              double n = 0;
+                              for (unsigned k = 0; k < R; ++k) {
+                                  const auto& s = r.scenarios[sc * R + k];
+                                  // The constant of the cost has one.
+                                  n += static_cast<double>(s.arrivals +
+                                                           s.departures + 1) /
+                                       R;
+                              }
+                              transitions[sc].push_back(n);
+                          }
+
+                          diff.push_back(-r.results[0].objective_mean +
+                                         r.results[1].objective_mean);
+                          ms.push_back(r.decision_ms);
+                      }
+
+                      const auto [d_mean, d_sd] = mean_sd(diff);
+                      const auto half    = t_49 * d_sd / std::sqrt(runs * 1.0);
+                      const auto ms_mean = mean_sd(ms).first;
+                      const auto rate    = correct / static_cast<double>(runs);
+
+                      for (int sc = 0; sc < 2; ++sc) {
+                          const auto [u_mean, u_sd] = mean_sd(u[sc]);
+                          fmt::print(csv,
+                                     "{},{},{},{},{},{},{:.4f},{:.6f},{:.6f},"
+                                     "{:.6f},{:.6f},{:.6f},{:.6f},{:.4f},"
+                                     "{:.1f}\n",
+                                     lambda, h, R, mu[sc], cost[sc], runs, rate,
+                                     u_mean, u_sd, mean_sd(within[sc]).first,
+                                     d_mean, d_mean - half, d_mean + half,
+                                     ms_mean, mean_sd(transitions[sc]).first);
+                      }
+
+                      fmt::print("{:>6} {:>6} {:>4} {:>7.0f}% {:>9.4f} "
+                                 "{:>9.4f} {:>9.4f} [{:>9.4f};{:>9.4f}] "
+                                 "{:>9.2f}\n",
+                                 lambda, h, R, 100 * rate, mean_sd(u[0]).first,
+                                 mean_sd(u[1]).first, d_mean, d_mean - half,
+                                 d_mean + half, ms_mean);
+                  }
+              }
+          }
+
+          std::fclose(csv);
+      };
 }

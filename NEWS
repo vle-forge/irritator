@@ -12,3 +12,5 @@
   samples) and the `none` normalization of the weighted sum.
 * simulation_wrapper: R replications of each scenario on common random numbers,
   the criteria are their means; `time-mean` keeps no trajectory.
+* test: the reliability campaign of the decisions of the DEVS-DAMA supervisor
+  (IRRITATOR_DAMA_RELIABILITY_CSV).
