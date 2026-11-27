@@ -21,3 +21,4 @@
 * core: the `batch` port of `single_server_queue` adds k clients at once.
 * test: the projections of the closed loop start from the clients believed
   present (n_B), with the sensitivity to W and three hysteresis baselines.
+* test: the closed loop agent chooses threshold policies (dama_policy).

@@ -104,3 +104,36 @@ the delay from t = 500 to the first time in mu2 and from t = 1000 to the
 first time in mu1 (0 if already there), the decisions and the computation
 time. The seeds 1 to 30 are the same for all the configurations. The
 campaign ends with the paired differences of U with the best hysteresis.
+
+## Threshold policies as candidate actions (`dama_policy`)
+
+The actions of the wrapper are threshold pairs (n_up, n_down) applied at
+each event by a policy HSM, in the projected model and in the environment,
+until the next decision:
+
+- **policy** (HSM, i1 = n, i2 = mode 0 mu1, 1 mu2, -1 unknown): n arrives on
+  x0, the thresholds on x2 and x3. Each message evaluates the policy: mu2 if
+  n > n_up and the mode is not mu2, mu1 if n < n_down and the mode is not
+  mu1. The comparisons are strict: (1e9, 1e9) is always mu1, (-1, -2)
+  always mu2. n comes from a counter HSM: a HSM has 4 ports and could not
+  tell a departure from new thresholds, the bits of the ports stay set.
+- **projected model**: the arrivals (factor lambda), the queue, the
+  constant `n-b` (batch of the queue and initial value of the counter on
+  its x2), the constant `mode0` (the current rate of the real queue, on the
+  rate port), the constants `n-up` and `n-down` (linked factors: (1e9,
+  1e9), (-1, -2), (3, 1), (5, 2), (8, 3)), a counter HSM, the policy HSM
+  (mode unknown at start: the queue keeps `mode0` between the thresholds)
+  and a counter `rate` in `last_value` fed by `mode0` and the policy.
+- **criteria**: the time means of n (weight 0.6) and of the rate
+  (weight 2): 0.6 L + 2 mean(mu) = U + 1.2, since the cost is
+  3 (mean(mu) - 0.6) / 0.6.
+- **environment**: the counter n_B feeds the real policy and the factor
+  `n-b`, the real policy feeds the rate of the queue and the factor
+  `mode0`, the outputs `n-up` and `n-down` of the wrapper feed the ports x2
+  and x3 of the real policy (always mu1 until the first decision).
+- 5 policies x 10 replications: 50 sub-simulations by decision.
+
+Configurations: `dama_policy` (T_d = 4), `dama_policy_T16` (T_d = 16) and
+`dama_policy_no_omega_b` (epsilon_0 = 1e9). The CSV gives the choices of the
+threshold pairs by phase (columns `choices_*`: mu1, mu2, (3,1), (5,2),
+(8,3)).

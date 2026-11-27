@@ -10,6 +10,7 @@
 
 #include <boost/ut.hpp>
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -474,6 +475,8 @@ struct closed_loop_config {
     bool               bounds          = true; //!< C bounds the period.
     int                up              = 5;    //!< Hysteresis thresholds.
     int                down            = 2;
+    bool               policies        = false; //!< Actions: threshold pairs.
+    irt::real          decision        = 4.0;   //!< T_d.
 };
 
 /// The parameters of the agent, see doc/dama-closed-loop.md.
@@ -483,7 +486,6 @@ struct closed_loop_parameters {
     static constexpr irt::real w_slow       = 0.2;
     static constexpr irt::real period_min   = 0.2;  //!< 1 / 5.
     static constexpr irt::real period_max   = 20.0; //!< 1 / 0.05.
-    static constexpr irt::real decision     = 4.0;  //!< T_d.
     static constexpr irt::real latency      = 0.1;  //!< d_r.
     static constexpr irt::real mu1          = 0.6;
     static constexpr irt::real mu2          = 1.2;
@@ -742,6 +744,334 @@ static void fill_client_count(irt::hierarchical_state_machine& m) noexcept
     st[3].if_transition = 1u;
 }
 
+/// The counter of the projected model: n starts from n_B (port 2, at t = 0),
+/// then counts the arrivals (port 0) and the departures (port 1), and goes
+/// out on port 0 after each change.
+static void fill_inner_count(irt::hierarchical_state_machine& m) noexcept
+{
+    constexpr auto none = irt::hierarchical_state_machine::invalid_state_id;
+
+    auto& st = m.states;
+
+    expect(!!m.set_state(0u, none, 1u));
+
+    expect(!!m.set_state(1u, 0u)); // wait n_B
+    st[1].condition.set(0b0010u, 0b0010u);
+    st[1].if_transition = 2u;
+
+    expect(!!m.set_state(2u, 0u));
+    st[2].enter_action.set_affect(hsm_var::var_i1, hsm_var::port_2);
+    st[2].exit_action.set_output(hsm_var::port_0, hsm_var::var_i1);
+    st[2].if_transition = 3u;
+
+    expect(!!m.set_state(3u, 0u)); // an arrival, else a departure
+    st[3].condition.set(0b1000u, 0b1000u);
+    st[3].if_transition   = 4u;
+    st[3].else_transition = 5u;
+
+    expect(!!m.set_state(4u, 0u));
+    st[4].enter_action.set_plus(hsm_var::var_i1, 1);
+    st[4].exit_action.set_output(hsm_var::port_0, hsm_var::var_i1);
+    st[4].if_transition = 3u;
+
+    expect(!!m.set_state(5u, 0u));
+    st[5].enter_action.set_minus(hsm_var::var_i1, 1);
+    st[5].exit_action.set_output(hsm_var::port_0, hsm_var::var_i1);
+    st[5].if_transition = 3u;
+}
+
+/// The threshold policy: i1 is n (port 0), the thresholds (up, down) arrive
+/// on the ports 2 and 3, i2 is the mode (0 mu1, 1 mu2, -1 unknown). Each
+/// message, n or thresholds, evaluates the policy: mu2 goes out if n > up
+/// and the mode is not mu2, mu1 if n < down and the mode is not mu1. The
+/// comparisons are strict: (1e9, 1e9) is always mu1, (-1, -2) always mu2.
+static void fill_policy(irt::hierarchical_state_machine& m) noexcept
+{
+    constexpr auto none = irt::hierarchical_state_machine::invalid_state_id;
+
+    m.constants[0] = closed_loop_parameters::mu1;
+    m.constants[1] = closed_loop_parameters::mu2;
+
+    auto& st = m.states;
+
+    expect(!!m.set_state(0u, none, 1u));
+
+    expect(!!m.set_state(1u, 0u)); // n, else new thresholds
+    st[1].condition.set(0b1000u, 0b1000u);
+    st[1].if_transition   = 2u;
+    st[1].else_transition = 3u;
+
+    expect(!!m.set_state(2u, 0u));
+    st[2].enter_action.set_affect(hsm_var::var_i1, hsm_var::port_0);
+    st[2].if_transition = 3u;
+
+    expect(!!m.set_state(3u, 0u));
+    st[3].condition.set_greater(hsm_var::var_i1, hsm_var::port_2);
+    st[3].if_transition   = 4u;
+    st[3].else_transition = 6u;
+
+    expect(!!m.set_state(4u, 0u));
+    st[4].condition.set_not_equal_to(hsm_var::var_i2, 1);
+    st[4].if_transition   = 5u;
+    st[4].else_transition = 1u;
+
+    expect(!!m.set_state(5u, 0u));
+    st[5].enter_action.set_affect(hsm_var::var_i2, 1);
+    st[5].exit_action.set_output(hsm_var::port_0, hsm_var::hsm_constant_1);
+    st[5].if_transition = 1u;
+
+    expect(!!m.set_state(6u, 0u));
+    st[6].condition.set_less(hsm_var::var_i1, hsm_var::port_3);
+    st[6].if_transition   = 7u;
+    st[6].else_transition = 1u;
+
+    expect(!!m.set_state(7u, 0u));
+    st[7].condition.set_not_equal_to(hsm_var::var_i2, 0);
+    st[7].if_transition   = 8u;
+    st[7].else_transition = 1u;
+
+    expect(!!m.set_state(8u, 0u));
+    st[8].enter_action.set_affect(hsm_var::var_i2, 0);
+    st[8].exit_action.set_output(hsm_var::port_0, hsm_var::hsm_constant_0);
+    st[8].if_transition = 1u;
+}
+
+/// The candidate policies: (up, down) of the factors n-up and n-down.
+static constexpr irt::real policy_up[]   = { 1e9, -1, 3, 5, 8 };
+static constexpr irt::real policy_down[] = { 1e9, -2, 1, 2, 3 };
+
+/// The ports of the wrapper of the policy supervisor.
+struct policy_supervisor_model {
+    irt::component_id sim_compo  = irt::undefined<irt::component_id>();
+    int               lambda_pos = -1;
+    int               nb_pos     = -1;
+    int               mode_pos   = -1;
+    int               up_pos     = -1;
+    int               down_pos   = -1;
+};
+
+/// The projected model of the policy agent: the arrivals of the factor
+/// lambda, the queue starting with n-b clients at the rate mode0, and a
+/// threshold policy (n-up, n-down: linked factors) which drives the rate.
+/// The criteria are the time means of n and of the rate: 0.6 L + 2 mean(mu)
+/// equals U = 0.6 L + 0.4 * 3 (mean(mu) - 0.6) / 0.6 plus 1.2.
+static policy_supervisor_model build_policy_supervisor(
+  irt::modeling&          mod,
+  const irt::dir_path_id  dir_id,
+  const irt::component_id count_hsm,
+  const irt::component_id policy_hsm) noexcept
+{
+    using P = closed_loop_parameters;
+
+    irt::file_path_id gen_file{ 0 };
+    irt::file_path_id project_file{ 0 };
+
+    mod.files.write([&](auto& fs) {
+        gen_file     = fs.alloc_file(dir_id, "policy-gen.irt",
+                                     irt::file_type::component_file);
+        project_file = fs.alloc_file(dir_id, "policy.pirt",
+                                     irt::file_type::project_file);
+    });
+
+    const auto gen_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        compo.srcs.data.reserve(2);
+        for (const auto* name : { "arrivals", "services" }) {
+            auto& rnd    = compo.srcs.alloc_random_source(name);
+            rnd.type     = irt::distribution_type::exponential;
+            rnd.reals[0] = 1.0;
+        }
+
+        auto       src_it      = compo.srcs.data.begin();
+        const auto arrival_src = *src_it;
+        const auto service_src = *++src_it;
+
+        const auto named = [&](irt::dynamics_type type, const char* name,
+                               bool configurable,
+                               bool observable) noexcept -> auto& {
+            auto& c = gen.alloc(type);
+            if (configurable)
+                c.flags.set(irt::child_flags::configurable);
+            if (observable)
+                c.flags.set(irt::child_flags::observable);
+            gen.children_names[gen.children.get_id(c)] = name;
+            return c;
+        };
+
+        const auto param = [&](auto& child) -> irt::parameter& {
+            return gen.children_parameters[gen.children.get_id(child)];
+        };
+
+        auto& arrivals = named(irt::dynamics_type::generator, "lambda", true,
+                               false);
+        auto& queue    = named(irt::dynamics_type::single_server_queue, "queue",
+                               false, true);
+        auto& nb    = named(irt::dynamics_type::constant, "n-b", true, false);
+        auto& mode0 = named(irt::dynamics_type::constant, "mode0", true, false);
+        auto& up    = named(irt::dynamics_type::constant, "n-up", true, false);
+        auto& down = named(irt::dynamics_type::constant, "n-down", true, false);
+        auto& rate = named(irt::dynamics_type::counter, "rate", false, true);
+        auto& count  = named(irt::dynamics_type::hsm_wrapper, "count", false,
+                             false);
+        auto& policy = named(irt::dynamics_type::hsm_wrapper, "policy", false,
+                             false);
+
+        param(arrivals)
+          .set_generator_ta(arrival_src)
+          .set_generator_ta_scale(1.0);
+        param(queue)
+          .set_single_server_queue_ta(service_src)
+          .set_single_server_queue_rate(P::mu1);
+        param(nb).set_constant(0.0, 0.0);
+        param(mode0).set_constant(P::mu1, 0.0);
+        param(up).set_constant(policy_up[0], 0.0);
+        param(down).set_constant(policy_down[0], 0.0);
+        param(rate).integers[irt::counter_tag::i_obs_type] = ordinal(
+          irt::counter::observation_type::last_value);
+        param(count).set_hsm_wrapper(ordinal(count_hsm));
+        param(count).set_hsm_wrapper(0, 0, 0.0, 0.0,
+                                     irt::time_domain<irt::time>::infinity);
+        param(policy).set_hsm_wrapper(ordinal(policy_hsm));
+        param(policy).set_hsm_wrapper(0, -1, 0.0, 0.0,
+                                      irt::time_domain<irt::time>::infinity);
+
+        const auto connect = [&](auto& from, int out, auto& to, int in) {
+            expect(gen.connect(from, { .model = out }, to, { .model = in })
+                     .has_value());
+        };
+
+        connect(arrivals, 0, queue, irt::single_server_queue::x_in);
+        connect(arrivals, 0, count, 0);
+        connect(queue, 0, count, 1);
+        connect(nb, 0, queue, irt::single_server_queue::x_batch);
+        connect(nb, 0, count, 2);
+        connect(mode0, 0, queue, irt::single_server_queue::x_rate);
+        connect(mode0, 0, rate, 0);
+        connect(count, 0, policy, 0);
+        connect(up, 0, policy, 2);
+        connect(down, 0, policy, 3);
+        connect(policy, 0, queue, irt::single_server_queue::x_rate);
+        connect(policy, 0, rate, 0);
+
+        ids.component_file_paths[compo_id].file = gen_file;
+        mod.files.read([&](const auto& fs, auto) {
+            expect(mod.save(ids, fs, compo_id).has_value());
+        });
+        return compo_id;
+    });
+
+    mod.ids.write([&](auto& ids) {
+        mod.files.write([&](auto& fs) {
+            irt::project pj;
+            pj.project_file = project_file;
+            pj.sim.limits.set_bound(0, 50);
+            expect(pj.set(ids, fs, gen_compo).has_value());
+            expect(pj.save(fs, ids).has_value());
+        });
+    });
+
+    expect(fatal(mod.fill_components().has_value()));
+
+    const auto sim_file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, "policy-sim.irt",
+                             irt::file_type::component_file);
+    });
+
+    policy_supervisor_model r;
+
+    r.sim_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_sim_component();
+        auto& compo    = ids.components[compo_id];
+        auto& sim      = ids.sim_components.get(compo.id.sim_id);
+
+        mod.files.read([&](const auto& fs, auto) {
+            auto exp_pj = irt::project::load(fs, ids, project_file);
+            expect(fatal(exp_pj.has_value()));
+            expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
+        });
+
+        expect(fatal(eq(sim.factors.size(), 5u)));
+
+        const auto single = [&](const irt::factor_id fid, irt::real v) {
+            sim.factors.template get<irt::factor_type>(
+              fid) = irt::factor_type::single;
+            sim.factors.template get<irt::single_factor>(fid).value = v;
+        };
+
+        const auto fixed = [&](const irt::factor_id       fid,
+                               std::span<const irt::real> values) {
+            sim.factors.template get<irt::factor_type>(
+              fid) = irt::factor_type::fixed;
+            sim.factors.template get<irt::fixed_factor>(fid).values.assign(
+              values.begin(), values.end());
+            sim.factors.template get<irt::factor_link>(fid).group = 1u;
+        };
+
+        int pos = 0;
+        for (const auto fid : sim.factors) {
+            const auto name = sim.factors.template get<irt::name_str>(fid).sv();
+
+            if (name == "lambda") {
+                r.lambda_pos = pos;
+                single(fid, P::prior_period);
+            } else if (name == "n-b") {
+                r.nb_pos = pos;
+                single(fid, 0.0);
+            } else if (name == "mode0") {
+                r.mode_pos = pos;
+                single(fid, P::mu1);
+            } else if (name == "n-up") {
+                r.up_pos = pos;
+                fixed(fid, policy_up);
+            } else if (name == "n-down") {
+                r.down_pos = pos;
+                fixed(fid, policy_down);
+            }
+            ++pos;
+        }
+
+        expect(fatal(r.lambda_pos >= 0 and r.nb_pos >= 0 and r.mode_pos >= 0 and
+                     r.up_pos >= 0 and r.down_pos >= 0));
+        expect(fatal(eq(sim.selections.size(), 2u)));
+
+        auto& obj                    = sim.objective;
+        obj.method                   = irt::optimization_method::weighted_sum;
+        obj.type                     = irt::optimization_type::minimize;
+        obj.weighted_sum_params.norm = irt::norm_type::none;
+        obj.weighted_sum_params.weights.resize(2);
+        obj.weighted_sum_params.types.resize(2);
+
+        for (const auto sid : sim.selections) {
+            const auto idx  = get_index(sid);
+            const auto name = sim.selections.template get<irt::name_str>(sid);
+
+            sim.selections.template get<irt::criteria_type>(
+              sid) = irt::criteria_type::time_mean;
+            obj.weighted_sum_params
+              .types[idx] = irt::optimization_type::minimize;
+            obj.weighted_sum_params.weights[idx] = name.sv() == "queue" ? 0.6
+                                                                        : 2.0;
+        }
+
+        sim.replications                        = 10u;
+        sim.file_id                             = project_file;
+        ids.component_file_paths[compo_id].file = sim_file;
+
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+        });
+
+        return compo_id;
+    });
+
+    expect(fatal(mod.fill_components().has_value()));
+
+    return r;
+}
+
 /// The modeling of a variant: its top component and the temporary
 /// directory of its files.
 struct closed_loop_model {
@@ -753,7 +1083,8 @@ struct closed_loop_model {
 static void build_closed_loop(closed_loop_model&        m,
                               const closed_loop_config& cfg) noexcept
 {
-    const auto agent = cfg.policy == closed_loop_policy::agent;
+    const auto agent  = cfg.policy == closed_loop_policy::agent;
+    const auto policy = agent and cfg.policies;
 
     using P = closed_loop_parameters;
 
@@ -778,7 +1109,7 @@ static void build_closed_loop(closed_loop_model&        m,
     const irt::real mu[]   = { P::mu1, P::mu2 };
     const irt::real cost[] = { 0.0, 3.0 };
 
-    const auto supervisor = agent
+    const auto supervisor = agent and not policy
                               ? build_supervisor(
                                   mod, dir_id,
                                   { .mu       = mu,
@@ -807,6 +1138,20 @@ static void build_closed_loop(closed_loop_model&        m,
     const auto client_count = make_hsm_component(
       mod, dir_id, "client-count.irt",
       [](auto& machine) { fill_client_count(machine); });
+
+    const auto inner_count = make_hsm_component(
+      mod, dir_id, "inner-count.irt",
+      [](auto& machine) { fill_inner_count(machine); });
+
+    const auto threshold_policy = make_hsm_component(
+      mod, dir_id, "policy.irt", [](auto& machine) { fill_policy(machine); });
+
+    const auto policies   = policy ? build_policy_supervisor(
+                                     mod, dir_id, inner_count, threshold_policy)
+                                   : policy_supervisor_model{};
+    const auto lambda_pos = policy ? policies.lambda_pos
+                                   : supervisor.lambda_pos;
+    const auto sim_compo  = policy ? policies.sim_compo : supervisor.sim_compo;
 
     const auto top_file = mod.files.write([&](auto& fs) {
         return fs.alloc_file(dir_id, "closed-loop.irt",
@@ -897,7 +1242,7 @@ static void build_closed_loop(closed_loop_model&        m,
         if (agent) {
             auto& clock = gen.alloc(irt::dynamics_type::generator);
             param(clock)
-              .set_generator_ta(P::decision)
+              .set_generator_ta(cfg.decision)
               .reals[irt::generator_tag::value] = P::latency;
 
             auto& omega = gen.alloc(irt::dynamics_type::hsm_wrapper);
@@ -914,7 +1259,7 @@ static void build_closed_loop(closed_loop_model&        m,
             param(sim_w).integers[irt::simulation_wrapper_tag::run] = ordinal(
               irt::simulation_wrapper::run_type::complete);
             param(sim_w).integers[irt::simulation_wrapper_tag::id] = ordinal(
-              supervisor.sim_compo);
+              sim_compo);
 
             auto& decisions = gen.alloc(irt::dynamics_type::counter);
 
@@ -922,15 +1267,48 @@ static void build_closed_loop(closed_loop_model&        m,
             connect(gen_b, 0, omega, 0);
             connect(omega, 0, c, 0);
             connect(omega, 1, c, 1);
-            connect(c, 0, sim_w, 2 + supervisor.lambda_pos);
+            connect(c, 0, sim_w, 2 + lambda_pos);
             connect(clock, 0, sim_w, 0);
             connect(clock, 0, sim_w, 1);
-            connect(sim_w, supervisor.mu_pos, queue,
-                    irt::single_server_queue::x_rate);
-            connect(sim_w, supervisor.mu_pos, decisions, 0);
+
+            if (policy) {
+                // The real policy applies the chosen thresholds at each
+                // event; it starts in mu1 with the thresholds of mu1.
+                auto& real = gen.alloc(irt::dynamics_type::hsm_wrapper);
+                param(real).set_hsm_wrapper(ordinal(threshold_policy));
+                param(real).set_hsm_wrapper(
+                  0, 0, 0.0, 0.0, irt::time_domain<irt::time>::infinity);
+
+                auto& up0   = gen.alloc(irt::dynamics_type::constant);
+                auto& down0 = gen.alloc(irt::dynamics_type::constant);
+                param(up0).set_constant(policy_up[0], 0.0);
+                param(down0).set_constant(policy_down[0], 0.0);
+
+                auto& count = gen.alloc(irt::dynamics_type::hsm_wrapper);
+                param(count).set_hsm_wrapper(ordinal(client_count));
+                param(count).set_hsm_wrapper(
+                  0, 0, 0.0, 0.0, irt::time_domain<irt::time>::infinity);
+
+                connect(gen_a, 0, count, 0);
+                connect(gen_b, 0, count, 0);
+                connect(queue, 0, count, 1);
+                connect(count, 0, real, 0);
+                connect(count, 0, sim_w, 2 + policies.nb_pos);
+                connect(up0, 0, real, 2);
+                connect(down0, 0, real, 3);
+                connect(sim_w, policies.up_pos, real, 2);
+                connect(sim_w, policies.down_pos, real, 3);
+                connect(real, 0, queue, irt::single_server_queue::x_rate);
+                connect(real, 0, sim_w, 2 + policies.mode_pos);
+                connect(sim_w, policies.up_pos, decisions, 0);
+            } else {
+                connect(sim_w, supervisor.mu_pos, queue,
+                        irt::single_server_queue::x_rate);
+                connect(sim_w, supervisor.mu_pos, decisions, 0);
+            }
 
             // n_B for the initial state of the projections.
-            if (cfg.initial_clients) {
+            if (not policy and cfg.initial_clients) {
                 auto& count = gen.alloc(irt::dynamics_type::hsm_wrapper);
                 param(count).set_hsm_wrapper(ordinal(client_count));
                 param(count).set_hsm_wrapper(
@@ -963,6 +1341,10 @@ struct closed_loop_result {
     double          detect_down = std::numeric_limits<double>::quiet_NaN();
     irt::i64        decisions   = 0;
     double          total_ms    = 0;
+
+    /// The choices of the policy agent by phase: the index of the threshold
+    /// pair in policy_up.
+    int choices[3][std::size(policy_up)] = {};
 };
 
 static closed_loop_result run_closed_loop(closed_loop_model& m,
@@ -1025,6 +1407,14 @@ static closed_loop_result run_closed_loop(closed_loop_model& m,
         }
     };
 
+    // The decisions: the counter on the first output of the choice, its
+    // last value is n-up for the policy agent.
+    const irt::counter* decisions = nullptr;
+    for (const auto& mdl : pj.sim.models)
+        if (mdl.type == irt::dynamics_type::counter)
+            decisions = &irt::get_dyn<irt::counter>(mdl);
+    irt::i64 seen = 0;
+
     do {
         if (auto ret = pj.sim.run(); not ret) {
             r.error = ret.error();
@@ -1035,6 +1425,14 @@ static closed_loop_result run_closed_loop(closed_loop_model& m,
         integrate(t);
         t_prev = t;
         n_prev = queue->size;
+
+        if (decisions and decisions->event_number != seen) {
+            seen             = decisions->event_number;
+            const auto phase = t < 500.0 ? 0 : t < 1000.0 ? 1 : 2;
+            for (std::size_t i = 0; i < std::size(policy_up); ++i)
+                if (decisions->last_value == policy_up[i])
+                    ++r.choices[phase][i];
+        }
 
         if (queue->rate != rate_prev) {
             ++r.switches;
@@ -2427,6 +2825,29 @@ int main(int argc, const char* argv[])
         expect(r.frac_mu2 > 0.0);
     };
 
+    "closed_loop: the policy agent chooses threshold pairs"_test = [] {
+        closed_loop_model m;
+        build_closed_loop(m, { .name = "dama_policy", .policies = true });
+
+        const auto r = run_closed_loop(m, 1u, 1000.0);
+        expect(r.error == irt::error_code{});
+
+        int pairs = 0;
+        for (std::size_t i = 0; i < std::size(policy_up); ++i)
+            pairs += (r.choices[0][i] + r.choices[1][i]) > 0;
+
+        fmt::print("closed loop (dama_policy, seed 1, T=1000): L={:.3f} "
+                   "mu2={:.3f} switches={} decisions={} ({:.0f} ms)\n",
+                   r.L, r.frac_mu2, r.switches, r.decisions, r.total_ms);
+        for (int p = 0; p < 2; ++p)
+            fmt::print("  phase {}: {} {} {} {} {}\n", p, r.choices[p][0],
+                       r.choices[p][1], r.choices[p][2], r.choices[p][3],
+                       r.choices[p][4]);
+
+        expect(eq(r.decisions, 249));
+        expect(pairs >= 2);
+    };
+
     "closed_loop: the experiment of the article"_test = [] {
         // Seconds of computation: the campaign runs only with a CSV path.
         const auto* path = std::getenv("IRRITATOR_DAMA_CLOSED_LOOP_CSV");
@@ -2439,9 +2860,11 @@ int main(int argc, const char* argv[])
         auto* csv = std::fopen(path, "w");
         expect(fatal(csv != nullptr));
 
-        fmt::print(csv, "configuration,parameter,replication,error,L,L_before,"
-                        "L_burst,L_after,frac_mu2,cost,U,switches,detect_up,"
-                        "detect_down,decisions,total_ms,ms_per_decision\n");
+        fmt::print(
+          csv, "configuration,parameter,replication,error,L,L_before,"
+               "L_burst,L_after,frac_mu2,cost,U,switches,detect_up,"
+               "detect_down,decisions,total_ms,ms_per_decision,choices_before,"
+               "choices_burst,choices_after\n");
 
         using policy = closed_loop_policy;
 
@@ -2474,6 +2897,15 @@ int main(int argc, const char* argv[])
               .policy    = policy::hysteresis,
               .up        = 8,
               .down      = 3 },
+            { .name = "dama_policy", .parameter = "T_d=4", .policies = true },
+            { .name      = "dama_policy_T16",
+              .parameter = "T_d=16",
+              .policies  = true,
+              .decision  = 16.0 },
+            { .name      = "dama_policy_no_omega_b",
+              .parameter = "T_d=4 epsilon=1e9",
+              .epsilon   = 1e9,
+              .policies  = true },
         };
 
         constexpr int    runs = 30;
@@ -2500,6 +2932,18 @@ int main(int argc, const char* argv[])
             return std::isnan(h) ? fmt::format("{:.3f}", m)
                                  : fmt::format("{:.3f} ± {:.3f}", m, h);
         };
+
+        // The choices of a phase: the counts of (mu1) (mu2) (3,1) (5,2)
+        // (8,3), separated by a space.
+        const auto choices = [](const closed_loop_result& r, int phase) {
+            return fmt::format("{} {} {} {} {}", r.choices[phase][0],
+                               r.choices[phase][1], r.choices[phase][2],
+                               r.choices[phase][3], r.choices[phase][4]);
+        };
+
+        // The choices of each policy configuration, by phase.
+        std::vector<std::array<std::array<long, 5>, 3>> total_choices(
+          std::size(configs));
 
         // U of each replication, NaN after a kernel error.
         std::vector<std::vector<double>> u_of(std::size(configs));
@@ -2537,7 +2981,7 @@ int main(int argc, const char* argv[])
 
                 fmt::print(csv,
                            "{},{},{},{},{:.6f},{:.6f},{:.6f},{:.6f},{:.6f},"
-                           "{:.6f},{:.6f},{},{},{},{},{:.3f},{}\n",
+                           "{:.6f},{:.6f},{},{},{},{},{:.3f},{},{},{},{}\n",
                            cfg.name, cfg.parameter, rep,
                            ok ? "" : "kernel-error", r.L, r.L_phase[0],
                            r.L_phase[1], r.L_phase[2], r.frac_mu2, r.cost, r.U,
@@ -2545,9 +2989,13 @@ int main(int argc, const char* argv[])
                            r.decisions, r.total_ms,
                            std::isnan(per_decision)
                              ? std::string()
-                             : fmt::format("{:.4f}", per_decision));
+                             : fmt::format("{:.4f}", per_decision),
+                           choices(r, 0), choices(r, 1), choices(r, 2));
 
                 u_of[c].push_back(ok ? r.U : nan);
+                for (int p = 0; p < 3; ++p)
+                    for (int i = 0; i < 5; ++i)
+                        total_choices[c][p][i] += r.choices[p][i];
                 if (not ok) {
                     ++errors;
                     continue;
@@ -2586,19 +3034,46 @@ int main(int argc, const char* argv[])
             }
         }
 
-        fmt::print("\npaired U - U({}):\n| configuration | mean ± 95% | "
-                   "wins |\n",
-                   configs[best].name);
-        for (std::size_t c = 0; c < std::size(configs); ++c) {
-            std::vector<double> d;
-            int                 wins = 0;
-            for (int i = 0; i < runs; ++i) {
-                const auto x = u_of[c][i] - u_of[best][i];
-                d.push_back(x);
-                wins += x < 0;
+        const auto paired = [&](const std::size_t ref) {
+            fmt::print("\npaired U - U({}):\n| configuration | mean ± 95% | "
+                       "wins |\n",
+                       configs[ref].name);
+            for (std::size_t c = 0; c < std::size(configs); ++c) {
+                std::vector<double> d;
+                int                 wins = 0;
+                for (int i = 0; i < runs; ++i) {
+                    const auto x = u_of[c][i] - u_of[ref][i];
+                    d.push_back(x);
+                    wins += x < 0;
+                }
+                fmt::print("| {} | {} | {}/{} |\n", configs[c].name, cell(d),
+                           wins, runs);
             }
-            fmt::print("| {} | {} | {}/{} |\n", configs[c].name, cell(d), wins,
-                       runs);
+        };
+
+        paired(best);
+        paired(0); // dama
+
+        fmt::print("\nchoices of the threshold pairs (% of the decisions "
+                   "of the phase): mu1 | mu2 | (3,1) | (5,2) | (8,3)\n");
+        for (std::size_t c = 0; c < std::size(configs); ++c) {
+            if (not configs[c].policies)
+                continue;
+
+            for (int p = 0; p < 3; ++p) {
+                long n = 0;
+                for (const auto x : total_choices[c][p])
+                    n += x;
+
+                fmt::print("| {} | {} |", configs[c].name,
+                           p == 0   ? "before"
+                           : p == 1 ? "burst"
+                                    : "after");
+                for (const auto x : total_choices[c][p])
+                    fmt::print(" {:.1f} |",
+                               n ? 100.0 * static_cast<double>(x) / n : 0.0);
+                fmt::print("\n");
+            }
         }
     };
 }
