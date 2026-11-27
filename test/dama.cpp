@@ -279,6 +279,282 @@ int main()
         }
     };
 
+    "simulation_wrapper_single_server_queue_selects_mu"_test = [] {
+        const auto temp_path = irt::temp_path_with_unlink{
+            "single_server_queue"sv
+        };
+
+        expect(fatal(temp_path.success()));
+
+        irt::modeling          mod;
+        irt::registred_path_id reg_id{ 0 };
+        irt::dir_path_id       dir_id{ 0 };
+        irt::file_path_id      gen_component_file_id{ 0 };
+        irt::file_path_id      project_file_id{ 0 };
+        irt::file_path_id      simulation_component_file_id{ 0 };
+        irt::file_path_id      simulation_wrapper_file_id{ 0 };
+
+        mod.files.write([&](auto& fs) {
+            reg_id                              = fs.alloc_registred("temp", 0);
+            fs.registred_paths.get(reg_id).path = temp_path.c_str();
+
+            dir_id                          = fs.alloc_dir(reg_id);
+            fs.dir_paths.get(dir_id).parent = reg_id;
+            fs.dir_paths.get(dir_id).path   = "test-single-server-queue";
+
+            fs.create_directories(reg_id);
+            fs.create_directories(dir_id);
+
+            expect(fatal(fs.file_paths.can_alloc(3)));
+
+            gen_component_file_id = fs.alloc_file(
+              dir_id, "gen-compo.irt", irt::file_type::component_file);
+            project_file_id = fs.alloc_file(dir_id, "project.pirt",
+                                            irt::file_type::project_file);
+        });
+
+        // ---- LEVEL 1: arrivals -> single server queue -> throughput. The
+        // service is Exp(1) divided by the rate of the queue: Exp(mu).
+        const auto gen_compo = mod.ids.write([&](auto& ids) {
+            auto  compo_id = ids.alloc_generic_component();
+            auto& compo    = ids.components[compo_id];
+            auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+            compo.srcs.data.reserve(1);
+            auto& rnd              = compo.srcs.alloc_random_source("service");
+            rnd.type               = irt::distribution_type::exponential;
+            rnd.reals[0]           = 1.0;
+            const auto service_src = *compo.srcs.data.begin();
+
+            auto& arrivals = gen.alloc(irt::dynamics_type::generator);
+            auto& service  = gen.alloc(irt::dynamics_type::single_server_queue);
+            auto& throughput = gen.alloc(irt::dynamics_type::counter);
+
+            arrivals.flags   = irt::child_flags::configurable;
+            service.flags    = irt::child_flags::configurable;
+            throughput.flags = irt::child_flags::observable;
+
+            const auto arrivals_id   = gen.children.get_id(arrivals);
+            const auto service_id    = gen.children.get_id(service);
+            const auto throughput_id = gen.children.get_id(throughput);
+
+            gen.children_names[arrivals_id]   = "lambda";
+            gen.children_names[service_id]    = "mu";
+            gen.children_names[throughput_id] = "throughput";
+
+            // The first real of the generator is its period: the factor
+            // lambda gives deterministic arrivals of period 1 / lambda.
+            gen.children_parameters[arrivals_id].set_generator_ta(1.0);
+            gen.children_parameters[service_id]
+              .set_single_server_queue_ta(service_src)
+              .set_single_server_queue_rate(1.0);
+
+            (void)gen.connect(arrivals, { .model = 0 }, service,
+                              { .model = 0 });
+            (void)gen.connect(service, { .model = 0 }, throughput,
+                              { .model = 0 });
+
+            ids.component_file_paths[compo_id].file = gen_component_file_id;
+            mod.files.read([&](const auto& fs, auto) {
+                expect(mod.save(ids, fs, compo_id).has_value());
+            });
+            return compo_id;
+        });
+
+        mod.ids.write([&](auto& ids) {
+            mod.files.write([&](auto& fs) {
+                irt::project pj;
+                pj.project_file = project_file_id;
+                pj.sim.limits.set_bound(0, 2000);
+                expect(pj.set(ids, fs, gen_compo).has_value());
+                expect(pj.save(fs, ids).has_value());
+            });
+        });
+
+        expect(fatal(mod.fill_components().has_value()));
+
+        // ---- LEVEL 2: mu = fixed{0.6, 1.2}, lambda = single{1.0} replaced by
+        // the injection, selection: the maximal throughput.
+        simulation_component_file_id = mod.files.write([&](auto& fs) {
+            return fs.alloc_file(dir_id, "sim-compo.irt",
+                                 irt::file_type::component_file);
+        });
+
+        int mu_pos     = -1;
+        int lambda_pos = -1;
+
+        const auto sim_compo = mod.ids.write([&](auto& ids) {
+            auto  compo_id = ids.alloc_sim_component();
+            auto& compo    = ids.components[compo_id];
+            auto& sim      = ids.sim_components.get(compo.id.sim_id);
+
+            mod.files.read([&](const auto& fs, auto) {
+                auto exp_pj = irt::project::load(fs, ids, project_file_id);
+                expect(fatal(exp_pj.has_value()));
+                expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
+            });
+
+            expect(fatal(eq(sim.factors.size(), 2u)));
+
+            auto mu_id     = irt::factor_id{ 0 };
+            auto lambda_id = irt::factor_id{ 0 };
+
+            // The ports of the wrapper follow the order of the factors.
+            const auto& names = sim.factors.template get<irt::name_str>();
+            int         pos   = 0;
+            for (const auto fid : sim.factors) {
+                if (names[fid] == "mu") {
+                    mu_id  = fid;
+                    mu_pos = pos;
+                }
+                if (names[fid] == "lambda") {
+                    lambda_id  = fid;
+                    lambda_pos = pos;
+                }
+                ++pos;
+            }
+
+            expect(fatal(mu_pos >= 0 and lambda_pos >= 0));
+
+            sim.factors.template get<irt::factor_type>(
+              mu_id)              = irt::factor_type::fixed;
+            const auto mu_factors = std::array<irt::real, 2>{ 0.6, 1.2 };
+            sim.factors.template get<irt::fixed_factor>(mu_id).values.assign(
+              mu_factors.begin(), mu_factors.end());
+
+            sim.factors.template get<irt::factor_type>(
+              lambda_id) = irt::factor_type::single;
+            sim.factors.template get<irt::single_factor>(lambda_id).value = 1.0;
+
+            const auto throughput_id = [&]() {
+                for (const auto sid : sim.selections)
+                    if (sim.selections.template get<irt::name_str>(sid) ==
+                        "default")
+                        return sid;
+                return *sim.selections.begin();
+            }();
+
+            sim.selections.template get<irt::name_str>(
+              throughput_id) = "throughput";
+            sim.selections.template get<irt::criteria_type>(
+              throughput_id) = irt::criteria_type::max;
+
+            sim.objective.method = irt::optimization_method::simple;
+            sim.objective.type   = irt::optimization_type::maximize;
+            sim.objective.simple_params.primary = throughput_id;
+
+            sim.file_id = project_file_id;
+            ids.component_file_paths[compo_id]
+              .file = simulation_component_file_id;
+
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+            });
+
+            return compo_id;
+        });
+
+        expect(fatal(mod.fill_components().has_value()));
+
+        // ---- LEVEL 3: the wrapper with lambda = 0.8 injected as the period
+        // 1 / 0.8 = 1.25, a counter reads the selected mu.
+        simulation_wrapper_file_id = mod.files.write([&](auto& fs) {
+            return fs.alloc_file(dir_id, "sim-wrapper.irt",
+                                 irt::file_type::component_file);
+        });
+
+        const auto sim_wrapper_compo = mod.ids.write([&](auto& ids) {
+            auto  compo_id = ids.alloc_generic_component();
+            auto& compo    = ids.components[compo_id];
+            auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+            auto& cst_init   = gen.alloc(irt::dynamics_type::constant);
+            auto& cst_run    = gen.alloc(irt::dynamics_type::constant);
+            auto& cst_lambda = gen.alloc(irt::dynamics_type::constant);
+            auto& sim_w = gen.alloc(irt::dynamics_type::simulation_wrapper);
+            auto& selected_mu = gen.alloc(irt::dynamics_type::counter);
+
+            cst_init.flags   = irt::child_flags::configurable;
+            cst_run.flags    = irt::child_flags::configurable;
+            cst_lambda.flags = irt::child_flags::configurable;
+
+            const auto cst_init_id    = gen.children.get_id(cst_init);
+            const auto cst_run_id     = gen.children.get_id(cst_run);
+            const auto cst_lambda_id  = gen.children.get_id(cst_lambda);
+            const auto sim_w_id       = gen.children.get_id(sim_w);
+            const auto selected_mu_id = gen.children.get_id(selected_mu);
+
+            gen.children_names[cst_init_id]    = "init";
+            gen.children_names[cst_run_id]     = "run";
+            gen.children_names[cst_lambda_id]  = "lambda-burst";
+            gen.children_names[sim_w_id]       = "psi-delta";
+            gen.children_names[selected_mu_id] = "selected-mu";
+
+            gen.children_parameters[cst_init_id].set_constant(0.0, 0.0);
+            gen.children_parameters[cst_run_id].set_constant(0.0, 1.0);
+            gen.children_parameters[cst_lambda_id].set_constant(1.0 / 0.8, 0.5);
+
+            gen.children_parameters[sim_w_id]
+              .integers[irt::simulation_wrapper_tag::run] = ordinal(
+              irt::simulation_wrapper::run_type::complete);
+            gen.children_parameters[sim_w_id]
+              .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
+
+            expect(gen.connect(cst_init, { .model = 0 }, sim_w, { .model = 0 })
+                     .has_value());
+            expect(gen.connect(cst_run, { .model = 0 }, sim_w, { .model = 1 })
+                     .has_value());
+            expect(gen
+                     .connect(cst_lambda, { .model = 0 }, sim_w,
+                              { .model = 2 + lambda_pos })
+                     .has_value());
+            expect(gen
+                     .connect(sim_w, { .model = mu_pos }, selected_mu,
+                              { .model = 0 })
+                     .has_value());
+
+            ids.component_file_paths[compo_id]
+              .file = simulation_wrapper_file_id;
+            mod.files.read([&](const auto& fs, auto) {
+                expect(mod.save(ids, fs, compo_id).has_value());
+            });
+            return compo_id;
+        });
+
+        irt::project pj;
+        mod.ids.read([&](const auto& ids, auto) {
+            mod.files.read([&](const auto& fs, auto) {
+                expect(fatal(pj.set(ids, fs, sim_wrapper_compo).has_value()));
+            });
+        });
+
+        pj.sim.limits.set_bound(0, 21);
+        expect(fatal(pj.simulation_init(mod).has_value()));
+
+        do {
+            expect(fatal(pj.sim.run().has_value()));
+        } while (not pj.sim.current_time_expired());
+
+        expect(pj.sim.finalize().has_value());
+
+        auto found = 0;
+        for (const auto& mdl : pj.sim.models) {
+            if (mdl.type == irt::dynamics_type::counter) {
+                const auto& cpt = irt::get_dyn<irt::counter>(mdl);
+                fmt::print("single server queue, lambda = 0.8: selected mu = "
+                           "{} ({} message)\n",
+                           cpt.last_value, cpt.event_number);
+
+                // mu = 0.6 < lambda: the queue saturates and its throughput
+                // is mu. mu = 1.2 serves all the arrivals.
+                expect(eq(cpt.event_number, 1));
+                expect(eq(cpt.last_value, 1.2));
+                ++found;
+            }
+        }
+        expect(eq(found, 1));
+    };
+
     "omega_b_to_delta_integration"_test = [] {
         const auto temp_path = irt::temp_path_with_unlink{ "omega_b"sv };
         expect(fatal(temp_path.success()));

@@ -1134,6 +1134,17 @@ void binary_serialize(Ar& ar, priority_queue& d) noexcept
     io_fifo(ar, overflow, capacity);
 }
 
+template<typename Ar>
+void binary_serialize(Ar& ar, single_server_queue& d) noexcept
+{
+    auto& [x, y, sigma, fifo, src_data, source_ta, overflow, capacity, size,
+           rate] = d;
+    ar(x, y, sigma, fifo, src_data);
+    io_source(ar, source_ta, src_data);
+    io_fifo(ar, overflow, capacity);
+    ar(size, rate);
+}
+
 /* * * * * * * * * *
  *
  * Model

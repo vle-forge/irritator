@@ -1003,6 +1003,13 @@ int main()
         static_assert(irt::has_input_port<irt::priority_queue>);
         static_assert(irt::has_output_port<irt::priority_queue>);
         static_assert(not irt::has_observation_function<irt::priority_queue>);
+
+        static_assert(irt::has_initialize_function<irt::single_server_queue>);
+        static_assert(irt::has_lambda_function<irt::single_server_queue>);
+        static_assert(irt::has_transition_function<irt::single_server_queue>);
+        static_assert(irt::has_input_port<irt::single_server_queue>);
+        static_assert(irt::has_output_port<irt::single_server_queue>);
+        static_assert(irt::has_observation_function<irt::single_server_queue>);
     };
 
     "time"_test = [] {

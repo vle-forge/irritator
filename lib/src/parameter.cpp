@@ -147,8 +147,12 @@ static void parameter_init(parameter& /*param*/,
 static_assert(
   ordinal(queue_tag::i_overflow) == ordinal(dynamic_queue_tag::i_overflow) and
   ordinal(queue_tag::i_overflow) == ordinal(priority_queue_tag::i_overflow) and
+  ordinal(queue_tag::i_overflow) ==
+    ordinal(single_server_queue_tag::i_overflow) and
   ordinal(queue_tag::i_capacity) == ordinal(dynamic_queue_tag::i_capacity) and
-  ordinal(queue_tag::i_capacity) == ordinal(priority_queue_tag::i_capacity));
+  ordinal(queue_tag::i_capacity) == ordinal(priority_queue_tag::i_capacity) and
+  ordinal(queue_tag::i_capacity) ==
+    ordinal(single_server_queue_tag::i_capacity));
 
 static fifo_overflow get_fifo_overflow(const parameter& param) noexcept
 {
@@ -212,6 +216,24 @@ static void model_init(const parameter& param, priority_queue& dyn) noexcept
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 {
     param.integers[priority_queue_tag::source_ta] = from_source(dyn.source_ta);
+    fifo_parameter_init(param, dyn);
+}
+
+static void model_init(const parameter&     param,
+                       single_server_queue& dyn) noexcept
+{
+    dyn.source_ta.reset(param.integers[single_server_queue_tag::source_ta]);
+    dyn.overflow = get_fifo_overflow(param);
+    dyn.capacity = get_fifo_capacity(param);
+    dyn.rate     = param.reals[single_server_queue_tag::rate];
+}
+
+static void parameter_init(parameter&                 param,
+                           const single_server_queue& dyn) noexcept
+{
+    param.integers[single_server_queue_tag::source_ta] = from_source(
+      dyn.source_ta);
+    param.reals[single_server_queue_tag::rate] = dyn.rate;
     fifo_parameter_init(param, dyn);
 }
 
@@ -946,9 +968,14 @@ void parameter::init_from(const dynamics_type type) noexcept
               param.set_queue(one);
           }
 
+          if constexpr (std::is_same_v<Tag, single_server_queue_tag>) {
+              param.set_single_server_queue_rate(one);
+          }
+
           if constexpr (std::is_same_v<Tag, queue_tag> or
                         std::is_same_v<Tag, dynamic_queue_tag> or
-                        std::is_same_v<Tag, priority_queue_tag>) {
+                        std::is_same_v<Tag, priority_queue_tag> or
+                        std::is_same_v<Tag, single_server_queue_tag>) {
               param.set_queue_fifo(fifo_overflow::grow, default_fifo_capacity);
           }
       },
@@ -1148,6 +1175,20 @@ parameter& parameter::set_priority_queue_ta(const source_type   type,
     return *this;
 }
 
+parameter& parameter::set_single_server_queue_ta(
+  const source_type   type,
+  const source_any_id id) noexcept
+{
+    integers[single_server_queue_tag::source_ta] = from_source(type, id);
+    return *this;
+}
+
+parameter& parameter::set_single_server_queue_rate(const real rate) noexcept
+{
+    reals[single_server_queue_tag::rate] = rate;
+    return *this;
+}
+
 parameter& parameter::set_logical_memory(const source_type   type,
                                          const source_any_id id,
                                          const i32           size) noexcept
@@ -1211,6 +1252,13 @@ parameter& parameter::set_priority_queue_ta(
   const external_source_definition::id id) noexcept
 {
     integers[priority_queue_tag::source_ta] = ordinal(id);
+    return *this;
+}
+
+parameter& parameter::set_single_server_queue_ta(
+  const external_source_definition::id id) noexcept
+{
+    integers[single_server_queue_tag::source_ta] = ordinal(id);
     return *this;
 }
 

@@ -303,6 +303,13 @@ static void show_dynamics_values(application& /*app*/,
 }
 
 static void show_dynamics_values(application& /*app*/,
+                                 project_editor&            sim,
+                                 const single_server_queue& dyn)
+{
+    show_queue_fifo(sim, dyn.fifo);
+}
+
+static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const generator& dyn)
 {
@@ -1093,6 +1100,8 @@ static int show_menu_edit(project_editor&    pj_ed,
     r += popup_menu(pj_ed, current, dynamics_type::queue, click_pos);
     r += popup_menu(pj_ed, current, dynamics_type::dynamic_queue, click_pos);
     r += popup_menu(pj_ed, current, dynamics_type::priority_queue, click_pos);
+    r += popup_menu(pj_ed, current, dynamics_type::single_server_queue,
+                    click_pos);
     r += popup_menu(pj_ed, current, dynamics_type::generator, click_pos);
     r += popup_menu(pj_ed, current, dynamics_type::constant, click_pos);
     r += popup_menu(pj_ed, current, dynamics_type::time_func, click_pos);

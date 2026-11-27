@@ -173,6 +173,18 @@ struct priority_queue_tag {
     enum parameter_names : u8 { source_ta = 0, i_overflow = 1, i_capacity = 2 };
 };
 
+struct single_server_queue_tag {
+    static constexpr std::string_view x_names[] = { "in" };
+    static constexpr std::string_view y_names[] = { "out" };
+
+    enum parameter_names : u8 {
+        source_ta  = 0,
+        i_overflow = 1,
+        i_capacity = 2,
+        rate       = 0
+    };
+};
+
 struct generator_tag {
     static constexpr std::string_view x_names[] = { "value", "t" };
     static constexpr std::string_view y_names[] = { "out" };
@@ -583,6 +595,9 @@ constexpr auto dispatch(const dynamics_type type,
                            std::forward<Args>(args)...);
     case dynamics_type::priority_queue:
         return std::invoke(std::forward<Function>(f), priority_queue_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::single_server_queue:
+        return std::invoke(std::forward<Function>(f), single_server_queue_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::generator:
         return std::invoke(std::forward<Function>(f), generator_tag{},

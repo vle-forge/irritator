@@ -5,6 +5,7 @@
 #include <irritator/binary-simulation.hpp>
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
+#include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/random.hpp>
@@ -736,6 +737,9 @@ int main()
             if constexpr (std::is_same_v<Queue, dynamic_queue>)
                 get_p(sim, queue)
                   .set_dynamic_queue_ta(source_type::constant, cst_id);
+            else if constexpr (std::is_same_v<Queue, single_server_queue>)
+                get_p(sim, queue)
+                  .set_single_server_queue_ta(source_type::constant, cst_id);
             else
                 get_p(sim, queue)
                   .set_priority_queue_ta(source_type::constant, cst_id);
@@ -762,6 +766,8 @@ int main()
         expect(run_queue(dynamic_queue{}, -1.0) == abnormal);
         expect(run_queue(priority_queue{}, 2.0) == error_code{});
         expect(run_queue(priority_queue{}, -1.0) == abnormal);
+        expect(run_queue(single_server_queue{}, 2.0) == error_code{});
+        expect(run_queue(single_server_queue{}, -1.0) == abnormal);
     };
 
     "simulation: dynamic_queue is FIFO, priority_queue is ordered by date"_test =
@@ -856,6 +862,263 @@ int main()
                                { 5.0, 1, 40.0 },
                              });
       };
+
+    "simulation: single_server_queue follows the Lindley recurrence"_test = [] {
+        struct output {
+            real t;
+            real value;
+        };
+
+        struct result {
+            std::vector<output> outputs;
+            error_code          error;
+        };
+
+        // One constant model for each client: the client of value v arrives
+        // at the date of its offset.
+        struct client {
+            real value;
+            real arrival;
+        };
+
+        const auto run_queue = [](auto tag, std::span<const client> clients,
+                                  std::span<const real> services,
+                                  const fifo_overflow   overflow,
+                                  const i32             capacity) {
+            using Queue = decltype(tag);
+
+            simulation sim(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .constant_nb = 1 });
+
+            auto&      cst_services = sim.srcs.constant_sources.alloc(services);
+            const auto services_id  = sim.srcs.constant_sources.get_id(
+              cst_services);
+
+            auto& queue = sim.alloc<Queue>();
+            auto& cnt   = sim.alloc<counter>();
+
+            for (const auto& c : clients) {
+                auto& cst = sim.alloc<irt::constant>();
+                get_p(sim, cst).set_constant(c.value, c.arrival);
+                (void)sim.connect_dynamics(cst, 0, queue, 0);
+            }
+
+            if constexpr (std::is_same_v<Queue, dynamic_queue>)
+                get_p(sim, queue)
+                  .set_dynamic_queue_ta(source_type::constant, services_id);
+            else
+                get_p(sim, queue)
+                  .set_single_server_queue_ta(source_type::constant,
+                                              services_id);
+
+            get_p(sim, queue).set_queue_fifo(overflow, capacity);
+            (void)sim.connect_dynamics(queue, 0, cnt, 0);
+
+            result r;
+            sim.limits.set_bound(0, 20);
+            if (auto ret = sim.srcs.prepare(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+            if (auto ret = sim.initialize(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+
+            do {
+                const auto events = cnt.event_number;
+                if (auto ret = sim.run(); not ret) {
+                    r.error = ret.error();
+                    return r;
+                }
+
+                if (cnt.event_number != events)
+                    r.outputs.push_back({ sim.current_time(), cnt.last_value });
+            } while (not sim.current_time_expired());
+
+            return r;
+        };
+
+        const auto same = [](const std::vector<output>&    outputs,
+                             std::initializer_list<output> expected) {
+            if (outputs.size() != expected.size())
+                return false;
+
+            auto it = expected.begin();
+            for (const auto& o : outputs) {
+                if (std::abs(o.t - it->t) > 1e-12 or o.value != it->value)
+                    return false;
+                ++it;
+            }
+
+            return true;
+        };
+
+        const client clients[] = {
+            { 10, 0.0 }, { 20, 0.5 }, { 30, 0.6 }, { 40, 3.0 }
+        };
+        const real one_service[] = { 1.0 };
+
+        // d_n = max(t_n, d_{n-1}) + S_n: one client in service at a time.
+        const auto lindley = run_queue(single_server_queue{}, clients,
+                                       one_service, fifo_overflow::grow,
+                                       default_fifo_capacity);
+        expect(lindley.error == error_code{});
+        expect(same(lindley.outputs,
+                    { { 1, 10 }, { 2, 20 }, { 3, 30 }, { 4, 40 } }));
+
+        // The dynamic_queue is a FIFO delay line: the services overlap.
+        const auto delay_line = run_queue(dynamic_queue{}, clients, one_service,
+                                          fifo_overflow::grow,
+                                          default_fifo_capacity);
+        expect(delay_line.error == error_code{});
+        expect(same(delay_line.outputs,
+                    { { 1, 10 }, { 1.5, 20 }, { 1.6, 30 }, { 4, 40 } }));
+
+        // K = 2: the clients 30 and 40 find two clients in the system. A
+        // refused client reads no service time: the client 50 has the
+        // third service, 3.
+        const client burst[] = {
+            { 10, 0.0 }, { 20, 0.1 }, { 30, 0.2 }, { 40, 0.3 }, { 50, 1.5 }
+        };
+        const real services[] = { 1, 2, 3, 4 };
+
+        const auto forget = run_queue(single_server_queue{}, burst, services,
+                                      fifo_overflow::forget, 2);
+        expect(forget.error == error_code{});
+        expect(same(forget.outputs, { { 1, 10 }, { 3, 20 }, { 6, 50 } }));
+
+        const auto error = run_queue(single_server_queue{}, burst, services,
+                                     fifo_overflow::error, 2);
+        expect(error.error == error_code(simulation_errc::queue_full));
+        expect(error.outputs.empty());
+
+        // The replace policies remove a client and change the dates of the
+        // next ones.
+        for (const auto overflow :
+             { fifo_overflow::replace_first, fifo_overflow::replace_last }) {
+            const auto replace = run_queue(single_server_queue{}, burst,
+                                           services, overflow, 2);
+            expect(replace.error ==
+                   error_code(simulation_errc::queue_overflow_error));
+        }
+    };
+
+    "simulation: single_server_queue is a M/M/1 queue"_test = [] {
+        struct measures {
+            real throughput; // departures / T
+            real mean_size;  // time average of n(t)
+            real final_size; // n(T)
+            bool success;
+        };
+
+        const auto run_mm1 = [](const real lambda, const real mu,
+                                const real horizon) -> measures {
+            simulation sim(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .random_nb = 2 });
+
+            sim.srcs.seed = 0x5eed5eed12345678u;
+
+            const real arrival_reals[2] = { lambda, 0 };
+            const real service_reals[2] = { 1, 0 };
+            const i32  ints[2]          = { 0, 0 };
+            auto&      arrivals         = sim.srcs.random_sources.alloc(
+              distribution_type::exponential, arrival_reals, ints);
+            auto& services = sim.srcs.random_sources.alloc(
+              distribution_type::exponential, service_reals, ints);
+
+            auto& gen   = sim.alloc<generator>();
+            auto& queue = sim.alloc<single_server_queue>();
+            auto& cnt   = sim.alloc<counter>();
+
+            get_p(sim, gen).clear().set_generator_ta(
+              source_type::random, sim.srcs.random_sources.get_id(arrivals));
+
+            // An exponential service of rate 1 divided by mu: Exp(mu).
+            get_p(sim, queue)
+              .set_single_server_queue_ta(
+                source_type::random, sim.srcs.random_sources.get_id(services))
+              .set_single_server_queue_rate(mu);
+
+            (void)sim.connect_dynamics(gen, 0, queue, 0);
+            (void)sim.connect_dynamics(queue, 0, cnt, 0);
+
+            measures m{};
+            sim.limits.set_bound(0, horizon);
+            if (not sim.srcs.prepare() or not sim.initialize())
+                return m;
+
+            // n(t) is constant between two steps.
+            auto area   = 0.0;
+            auto t_prev = 0.0;
+            auto n_prev = 0;
+
+            do {
+                if (not sim.run())
+                    return m;
+
+                const auto t = sim.current_time();
+                area += n_prev * (t - t_prev);
+                t_prev = t;
+                n_prev = queue.size;
+            } while (not sim.current_time_expired());
+
+            m.throughput = static_cast<real>(cnt.event_number) / horizon;
+            m.mean_size  = area / horizon;
+            m.final_size = queue.size;
+            m.success    = sim.finalize().has_value();
+
+            return m;
+        };
+
+        const auto near = [](real value, real expected) {
+            return std::abs(value - expected) <= 0.05 * expected;
+        };
+
+        // Stable queue: rho = lambda / mu = 2/3.
+        {
+            constexpr real lambda = 0.4, mu = 0.6, horizon = 1e6;
+            constexpr real rho = lambda / mu;
+
+            const auto m = run_mm1(lambda, mu, horizon);
+            expect(m.success);
+
+            // Little: W = L / throughput.
+            const auto sojourn = m.mean_size / m.throughput;
+
+            fmt::print("M/M/1 lambda={} mu={} T={}\n"
+                       "  throughput {:.4f} (theory {:.4f})\n"
+                       "  L          {:.4f} (theory {:.4f})\n"
+                       "  W          {:.4f} (theory {:.4f})\n",
+                       lambda, mu, horizon, m.throughput, lambda, m.mean_size,
+                       rho / (1 - rho), sojourn, 1 / (mu - lambda));
+
+            expect(near(m.throughput, lambda));
+            expect(near(m.mean_size, rho / (1 - rho)));
+            expect(near(sojourn, 1 / (mu - lambda)));
+        }
+
+        // Unstable queue: the number of clients grows as (lambda - mu) t but
+        // the model stays legitimate, the simulation ends without error.
+        {
+            constexpr real lambda = 0.8, mu = 0.6, horizon = 1e5;
+
+            const auto m     = run_mm1(lambda, mu, horizon);
+            const auto slope = m.final_size / horizon;
+            expect(m.success);
+
+            fmt::print("M/M/1 lambda={} mu={} T={}\n"
+                       "  n(T)/T     {:.4f} (theory {:.4f})\n"
+                       "  throughput {:.4f} (theory {:.4f})\n",
+                       lambda, mu, horizon, slope, lambda - mu, m.throughput,
+                       mu);
+
+            expect(near(slope, lambda - mu));
+            expect(near(m.throughput, mu));
+        }
+    };
 
     "simulation: the overflow of the fifo of the queues"_test = [] {
         struct output {

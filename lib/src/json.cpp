@@ -1021,6 +1021,30 @@ struct json_reader {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
+                       single_server_queue_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics single server queue");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("source-id"sv == name)
+                  return read_temp_u64(value) &&
+                         copy_source_to_parameter(
+                           p.integers[single_server_queue_tag::source_ta]);
+
+              if ("rate"sv == name)
+                  return read_temp_real(value) && is_double_greater_than(0.0) &&
+                         copy_real_to(p.reals[single_server_queue_tag::rate]);
+
+              if (const auto ret = read_fifo(name, value, p))
+                  return *ret;
+
+              return error("unknown element");
+          });
+    }
+
+    bool read_dynamics(const rapidjson::Value& val,
                        priority_queue_tag,
                        parameter& p) noexcept
     {
@@ -5384,6 +5408,24 @@ struct json_writer {
         writer.Key("source-id");
         writer.Uint64(get_index(enum_cast<external_source_definition::id>(
           p.integers[priority_queue_tag::source_ta])));
+        write_fifo(writer, p);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const file_access& /*files*/,
+               const component_access& /*ids*/,
+               const single_server_queue_tag,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("source-id");
+        writer.Uint64(get_index(enum_cast<external_source_definition::id>(
+          p.integers[single_server_queue_tag::source_ta])));
+        writer.Key("rate");
+        writer.Double(p.reals[single_server_queue_tag::rate]);
         write_fifo(writer, p);
         writer.EndObject();
     }

@@ -13,7 +13,10 @@ namespace irt {
 
 bool simulation_component::can_be_factor(const dynamics_type type) noexcept
 {
+    // A factor writes the first real of the parameter: the rate of a single
+    // server queue.
     return any_equal(type, dynamics_type::constant, dynamics_type::queue,
+                     dynamics_type::single_server_queue,
                      dynamics_type::generator, dynamics_type::qss1_integrator,
                      dynamics_type::qss2_integrator,
                      dynamics_type::qss3_integrator);

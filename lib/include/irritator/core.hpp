@@ -1172,11 +1172,12 @@ enum class dynamics_type : u8 {
     logical_d_flipflop,
     logical_clock,
     logical_memory,
+    single_server_queue,
 };
 
 constexpr int dynamics_type_last() noexcept
 {
-    return static_cast<int>(dynamics_type::logical_memory);
+    return static_cast<int>(dynamics_type::single_server_queue);
 }
 
 constexpr int dynamics_type_size() noexcept { return dynamics_type_last() + 1; }
@@ -1314,7 +1315,7 @@ struct parameter {
 
     parameter& set_queue(real sigma) noexcept;
 
-    /** The fifo of a queue, a dynamic queue or a priority queue. A @a
+    /** The fifo of a queue, a dynamic, priority or single server queue. A @a
      * capacity lower than 1 is replaced by @c default_fifo_capacity. */
     parameter& set_queue_fifo(fifo_overflow overflow, i32 capacity) noexcept;
 
@@ -1327,6 +1328,12 @@ struct parameter {
                                     const source_any_id id) noexcept;
     parameter& set_priority_queue_ta(const source_type   type,
                                      const source_any_id id) noexcept;
+    parameter& set_single_server_queue_ta(const source_type   type,
+                                          const source_any_id id) noexcept;
+
+    /** The service time of a single server queue is the value of its source
+     * divided by @a rate. */
+    parameter& set_single_server_queue_rate(real rate) noexcept;
     parameter& set_hsm_wrapper_value(const source_type   type,
                                      const source_any_id id) noexcept;
     parameter& set_generator_ta(
@@ -1336,6 +1343,8 @@ struct parameter {
     parameter& set_dynamic_queue_ta(
       const external_source_definition::id id) noexcept;
     parameter& set_priority_queue_ta(
+      const external_source_definition::id id) noexcept;
+    parameter& set_single_server_queue_ta(
       const external_source_definition::id id) noexcept;
 
     std::array<real, 4> reals{};
@@ -9113,6 +9122,94 @@ struct priority_queue {
     status lambda(simulation& sim) noexcept;
 };
 
+/** A FIFO queue with one server: the G/G/1 queue, M/M/1/K with exponential
+ * sources and a capacity of K.
+ *
+ * The client n arrived at t_n leaves at d_n = max(t_n, d_{n-1}) + S_n
+ * (Lindley). The service time S_n is the next value of @c source_ta divided by
+ * @c rate: a factor of a simulation wrapper changes the rate, the first real
+ * of the parameter, not a source. S_n is read at the arrival of the client:
+ * for independent and identically distributed services, the law is the one of
+ * a read at the start of the service.
+ *
+ * The @c fifo stores the clients in the system, its head is the client in
+ * service: @c capacity is the maximal number of clients in the system. A
+ * client refused with @c fifo_overflow::forget reads no service time. The
+ * policies @c fifo_overflow::replace_first and @c fifo_overflow::replace_last
+ * change the dates of the next clients and fail the initialization with @c
+ * simulation_errc::queue_overflow_error.
+ *
+ * The observation is the number of clients in the system. */
+struct single_server_queue {
+    input_port       x[1] = {};
+    output_port_id   y[1] = {};
+    time             sigma;
+    dated_message_id fifo = undefined<dated_message_id>();
+
+    source_data src_data;
+    source      source_ta;
+
+    fifo_overflow overflow = fifo_overflow::grow;
+    i32           capacity = default_fifo_capacity;
+    i32           size     = 0;
+    real          rate     = one;
+
+    single_server_queue() noexcept = default;
+
+    single_server_queue(const single_server_queue& other) noexcept
+      : sigma(other.sigma)
+      , fifo(undefined<dated_message_id>())
+      , source_ta(other.source_ta)
+      , overflow(other.overflow)
+      , capacity(other.capacity)
+      , rate(other.rate)
+    {}
+
+    status initialize(simulation& sim) noexcept
+    {
+        if (capacity < 1)
+            return make_error(simulation_errc::queue_capacity_error);
+
+        if (overflow == fifo_overflow::replace_first or
+            overflow == fifo_overflow::replace_last)
+            return make_error(simulation_errc::queue_overflow_error);
+
+        if (not std::isfinite(rate) or rate <= zero)
+            return make_error(simulation_errc::queue_ta_error);
+
+        irt_check(sim.srcs.initialize_source(*this, source_ta, src_data));
+
+        sigma = time_domain<time>::infinity;
+        fifo  = undefined<dated_message_id>();
+        size  = 0;
+
+        return success();
+    }
+
+    status finalize(simulation& sim) noexcept
+    {
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            ar->clear();
+            sim.dated_messages.free(*ar);
+            fifo = undefined<dated_message_id>();
+        }
+
+        irt_check(sim.srcs.finalize_source(source_ta, src_data));
+
+        return success();
+    }
+
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
+
+    //! Sends the head of the @c fifo: the client which ends its service.
+    status lambda(simulation& sim) noexcept;
+
+    raw_sample observation(time t, time /*e*/) const noexcept
+    {
+        return { t, static_cast<real>(size) };
+    }
+};
+
 template<typename... Ts>
 struct type_list {};
 
@@ -9269,7 +9366,8 @@ using dynamics_list = type_list<qss1_integrator,
                                 logical_xor_2,
                                 logical_d_flipflop,
                                 logical_clock,
-                                logical_memory>;
+                                logical_memory,
+                                single_server_queue>;
 
 template<typename T, typename... Ts>
 consteval int type_list_index(type_list<Ts...>) noexcept
@@ -11610,6 +11708,45 @@ inline status priority_queue::transition(simulation& sim,
     }
 
     sigma = queue_time_advance(sim, fifo, t);
+
+    return success();
+}
+
+inline status single_server_queue::lambda(simulation& sim) noexcept
+{
+    return queue_send_head_message(sim, fifo, y[0]);
+}
+
+inline status single_server_queue::transition(simulation& sim,
+                                              time        t,
+                                              time /*e*/,
+                                              time /*r*/) noexcept
+{
+    queue_remove_sent_message(sim, fifo, t);
+
+    for (const auto& msg : get_message(sim, x[0])) {
+        auto fifo_ar = get_queue_fifo(sim, fifo, overflow, capacity);
+        if (not fifo_ar)
+            return fifo_ar.error();
+
+        auto* ar = *fifo_ar;
+        if (not ar)
+            continue;
+
+        auto ta = queue_next_ta(sim, source_ta, src_data);
+        if (not ta)
+            return ta.error();
+
+        // The model wakes up at the date of the head: no date is lower than t
+        // and an empty fifo means a free server.
+        const auto start = ar->empty() ? t : std::max(t, ar->back()[0]);
+
+        ar->push_tail({ start + *ta / rate, msg[0], msg[1], msg[2] });
+    }
+
+    const auto* ar = sim.dated_messages.try_to_get(fifo);
+    size           = ar ? ar->ssize() : 0;
+    sigma          = queue_time_advance(sim, fifo, t);
 
     return success();
 }

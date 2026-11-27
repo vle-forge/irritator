@@ -1150,6 +1150,7 @@ static bool show_popup_menuitem(const component_access&        ids,
             u += show_menu(gen, dynamics_type::queue, click_pos);
             u += show_menu(gen, dynamics_type::dynamic_queue, click_pos);
             u += show_menu(gen, dynamics_type::priority_queue, click_pos);
+            u += show_menu(gen, dynamics_type::single_server_queue, click_pos);
             u += show_menu(gen, dynamics_type::generator, click_pos);
             ImGui::EndMenu();
         }

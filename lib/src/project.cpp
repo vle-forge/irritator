@@ -106,6 +106,14 @@ constexpr void convert_mod_to_sim_source(
             p.set_priority_queue_ta(sim_src->type, sim_src->sim_id);
     } break;
 
+    case dynamics_type::single_server_queue: {
+        const auto mod_src = enum_cast<external_source_definition::id>(
+          p.integers[single_server_queue_tag::source_ta]);
+        if (const auto sim_src = convert_mod_to_sim_source_id(mapping, mod_src);
+            sim_src.has_value())
+            p.set_single_server_queue_ta(sim_src->type, sim_src->sim_id);
+    } break;
+
     case dynamics_type::generator: {
         const auto flags = bitflags<generator::option>(p.integers[0]);
         if (flags[generator::option::ta_use_source]) {
@@ -800,6 +808,7 @@ static auto make_tree_leaf(project_to_simulation&          sc,
 
           if constexpr (std::is_same_v<Dynamics, generator> or
                         std::is_same_v<Dynamics, priority_queue> or
+                        std::is_same_v<Dynamics, single_server_queue> or
                         std::is_same_v<Dynamics, dynamic_queue> or
                         std::is_same_v<Dynamics, hsm_wrapper> or
                         std::is_same_v<Dynamics, logical_memory>) {

@@ -114,6 +114,8 @@ enum class simulation_errc : std::int16_t {
     queue_ta_error,
     queue_capacity_error, /**< The capacity of a queue is lower than 1. */
     queue_full, /**< A queue with the @c fifo_overflow::error policy is full. */
+    queue_overflow_error, /**< The overflow policy of the fifo is not
+                             supported by this queue. */
 
     time_func_offset_error,
     time_func_timestep_error,

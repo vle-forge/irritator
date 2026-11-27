@@ -2,3 +2,5 @@
 
 == irritator v0.1.0 - 2020-xx-yy
 
+* core: adds `single_server_queue`, a FIFO queue with one server (G/G/1,
+  M/M/1/K) that follows the Lindley recurrence.

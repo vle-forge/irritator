@@ -412,6 +412,18 @@ static void write_test_simulation_model(std::FILE*           os,
         print_queue_fifo(os, idx, o_param, param);
         break;
 
+    case dynamics_type::single_server_queue:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_single_server_queue_ta(get_source({}));)",
+          idx, o_param.integers(param, single_server_queue_tag::source_ta));
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_single_server_queue_rate({});)",
+          idx, o_param.reals(param, single_server_queue_tag::rate));
+        print_queue_fifo(os, idx, o_param, param);
+        break;
+
     case dynamics_type::generator: {
         const auto flags = bitflags<generator::option>(
           param.integers[generator_tag::i_options]);
@@ -730,6 +742,15 @@ static bool write_constant_sources(std::FILE*        os,
 
             if (not store_if_constant(
                   sim_to_cpp, params.integers[dynamic_queue_tag::source_ta]))
+                return false;
+        } break;
+
+        case dynamics_type::single_server_queue: {
+            const auto& params = sim.parameters[sim.get_id(mdl)];
+
+            if (not store_if_constant(
+                  sim_to_cpp,
+                  params.integers[single_server_queue_tag::source_ta]))
                 return false;
         } break;
 

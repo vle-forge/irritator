@@ -340,6 +340,26 @@ static bool show_parameter(priority_queue_tag,
 }
 
 template<typename ExternalSourceType>
+static bool show_parameter(single_server_queue_tag,
+                           application& /*app*/,
+                           ExternalSourceType& srcs,
+                           parameter&          p) noexcept
+{
+    const auto src = show_external_sources_combo(
+      "Service", srcs, p.integers[single_server_queue_tag::source_ta]);
+
+    auto       rate    = p.reals[single_server_queue_tag::rate];
+    const auto rate_up = ImGui::InputReal("rate", &rate) and
+                         std::isfinite(rate) and rate > 0;
+    if (rate_up)
+        p.reals[single_server_queue_tag::rate] = rate;
+
+    const auto fifo = show_fifo_parameter(p);
+
+    return src or rate_up or fifo;
+}
+
+template<typename ExternalSourceType>
 static bool show_parameter(generator_tag,
                            application& /*app*/,
                            ExternalSourceType& srcs,
