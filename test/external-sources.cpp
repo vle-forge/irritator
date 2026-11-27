@@ -1054,6 +1054,160 @@ int main()
                ret.error() == error_code(simulation_errc::ta_abnormal));
     };
 
+    "simulation: the rate port of single_server_queue"_test = [] {
+        struct output {
+            real t;
+            real value;
+        };
+
+        struct result {
+            std::vector<output> outputs;
+            error_code          error;
+            real                rate = 0;
+        };
+
+        struct event {
+            real value;
+            real date;
+        };
+
+        // Constant models send the clients to x[0] and the rates to x[1].
+        // The service is constant: 1 at the rate 1.
+        const auto run = [](std::span<const event> clients,
+                            std::span<const event> rates,
+                            const real             snapshot_at) {
+            simulation sim(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .constant_nb = 1 });
+
+            const real one_service[] = { 1.0 };
+            auto&      services = sim.srcs.constant_sources.alloc(one_service);
+
+            auto& queue = sim.alloc<single_server_queue>();
+            auto& cnt   = sim.alloc<counter>();
+            get_p(sim, queue)
+              .set_single_server_queue_ta(
+                source_type::constant,
+                sim.srcs.constant_sources.get_id(services));
+            (void)sim.connect_dynamics(queue, 0, cnt, 0);
+
+            for (const auto& c : clients) {
+                auto& cst = sim.alloc<irt::constant>();
+                get_p(sim, cst).set_constant(c.value, c.date);
+                (void)sim.connect_dynamics(cst, 0, queue, 0);
+            }
+
+            for (const auto& r : rates) {
+                auto& cst = sim.alloc<irt::constant>();
+                get_p(sim, cst).set_constant(r.value, r.date);
+                (void)sim.connect_dynamics(cst, 0, queue,
+                                           single_server_queue::x_rate);
+            }
+
+            result r;
+            sim.limits.set_bound(0, 10);
+            if (auto ret = sim.srcs.prepare(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+            if (auto ret = sim.initialize(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+
+            // The run goes on in a copy read from a snapshot: the rate and
+            // the dates of the fifo are saved.
+            simulation fresh(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .constant_nb = 1 });
+            simulation* current = &sim;
+
+            do {
+                if (current == &sim and sim.current_time() >= snapshot_at) {
+                    binary_writer w;
+                    expect(write_simulation(w, sim).has_value() >>
+                           boost::ut::fatal);
+                    const auto    bytes = std::vector<u8>(w.bytes().begin(),
+                                                          w.bytes().end());
+                    binary_reader rd(bytes);
+                    expect(read_simulation(rd, fresh).has_value() >>
+                           boost::ut::fatal);
+                    current = &fresh;
+                }
+
+                auto& c = get_dyn<counter>(
+                  current->models.get(sim.models.get_id(get_model(cnt))));
+                const auto n = c.event_number;
+                if (auto ret = current->run(); not ret) {
+                    r.error = ret.error();
+                    return r;
+                }
+
+                if (c.event_number != n)
+                    r.outputs.push_back(
+                      { current->current_time(), c.last_value });
+            } while (not current->current_time_expired());
+
+            r.rate = get_dyn<single_server_queue>(
+                       current->models.get(sim.models.get_id(get_model(queue))))
+                       .rate;
+            return r;
+        };
+
+        const auto same = [](const std::vector<output>&    outputs,
+                             std::initializer_list<output> expected) {
+            if (outputs.size() != expected.size())
+                return false;
+
+            auto it = expected.begin();
+            for (const auto& o : outputs) {
+                if (std::abs(o.t - it->t) > 1e-12 or o.value != it->value)
+                    return false;
+                ++it;
+            }
+
+            return true;
+        };
+
+        constexpr auto never = 1e9;
+
+        // A rate received before the arrivals: services of 0.5.
+        {
+            const event clients[] = { { 10, 0.5 }, { 20, 1.0 } };
+            const event rates[]   = { { 2.0, 0.0 } };
+            const auto  r         = run(clients, rates, never);
+            expect(r.error == error_code{});
+            expect(same(r.outputs, { { 1.0, 10 }, { 1.5, 20 } }));
+            expect(eq(r.rate, 2.0));
+        }
+
+        // Three clients at t = 0, the rate 2 at t = 0.5: the client in
+        // service leaves at 1, the waiting ones are served in 0.5. The
+        // simulation continues from a snapshot taken after the change.
+        {
+            const event clients[] = { { 10, 0.0 }, { 20, 0.0 }, { 30, 0.0 } };
+            const event rates[]   = { { 2.0, 0.5 } };
+
+            for (const auto at : { never, 0.75 }) {
+                const auto r = run(clients, rates, at);
+                expect(r.error == error_code{});
+                expect(eq(r.outputs.size(), 3u) >> boost::ut::fatal);
+                expect(approx(r.outputs[0].t, 1.0, 1e-12));
+                expect(approx(r.outputs[1].t, 1.5, 1e-12));
+                expect(approx(r.outputs[2].t, 2.0, 1e-12));
+                expect(eq(r.rate, 2.0));
+            }
+        }
+
+        // A null or negative rate is an error.
+        for (const auto bad : { 0.0, -1.0 }) {
+            const event clients[] = { { 10, 0.0 } };
+            const event rates[]   = { { bad, 0.5 } };
+            expect(run(clients, rates, never).error ==
+                   error_code(simulation_errc::queue_ta_error));
+        }
+    };
+
     "simulation: single_server_queue is a M/M/1 queue"_test = [] {
         struct measures {
             real throughput; // departures / T

@@ -14,3 +14,5 @@
   the criteria are their means; `time-mean` keeps no trajectory.
 * test: the reliability campaign of the decisions of the DEVS-DAMA supervisor
   (IRRITATOR_DAMA_RELIABILITY_CSV).
+* core: the `rate` port of `single_server_queue` changes the rate of the
+  services not started.

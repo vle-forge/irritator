@@ -174,7 +174,7 @@ struct priority_queue_tag {
 };
 
 struct single_server_queue_tag {
-    static constexpr std::string_view x_names[] = { "in" };
+    static constexpr std::string_view x_names[] = { "in", "rate" };
     static constexpr std::string_view y_names[] = { "out" };
 
     enum parameter_names : u8 {

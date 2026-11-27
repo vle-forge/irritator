@@ -9210,9 +9210,18 @@ struct priority_queue {
  * change the dates of the next clients and fail the initialization with @c
  * simulation_errc::queue_overflow_error.
  *
+ * A message on @c x[1] gives a new rate, finite and positive. It applies to
+ * the services not started: the clients waiting keep their draws scaled by
+ * the ratio of the rates, the client in service keeps its date. For
+ * exponential services, a scaled draw has the law of a draw at the start of
+ * the service with the new rate. With several messages in a bag, the
+ * greatest rate wins: the order of a bag is not defined.
+ *
  * The observation is the number of clients in the system. */
 struct single_server_queue {
-    input_port       x[1] = {};
+    enum : u8 { x_in, x_rate };
+
+    input_port       x[2] = {};
     output_port_id   y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
@@ -11795,7 +11804,36 @@ inline status single_server_queue::transition(simulation& sim,
 {
     queue_remove_sent_message(sim, fifo, t);
 
-    for (const auto& msg : get_message(sim, x[0])) {
+    if (const auto rates = get_message(sim, x[x_rate]); not rates.empty()) {
+        auto new_rate = rates.front()[0];
+        for (const auto& msg : rates)
+            new_rate = std::max(new_rate, msg[0]);
+
+        if (not std::isfinite(new_rate) or new_rate <= zero)
+            return make_error(simulation_errc::queue_ta_error);
+
+        // A waiting client starts at the departure of the previous one: its
+        // service is the gap between their dates.
+        if (auto* ar = sim.dated_messages.try_to_get(fifo);
+            ar and ar->ssize() > 1 and new_rate != rate) {
+            const auto scale = rate / new_rate;
+
+            auto it       = ar->begin();
+            auto prev_old = (*it)[0];
+            auto prev_new = prev_old;
+
+            for (++it; it != ar->end(); ++it) {
+                const auto service = (*it)[0] - prev_old;
+                prev_old           = (*it)[0];
+                prev_new += service * scale;
+                (*it)[0] = prev_new;
+            }
+        }
+
+        rate = new_rate;
+    }
+
+    for (const auto& msg : get_message(sim, x[x_in])) {
         auto fifo_ar = get_queue_fifo(sim, fifo, overflow, capacity);
         if (not fifo_ar)
             return fifo_ar.error();
