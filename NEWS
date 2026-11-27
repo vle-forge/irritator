@@ -8,3 +8,5 @@
   (`ta_source_scaled`), a factor then sets the rate of random arrivals.
 * simulation_wrapper: the factors of the same link group take their values
   together, the groups stay combined in a cartesian product.
+* simulation_wrapper: the `time-mean` criteria (exact mean of the raw
+  samples) and the `none` normalization of the weighted sum.

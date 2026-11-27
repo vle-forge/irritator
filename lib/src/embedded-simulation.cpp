@@ -34,6 +34,7 @@ static status copy_history(
             return make_error(
               simulation_errc::simulation_wrapper_not_enough_memory);
 
+        vec->integrate(b.raws);
         vec->values.insert(vec->values.end(), b.points.begin(), b.points.end());
         return success();
     });
@@ -408,7 +409,7 @@ static status embedded_sims_init(embedded_simulation& embed_sims) noexcept
         const auto idx = get_index(id);
 
         for (auto i = 0, e = length(sim_obs[idx].data); i != e; ++i)
-            sim_obs[idx].data[i].value.values.clear();
+            sim_obs[idx].data[i].value.reset(sims[idx].limits.begin());
     }
 
     for (const auto id : embed_sims.embedded_sims) {
@@ -620,9 +621,32 @@ status simulation_wrapper::transition(simulation&           sim,
  *
  * * * * */
 
+void embedded_simulation::embedded_model_observation::reset(
+  const real t) noexcept
+{
+    values.clear();
+    integral = zero;
+    start    = t;
+    last_t   = t;
+}
+
+void embedded_simulation::embedded_model_observation::integrate(
+  std::span<const raw_sample> raws) noexcept
+{
+    for (const auto& s : raws) {
+        integral += s.value * (s.t - last_t);
+        last_t = s.t;
+    }
+}
+
 real embedded_simulation::embedded_model_observation::compute_result(
   const criteria_type type) const noexcept
 {
+    if (type == criteria_type::time_mean)
+        return last_t > start   ? integral / (last_t - start)
+               : values.empty() ? std::numeric_limits<real>::quiet_NaN()
+                                : values.back().value;
+
     if (values.empty())
         return std::numeric_limits<real>::quiet_NaN();
 
@@ -652,6 +676,9 @@ real embedded_simulation::embedded_model_observation::compute_result(
             ret = std::max(ret, values[i].value);
 
         break;
+
+    case criteria_type::time_mean:
+        unreachable();
     }
 
     return ret;
@@ -834,6 +861,13 @@ static void normalize_weighted_sum(const embedded_simulation& embed_sims,
     for (const auto obj_fn_id : embed_sims.selections) {
         const auto is_max = params.types[get_index(obj_fn_id)] ==
                             optimization_type::maximize;
+
+        if (params.norm == norm_type::none) {
+            if (not is_max)
+                for (const auto sub_id : embed_sims.embedded_sims)
+                    objective_fn[pos(sub_id, obj_fn_id)] *= -1.0;
+            continue;
+        }
 
         auto n       = 0;
         auto sum     = 0.0;

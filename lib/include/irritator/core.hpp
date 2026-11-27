@@ -2067,10 +2067,12 @@ public:
 /// direction of the optimization belongs to the objective: @c min_last and
 /// @c max_last both take the last observation value.
 enum class criteria_type {
-    min_last, //!< Last observation value (one real).
-    max_last, //!< Last observation value (one real).
-    min,      //!< Observation value with the lowest value (one real).
-    max,      //!< Observation value with the highest value (one real).
+    min_last,  //!< Last observation value (one real).
+    max_last,  //!< Last observation value (one real).
+    min,       //!< Observation value with the lowest value (one real).
+    max,       //!< Observation value with the highest value (one real).
+    time_mean, //!< Mean of the observation over the duration of the
+               //!< sub-simulation, constant between two raw samples.
 };
 
 enum class factor_type : u8 {
@@ -2089,7 +2091,7 @@ enum class factor_type : u8 {
 };
 
 static constexpr const std::string_view criteria_type_names[] = {
-    "min-last", "max-last", "min", "max"
+    "min-last", "max-last", "min", "max", "time-mean"
 };
 
 static constexpr const std::string_view factor_type_names[] = {
@@ -2122,7 +2124,9 @@ enum class optimization_method : u8 {
 
 enum class optimization_type : u8 { maximize, minimize };
 
-enum class norm_type : u8 { min_max, z_score };
+/// The scale of the values of a weighted sum: @c none keeps the observed
+/// values, with two scenarios @c min_max gives 0 and 1 whatever the gap.
+enum class norm_type : u8 { min_max, z_score, none };
 
 enum class operation_type : u8 { equal, not_equal, greater_equal, less_equal };
 
@@ -2695,6 +2699,19 @@ struct embedded_simulation {
 
     struct embedded_model_observation {
         vector<resampled_sample> values; /*<! Raw output simulation. */
+
+        /// The integral of the raw samples from @c start to @c last_t: the
+        /// observation is called before the transition, a sample is the value
+        /// since the previous one. The resampled @c values start at the first
+        /// sample and lose the beginning.
+        real integral = zero;
+        real start    = zero;
+        real last_t   = zero;
+
+        /// Forgets the observations of a sub-simulation which starts at @a t.
+        void reset(const real t) noexcept;
+
+        void integrate(std::span<const raw_sample> raws) noexcept;
 
         /// @return NaN without observation.
         real compute_result(const criteria_type type) const noexcept;

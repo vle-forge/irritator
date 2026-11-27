@@ -247,7 +247,8 @@ static constexpr inline std::string_view optimization_type_names[] = {
 };
 
 static constexpr inline std::string_view norm_type_names[] = { "min-max",
-                                                               "z-score" };
+                                                               "z-score",
+                                                               "none" };
 
 static constexpr inline std::string_view operation_type_names[] = {
     "equal",

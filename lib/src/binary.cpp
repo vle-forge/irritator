@@ -1037,7 +1037,7 @@ void binary_serialize(
   Ar&                                              ar,
   embedded_simulation::embedded_model_observation& o) noexcept
 {
-    ar(o.values);
+    ar(o.values, o.integral, o.start, o.last_t);
 }
 
 /// A table: its vector of (identifier, value). The binary_access::check
@@ -1634,7 +1634,7 @@ struct binary_access {
 
         if (ordinal(o.method) > ordinal(optimization_method::weighted_sum) or
             ordinal(o.type) > ordinal(optimization_type::minimize) or
-            ordinal(ws.norm) > ordinal(norm_type::z_score))
+            ordinal(ws.norm) > ordinal(norm_type::none))
             return false;
 
         for (const auto t : ws.types)
@@ -1705,7 +1705,7 @@ struct binary_access {
         for (const auto id : e.selections) {
             if (not std::cmp_less(get_index(id), e.selections.size()) or
                 ordinal(e.selections.get<criteria_type>(id)) >
-                  ordinal(criteria_type::max) or
+                  ordinal(criteria_type::time_mean) or
                 not e.sim.models.exists(e.selections.get<model_id>(id)))
                 return false;
         }
@@ -1853,7 +1853,7 @@ struct binary_access {
         io_enum(ar, o.method, optimization_method::weighted_sum);
         io_enum(ar, o.type, optimization_type::minimize);
         ar(o.weighted_sum_params.weights, o.weighted_sum_params.types);
-        io_enum(ar, o.weighted_sum_params.norm, norm_type::z_score);
+        io_enum(ar, o.weighted_sum_params.norm, norm_type::none);
         ar(o.epsilon_constrained_params.epsilons,
            o.epsilon_constrained_params.operations,
            o.epsilon_constrained_params.primary, o.simple_params.primary);

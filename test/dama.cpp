@@ -10,6 +10,7 @@
 
 #include <boost/ut.hpp>
 
+#include <cmath>
 #include <limits>
 #include <span>
 #include <vector>
@@ -1397,5 +1398,77 @@ int main()
                irt::error_code(
                  irt::simulation_errc::simulation_wrapper_factor_link_error));
         expect(mismatch.scenarios.empty());
+    };
+    "embedded_model_observation: time mean of the raw samples"_test = [] {
+        irt::embedded_simulation::embedded_model_observation o;
+        o.reset(0.0);
+
+        // A sample is the value since the previous one: 2 on ]0, 1], 4 on
+        // ]1, 3] and 1 on ]3, 4].
+        const irt::raw_sample raws[] = { { 1.0, 2.0 },
+                                         { 3.0, 4.0 },
+                                         { 4.0, 1.0 } };
+        o.integrate(std::span(raws, 2));
+        o.integrate(std::span(raws + 2, 1));
+
+        expect(eq(o.compute_result(irt::criteria_type::time_mean),
+                  (2.0 * 1 + 4.0 * 2 + 1.0 * 1) / 4.0));
+
+        o.reset(10.0);
+        expect(std::isnan(o.compute_result(irt::criteria_type::time_mean)));
+    };
+
+    "simulation_wrapper: the DEVS-DAMA supervisor of a M/M/1 queue"_test = [] {
+        const irt::real mu[]   = { 0.6, 1.2 };
+        const irt::real cost[] = { 0.0, 3.0 };
+
+        const auto utility = [](const supervisor_scenario& s) {
+            return 0.6 * s.queue_criteria + 0.4 * s.cost_criteria;
+        };
+
+        const auto run = [&](const irt::real      lambda,
+                             const irt::norm_type norm) {
+            const auto r = run_supervisor(
+              { .mu       = mu,
+                .cost     = cost,
+                .lambda   = lambda,
+                .horizon  = 2e5,
+                .criteria = irt::criteria_type::time_mean,
+                .norm     = norm });
+
+            expect(r.error == irt::error_code{});
+            expect(eq(r.messages, 1));
+            expect(eq(r.scenarios.size(), 2u));
+
+            fmt::print("supervisor lambda={} norm={}: selected mu={}\n", lambda,
+                       norm == irt::norm_type::none ? "none" : "min-max",
+                       r.selected_mu);
+            for (const auto& s : r.scenarios)
+                fmt::print("  mu={} cost={} L={:.4f} U={:.4f}\n", s.mu,
+                           s.cost_criteria, s.queue_criteria, utility(s));
+
+            return r;
+        };
+
+        // Stationary values with lambda = 0.4: U1 = 0.6 * 2 = 1.2 and
+        // U2 = 0.6 * 0.5 + 0.4 * 3 = 1.5.
+        const auto nominal = run(0.4, irt::norm_type::none);
+        expect(eq(nominal.selected_mu, 0.6));
+        for (const auto& s : nominal.scenarios) {
+            const auto expected = s.mu == 0.6 ? 1.2 : 1.5;
+            expect(std::abs(utility(s) - expected) <= 0.1 * expected);
+        }
+
+        // mu1 < lambda: L grows with the horizon.
+        const auto burst = run(0.8, irt::norm_type::none);
+        expect(eq(burst.selected_mu, 1.2));
+        for (const auto& s : burst.scenarios)
+            if (s.mu == 0.6)
+                expect(s.queue_criteria > 100.0);
+
+        // With two scenarios, min-max gives 0 and 1 to each criteria: the
+        // weights decide alone and mu2 wins with lambda = 0.4.
+        const auto min_max = run(0.4, irt::norm_type::min_max);
+        expect(eq(min_max.selected_mu, 1.2));
     };
 }
