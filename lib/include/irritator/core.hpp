@@ -1320,6 +1320,9 @@ struct parameter {
     parameter& set_queue_fifo(fifo_overflow overflow, i32 capacity) noexcept;
 
     parameter& set_generator_ta(real sigma) noexcept;
+
+    /** With a source of time advance, multiplies its values by @a ta. */
+    parameter& set_generator_ta_scale(real ta) noexcept;
     parameter& set_generator_ta(const source_type   type,
                                 const source_any_id id) noexcept;
     parameter& set_generator_value(const source_type   type,
@@ -5020,7 +5023,15 @@ struct counter {
 struct generator {
     enum : u8 { x_value, x_t };
 
-    enum class option : u8 { ta_use_source, value_use_source };
+    /// With @c ta_source_scaled, the time advance is the next value of the
+    /// @c source_ta multiplied by @c ta: a factor of a simulation wrapper
+    /// changes @c ta, the first real of the parameter, not a source. A source
+    /// of exponential law of rate 1 and @c ta = 1 / lambda give Exp(lambda).
+    enum class option : u8 {
+        ta_use_source,
+        value_use_source,
+        ta_source_scaled
+    };
 
     input_port     x[2] = {};
     output_port_id y[1] = {};
@@ -5064,7 +5075,7 @@ struct generator {
                 return make_error(
                   simulation_errc::generator_ta_initialization_error);
 
-            sigma = source_ta.next();
+            sigma = next_source_ta();
 
             if (not std::isfinite(sigma) or std::signbit(sigma))
                 return make_error(simulation_errc::ta_abnormal);
@@ -5139,7 +5150,7 @@ struct generator {
                         return ret.error();
                 }
 
-                sigma = source_ta.next();
+                sigma = next_source_ta();
 
                 if (not std::isfinite(sigma) or std::signbit(sigma))
                     return make_error(simulation_errc::ta_abnormal);
@@ -5166,6 +5177,13 @@ struct generator {
     raw_sample observation(time t, time /*e*/) const noexcept
     {
         return { t, value };
+    }
+
+private:
+    time next_source_ta() noexcept
+    {
+        const auto next = source_ta.next();
+        return flags[option::ta_source_scaled] ? next * ta : next;
     }
 };
 

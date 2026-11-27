@@ -3923,6 +3923,65 @@ int main()
         expect(not r.initialized);
     };
 
+    "json: the scale of the ta of a generator survives a round trip"_test = [] {
+        irt::modeling mod;
+
+        const auto id = mod.ids.write([&](auto& ids) {
+            const auto id    = ids.alloc_generic_component();
+            auto&      compo = ids.components[id];
+            auto&      gen   = ids.generic_components.get(compo.id.generic_id);
+
+            compo.srcs.data.reserve(1);
+            auto& rnd         = compo.srcs.alloc_random_source("rnd");
+            rnd.type          = irt::distribution_type::exponential;
+            rnd.reals[0]      = 1.0;
+            const auto src_id = *compo.srcs.data.begin();
+
+            auto& scaled = gen.alloc(irt::dynamics_type::generator);
+            gen.children_parameters[gen.children.get_id(scaled)]
+              .set_generator_ta(src_id)
+              .set_generator_ta_scale(2.5);
+
+            auto& plain = gen.alloc(irt::dynamics_type::generator);
+            gen.children_parameters[gen.children.get_id(plain)]
+              .clear()
+              .set_generator_ta(src_id);
+
+            return id;
+        });
+
+        const auto first = json_save_component(mod, id);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& gen = ids.generic_components.get(
+              ids.components[*read].id.generic_id);
+
+            int scaled = 0;
+            int plain  = 0;
+            for (const auto& child : gen.children) {
+                const auto&
+                  p = gen.children_parameters[gen.children.get_id(child)];
+                const auto flags = irt::bitflags<irt::generator::option>(
+                  p.integers[irt::generator_tag::i_options]);
+
+                expect(flags[irt::generator::option::ta_use_source]);
+                if (flags[irt::generator::option::ta_source_scaled]) {
+                    expect(eq(p.reals[irt::generator_tag::sigma], 2.5));
+                    ++scaled;
+                } else {
+                    ++plain;
+                }
+            }
+            expect(eq(scaled, 1));
+            expect(eq(plain, 1));
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+    };
+
     "json: the fifo of the queues survives a round trip"_test = [] {
         irt::modeling mod;
 

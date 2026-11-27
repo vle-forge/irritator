@@ -1066,6 +1066,7 @@ struct json_reader {
 
     bool copy_to_generator_options(bool ta_use_source,
                                    bool value_use_source,
+                                   bool ta_source_scaled,
                                    i64& options) noexcept
     {
         bitflags<generator::option> flags;
@@ -1074,6 +1075,8 @@ struct json_reader {
             flags.set(generator::option::ta_use_source);
         if (value_use_source)
             flags.set(generator::option::value_use_source);
+        if (ta_use_source and ta_source_scaled)
+            flags.set(generator::option::ta_source_scaled);
 
         options = static_cast<i64>(flags.to_unsigned());
 
@@ -1088,6 +1091,7 @@ struct json_reader {
 
         auto ta_use_source    = false;
         auto value_use_source = false;
+        auto ta_source_scaled = false;
 
         return for_each_member(
                  val,
@@ -1097,6 +1101,9 @@ struct json_reader {
 
                      if ("value-is-external"sv == name)
                          return read_bool(value, value_use_source);
+
+                     if ("ta-is-scaled"sv == name)
+                         return read_bool(value, ta_source_scaled);
 
                      if ("source-ta-id"sv == name)
                          return read_temp_u64(value) &&
@@ -1119,6 +1126,7 @@ struct json_reader {
                      return error("unknown element");
                  }) and
                copy_to_generator_options(ta_use_source, value_use_source,
+                                         ta_source_scaled,
                                          p.integers[generator_tag::i_options]);
     }
 
@@ -5442,6 +5450,8 @@ struct json_writer {
         const auto flags   = bitflags<generator::option>(options);
         const auto use_ta_src  = flags[generator::option::ta_use_source];
         const auto use_val_src = flags[generator::option::value_use_source];
+        const auto scaled      = use_ta_src and
+                            flags[generator::option::ta_source_scaled];
 
         writer.StartObject();
 
@@ -5450,11 +5460,20 @@ struct json_writer {
         writer.Key("value-is-external");
         writer.Bool(use_val_src);
 
+        // The key is written only when set: the files without scale stay
+        // the same.
+        if (scaled) {
+            writer.Key("ta-is-scaled");
+            writer.Bool(true);
+        }
+
         if (use_ta_src) {
             writer.Key("source-ta-id");
             writer.Uint64(get_index(enum_cast<external_source_definition::id>(
               p.integers[generator_tag::source_ta])));
-        } else {
+        }
+
+        if (not use_ta_src or scaled) {
             writer.Key("sigma");
             writer.Double(p.reals[generator_tag::sigma]);
         }

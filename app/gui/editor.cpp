@@ -417,6 +417,16 @@ static bool show_parameter(generator_tag,
           "Unchecked, the generator stops to send data if the source are "
           "empty or undefined. Checked, the simulation will stop.");
 
+        auto scaled = flags[generator::option::ta_source_scaled];
+        if (ImGui::Checkbox("scale by ta", &scaled)) {
+            flags.set(generator::option::ta_source_scaled, scaled);
+            p.integers[generator_tag::i_options] = flags.to_unsigned();
+            is_changed                           = true;
+        }
+
+        if (scaled and ImGui::InputReal("ta", &p.reals[generator_tag::sigma]))
+            is_changed = true;
+
         ImGui::PopID();
     } else {
         if (ImGui::InputReal("Default ta", &p.reals[generator_tag::sigma]))

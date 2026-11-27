@@ -4,3 +4,5 @@
 
 * core: adds `single_server_queue`, a FIFO queue with one server (G/G/1,
   M/M/1/K) that follows the Lindley recurrence.
+* core: a generator can multiply the values of its time source by its ta
+  (`ta_source_scaled`), a factor then sets the rate of random arrivals.

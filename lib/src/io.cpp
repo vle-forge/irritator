@@ -433,6 +433,12 @@ static void write_test_simulation_model(std::FILE*           os,
               os,
               R"(    sim.parameters[sim.get_id(mdl_{})].set_generator_ta(get_source({}));)",
               idx, o_param.integers(param, generator_tag::source_ta));
+
+            if (flags[generator::option::ta_source_scaled])
+                fmt::print(
+                  os,
+                  R"(    sim.parameters[sim.get_id(mdl_{})].set_generator_ta_scale({});)",
+                  idx, o_param.reals(param, generator_tag::sigma));
         }
 
         if (flags[generator::option::value_use_source]) {

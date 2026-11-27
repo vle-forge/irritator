@@ -242,11 +242,12 @@ static void model_init(const parameter& param, generator& dyn) noexcept
     dyn.flags = bitflags<generator::option>(
       param.integers[generator_tag::i_options]);
 
-    if (dyn.flags[generator::option::ta_use_source]) {
+    if (dyn.flags[generator::option::ta_use_source])
         dyn.source_ta.reset(param.integers[generator_tag::source_ta]);
-    } else {
+
+    if (not dyn.flags[generator::option::ta_use_source] or
+        dyn.flags[generator::option::ta_source_scaled])
         dyn.ta = param.reals[generator_tag::sigma];
-    }
 
     if (dyn.flags[generator::option::value_use_source]) {
         dyn.source_value.reset(param.integers[generator_tag::source_value]);
@@ -261,7 +262,9 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
 
     if (dyn.flags[generator::option::ta_use_source])
         param.integers[generator_tag::source_ta] = from_source(dyn.source_ta);
-    else
+
+    if (not dyn.flags[generator::option::ta_use_source] or
+        dyn.flags[generator::option::ta_source_scaled])
         param.reals[generator_tag::sigma] = dyn.ta;
 
     if (dyn.flags[generator::option::value_use_source])
@@ -1207,10 +1210,22 @@ parameter& parameter::set_logical_memory(
     return *this;
 }
 
+parameter& parameter::set_generator_ta_scale(real ta) noexcept
+{
+    bitflags<generator::option> flags(integers[generator_tag::i_options]);
+    flags.set(generator::option::ta_source_scaled, true);
+
+    integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
+    reals[generator_tag::sigma]        = ta;
+
+    return *this;
+}
+
 parameter& parameter::set_generator_ta(real ta) noexcept
 {
     bitflags<generator::option> flags(integers[generator_tag::i_options]);
     flags.set(generator::option::ta_use_source, false);
+    flags.set(generator::option::ta_source_scaled, false);
 
     integers[generator_tag::i_options] = static_cast<i64>(flags.to_unsigned());
     integers[generator_tag::source_ta] = 0;

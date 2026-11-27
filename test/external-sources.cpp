@@ -1005,6 +1005,55 @@ int main()
         }
     };
 
+    "simulation: a generator scales the values of its source by ta"_test = [] {
+        simulation sim(simulation_reserve_definition(),
+                       external_source_reserve_definition{ .random_nb = 1 });
+
+        const real reals[2] = { 1, 0 };
+        const i32  ints[2]  = { 0, 0 };
+        auto&      rnd      = sim.srcs.random_sources.alloc(
+          distribution_type::exponential, reals, ints);
+
+        auto& gen = sim.alloc<generator>();
+        auto& cnt = sim.alloc<counter>();
+
+        // Exp(1) * 2.5: a mean time advance of 2.5.
+        get_p(sim, gen)
+          .clear()
+          .set_generator_ta(source_type::random,
+                            sim.srcs.random_sources.get_id(rnd))
+          .set_generator_ta_scale(2.5);
+        (void)sim.connect_dynamics(gen, 0, cnt, 0);
+
+        constexpr real horizon = 1e5;
+        sim.limits.set_bound(0, horizon);
+        expect(sim.srcs.prepare().has_value() >> boost::ut::fatal);
+        expect(sim.initialize().has_value() >> boost::ut::fatal);
+        expect(eq(gen.ta, 2.5));
+
+        do {
+            expect(sim.run().has_value() >> boost::ut::fatal);
+        } while (not sim.current_time_expired());
+
+        const auto mean = horizon / static_cast<real>(cnt.event_number);
+        fmt::print("generator Exp(1) * 2.5: mean time advance {:.4f} "
+                   "(theory 2.5) over {} events\n",
+                   mean, cnt.event_number);
+        expect(std::abs(mean - 2.5) <= 0.02 * 2.5);
+
+        // A negative scale gives a negative time advance.
+        auto& bad = sim.alloc<generator>();
+        get_p(sim, bad)
+          .clear()
+          .set_generator_ta(source_type::random,
+                            sim.srcs.random_sources.get_id(rnd))
+          .set_generator_ta_scale(-1.0);
+        get_p(sim, bad).copy_to(get_model(bad));
+        const auto ret = bad.initialize(sim);
+        expect(not ret.has_value() and
+               ret.error() == error_code(simulation_errc::ta_abnormal));
+    };
+
     "simulation: single_server_queue is a M/M/1 queue"_test = [] {
         struct measures {
             real throughput; // departures / T
