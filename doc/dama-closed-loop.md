@@ -22,6 +22,8 @@ burst` always runs one replication to check the wiring.
    gen_a, gen_b --> omega_b.x0
    omega_b.y0 (belief) --> c.x0      omega_b.y1 (p_w) --> c.x1
    c.y0 (period) --> psi_delta.x[2 + lambda]
+   gen_a, gen_b --> count.x0      queue.y0 --> count.x1
+   count.y0 (n_B) --> psi_delta.x[2 + n-b]
    clock (period T_d = 4, value d_r = 0.1) --> psi_delta.x0 (init), x1 (run)
    psi_delta.y[mu] --> queue.rate, decisions counter
 ```
@@ -46,6 +48,12 @@ burst` always runs one replication to check the wiring.
   h = 50, lambda injected as a period (prior 2.5). Restart and project: the
   clock sends init and run in the same bag, the `complete` run type sends
   the results after the value of the run message, d_r = 0.1.
+- **n_B** (HSM, register i1): counts the arrivals (x0) and the departures
+  (x1) of the environment and sends the number of clients believed present
+  after each change. In the projected model, the constant `n-b` (a factor,
+  its value is n_B) sends n_B at t = 0 to the `batch` port of the queue: the
+  projections start with n_B clients, their services drawn as the others.
+  Configuration `dama_empty` keeps the old projections from an empty queue.
 - **Omega_B** (HSM, registers r1 belief, i1 count): arms a timer of
   W = 25 (about 10 arrivals at lambda = 0.4), counts the arrivals in the
   `else` branch of the waiting state (the timer keeps running), then at the
@@ -70,9 +78,9 @@ burst` always runs one replication to check the wiring.
   a separate HSM would reach C one bag after the belief.
 - **Omega_pi is not implemented**: T_d = 4 stays fixed. The observed L of an
   episode is a time integral, out of reach of a HSM without clock.
-- **The projections start from an empty queue**: a factor writes the first
-  real of a model of a few dynamics only, none emits n_B clients. The
-  backlog is ignored by the projections.
+- **The client in service of the environment** is projected as a new
+  client: its remaining service is drawn again (exact for an exponential
+  service).
 - **Common random numbers through time**: the replication r of every
   decision uses the same seed; the decisions of a run are correlated.
 
@@ -81,7 +89,9 @@ burst` always runs one replication to check the wiring.
 | configuration | construction |
 |---|---|
 | `mu1`, `mu2` | no agent, constant rate |
-| `hysteresis` | a HSM counts n (arrivals on x0, departures on x1) and the mode: mu2 if n > 5, back to mu1 if n < 2 |
+| `hysteresis_up_down` | a HSM counts n (arrivals on x0, departures on x1) and the mode: mu2 if n > up, back to mu1 if n < down; (3, 1), (5, 2) and (8, 3) |
+| `dama_empty` | projections from an empty queue |
+| `dama_W10`, `dama_W50` | window W of Omega_B of 10 and 50 |
 | `no_omega_b` | epsilon_0 = 1e9: the belief stays at 2.5 |
 | `no_omega_theta` | eta_w = 0: the slow estimate stays at 2.5 |
 | `no_bounds` | the bounds of C are [0, 1e30] |
@@ -92,4 +102,5 @@ For each replication of 2000: L in total and by phase, the fraction of time
 in mu2, the cost 3 x fraction, U = 0.6 L + 0.4 cost, the switches of mode,
 the delay from t = 500 to the first time in mu2 and from t = 1000 to the
 first time in mu1 (0 if already there), the decisions and the computation
-time. The seeds 1 to 30 are the same for all the configurations.
+time. The seeds 1 to 30 are the same for all the configurations. The
+campaign ends with the paired differences of U with the best hysteresis.

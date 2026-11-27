@@ -19,3 +19,5 @@
 * test: the DEVS-DAMA closed loop, an agent of HSM and wrappers driving a
   M/M/1 queue (doc/dama-closed-loop.md, IRRITATOR_DAMA_CLOSED_LOOP_CSV).
 * core: the `batch` port of `single_server_queue` adds k clients at once.
+* test: the projections of the closed loop start from the clients believed
+  present (n_B), with the sensitivity to W and three hysteresis baselines.
