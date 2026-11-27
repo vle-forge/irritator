@@ -18,3 +18,4 @@
   services not started.
 * test: the DEVS-DAMA closed loop, an agent of HSM and wrappers driving a
   M/M/1 queue (doc/dama-closed-loop.md, IRRITATOR_DAMA_CLOSED_LOOP_CSV).
+* core: the `batch` port of `single_server_queue` adds k clients at once.

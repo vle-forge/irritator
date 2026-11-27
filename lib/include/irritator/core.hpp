@@ -9217,11 +9217,17 @@ struct priority_queue {
  * the service with the new rate. With several messages in a bag, the
  * greatest rate wins: the order of a bag is not defined.
  *
+ * A message of value k on @c x[2] adds k clients, with the value 0, each
+ * one with its own service: a projection starts from the number of clients
+ * believed present. They arrive before the clients of @c x[0] of the same
+ * bag. A value not finite or negative fails with @c
+ * simulation_errc::queue_batch_error.
+ *
  * The observation is the number of clients in the system. */
 struct single_server_queue {
-    enum : u8 { x_in, x_rate };
+    enum : u8 { x_in, x_rate, x_batch };
 
-    input_port       x[2] = {};
+    input_port       x[3] = {};
     output_port_id   y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
@@ -11833,14 +11839,15 @@ inline status single_server_queue::transition(simulation& sim,
         rate = new_rate;
     }
 
-    for (const auto& msg : get_message(sim, x[x_in])) {
+    const auto arrive = [&](const real v0, const real v1,
+                            const real v2) -> status {
         auto fifo_ar = get_queue_fifo(sim, fifo, overflow, capacity);
         if (not fifo_ar)
             return fifo_ar.error();
 
         auto* ar = *fifo_ar;
         if (not ar)
-            continue;
+            return success();
 
         auto ta = queue_next_ta(sim, source_ta, src_data);
         if (not ta)
@@ -11850,8 +11857,20 @@ inline status single_server_queue::transition(simulation& sim,
         // and an empty fifo means a free server.
         const auto start = ar->empty() ? t : std::max(t, ar->back()[0]);
 
-        ar->push_tail({ start + *ta / rate, msg[0], msg[1], msg[2] });
+        ar->push_tail({ start + *ta / rate, v0, v1, v2 });
+        return success();
+    };
+
+    for (const auto& msg : get_message(sim, x[x_batch])) {
+        if (not std::isfinite(msg[0]) or msg[0] < zero)
+            return make_error(simulation_errc::queue_batch_error);
+
+        for (auto n = std::llround(msg[0]); n > 0; --n)
+            irt_check(arrive(zero, zero, zero));
     }
+
+    for (const auto& msg : get_message(sim, x[x_in]))
+        irt_check(arrive(msg[0], msg[1], msg[2]));
 
     const auto* ar = sim.dated_messages.try_to_get(fifo);
     size           = ar ? ar->ssize() : 0;

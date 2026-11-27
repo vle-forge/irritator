@@ -1208,6 +1208,90 @@ int main()
         }
     };
 
+    "simulation: the batch port of single_server_queue"_test = [] {
+        struct result {
+            std::vector<real> dates;
+            std::vector<real> values;
+            int               size_at_start = 0;
+            error_code        error;
+        };
+
+        // A batch of k clients at t = 0 on x[2] and a client of value 10 on
+        // x[0] at the same date. The service is constant: 1.
+        const auto run = [](const real k) {
+            simulation sim(
+              simulation_reserve_definition(),
+              external_source_reserve_definition{ .constant_nb = 1 });
+
+            const real one_service[] = { 1.0 };
+            auto&      services = sim.srcs.constant_sources.alloc(one_service);
+
+            auto& queue = sim.alloc<single_server_queue>();
+            auto& cnt   = sim.alloc<counter>();
+            auto& batch = sim.alloc<irt::constant>();
+            auto& alone = sim.alloc<irt::constant>();
+
+            get_p(sim, queue)
+              .set_single_server_queue_ta(
+                source_type::constant,
+                sim.srcs.constant_sources.get_id(services));
+            get_p(sim, batch).set_constant(k, 0.0);
+            get_p(sim, alone).set_constant(10.0, 0.0);
+
+            (void)sim.connect_dynamics(queue, 0, cnt, 0);
+            (void)sim.connect_dynamics(batch, 0, queue,
+                                       single_server_queue::x_batch);
+            (void)sim.connect_dynamics(alone, 0, queue,
+                                       single_server_queue::x_in);
+
+            result r;
+            sim.limits.set_bound(0, 10);
+            if (auto ret = sim.srcs.prepare(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+            if (auto ret = sim.initialize(); not ret) {
+                r.error = ret.error();
+                return r;
+            }
+
+            bool first = true;
+            do {
+                const auto n = cnt.event_number;
+                if (auto ret = sim.run(); not ret) {
+                    r.error = ret.error();
+                    return r;
+                }
+
+                if (first and queue.size > 0) {
+                    r.size_at_start = queue.size;
+                    first           = false;
+                }
+
+                if (cnt.event_number != n) {
+                    r.dates.push_back(sim.current_time());
+                    r.values.push_back(cnt.last_value);
+                }
+            } while (not sim.current_time_expired());
+
+            return r;
+        };
+
+        // The batch arrives before the client of the same bag.
+        const auto three = run(3.0);
+        expect(three.error == error_code{});
+        expect(eq(three.size_at_start, 4));
+        expect(three.dates == std::vector<real>{ 1, 2, 3, 4 });
+        expect(three.values == std::vector<real>{ 0, 0, 0, 10 });
+
+        // A batch of zero clients adds nothing.
+        const auto zero_batch = run(0.0);
+        expect(zero_batch.dates == std::vector<real>{ 1 });
+
+        expect(run(-1.0).error ==
+               error_code(simulation_errc::queue_batch_error));
+    };
+
     "simulation: single_server_queue is a M/M/1 queue"_test = [] {
         struct measures {
             real throughput; // departures / T

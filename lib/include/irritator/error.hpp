@@ -116,6 +116,8 @@ enum class simulation_errc : std::int16_t {
     queue_full, /**< A queue with the @c fifo_overflow::error policy is full. */
     queue_overflow_error, /**< The overflow policy of the fifo is not
                              supported by this queue. */
+    queue_batch_error,    /**< A batch of clients is not finite or is
+                             negative. */
 
     time_func_offset_error,
     time_func_timestep_error,
