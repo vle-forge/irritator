@@ -6,3 +6,5 @@
   M/M/1/K) that follows the Lindley recurrence.
 * core: a generator can multiply the values of its time source by its ta
   (`ta_source_scaled`), a factor then sets the rate of random arrivals.
+* simulation_wrapper: the factors of the same link group take their values
+  together, the groups stay combined in a cartesian product.

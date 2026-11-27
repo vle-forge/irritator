@@ -372,6 +372,40 @@ static void simulation_component_tester(
         expect(same_buffers(first, json_save_component(mod, *read)));
     }
 
+    // The link of the factors survives a round trip.
+    {
+        mod.ids.write([&](auto& ids) {
+            auto& sim = ids.sim_components.get(
+              ids.components[sim_compo].id.sim_id);
+            for (const auto fid : sim.factors)
+                sim.factors.template get<irt::factor_link>(fid).group = 3u;
+        });
+
+        const auto first = json_save_component(mod, sim_compo);
+        const auto read  = json_load_component(
+          mod, std::string_view(first.data(), first.size()));
+        expect(fatal(read.has_value()));
+
+        mod.ids.read([&](const auto& ids, auto) {
+            const auto& sim = ids.sim_components.get(
+              ids.components[*read].id.sim_id);
+            expect(fatal(eq(sim.factors.size(), 2u)));
+            for (const auto fid : sim.factors)
+                expect(eq(sim.factors.template get<irt::factor_link>(fid).group,
+                          3u));
+        });
+
+        expect(same_buffers(first, json_save_component(mod, *read)));
+
+        // The next runs need the cartesian product.
+        mod.ids.write([&](auto& ids) {
+            auto& sim = ids.sim_components.get(
+              ids.components[sim_compo].id.sim_id);
+            for (const auto fid : sim.factors)
+                sim.factors.template get<irt::factor_link>(fid).group = 0u;
+        });
+    }
+
     irt::file_path_id simulation_wrapper_file_id = mod.files.write(
       [&](auto& fs) {
           return fs.alloc_file(dir_id, "sim-wrapper.irt",

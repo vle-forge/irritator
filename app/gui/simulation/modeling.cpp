@@ -209,13 +209,14 @@ bool simulation_component_editor_data::display_parameter_table(
 {
     auto u = 0;
 
-    if (ImGui::BeginTable("Parameters", 4, ImGuiTableFlags_RowBg)) {
+    if (ImGui::BeginTable("Parameters", 5, ImGuiTableFlags_RowBg)) {
         auto& models         = m_sim.factors.get<model_id>();
         auto& names          = m_sim.factors.get<name_str>();
         auto& types          = m_sim.factors.get<factor_type>();
         auto& single_factors = m_sim.factors.get<single_factor>();
         auto& fixed_factors  = m_sim.factors.get<fixed_factor>();
         auto& random_factors = m_sim.factors.get<random_factor>();
+        auto& links          = m_sim.factors.get<factor_link>();
 
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch,
                                 .2f);
@@ -223,8 +224,10 @@ bool simulation_component_editor_data::display_parameter_table(
                                 .2f);
         ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch,
                                 .2f);
+        ImGui::TableSetupColumn("link", ImGuiTableColumnFlags_WidthStretch,
+                                .1f);
         ImGui::TableSetupColumn("definition",
-                                ImGuiTableColumnFlags_WidthStretch, .4f);
+                                ImGuiTableColumnFlags_WidthStretch, .3f);
 
         ImGui::TableHeadersRow();
 
@@ -274,6 +277,17 @@ bool simulation_component_editor_data::display_parameter_table(
 
                 ImGui::EndCombo();
             }
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.f);
+            if (auto group = static_cast<int>(links[idx].group);
+                ImGui::InputInt("##link", &group) and group >= 0) {
+                links[idx].group = static_cast<u32>(group);
+                ++u;
+            }
+            ImGui::SetItemTooltip("The factors of the same group (not 0) "
+                                  "take their values together.");
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();

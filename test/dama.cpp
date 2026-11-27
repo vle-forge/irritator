@@ -10,6 +10,10 @@
 
 #include <boost/ut.hpp>
 
+#include <limits>
+#include <span>
+#include <vector>
+
 using namespace std::literals;
 using namespace boost::ut;
 
@@ -18,6 +22,337 @@ inline auto get_p(irt::simulation& sim, const Dynamics& d) noexcept
   -> irt::parameter&
 {
     return sim.parameters[sim.get_id(d)];
+}
+
+/// The DEVS-DAMA supervisor of a M/M/1 queue: a generator of exponential
+/// arrivals (the factor lambda is their mean period), a single server queue
+/// (the factor mu is its rate) and the constant cost of the mode (the factor
+/// cost). A simulation wrapper selects the scenario with the weighted sum of
+/// the criteria of the queue (the number of clients) and of the cost.
+struct supervisor_config {
+    std::span<const irt::real> mu;
+    std::span<const irt::real> cost;
+    irt::u32                   mu_link   = 1u;
+    irt::u32                   cost_link = 1u;
+    irt::real                  lambda    = 0.4; //!< Injected as 1 / lambda.
+    irt::real                  horizon   = 100;
+    irt::criteria_type         criteria  = irt::criteria_type::max_last;
+    irt::norm_type             norm      = irt::norm_type::min_max;
+    irt::real                  w_queue   = 0.6;
+    irt::real                  w_cost    = 0.4;
+};
+
+struct supervisor_scenario {
+    irt::real mu;
+    irt::real cost;
+    irt::real queue_criteria;
+    irt::real cost_criteria;
+};
+
+struct supervisor_result {
+    irt::error_code                  error;
+    irt::real                        selected_mu = 0;
+    irt::i64                         messages    = 0;
+    std::vector<supervisor_scenario> scenarios;
+};
+
+static supervisor_result run_supervisor(const supervisor_config& cfg) noexcept
+{
+    supervisor_result result;
+
+    const auto temp_path = irt::temp_path_with_unlink{ "supervisor"sv };
+    expect(fatal(temp_path.success()));
+
+    irt::modeling     mod;
+    irt::dir_path_id  dir_id{ 0 };
+    irt::file_path_id gen_file{ 0 };
+    irt::file_path_id project_file{ 0 };
+    irt::file_path_id sim_file{ 0 };
+    irt::file_path_id wrapper_file{ 0 };
+
+    mod.files.write([&](auto& fs) {
+        const auto reg_id                   = fs.alloc_registred("temp", 0);
+        fs.registred_paths.get(reg_id).path = temp_path.c_str();
+
+        dir_id                          = fs.alloc_dir(reg_id);
+        fs.dir_paths.get(dir_id).parent = reg_id;
+        fs.dir_paths.get(dir_id).path   = "test-supervisor";
+
+        fs.create_directories(reg_id);
+        fs.create_directories(dir_id);
+
+        gen_file     = fs.alloc_file(dir_id, "gen-compo.irt",
+                                     irt::file_type::component_file);
+        project_file = fs.alloc_file(dir_id, "project.pirt",
+                                     irt::file_type::project_file);
+    });
+
+    // ---- LEVEL 1: arrivals Exp(1) * period -> queue Exp(1) / mu, and the
+    // cost of the mode.
+    const auto gen_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        compo.srcs.data.reserve(2);
+        for (const auto* name : { "arrivals", "services" }) {
+            auto& rnd    = compo.srcs.alloc_random_source(name);
+            rnd.type     = irt::distribution_type::exponential;
+            rnd.reals[0] = 1.0;
+        }
+
+        auto       src_it      = compo.srcs.data.begin();
+        const auto arrival_src = *src_it;
+        const auto service_src = *++src_it;
+
+        auto& arrivals = gen.alloc(irt::dynamics_type::generator);
+        auto& queue    = gen.alloc(irt::dynamics_type::single_server_queue);
+        auto& cost     = gen.alloc(irt::dynamics_type::constant);
+
+        arrivals.flags = irt::child_flags::configurable;
+        queue.flags.set(irt::child_flags::configurable);
+        queue.flags.set(irt::child_flags::observable);
+        cost.flags.set(irt::child_flags::configurable);
+        cost.flags.set(irt::child_flags::observable);
+
+        const auto arrivals_id = gen.children.get_id(arrivals);
+        const auto queue_id    = gen.children.get_id(queue);
+        const auto cost_id     = gen.children.get_id(cost);
+
+        gen.children_names[arrivals_id] = "lambda";
+        gen.children_names[queue_id]    = "mu";
+        gen.children_names[cost_id]     = "cost";
+
+        gen.children_parameters[arrivals_id]
+          .set_generator_ta(arrival_src)
+          .set_generator_ta_scale(1.0);
+        gen.children_parameters[queue_id]
+          .set_single_server_queue_ta(service_src)
+          .set_single_server_queue_rate(1.0);
+        gen.children_parameters[cost_id].set_constant(0.0, 0.0);
+
+        (void)gen.connect(arrivals, { .model = 0 }, queue, { .model = 0 });
+
+        ids.component_file_paths[compo_id].file = gen_file;
+        mod.files.read([&](const auto& fs, auto) {
+            expect(mod.save(ids, fs, compo_id).has_value());
+        });
+        return compo_id;
+    });
+
+    mod.ids.write([&](auto& ids) {
+        mod.files.write([&](auto& fs) {
+            irt::project pj;
+            pj.project_file = project_file;
+            pj.sim.limits.set_bound(0, cfg.horizon);
+            expect(pj.set(ids, fs, gen_compo).has_value());
+            expect(pj.save(fs, ids).has_value());
+        });
+    });
+
+    expect(fatal(mod.fill_components().has_value()));
+
+    // ---- LEVEL 2: the factors, their links and the objective. A file is
+    // allocated when written: fill_components() loads all the files.
+    sim_file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, "sim-compo.irt",
+                             irt::file_type::component_file);
+    });
+
+    int lambda_pos = -1;
+    int mu_pos     = -1;
+
+    const auto sim_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_sim_component();
+        auto& compo    = ids.components[compo_id];
+        auto& sim      = ids.sim_components.get(compo.id.sim_id);
+
+        mod.files.read([&](const auto& fs, auto) {
+            auto exp_pj = irt::project::load(fs, ids, project_file);
+            expect(fatal(exp_pj.has_value()));
+            expect(fatal(sim.assign(std::move(*exp_pj)).has_value()));
+        });
+
+        expect(fatal(eq(sim.factors.size(), 3u)));
+
+        const auto set_fixed = [&](const irt::factor_id       fid,
+                                   std::span<const irt::real> values,
+                                   const irt::u32             link) {
+            sim.factors.template get<irt::factor_type>(
+              fid) = irt::factor_type::fixed;
+            sim.factors.template get<irt::fixed_factor>(fid).values.assign(
+              values.begin(), values.end());
+            sim.factors.template get<irt::factor_link>(fid).group = link;
+        };
+
+        int pos = 0;
+        for (const auto fid : sim.factors) {
+            const auto name = sim.factors.template get<irt::name_str>(fid).sv();
+
+            if (name == "mu") {
+                mu_pos = pos;
+                set_fixed(fid, cfg.mu, cfg.mu_link);
+            } else if (name == "cost") {
+                set_fixed(fid, cfg.cost, cfg.cost_link);
+            } else if (name == "lambda") {
+                lambda_pos = pos;
+                sim.factors.template get<irt::factor_type>(
+                  fid) = irt::factor_type::single;
+                sim.factors.template get<irt::single_factor>(fid).value = 1.0;
+            }
+            ++pos;
+        }
+
+        expect(fatal(mu_pos >= 0 and lambda_pos >= 0));
+        expect(fatal(eq(sim.selections.size(), 2u)));
+
+        auto& obj                    = sim.objective;
+        obj.method                   = irt::optimization_method::weighted_sum;
+        obj.type                     = irt::optimization_type::minimize;
+        obj.weighted_sum_params.norm = cfg.norm;
+        obj.weighted_sum_params.weights.resize(2);
+        obj.weighted_sum_params.types.resize(2);
+
+        for (const auto sid : sim.selections) {
+            const auto idx  = get_index(sid);
+            const auto name = sim.selections.template get<irt::name_str>(sid);
+
+            sim.selections.template get<irt::criteria_type>(sid) = cfg.criteria;
+            obj.weighted_sum_params
+              .types[idx] = irt::optimization_type::minimize;
+            obj.weighted_sum_params.weights[idx] = name.sv() == "mu"
+                                                     ? cfg.w_queue
+                                                     : cfg.w_cost;
+        }
+
+        sim.file_id                             = project_file;
+        ids.component_file_paths[compo_id].file = sim_file;
+
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(mod.save(ids, fs, compo_id).has_value()));
+        });
+
+        return compo_id;
+    });
+
+    expect(fatal(mod.fill_components().has_value()));
+
+    // ---- LEVEL 3: the wrapper, lambda injected as the mean period.
+    wrapper_file = mod.files.write([&](auto& fs) {
+        return fs.alloc_file(dir_id, "sim-wrapper.irt",
+                             irt::file_type::component_file);
+    });
+
+    const auto wrapper_compo = mod.ids.write([&](auto& ids) {
+        auto  compo_id = ids.alloc_generic_component();
+        auto& compo    = ids.components[compo_id];
+        auto& gen      = ids.generic_components.get(compo.id.generic_id);
+
+        auto& cst_init    = gen.alloc(irt::dynamics_type::constant);
+        auto& cst_run     = gen.alloc(irt::dynamics_type::constant);
+        auto& cst_lambda  = gen.alloc(irt::dynamics_type::constant);
+        auto& sim_w       = gen.alloc(irt::dynamics_type::simulation_wrapper);
+        auto& selected_mu = gen.alloc(irt::dynamics_type::counter);
+
+        const auto sim_w_id = gen.children.get_id(sim_w);
+
+        gen.children_parameters[gen.children.get_id(cst_init)].set_constant(
+          0.0, 0.0);
+        gen.children_parameters[gen.children.get_id(cst_run)].set_constant(0.0,
+                                                                           1.0);
+        gen.children_parameters[gen.children.get_id(cst_lambda)].set_constant(
+          1.0 / cfg.lambda, 0.5);
+
+        gen.children_parameters[sim_w_id]
+          .integers[irt::simulation_wrapper_tag::run] = ordinal(
+          irt::simulation_wrapper::run_type::complete);
+        gen.children_parameters[sim_w_id]
+          .integers[irt::simulation_wrapper_tag::id] = ordinal(sim_compo);
+
+        expect(gen.connect(cst_init, { .model = 0 }, sim_w, { .model = 0 })
+                 .has_value());
+        expect(gen.connect(cst_run, { .model = 0 }, sim_w, { .model = 1 })
+                 .has_value());
+        expect(gen
+                 .connect(cst_lambda, { .model = 0 }, sim_w,
+                          { .model = 2 + lambda_pos })
+                 .has_value());
+        expect(
+          gen.connect(sim_w, { .model = mu_pos }, selected_mu, { .model = 0 })
+            .has_value());
+
+        ids.component_file_paths[compo_id].file = wrapper_file;
+        mod.files.read([&](const auto& fs, auto) {
+            expect(mod.save(ids, fs, compo_id).has_value());
+        });
+        return compo_id;
+    });
+
+    irt::project pj;
+    mod.ids.read([&](const auto& ids, auto) {
+        mod.files.read([&](const auto& fs, auto) {
+            expect(fatal(pj.set(ids, fs, wrapper_compo).has_value()));
+        });
+    });
+
+    pj.sim.limits.set_bound(0, 2);
+    if (auto ret = pj.simulation_init(mod); not ret) {
+        result.error = ret.error();
+        return result;
+    }
+
+    do {
+        if (auto ret = pj.sim.run(); not ret) {
+            result.error = ret.error();
+            return result;
+        }
+    } while (not pj.sim.current_time_expired());
+
+    expect(pj.sim.finalize().has_value());
+
+    for (const auto& mdl : pj.sim.models) {
+        if (mdl.type == irt::dynamics_type::counter) {
+            const auto& cpt    = irt::get_dyn<irt::counter>(mdl);
+            result.selected_mu = cpt.last_value;
+            result.messages    = cpt.event_number;
+        }
+    }
+
+    // The scenarios from the parameters and the observations of the
+    // sub-simulations.
+    for (const auto& embed : pj.sim.sims) {
+        irt::model_id mu_mdl   = irt::undefined<irt::model_id>();
+        irt::model_id cost_mdl = irt::undefined<irt::model_id>();
+
+        for (const auto fid : embed.factors) {
+            const auto name = embed.factors.get<irt::name_str>(fid).sv();
+            if (name == "mu")
+                mu_mdl = embed.factors.get<irt::model_id>(fid);
+            if (name == "cost")
+                cost_mdl = embed.factors.get<irt::model_id>(fid);
+        }
+
+        const auto& sims = embed.embedded_sims.get<irt::simulation>();
+        const auto& obs  = embed.embedded_sims.get<
+           irt::embedded_simulation::simulation_observation>();
+
+        const auto criteria = [&](const auto& o, const irt::model_id id) {
+            const auto* ptr = o.get(id);
+            return ptr ? ptr->compute_result(cfg.criteria)
+                       : std::numeric_limits<irt::real>::quiet_NaN();
+        };
+
+        for (const auto sub : embed.embedded_sims) {
+            const auto idx = get_index(sub);
+            result.scenarios.push_back(supervisor_scenario{
+              .mu   = sims[idx].parameters[get_index(mu_mdl)].reals[0],
+              .cost = sims[idx].parameters[get_index(cost_mdl)].reals[0],
+              .queue_criteria = criteria(obs[idx], mu_mdl),
+              .cost_criteria  = criteria(obs[idx], cost_mdl) });
+        }
+    }
+
+    return result;
 }
 
 int main()
@@ -1025,5 +1360,42 @@ int main()
         expect(eq(cnt.event_number, static_cast<irt::i64>(2)));
         expect(approx(static_cast<double>(cnt.last_value), 1.0, 1e-5));
         expect(approx(static_cast<double>(hsmw.exec.r1), 1.0, 1e-5));
+    };
+    "simulation_wrapper: the linked factors are read together"_test = [] {
+        const irt::real mu[]   = { 0.6, 1.2 };
+        const irt::real cost[] = { 0.0, 3.0 };
+
+        // Linked: 2 scenarios (0.6, 0) and (1.2, 3).
+        const auto linked = run_supervisor(
+          { .mu = mu, .cost = cost, .mu_link = 1u, .cost_link = 1u });
+        expect(linked.error == irt::error_code{});
+        expect(fatal(eq(linked.scenarios.size(), 2u)));
+        for (const auto& s : linked.scenarios)
+            expect(s.mu == 0.6 ? s.cost == 0.0 : s.mu == 1.2 and s.cost == 3.0);
+
+        // Without link: the cartesian product, 4 scenarios.
+        const auto product = run_supervisor(
+          { .mu = mu, .cost = cost, .mu_link = 0u, .cost_link = 0u });
+        expect(product.error == irt::error_code{});
+        expect(eq(product.scenarios.size(), 4u));
+
+        // Two groups are also combined in a cartesian product.
+        const auto groups = run_supervisor(
+          { .mu = mu, .cost = cost, .mu_link = 1u, .cost_link = 2u });
+        expect(groups.error == irt::error_code{});
+        expect(eq(groups.scenarios.size(), 4u));
+
+        // The factors of a group need the same number of values. The error is
+        // expected: no breakpoint.
+        const auto callback           = irt::on_error_callback;
+        irt::on_error_callback        = nullptr;
+        const irt::real three_costs[] = { 0.0, 3.0, 5.0 };
+        const auto      mismatch      = run_supervisor(
+          { .mu = mu, .cost = three_costs, .mu_link = 1u, .cost_link = 1u });
+        irt::on_error_callback = callback;
+        expect(mismatch.error ==
+               irt::error_code(
+                 irt::simulation_errc::simulation_wrapper_factor_link_error));
+        expect(mismatch.scenarios.empty());
     };
 }

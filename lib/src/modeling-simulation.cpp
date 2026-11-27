@@ -57,6 +57,7 @@ status simulation_component::assign(project&& pj_to_move) noexcept
             factors.get<single_factor>(new_id).value = 0;
             factors.get<fixed_factor>(new_id).values.clear();
             factors.get<random_factor>(new_id) = random_factor{};
+            factors.get<factor_link>(new_id)   = factor_link{};
         }
     }
 
@@ -139,6 +140,8 @@ status simulation_component::copy_to(
         embed_sims.factors.get<model_id>(new_id)    = tn_mdl_opt->second;
         embed_sims.factors.get<name_str>(new_id)    = factors.get<name_str>(id);
         embed_sims.factors.get<factor_type>(new_id) = type;
+        embed_sims.factors.get<factor_link>(new_id) = factors.get<factor_link>(
+          id);
 
         switch (type) {
         case factor_type::single:

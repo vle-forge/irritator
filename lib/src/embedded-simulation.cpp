@@ -173,19 +173,86 @@ static status embedded_sims_alloc(embedded_simulation& embed_sims,
     return success();
 }
 
+/// The number of scenarios of a factor: the number of its values.
+static sz factor_value_count(const embedded_simulation& embed_sims,
+                             const factor_id            id) noexcept
+{
+    switch (embed_sims.factors.get<factor_type>(id)) {
+    case factor_type::single:
+    case factor_type::single_add:
+    case factor_type::single_mult:
+        return 1u;
+
+    case factor_type::fixed:
+    case factor_type::fixed_add:
+    case factor_type::fixed_mult:
+        return embed_sims.factors.get<fixed_factor>(id).values.size();
+
+    case factor_type::random:
+    case factor_type::random_add:
+    case factor_type::random_mult:
+        return embed_sims.factors.get<random_factor>(id).count;
+    }
+
+    unreachable();
+}
+
+/// A term of the cartesian product of the scenarios: a factor without group
+/// or all the factors of a group, which advance together.
+struct factor_unit {
+    u32 group    = 0u;
+    sz  count    = 0u;
+    sz  position = 0u;
+};
+
+/// Fills @a units in the order of the factors and @a unit_of, the unit of each
+/// factor in the order of the factors.
+static status build_factor_units(const embedded_simulation& embed_sims,
+                                 vector<factor_unit>&       units,
+                                 vector<u32>&               unit_of) noexcept
+{
+    units.clear();
+    unit_of.clear();
+
+    const auto n = embed_sims.factors.size();
+    if (not units.reserve(n) or not unit_of.reserve(n))
+        return make_error(
+          simulation_errc::simulation_wrapper_not_enough_memory);
+
+    for (const auto id : embed_sims.factors) {
+        const auto group = embed_sims.factors.get<factor_link>(id).group;
+        const auto count = factor_value_count(embed_sims, id);
+
+        auto found = units.size();
+        if (group != 0u)
+            for (sz u = 0; u < units.size(); ++u)
+                if (units[u].group == group)
+                    found = u;
+
+        if (found == units.size()) {
+            units.push_back(factor_unit{ .group = group, .count = count });
+        } else if (units[found].count != count) {
+            return make_error(
+              simulation_errc::simulation_wrapper_factor_link_error);
+        }
+
+        unit_of.push_back(static_cast<u32>(found));
+    }
+
+    return success();
+}
+
 static status embedded_sims_copy_parameters(
   embedded_simulation& embed_sims) noexcept
 {
     auto& sims = embed_sims.embedded_sims.get<simulation>();
 
-    struct parameters {
-        factor_id id       = undefined<factor_id>();
-        sz        position = 0u;
-        sz        count    = 0u;
-    };
+    vector<factor_unit> units;
+    vector<u32>         unit_of;
+    irt_check(build_factor_units(embed_sims, units, unit_of));
 
     embed_sims.input_parameters.resize(embed_sims.factors.size());
-    vector<parameters> params(embed_sims.input_parameters.size());
+    vector<factor_id> params(embed_sims.input_parameters.size());
 
     if (params.capacity() < embed_sims.factors.size() or
         embed_sims.input_parameters.size() < embed_sims.factors.size())
@@ -226,9 +293,12 @@ static status embedded_sims_copy_parameters(
             unreachable();
         }
 
-        params[i].count    = values.size();
-        params[i].position = 0;
-        params[i].id       = f_id;
+        // The random generation may fail to allocate its values.
+        if (values.size() != units[unit_of[i]].count)
+            return make_error(
+              simulation_errc::simulation_wrapper_not_enough_memory);
+
+        params[i] = f_id;
 
         embed_sims.input_parameters[i].mdl_id = models[f_idx];
         embed_sims.input_parameters[i].values = std::move(values);
@@ -241,7 +311,7 @@ static status embedded_sims_copy_parameters(
 
     dlog(0, "{:^12}", "subid");
     for (sz i = 0, e = params.size(); i < e; ++i) {
-        const auto factor_id = params[i].id;
+        const auto factor_id = params[i];
         const auto name      = embed_sims.factors.get<name_str>(factor_id).sv();
         dlog(0, "{:^12}", name);
     }
@@ -257,9 +327,9 @@ static status embedded_sims_copy_parameters(
             const auto mdl_id  = embed_sims.input_parameters[i].mdl_id;
             const auto mdl_idx = get_index(mdl_id);
 
-            const auto f_id  = params[i].id;
+            const auto f_id  = params[i];
             const auto type  = embed_sims.factors.get<factor_type>(f_id);
-            const auto pos   = params[i].position;
+            const auto pos   = units[unit_of[i]].position;
             const auto value = embed_sims.input_parameters[i].values[pos];
 
             debug::ensure(embed_sims.factors.exists(f_id));
@@ -301,8 +371,8 @@ static status embedded_sims_copy_parameters(
 
         dlog(0, "\n");
 
-        // Second we advance the cross product using a pointer into a vector
-        // of position. For example for 3 parameters with 3 values:
+        // Second we advance the cross product of the units (the linked
+        // factors share a position). For example for 3 units of 3 values:
         // step -> cross-product-vector
         // 0    -> [0 0 0]
         // 1    -> [1 0 0]
@@ -313,13 +383,13 @@ static status embedded_sims_copy_parameters(
         // 25    -> [1 2 2]
         // 26    -> [2 2 2]
 
-        for (sz ptr = 0u; ptr < params.size(); ++ptr) {
-            ++params[ptr].position;
+        for (auto& unit : units) {
+            ++unit.position;
 
-            if (params[ptr].position < params[ptr].count)
+            if (unit.position < unit.count)
                 break;
 
-            params[ptr].position = 0u;
+            unit.position = 0u;
         }
     }
 
@@ -372,30 +442,15 @@ simulation_wrapper::simulation_wrapper(const simulation_wrapper& other) noexcept
 {}
 
 static auto compute_simulation_number(
-  const embedded_simulation& embed_sims) noexcept -> sz
+  const embedded_simulation& embed_sims) noexcept -> expected<sz>
 {
+    vector<factor_unit> units;
+    vector<u32>         unit_of;
+    irt_check(build_factor_units(embed_sims, units, unit_of));
+
     auto nb = sz{ 1 };
-
-    for (const auto id : embed_sims.factors) {
-        switch (embed_sims.factors.get<factor_type>(id)) {
-        case factor_type::single:
-        case factor_type::single_add:
-        case factor_type::single_mult:
-            break;
-
-        case factor_type::fixed:
-        case factor_type::fixed_add:
-        case factor_type::fixed_mult:
-            nb *= embed_sims.factors.get<fixed_factor>(id).values.size();
-            break;
-
-        case factor_type::random:
-        case factor_type::random_add:
-        case factor_type::random_mult:
-            nb *= embed_sims.factors.get<random_factor>(id).count;
-            break;
-        }
-    }
+    for (const auto& unit : units)
+        nb *= unit.count;
 
     return nb;
 }
@@ -451,10 +506,13 @@ status simulation_wrapper::initialize(simulation& sim) noexcept
     // A factor without value (empty fixed values or random count) leaves no
     // scenario to simulate.
     const auto nb_sims = compute_simulation_number(*embed_sims);
-    if (nb_sims == 0)
+    if (not nb_sims)
+        return nb_sims.error();
+
+    if (*nb_sims == 0)
         return make_error(simulation_errc::simulation_wrapper_input_error);
 
-    irt_check(embedded_sims_alloc(*embed_sims, nb_sims)
+    irt_check(embedded_sims_alloc(*embed_sims, *nb_sims)
                 .and_then(embedded_sims_copy_parameters, *embed_sims)
                 .and_then(embedded_sims_init, *embed_sims));
 

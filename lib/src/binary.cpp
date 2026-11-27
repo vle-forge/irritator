@@ -1009,6 +1009,12 @@ void binary_serialize(Ar& ar, random_factor& f) noexcept
     io_enum(ar, f.dist, distribution_type::weibull);
 }
 
+template<typename Ar>
+void binary_serialize(Ar& ar, factor_link& f) noexcept
+{
+    ar(f.group);
+}
+
 /// The value received on the input port is optional: a boolean then the value.
 template<typename Ar>
 void binary_serialize(Ar& ar, embedded_simulation::input_parameter& p) noexcept

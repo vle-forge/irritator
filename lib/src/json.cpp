@@ -3725,6 +3725,13 @@ struct json_reader {
             }
         }
 
+        if (const auto i = val.FindMember("link"); i != val.MemberEnd()) {
+            if (not i->value.IsUint())
+                return error("bad factor link");
+
+            sim.factors.get<factor_link>(id).group = i->value.GetUint();
+        }
+
         switch (sim.factors.get<factor_type>(id)) {
         case factor_type::single:
         case factor_type::single_add:
@@ -7210,6 +7217,13 @@ struct json_writer {
 
             w.Key("access");
             write_project_unique_id_path(w, access);
+
+            // Written only when set: the files without link stay the same.
+            if (const auto group = sim.factors.get<factor_link>(id).group;
+                group != 0u) {
+                w.Key("link");
+                w.Uint(group);
+            }
 
             switch (type) {
             case factor_type::single:

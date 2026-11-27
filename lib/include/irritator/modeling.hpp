@@ -1749,7 +1749,8 @@ public:
                                    factor_type,
                                    single_factor,
                                    fixed_factor,
-                                   random_factor>;
+                                   random_factor,
+                                   factor_link>;
 
     using selection_t = id_data_array<void,
                                       selection_id,

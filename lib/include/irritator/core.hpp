@@ -2106,6 +2106,14 @@ struct fixed_factor {
     vector<real> values;
 };
 
+/// The factors of the same non null group are read together: the scenario i
+/// takes the i-th value of each of them, they need the same number of values.
+/// The groups and the factors without group are combined in a cartesian
+/// product.
+struct factor_link {
+    u32 group = 0u; //!< 0: no group.
+};
+
 enum class optimization_method : u8 {
     epsilon_constrained,
     simple,
@@ -2198,7 +2206,8 @@ using simulation_factor = id_data_array<void,
                                         factor_type,
                                         single_factor,
                                         fixed_factor,
-                                        random_factor>;
+                                        random_factor,
+                                        factor_link>;
 
 using simulation_selection = id_data_array<
   void,
